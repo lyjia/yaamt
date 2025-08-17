@@ -77,6 +77,8 @@ class MainWindow(QMainWindow):
         self.file_list.header().setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_list.header().customContextMenuRequested.connect(self.on_header_context_menu)
         splitter.addWidget(self.file_list)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
 
         # Connect the panes
         self.directory_tree.selectionModel().currentChanged.connect(self.on_directory_changed)
