@@ -1,5 +1,8 @@
 import time
+import traceback
 from PySide6.QtCore import QRunnable, QObject, Signal
+
+from const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_FILE_PATH
 from models.media_file import MediaFile
 
 
@@ -12,7 +15,7 @@ class WorkerSignals(QObject):
     result = Signal(object)
 
 
-class MetadataWorker(QRunnable):
+class MetadataLoader(QRunnable):
     """
     Worker thread for processing metadata.
     """
@@ -32,15 +35,17 @@ class MetadataWorker(QRunnable):
             try:
                 media_file = MediaFile(file_path)
                 metadata = {
-                    "file_path": file_path,
-                    "title": media_file.title,
-                    "artist": media_file.artist,
-                    "album": media_file.album,
-                    "genre": media_file.genre,
-                    "bpm": media_file.bpm,
-                    "key": media_file.key,
+                    KEY_FILE_PATH: file_path,
+                    KEY_TITLE: media_file.get_tag_simple(KEY_TITLE),
+                    KEY_ARTIST: media_file.get_tag_simple(KEY_ARTIST),
+                    KEY_ALBUM: media_file.get_tag_simple(KEY_ALBUM),
+                    KEY_GENRE: media_file.get_tag_simple(KEY_GENRE),
+                    KEY_BPM: media_file.get_tag_simple(KEY_BPM),
+                    KEY_MUSICAL_KEY: media_file.get_tag_simple(KEY_MUSICAL_KEY),
                 }
                 self.signals.result.emit(metadata)
             except Exception as e:
-                print(f"Error processing {file_path}: {e}")
+                traceback.print_exc()
+                print(f"{e.__class__.__name__} processing {file_path}: {e}")
+
         self.signals.finished.emit()
