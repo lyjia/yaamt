@@ -23,17 +23,12 @@ class MetadataTableModel(QAbstractTableModel):
             if header == "Name":
                 return os.path.basename(row_data.get("file_path", ""))
             elif header == "Size":
-                try:
-                    return f"{os.path.getsize(row_data.get('file_path', '')) / 1024:.2f} KB"
-                except FileNotFoundError:
-                    return "N/A"
+                size_in_bytes = row_data.get('size', 0)
+                return f"{size_in_bytes / 1024:.2f} KB" if size_in_bytes else "N/A"
             elif header == "Type":
                 return os.path.splitext(row_data.get("file_path", ""))
             elif header == "Date Modified":
-                try:
-                    return str(os.path.getmtime(row_data.get("file_path", "")))
-                except FileNotFoundError:
-                    return "N/A"
+                return str(row_data.get("date_modified", "N/A"))
             else:
                 return row_data.get(header.lower(), "")
         return None

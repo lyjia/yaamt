@@ -1,3 +1,4 @@
+import os
 import time
 import traceback
 from PySide6.QtCore import QRunnable, QObject, Signal
@@ -36,6 +37,8 @@ class MetadataLoader(QRunnable):
                 media_file = MediaFile(file_path)
                 metadata = {
                     KEY_FILE_PATH: file_path,
+                    "size": os.path.getsize(file_path),
+                    "date_modified": os.path.getmtime(file_path),
                     KEY_TITLE: media_file.get_tag_simple(KEY_TITLE),
                     KEY_ARTIST: media_file.get_tag_simple(KEY_ARTIST),
                     KEY_ALBUM: media_file.get_tag_simple(KEY_ALBUM),
