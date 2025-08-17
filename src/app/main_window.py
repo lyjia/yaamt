@@ -39,7 +39,6 @@ class MainWindow(QMainWindow):
         self.toolbar.addWidget(self.path_textbox)
         self.path_textbox.setText(QDir.currentPath())
 
-        self.path_textbox.returnPressed.connect(self.on_path_entered)
         self.path_textbox.editingFinished.connect(self.on_path_editing_finished)
 
         # Status Bar
@@ -135,24 +134,35 @@ class MainWindow(QMainWindow):
             index = self.dir_model.index(folder_path)
             self.directory_tree.setCurrentIndex(index)
 
-    def on_path_entered(self):
-        path = self.path_textbox.text()
-        if os.path.isdir(path):
-            index = self.dir_model.index(path)
-            self.directory_tree.setCurrentIndex(index)
-        else:
-            QMessageBox.warning(self, "Invalid Path", f"The path '{path}' is not a valid directory.")
-            self.path_textbox.selectAll()
-
     def on_path_editing_finished(self):
         path = self.path_textbox.text()
         current_index = self.directory_tree.currentIndex()
         current_path = self.dir_model.filePath(current_index)
 
-        if not os.path.isdir(path):
-            self.path_textbox.setText(current_path)
-        elif path != current_path:
-            self.on_path_entered()
+        if path == current_path:
+            return
+
+        self._validate_path(path, current_path)
+
+    def _validate_path(self, path, current_path):
+        if os.path.isdir(path):
+            index = self.dir_model.index(path)
+            self.directory_tree.setCurrentIndex(index)
+            return True
+        else:
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setText(f"The path '{path}' is not a valid directory.")
+            msg_box.setWindowTitle("Invalid Path")
+            msg_box.setStandardButtons(QMessageBox.Retry | QMessageBox.Cancel)
+            response = msg_box.exec()
+
+            if response == QMessageBox.Retry:
+                self.path_textbox.setFocus()
+                self.path_textbox.selectAll()
+            else:
+                self.path_textbox.setText(current_path)
+            return False
 
     def _create_menus(self):
         # File Menu
