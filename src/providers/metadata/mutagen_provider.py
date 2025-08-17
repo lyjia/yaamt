@@ -1,4 +1,6 @@
 import mutagen
+
+from const import KEY_BITRATE, KEY_CHANNELS, KEY_ENCODING, KEY_SAMPLE_RATE, KEY_LENGTH
 from .base import MetadataProviderBase
 
 
@@ -29,11 +31,38 @@ class MutagenProvider(MetadataProviderBase):
         if self._audio:
             self._audio[key] = value
 
+    def get_stream_info(self, key):
+        if not self._audio:
+            return None
+        if key == KEY_BITRATE:
+            return self._audio.info.bitrate
+        elif key == KEY_LENGTH:
+            return self._audio.info.length
+        elif key == KEY_SAMPLE_RATE:
+            return self._audio.info.sample_rate
+        elif key == KEY_CHANNELS:
+            return self._audio.info.channels
+        elif key == KEY_ENCODING:
+            return self._audio.info.encoding
+        return None
+
     def available_tags(self):
         return self._audio.tags.keys()
 
+    def available_stream_info_keys(self):
+        return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_ENCODING]
+
     def all_tags(self):
         return dict(self._audio.tags)
+
+    def all_stream_infos(self):
+        return {
+            KEY_BITRATE: self.get_stream_info(KEY_BITRATE),
+            KEY_LENGTH: self.get_stream_info(KEY_LENGTH),
+            KEY_SAMPLE_RATE: self.get_stream_info(KEY_SAMPLE_RATE),
+            KEY_CHANNELS: self.get_stream_info(KEY_CHANNELS),
+            KEY_ENCODING: self.get_stream_info(KEY_ENCODING)
+        }
 
     # @property
     # def title(self):

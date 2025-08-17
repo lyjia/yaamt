@@ -1,5 +1,7 @@
 import time
 from PySide6.QtCore import QRunnable, QObject, Signal
+
+from const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY
 from models.media_file import MediaFile
 
 
@@ -33,12 +35,12 @@ class MetadataLoader(QRunnable):
                 media_file = MediaFile(file_path)
                 metadata = {
                     "file_path": file_path,
-                    "title": media_file.title,
-                    "artist": media_file.artist,
-                    "album": media_file.album,
-                    "genre": media_file.genre,
-                    "bpm": media_file.bpm,
-                    "key": media_file.key,
+                    "title": media_file.get_tag_simple(KEY_TITLE),
+                    "artist": media_file.get_tag_simple(KEY_ARTIST),
+                    "album": media_file.get_tag_simple(KEY_ALBUM),
+                    "genre": media_file.get_tag_simple(KEY_GENRE),
+                    "bpm": media_file.get_tag_simple(KEY_BPM),
+                    "key": media_file.get_tag_simple(KEY_MUSICAL_KEY),
                 }
                 self.signals.result.emit(metadata)
             except Exception as e:
