@@ -58,3 +58,30 @@ class MediaFile:
 
     def save(self):
         self._provider.save()
+
+    def to_dict(self):
+        """
+        Returns a dictionary representation of the media file's metadata.
+        """
+        
+        fields = ["title", "artist", "album", "genre", "bpm", "key"]
+        parsed_data = {}
+
+        for field in fields:
+            value_list = getattr(self, field)
+            if value_list:
+                parsed_data[field] = {
+                    "value": value_list,
+                    "element_providers": [ self._provider.__class__.__name__ ],
+                    "all_elements": value_list,
+                    "all_elements_providers": [0]
+                }
+            else:
+                parsed_data[field] = {
+                    "value": None,
+                    "element_providers": [],
+                    "all_elements": [],
+                    "all_elements_providers": []
+                }
+
+        return {"parsed": parsed_data}

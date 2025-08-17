@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-class MetadataProvider(ABC):
+class MetadataProviderBase(ABC):
     """
     An abstract base class that defines the interface for metadata providers.
     """

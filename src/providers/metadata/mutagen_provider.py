@@ -1,8 +1,8 @@
 import mutagen
-from .metadata_provider import MetadataProvider
+from .base import MetadataProviderBase
 
 
-class MutagenProvider(MetadataProvider):
+class MutagenProvider(MetadataProviderBase):
     """
     A concrete implementation of MetadataProvider that uses the mutagen library.
     """

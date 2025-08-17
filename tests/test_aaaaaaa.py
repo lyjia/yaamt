@@ -3,14 +3,14 @@ from unittest.mock import patch, MagicMock
 
 # Import directly from app package without 'src' prefix
 from models.media_file import MediaFile
-from providers.metadata.metadata_provider import MetadataProvider
+from providers.metadata.base import MetadataProviderBase
 
 
 def test_import_works():
     """Test that imports work correctly without the 'src' prefix."""
     # If this test runs without ImportError, the import system is working correctly
     assert MediaFile is not None
-    assert MetadataProvider is not None
+    assert MetadataProviderBase is not None
 
 
 @patch('models.media_file.MutagenProvider')

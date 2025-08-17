@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QAction
 from PySide6.QtCore import QDir, QThreadPool, Qt
 from models.qt.metadata_model import MetadataTableModel
-from workers.worker import MetadataWorker
+from workers.gui.metadata_loader import MetadataLoader
 from models.settings import settings
 
 class MainWindow(QMainWindow):
@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
         self.set_path(path)
         files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
         
-        worker = MetadataWorker(files)
+        worker = MetadataLoader(files)
         worker.signals.progress.connect(self.update_progress)
         worker.signals.finished.connect(self.on_worker_finished)
         worker.signals.result.connect(self.on_worker_result)

@@ -12,7 +12,7 @@ class WorkerSignals(QObject):
     result = Signal(object)
 
 
-class MetadataWorker(QRunnable):
+class MetadataLoader(QRunnable):
     """
     Worker thread for processing metadata.
     """
