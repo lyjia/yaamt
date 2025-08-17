@@ -108,7 +108,6 @@ def test_to_dict_ansi_mp3():
         }
     }
 
-
     assert media_file.to_dict() == expected_dict
 
 # TODO: fix reason for stream info not appearing on files with no meta
@@ -148,7 +147,6 @@ def test_to_dict_nometadata_flac():
         "tags": {}
     }
 
-
     assert media_file.to_dict() == expected_dict
 
 # TODO: fix reason for stream info not appearing on files with no meta
@@ -187,7 +185,6 @@ def test_to_dict_nometadata_mp3():
         },
         "tags": {}
     }
-
 
     assert media_file.to_dict() == expected_dict
 
@@ -268,8 +265,6 @@ def test_to_dict_original_flac():
             }
         }
     }
-
-
 
     assert media_file.to_dict() == expected_dict
 
@@ -372,8 +367,6 @@ def test_to_dict_unicode_mp3():
         }
     }
 
-
-
     assert media_file.to_dict() == expected_dict
 
 
@@ -474,11 +467,7 @@ def test_to_dict_unicode_bigendian_mp3():
         }
     }
 
-
-
     assert media_file.to_dict() == expected_dict
-
-
 
 def test_to_dict_unicode_foobar2000_mp3():
     media_file = MediaFile( Path(__file__).parent.parent / "fixtures" / "metadata" / "sample_dtmf_unicode_foobar2000.mp3" )
@@ -566,9 +555,6 @@ def test_to_dict_unicode_foobar2000_mp3():
             }
         }
     }
-
-
-
 
     assert media_file.to_dict() == expected_dict
 
@@ -669,6 +655,8 @@ def test_to_dict_unicode_unicode_with_bpm_and_key_from_serato_mp3():
         }
     }
 
+    assert media_file.to_dict() == expected_dict
+
 
 
 def test_to_dict_with_bpm_and_key_from_serato_flac():
@@ -767,9 +755,5 @@ def test_to_dict_with_bpm_and_key_from_serato_flac():
             }
         }
     }
-
-
-
-
 
     assert media_file.to_dict() == expected_dict
