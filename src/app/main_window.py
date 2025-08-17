@@ -8,6 +8,7 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtCore import QDir, QThreadPool, Qt
 from .metadata_model import MetadataTableModel
 from .worker import MetadataWorker
+from .settings import settings
 
 class MainWindow(QMainWindow):
     def __init__(self, path=None):
@@ -83,7 +84,14 @@ class MainWindow(QMainWindow):
         self.setup_view_menu()
 
         # Set initial path
-        initial_path = path if path and os.path.isdir(path) else QDir.homePath()
+        if path and os.path.isdir(path):
+            initial_path = path
+        else:
+            stored_path = settings.value("last_path")
+            if stored_path and os.path.isdir(stored_path):
+                initial_path = stored_path
+            else:
+                initial_path = QDir.homePath()
         self.set_path(initial_path)
 
     def set_path(self, path):
@@ -91,6 +99,7 @@ class MainWindow(QMainWindow):
         self.path_textbox.setText(path)
         index = self.dir_model.index(path)
         self.directory_tree.setCurrentIndex(index)
+        settings.setValue("last_path", path)
 
     def on_directory_changed(self, current, previous):
         self.metadata_results = []
