@@ -1,5 +1,6 @@
 import argparse
 import sys
+import json
 from models.media_file import MediaFile
 
 def main():
@@ -8,6 +9,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Read or write metadata from an audio file.")
     parser.add_argument("file_path", nargs='?', default=None, help="The path to the audio file.")
+    parser.add_argument("--json", action="store_true", help="Output metadata in JSON format.")
     parser.add_argument("--title", help="Set the title of the track.")
     parser.add_argument("--artist", help="Set the artist of the track.")
     parser.add_argument("--album", help="Set the album of the track.")
@@ -46,8 +48,12 @@ def main():
 
         if write_ops:
             media_file.save()
-            print(f"Successfully updated {', '.join(write_ops)} for {args.file_path}")
-        else:
+            if not args.json:
+                print(f"Successfully updated {', '.join(write_ops)} for {args.file_path}")
+
+        if args.json:
+            print(json.dumps(media_file.to_dict(), indent=4))
+        elif not write_ops:
             print(f"Metadata for: {args.file_path}")
             print(f"  Title: {media_file.title}")
             print(f"  Artist: {media_file.artist}")
@@ -56,10 +62,16 @@ def main():
             print(f"  BPM: {media_file.bpm}")
             print(f"  Key: {media_file.key}")
     except FileNotFoundError:
-        print(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
+        if args.json:
+            print(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
+        else:
+            print(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"An error occurred: {e}", file=sys.stderr)
+        if args.json:
+            print(json.dumps({"error": str(e)}, indent=4))
+        else:
+            print(f"An error occurred: {e}", file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":

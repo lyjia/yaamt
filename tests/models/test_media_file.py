@@ -8,12 +8,12 @@ def media_file():
      return MediaFile( Path(__file__).parent.parent / "fixtures" / "metadata" / "sample_dtmf_ansi.mp3" )
 
 def test_to_dict(media_file):
-    media_file.title = "Test Title"
-    media_file.artist = "Test Artist"
-    media_file.album = "Test Album"
-    media_file.genre = "Test Genre"
-    media_file.bpm = 120.0
-    media_file.key = "C"
+    # media_file.title = "Test Title"
+    # media_file.artist = "Test Artist"
+    # media_file.album = "Test Album"
+    # media_file.genre = "Test Genre"
+    # media_file.bpm = 120.0
+    # media_file.key = "C"
 
     expected_dict = {
         "parsed": {

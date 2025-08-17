@@ -8,6 +8,7 @@ class MediaFile:
     def __init__(self, file_path: str):
         self._provider = MutagenProvider(file_path)
 
+    # TODO: we don't want to use Mutagen as our storage layer for this meta, this should be moved to be handled in this class
     @property
     def title(self):
         return self._provider.title
@@ -71,7 +72,7 @@ class MediaFile:
             value_list = getattr(self, field)
             if value_list:
                 parsed_data[field] = {
-                    "value": value_list,
+                    "value": value_list[0], #always go with first element for now
                     "element_providers": [ self._provider.__class__.__name__ ],
                     "all_elements": value_list,
                     "all_elements_providers": [0]

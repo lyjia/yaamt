@@ -37,7 +37,7 @@ class MutagenProvider(MetadataProviderBase):
 
     @title.setter
     def title(self, value):
-        self._set_tag('TIT2', value)
+        self._set_tag('title', value)
 
     @property
     def artist(self):
@@ -46,7 +46,7 @@ class MutagenProvider(MetadataProviderBase):
 
     @artist.setter
     def artist(self, value):
-        self._set_tag('TPE1', value)
+        self._set_tag('artist', value)
 
     @property
     def album(self):
@@ -55,7 +55,7 @@ class MutagenProvider(MetadataProviderBase):
 
     @album.setter
     def album(self, value):
-        self._set_tag('TALB', value)
+        self._set_tag('album', value)
 
     @property
     def genre(self):
@@ -64,7 +64,7 @@ class MutagenProvider(MetadataProviderBase):
 
     @genre.setter
     def genre(self, value):
-        self._set_tag('TCON', value)
+        self._set_tag('genre', value)
 
     @property
     def bpm(self):
@@ -78,7 +78,7 @@ class MutagenProvider(MetadataProviderBase):
 
     @bpm.setter
     def bpm(self, value):
-        self._set_tag('TBPM', str(value))
+        self._set_tag('bpm', str(value))
 
     @property
     def key(self):
@@ -87,7 +87,7 @@ class MutagenProvider(MetadataProviderBase):
 
     @key.setter
     def key(self, value):
-        self._set_tag('TKEY', value)
+        self._set_tag('key', value)
 
     def save(self):
         if self._audio:
