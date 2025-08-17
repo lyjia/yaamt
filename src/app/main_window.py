@@ -1,7 +1,8 @@
 import os
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
-    QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox
+    QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
+    QLineEdit, QSizePolicy, QFileDialog
 )
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtCore import QDir, QThreadPool, Qt
@@ -21,12 +22,25 @@ class MainWindow(QMainWindow):
         self._create_menus()
 
         # Toolbar
-        toolbar = QToolBar("Main Toolbar")
-        self.addToolBar(toolbar)
+        self.toolbar = QToolBar("Main Toolbar")
+        self.addToolBar(self.toolbar)
+
+        open_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
+        action_open = QAction(open_icon, "Open Folder", self)
+        action_open.triggered.connect(self.open_folder)
+        self.toolbar.addAction(action_open)
 
         refresh_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
         action_refresh = QAction(refresh_icon, "Refresh", self)
-        toolbar.addAction(action_refresh)
+        self.toolbar.addAction(action_refresh)
+
+        self.path_textbox = QLineEdit()
+        self.path_textbox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.toolbar.addWidget(self.path_textbox)
+        self.path_textbox.setText(QDir.currentPath())
+
+        self.path_textbox.returnPressed.connect(self.on_path_entered)
+        self.path_textbox.editingFinished.connect(self.on_path_editing_finished)
 
         # Status Bar
         self.status_bar = QStatusBar(self)
@@ -73,6 +87,7 @@ class MainWindow(QMainWindow):
     def on_directory_changed(self, current, previous):
         self.metadata_results = []
         path = self.dir_model.filePath(current)
+        self.path_textbox.setText(path)
         files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
         
         worker = MetadataWorker(files)
@@ -112,6 +127,32 @@ class MainWindow(QMainWindow):
             self.column_menu.addAction(action)
         self.view_menu.clear()
         self.view_menu.addMenu(self.column_menu)
+
+    def open_folder(self):
+        folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder_path:
+            self.path_textbox.setText(folder_path)
+            index = self.dir_model.index(folder_path)
+            self.directory_tree.setCurrentIndex(index)
+
+    def on_path_entered(self):
+        path = self.path_textbox.text()
+        if os.path.isdir(path):
+            index = self.dir_model.index(path)
+            self.directory_tree.setCurrentIndex(index)
+        else:
+            QMessageBox.warning(self, "Invalid Path", f"The path '{path}' is not a valid directory.")
+            self.path_textbox.selectAll()
+
+    def on_path_editing_finished(self):
+        path = self.path_textbox.text()
+        current_index = self.directory_tree.currentIndex()
+        current_path = self.dir_model.filePath(current_index)
+
+        if not os.path.isdir(path):
+            self.path_textbox.setText(current_path)
+        elif path != current_path:
+            self.on_path_entered()
 
     def _create_menus(self):
         # File Menu
