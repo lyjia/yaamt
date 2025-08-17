@@ -53,17 +53,24 @@ class MediaFile:
     def get_tag_all_values(self, key):
         if not self._combined_metadata[KEY_TAGS].get(key):
             self.load_meta_for_tag(key)
-        return self._combined_metadata[KEY_TAGS][key][KEY_VALUE]
+        return self._combined_metadata[KEY_TAGS].get(key, {}).get(KEY_VALUE)
 
     def get_tag_simple(self, key):
-        return self.get_tag_all_values(key)[0]
+        grab = self.get_tag_all_values(key)
+        if grab:
+            return grab[0]
+        return None
 
     def load_meta_for_tag(self, key):
-        provider_to_use = self._tag_provider_lookup[KEY_TAGS][key][0]
-        self._combined_metadata[KEY_TAGS][key] = {
-            KEY_VALUE: provider_to_use.get_tag(key),
-            KEY_PROVIDER: provider_to_use
-        }
+        providers = self._tag_provider_lookup[KEY_TAGS].get(key, [])
+        if len(providers) > 0:
+            provider_to_use = providers[0]
+            self._combined_metadata[KEY_TAGS][key] = {
+                KEY_VALUE: provider_to_use.get_tag(key),
+                KEY_PROVIDER: provider_to_use
+            }
+        else:
+            self._combined_metadata[KEY_TAGS][key] = {}
 
     def get_stream_info_value(self, key):
         if not self._combined_metadata[KEY_STREAM_INFO].get(key):

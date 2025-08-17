@@ -13,7 +13,7 @@ from models.settings import settings
 class MainWindow(QMainWindow):
     def __init__(self, path=None):
         super().__init__()
-        self.setWindowTitle("Audio Metadata Tool")
+        self.setWindowTitle("YAAMT")
         self.resize(800, 600)
         self.thread_pool = QThreadPool()
         self._current_path = ""
@@ -52,8 +52,8 @@ class MainWindow(QMainWindow):
         self.progress_bar.hide()
         self.status_bar.addPermanentWidget(self.progress_bar)
 
-        cancel_button = QPushButton("Cancel")
-        self.status_bar.addPermanentWidget(cancel_button)
+        self.cancel_button = QPushButton("Cancel")
+        self.status_bar.addPermanentWidget(self.cancel_button)
 
         # Central Widget
         splitter = QSplitter(self)
@@ -115,12 +115,14 @@ class MainWindow(QMainWindow):
         self.thread_pool.start(worker)
         self.status_label.setText(f"Loading files in {path}...")
         self.progress_bar.show()
+        self.cancel_button.show()
 
     def update_progress(self, percent):
         self.progress_bar.setValue(percent)
 
     def on_worker_finished(self):
         self.progress_bar.hide()
+        self.cancel_button.hide()
         self.status_label.setText("Finished loading.")
         self.file_model.set_data(self.metadata_results)
 

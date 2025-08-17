@@ -1,5 +1,6 @@
-KEY_STREAM_INFO = "stream info"
+KEY_STREAM_INFO = "stream_info"
 KEY_TAGS = "tags"
+KEY_FILE_PATH = "file_path"
 
 # STREAM INFO keys
 KEY_BITRATE = "bitrate"

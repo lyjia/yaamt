@@ -53,7 +53,9 @@ class MutagenProvider(MetadataProviderBase):
 
     #TODO: this currently only reports tags found in file, not all possible tags
     def available_tags(self):
-        return self._audio.tags.keys()
+        if self._audio:
+            return self._audio.tags.keys()
+        return []
 
     def available_stream_info_keys(self):
         return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES, KEY_ENCODING]
