@@ -1,6 +1,6 @@
 import time
 from PySide6.QtCore import QRunnable, QObject, Signal
-from .audio_metadata import MediaFile
+from models.media_file import MediaFile
 
 
 class WorkerSignals(QObject):

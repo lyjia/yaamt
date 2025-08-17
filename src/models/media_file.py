@@ -1,4 +1,4 @@
-from .providers.metadata.mutagen_provider import MutagenProvider
+from providers.metadata.mutagen_provider import MutagenProvider
 
 
 class MediaFile:

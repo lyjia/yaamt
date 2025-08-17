@@ -54,24 +54,24 @@ The agent shall adhere to a structured project layout to ensure maintainability 
 ```
 project_name/
 ├── src/
+│   ├── models/
+│   │   └── media_file.py
+│   ├── providers/
+│   │   ├── metadata/
+│   │   │   ├── base.py
+│   │   │   └── mutagen_provider.py
+│   │   └── media_file.py
+│   ├── windows/
+│   │   └── main_window.py
+│   ├── workers/
 │   ├── main.py
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main_window.py
-│   │   ├── audio_metadata.py  # Module for mutagen logic
-│   │   ├── widgets/
-│   │   │   ├── __init__.py
-│   │   │   └── custom_widget.py
-│   │   └── utils/
-│   │       ├── __init__.py
-│   │       └── helpers.py
+|   ├── gui.py
 ├── resources/
 │   ├── icons/
 │   │   └── app_icon.png
 │   └── resources.qrc
-├── ui/
-│   └── main_window.ui
 ├── tests/
+│   ├── fixtures/
 │   ├── __init__.py
 │   └── test_main_window.py
 ├── setup.py

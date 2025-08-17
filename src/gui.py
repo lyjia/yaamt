@@ -1,7 +1,7 @@
 import sys
 import argparse
 from PySide6.QtWidgets import QApplication
-from app.main_window import MainWindow
+from windows.main_window import MainWindow
 
 def run_gui():
     """Initializes and runs the GUI application."""

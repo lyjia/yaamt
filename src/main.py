@@ -1,6 +1,6 @@
 import argparse
 import sys
-from app.media_file import MediaFile
+from models.media_file import MediaFile
 
 def main():
     """

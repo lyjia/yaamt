@@ -4,11 +4,11 @@ from PySide6.QtWidgets import (
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
     QLineEdit, QSizePolicy, QFileDialog
 )
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction
 from PySide6.QtCore import QDir, QThreadPool, Qt
-from .metadata_model import MetadataTableModel
-from .worker import MetadataWorker
-from .settings import settings
+from models.qt.metadata_model import MetadataTableModel
+from workers.worker import MetadataWorker
+from models.settings import settings
 
 class MainWindow(QMainWindow):
     def __init__(self, path=None):
