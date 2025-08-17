@@ -15,8 +15,8 @@ def test_to_dict(media_file):
     # media_file.bpm = 120.0
     # media_file.key = "C"
 
-    expected_dict = {
-        "stream info": {
+    expected_dict ={
+        "stream_info": {
             "bitrate": {
                 "value": 320000,
                 "provider": "MutagenProvider"
@@ -109,5 +109,6 @@ def test_to_dict(media_file):
             }
         }
     }
+
 
     assert media_file.to_dict() == expected_dict
