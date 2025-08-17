@@ -18,76 +18,81 @@ class MutagenProvider(MetadataProviderBase):
             print(f"Error loading file {file_path}: {e}")
             raise
 
-    def _get_tag(self, keys):
+    def get_tag(self, key):
         if not self._audio:
             return None
-        for key in keys:
-            if key in self._audio:
-                return self._audio[key]
+        if key in self._audio:
+            return self._audio[key]
         return None
 
-    def _set_tag(self, key, value):
+    def set_tag(self, key, value):
         if self._audio:
             self._audio[key] = value
 
-    @property
-    def title(self):
-        tag = self._get_tag(['title', 'TIT2'])
-        return tag if tag else None
+    def available_tags(self):
+        return self._audio.tags.keys()
 
-    @title.setter
-    def title(self, value):
-        self._set_tag('title', value)
+    def all_tags(self):
+        return dict(self._audio.tags)
 
-    @property
-    def artist(self):
-        tag = self._get_tag(['artist', 'TPE1'])
-        return tag if tag else None
-
-    @artist.setter
-    def artist(self, value):
-        self._set_tag('artist', value)
-
-    @property
-    def album(self):
-        tag = self._get_tag(['album', 'TALB'])
-        return tag if tag else None
-
-    @album.setter
-    def album(self, value):
-        self._set_tag('album', value)
-
-    @property
-    def genre(self):
-        tag = self._get_tag(['genre', 'TCON'])
-        return tag if tag else None
-
-    @genre.setter
-    def genre(self, value):
-        self._set_tag('genre', value)
-
-    @property
-    def bpm(self):
-        tag = self._get_tag(['bpm', 'TBPM'])
-        if tag:
-            try:
-                return float(tag)
-            except (ValueError, TypeError):
-                return None
-        return None
-
-    @bpm.setter
-    def bpm(self, value):
-        self._set_tag('bpm', str(value))
-
-    @property
-    def key(self):
-        tag = self._get_tag(['key', 'TKEY'])
-        return tag if tag else None
-
-    @key.setter
-    def key(self, value):
-        self._set_tag('key', value)
+    # @property
+    # def title(self):
+    #     tag = self.get_tag(['title', 'TIT2'])
+    #     return tag if tag else None
+    #
+    # @title.setter
+    # def title(self, value):
+    #     self.set_tag('title', value)
+    #
+    # @property
+    # def artist(self):
+    #     tag = self.get_tag(['artist', 'TPE1'])
+    #     return tag if tag else None
+    #
+    # @artist.setter
+    # def artist(self, value):
+    #     self.set_tag('artist', value)
+    #
+    # @property
+    # def album(self):
+    #     tag = self.get_tag(['album', 'TALB'])
+    #     return tag if tag else None
+    #
+    # @album.setter
+    # def album(self, value):
+    #     self.set_tag('album', value)
+    #
+    # @property
+    # def genre(self):
+    #     tag = self.get_tag(['genre', 'TCON'])
+    #     return tag if tag else None
+    #
+    # @genre.setter
+    # def genre(self, value):
+    #     self.set_tag('genre', value)
+    #
+    # @property
+    # def bpm(self):
+    #     tag = self.get_tag(['bpm', 'TBPM'])
+    #     if tag:
+    #         try:
+    #             return float(tag)
+    #         except (ValueError, TypeError):
+    #             return None
+    #     return None
+    #
+    # @bpm.setter
+    # def bpm(self, value):
+    #     self.set_tag('bpm', str(value))
+    #
+    # @property
+    # def key(self):
+    #     tag = self.get_tag(['key', 'TKEY'])
+    #     return tag if tag else None
+    #
+    # @key.setter
+    # def key(self, value):
+    #     self.set_tag('key', value)
 
     def save(self):
         if self._audio:
