@@ -15,6 +15,7 @@ class MainWindow(QMainWindow):
         self.resize(800, 600)
         self.thread_pool = QThreadPool()
         self.metadata_results = []
+        self.column_menu = QMenu("Columns", self)
 
         # Menus
         self._create_menus()
@@ -67,6 +68,8 @@ class MainWindow(QMainWindow):
         # Connect the panes
         self.directory_tree.selectionModel().currentChanged.connect(self.on_directory_changed)
 
+        self.setup_view_menu()
+
     def on_directory_changed(self, current, previous):
         self.metadata_results = []
         path = self.dir_model.filePath(current)
@@ -88,33 +91,27 @@ class MainWindow(QMainWindow):
         self.progress_bar.hide()
         self.status_label.setText("Finished loading.")
         self.file_model.set_data(self.metadata_results)
-        self.setup_view_menu()
 
     def on_worker_result(self, result_data):
         self.metadata_results.append(result_data)
 
     def on_header_context_menu(self, pos):
-        menu = QMenu(self)
-        for i, header in enumerate(self.file_model._headers):
-            action = QAction(header, self, checkable=True)
-            action.setChecked(not self.file_list.isColumnHidden(i))
-            action.setData(i)
-            action.toggled.connect(self.toggle_column)
-            menu.addAction(action)
-        menu.exec_(self.file_list.header().mapToGlobal(pos))
+        self.column_menu.exec_(self.file_list.header().mapToGlobal(pos))
 
-    def toggle_column(self, checked):
-        column_index = self.sender().data()
-        self.file_list.setColumnHidden(column_index, not checked)
+    def toggle_column(self, index, checked):
+        self.file_list.setColumnHidden(index, not checked)
 
     def setup_view_menu(self):
-        self.view_menu.clear()
-        for i, header in enumerate(self.file_model._headers):
-            action = QAction(header, self, checkable=True)
+        self.column_menu.clear()
+        for i in range(self.file_model.columnCount()):
+            action = QAction(self.file_model.headerData(i, Qt.Horizontal), self)
+            action.setCheckable(True)
             action.setChecked(not self.file_list.isColumnHidden(i))
             action.setData(i)
-            action.toggled.connect(self.toggle_column)
-            self.view_menu.addAction(action)
+            action.toggled.connect(lambda checked, index=i: self.toggle_column(index, checked))
+            self.column_menu.addAction(action)
+        self.view_menu.clear()
+        self.view_menu.addMenu(self.column_menu)
 
     def _create_menus(self):
         # File Menu
