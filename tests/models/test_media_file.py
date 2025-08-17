@@ -5,12 +5,6 @@ from models.media_file import MediaFile
 
 
 def test_to_dict_ansi_mp3():
-    # media_file.title = "Test Title"
-    # media_file.artist = "Test Artist"
-    # media_file.album = "Test Album"
-    # media_file.genre = "Test Genre"
-    # media_file.bpm = 120.0
-    # media_file.key = "C"
     media_file = MediaFile( Path(__file__).parent.parent / "fixtures" / "metadata" / "sample_dtmf_ansi.mp3" )
 
     expected_dict ={
@@ -425,10 +419,10 @@ def test_to_dict_unicode_bigendian_mp3():
                 ]
             },
             "title": {
-                "value": "DTMF Sample Unicode",
+                "value": "DTMF Sample Unicode Big Endian",
                 "provider": "MutagenProvider",
                 "all_values": [
-                    "DTMF Sample Unicode"
+                    "DTMF Sample Unicode Big Endian"
                 ],
                 "all_providers": [
                     "MutagenProvider"
@@ -724,10 +718,10 @@ def test_to_dict_with_bpm_and_key_from_serato_flac():
                 ]
             },
             "title": {
-                "value": "DTMF Sample Unicode",
+                "value": "DTMF Sample Original",
                 "provider": "MutagenProvider",
                 "all_values": [
-                    "DTMF Sample Unicode"
+                    "DTMF Sample Original"
                 ],
                 "all_providers": [
                     "MutagenProvider"
