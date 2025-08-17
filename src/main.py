@@ -10,12 +10,12 @@ def main():
     parser = argparse.ArgumentParser(description="Read or write metadata from an audio file.")
     parser.add_argument("file_path", nargs='?', default=None, help="The path to the audio file.")
     parser.add_argument("--json", action="store_true", help="Output metadata in JSON format.")
-    parser.add_argument("--title", help="Set the title of the track.")
-    parser.add_argument("--artist", help="Set the artist of the track.")
-    parser.add_argument("--album", help="Set the album of the track.")
-    parser.add_argument("--genre", help="Set the genre of the track.")
-    parser.add_argument("--bpm", type=float, help="Set the BPM of the track.")
-    parser.add_argument("--key", help="Set the musical key of the track.")
+    # parser.add_argument("--title", help="Set the title of the track.")
+    # parser.add_argument("--artist", help="Set the artist of the track.")
+    # parser.add_argument("--album", help="Set the album of the track.")
+    # parser.add_argument("--genre", help="Set the genre of the track.")
+    # parser.add_argument("--bpm", type=float, help="Set the BPM of the track.")
+    # parser.add_argument("--key", help="Set the musical key of the track.")
     args = parser.parse_args()
 
     if not args.file_path:
@@ -27,29 +27,29 @@ def main():
         media_file = MediaFile(args.file_path)
         
         write_ops = []
-        if args.title:
-            media_file.title = args.title
-            write_ops.append("title")
-        if args.artist:
-            media_file.artist = args.artist
-            write_ops.append("artist")
-        if args.album:
-            media_file.album = args.album
-            write_ops.append("album")
-        if args.genre:
-            media_file.genre = args.genre
-            write_ops.append("genre")
-        if args.bpm:
-            media_file.bpm = args.bpm
-            write_ops.append("bpm")
-        if args.key:
-            media_file.key = args.key
-            write_ops.append("key")
+        # if args.title:
+        #     media_file.title = args.title
+        #     write_ops.append("title")
+        # if args.artist:
+        #     media_file.artist = args.artist
+        #     write_ops.append("artist")
+        # if args.album:
+        #     media_file.album = args.album
+        #     write_ops.append("album")
+        # if args.genre:
+        #     media_file.genre = args.genre
+        #     write_ops.append("genre")
+        # if args.bpm:
+        #     media_file.bpm = args.bpm
+        #     write_ops.append("bpm")
+        # if args.key:
+        #     media_file.key = args.key
+        #     write_ops.append("key")
 
-        if write_ops:
-            media_file.save()
-            if not args.json:
-                print(f"Successfully updated {', '.join(write_ops)} for {args.file_path}")
+        # if write_ops:
+        #     media_file.save()
+        #     if not args.json:
+        #         print(f"Successfully updated {', '.join(write_ops)} for {args.file_path}")
 
         if args.json:
             print(json.dumps(media_file.to_dict(), indent=4))

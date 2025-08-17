@@ -16,42 +16,96 @@ def test_to_dict(media_file):
     # media_file.key = "C"
 
     expected_dict = {
-        "parsed": {
+        "stream info": {
+            "bitrate": {
+                "value": 320000,
+                "provider": "MutagenProvider"
+            },
+            "length": {
+                "value": 1.256,
+                "provider": "MutagenProvider"
+            },
+            "sample_rate": {
+                "value": 44100,
+                "provider": "MutagenProvider"
+            },
+            "channels": {
+                "value": 2,
+                "provider": "MutagenProvider"
+            },
+            "bits_per_sample": {
+                "value": None,
+                "provider": "MutagenProvider"
+            },
+            "total_samples": {
+                "value": 2.512,
+                "provider": "MutagenProvider"
+            },
+            "encoding": {
+                "value": "MPEG 1 layer 3",
+                "provider": "MutagenProvider"
+            }
+        },
+        "tags": {
+            "album": {
+                "value": "pytest",
+                "provider": "MutagenProvider",
+                "all_values": [
+                    "pytest"
+                ],
+                "all_providers": [
+                    "MutagenProvider"
+                ]
+            },
+            "copyright": {
+                "value": "2025",
+                "provider": "MutagenProvider",
+                "all_values": [
+                    "2025"
+                ],
+                "all_providers": [
+                    "MutagenProvider"
+                ]
+            },
             "title": {
-                "value": "Test Title",
-                "element_providers": ["mutagen"],
-                "all_elements": ["Test Title"],
-                "all_elements_providers": [0]
+                "value": "DTMF Sample ANSI",
+                "provider": "MutagenProvider",
+                "all_values": [
+                    "DTMF Sample ANSI"
+                ],
+                "all_providers": [
+                    "MutagenProvider"
+                ]
             },
             "artist": {
-                "value": "Test Artist",
-                "element_providers": ["mutagen"],
-                "all_elements": ["Test Artist"],
-                "all_elements_providers": [0]
+                "value": "Lyjia",
+                "provider": "MutagenProvider",
+                "all_values": [
+                    "Lyjia"
+                ],
+                "all_providers": [
+                    "MutagenProvider"
+                ]
             },
-            "album": {
-                "value": "Test Album",
-                "element_providers": ["mutagen"],
-                "all_elements": ["Test Album"],
-                "all_elements_providers": [0]
+            "tracknumber": {
+                "value": "99",
+                "provider": "MutagenProvider",
+                "all_values": [
+                    "99"
+                ],
+                "all_providers": [
+                    "MutagenProvider"
+                ]
             },
             "genre": {
-                "value": "Test Genre",
-                "element_providers": ["mutagen"],
-                "all_elements": ["Test Genre"],
-                "all_elements_providers": [0]
-            },
-            "bpm": {
-                "value": 120.0,
-                "element_providers": ["mutagen"],
-                "all_elements": [120.0],
-                "all_elements_providers": [0]
-            },
-            "key": {
-                "value": "C",
-                "element_providers": ["mutagen"],
-                "all_elements": ["C"],
-                "all_elements_providers": [0]
+                "value": "Power Ballad",
+                "provider": "MutagenProvider",
+                "all_values": [
+                    "Power Ballad"
+                ],
+                "all_providers": [
+                    "MutagenProvider"
+                ]
             }
         }
     }
