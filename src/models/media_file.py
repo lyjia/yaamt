@@ -1,4 +1,4 @@
-from const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE
+from const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, KEY_ALL_VALUES
 from providers.metadata.mutagen_provider import MutagenProvider
 
 
@@ -39,19 +39,24 @@ class MediaFile:
             # create a lookup of available providers on a per-key basis
             # to be used for JIT loading of tag data
             for key in provider.available_tags():
-                if not key in self._tag_provider_lookup[KEY_TAGS][key]:
+                if not key in self._tag_provider_lookup[KEY_TAGS]:
                     self._tag_provider_lookup[KEY_TAGS][key] = []
                 self._tag_provider_lookup[KEY_TAGS][key].append(provider)
 
             for key in provider.available_stream_info_keys():
-                if not key in self._tag_provider_lookup[KEY_STREAM_INFO][key]:
+                if not key in self._tag_provider_lookup[KEY_STREAM_INFO]:
                     self._tag_provider_lookup[KEY_STREAM_INFO][key] = []
                 self._tag_provider_lookup[KEY_STREAM_INFO][key].append(provider)
 
-    def get_tag_simple(self, key):
+        pass #for debugger attach
+
+    def get_tag_all_values(self, key):
         if not self._combined_metadata[KEY_TAGS].get(key):
             self.load_meta_for_tag(key)
-        return self._combined_metadata[KEY_TAGS][key][KEY_VALUE][0] #only return first value in array of values
+        return self._combined_metadata[KEY_TAGS][key][KEY_VALUE]
+
+    def get_tag_simple(self, key):
+        return self.get_tag_all_values(key)[0]
 
     def load_meta_for_tag(self, key):
         provider_to_use = self._tag_provider_lookup[KEY_TAGS][key][0]
@@ -60,54 +65,17 @@ class MediaFile:
             KEY_PROVIDER: provider_to_use
         }
 
-    # # TODO: we don't want to use Mutagen as our storage layer for this meta, this should be moved to be handled in this class
-    # @property
-    # def title(self):
-    #     return self._provider.title
-    #
-    # @title.setter
-    # def title(self, value):
-    #     self._provider.title = value
-    #
-    # @property
-    # def artist(self):
-    #     return self._provider.artist
-    #
-    # @artist.setter
-    # def artist(self, value):
-    #     self._provider.artist = value
-    #
-    # @property
-    # def album(self):
-    #     return self._provider.album
-    #
-    # @album.setter
-    # def album(self, value):
-    #     self._provider.album = value
-    #
-    # @property
-    # def genre(self):
-    #     return self._provider.genre
-    #
-    # @genre.setter
-    # def genre(self, value):
-    #     self._provider.genre = value
-    #
-    # @property
-    # def bpm(self):
-    #     return self._provider.bpm
-    #
-    # @bpm.setter
-    # def bpm(self, value):
-    #     self._provider.bpm = value
-    #
-    # @property
-    # def key(self):
-    #     return self._provider.key
-    #
-    # @key.setter
-    # def key(self, value):
-    #     self._provider.key = value
+    def get_stream_info_value(self, key):
+        if not self._combined_metadata[KEY_STREAM_INFO].get(key):
+            self.load_meta_for_stream_info(key)
+        return self._combined_metadata[KEY_STREAM_INFO][key][KEY_VALUE]  # only return first value in array of values
+
+    def load_meta_for_stream_info(self, key):
+        provider_to_use = self._tag_provider_lookup[KEY_STREAM_INFO][key][0]
+        self._combined_metadata[KEY_STREAM_INFO][key] = {
+            KEY_VALUE: provider_to_use.get_stream_info(key),
+            KEY_PROVIDER: provider_to_use
+        }
 
     def save(self):
         self._provider.save()
@@ -116,28 +84,26 @@ class MediaFile:
         """
         Returns a dictionary representation of the media file's metadata.
         """
-        
-        fields = ["title", "artist", "album", "genre", "bpm", "key"]
-        parsed_data = {}
+        to_ret = {
+            KEY_STREAM_INFO: {},
+            KEY_TAGS: {}
+        }
 
-        for field in fields:
-            value_list = getattr(self, field)
-            if value_list:
-                parsed_data[field] = {
-                    "value": value_list[0], #always go with first element for now
-                    "element_providers": [ self._provider.__class__.__name__ ],
-                    "all_elements": value_list,
-                    "all_elements_providers": [0]
-                }
-            else:
-                parsed_data[field] = {
-                    "value": None,
-                    "element_providers": [],
-                    "all_elements": [],
-                    "all_elements_providers": []
-                }
+        for key in self._tag_provider_lookup[KEY_TAGS].keys():
+            to_ret[KEY_TAGS][key] = {
+                KEY_VALUE: self.get_tag_simple(key),
+                KEY_PROVIDER: self._tag_provider_lookup[KEY_TAGS][key][0].__class__.__name__,
+                KEY_ALL_VALUES: self.get_tag_all_values(key),
+                KEY_ALL_PROVIDERS: [x.__class__.__name__ for x in self._tag_provider_lookup[KEY_TAGS][key]]
+            }
 
-        return {"parsed": parsed_data}
+        for key in self._tag_provider_lookup[KEY_STREAM_INFO].keys():
+            to_ret[KEY_STREAM_INFO][key] = {
+                KEY_VALUE: self.get_stream_info_value(key),
+                KEY_PROVIDER: self._tag_provider_lookup[KEY_STREAM_INFO][key][0].__class__.__name__,
+            }
+
+        return to_ret
 
     def _get_providers_for_file(self, file_path: str):
         """
