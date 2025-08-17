@@ -1,6 +1,7 @@
 import argparse
 import sys
 import json
+import traceback
 from models.media_file import MediaFile
 
 def main():
@@ -65,14 +66,17 @@ def main():
         if args.json:
             print(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
         else:
+            traceback.print_exc()
             print(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         if args.json:
             print(json.dumps({"error": str(e)}, indent=4))
         else:
+            traceback.print_exc()
             print(f"An error occurred: {e}", file=sys.stderr)
-        sys.exit(1)
+
+    sys.exit(1)
 
 if __name__ == "__main__":
     main()
