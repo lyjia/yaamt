@@ -10,11 +10,12 @@ from .metadata_model import MetadataTableModel
 from .worker import MetadataWorker
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, path=None):
         super().__init__()
         self.setWindowTitle("Audio Metadata Tool")
         self.resize(800, 600)
         self.thread_pool = QThreadPool()
+        self._current_path = ""
         self.metadata_results = []
         self.column_menu = QMenu("Columns", self)
 
@@ -37,8 +38,6 @@ class MainWindow(QMainWindow):
         self.path_textbox = QLineEdit()
         self.path_textbox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.toolbar.addWidget(self.path_textbox)
-        self.path_textbox.setText(QDir.currentPath())
-
         self.path_textbox.editingFinished.connect(self.on_path_editing_finished)
 
         # Status Bar
@@ -83,10 +82,20 @@ class MainWindow(QMainWindow):
 
         self.setup_view_menu()
 
+        # Set initial path
+        initial_path = path if path and os.path.isdir(path) else QDir.homePath()
+        self.set_path(initial_path)
+
+    def set_path(self, path):
+        self._current_path = path
+        self.path_textbox.setText(path)
+        index = self.dir_model.index(path)
+        self.directory_tree.setCurrentIndex(index)
+
     def on_directory_changed(self, current, previous):
         self.metadata_results = []
         path = self.dir_model.filePath(current)
-        self.path_textbox.setText(path)
+        self.set_path(path)
         files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
         
         worker = MetadataWorker(files)
@@ -128,26 +137,18 @@ class MainWindow(QMainWindow):
         self.view_menu.addMenu(self.column_menu)
 
     def open_folder(self):
-        folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+        folder_path = QFileDialog.getExistingDirectory(self, "Select Folder", self._current_path)
         if folder_path:
-            self.path_textbox.setText(folder_path)
-            index = self.dir_model.index(folder_path)
-            self.directory_tree.setCurrentIndex(index)
+            self.set_path(folder_path)
 
     def on_path_editing_finished(self):
         path = self.path_textbox.text()
-        current_index = self.directory_tree.currentIndex()
-        current_path = self.dir_model.filePath(current_index)
+        if path != self._current_path:
+            self._validate_path(path)
 
-        if path == current_path:
-            return
-
-        self._validate_path(path, current_path)
-
-    def _validate_path(self, path, current_path):
+    def _validate_path(self, path):
         if os.path.isdir(path):
-            index = self.dir_model.index(path)
-            self.directory_tree.setCurrentIndex(index)
+            self.set_path(path)
             return True
         else:
             msg_box = QMessageBox()
@@ -161,7 +162,7 @@ class MainWindow(QMainWindow):
                 self.path_textbox.setFocus()
                 self.path_textbox.selectAll()
             else:
-                self.path_textbox.setText(current_path)
+                self.path_textbox.setText(self._current_path)
             return False
 
     def _create_menus(self):
