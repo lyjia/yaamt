@@ -1,7 +1,7 @@
 import os
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
-    QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu
+    QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox
 )
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtCore import QDir, QThreadPool, Qt
@@ -16,6 +16,9 @@ class MainWindow(QMainWindow):
         self.thread_pool = QThreadPool()
         self.metadata_results = []
 
+        # Menus
+        self._create_menus()
+
         # Toolbar
         toolbar = QToolBar("Main Toolbar")
         self.addToolBar(toolbar)
@@ -23,9 +26,6 @@ class MainWindow(QMainWindow):
         refresh_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
         action_refresh = QAction(refresh_icon, "Refresh", self)
         toolbar.addAction(action_refresh)
-
-        # View Menu
-        self.view_menu = self.menuBar().addMenu("View")
 
         # Status Bar
         self.status_bar = QStatusBar(self)
@@ -49,9 +49,11 @@ class MainWindow(QMainWindow):
         self.directory_tree = QTreeView()
         self.dir_model = QFileSystemModel()
         self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
-        self.dir_model.setRootPath(QDir.homePath())
+        self.dir_model.setRootPath("")
         self.directory_tree.setModel(self.dir_model)
-        self.directory_tree.setRootIndex(self.dir_model.index(QDir.homePath()))
+        self.directory_tree.setRootIndex(self.dir_model.index(""))
+        for i in range(1, self.dir_model.columnCount()):
+            self.directory_tree.hideColumn(i)
         splitter.addWidget(self.directory_tree)
 
         # Right Pane (File List)
@@ -113,3 +115,27 @@ class MainWindow(QMainWindow):
             action.setData(i)
             action.toggled.connect(self.toggle_column)
             self.view_menu.addAction(action)
+
+    def _create_menus(self):
+        # File Menu
+        file_menu = self.menuBar().addMenu("&File")
+        quit_action = QAction("&Quit", self)
+        quit_action.triggered.connect(self.close)
+        file_menu.addAction(quit_action)
+
+        # View Menu
+        self.view_menu = self.menuBar().addMenu("&View")
+
+        # Help Menu
+        help_menu = self.menuBar().addMenu("&Help")
+        about_action = QAction("&About", self)
+        about_action.triggered.connect(self._show_about_dialog)
+        help_menu.addAction(about_action)
+
+    def _show_about_dialog(self):
+        QMessageBox.about(
+            self,
+            "About Audio Metadata Tool",
+            "<p>A simple tool for editing audio metadata.</p>"
+            "<p>Version 0.1</p>"
+        )
