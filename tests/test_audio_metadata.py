@@ -2,7 +2,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 # Import directly from app package without 'src' prefix
-from app.audio_metadata import MediaFile, MetadataProvider
+from app.media_file import MediaFile
+from app.providers.metadata.metadata_provider import MetadataProvider
 
 
 def test_import_works():
@@ -12,7 +13,7 @@ def test_import_works():
     assert MetadataProvider is not None
 
 
-@patch('app.audio_metadata.MutagenProvider')
+@patch('app.media_file.MutagenProvider')
 def test_media_file_initialization(mock_provider_class):
     """Test that MediaFile can be initialized with a file path."""
     # Setup mock
@@ -27,7 +28,7 @@ def test_media_file_initialization(mock_provider_class):
     mock_provider_class.assert_called_once_with(file_path)
 
 
-@patch('app.audio_metadata.MutagenProvider')
+@patch('app.media_file.MutagenProvider')
 def test_media_file_properties(mock_provider_class):
     """Test that MediaFile properties work correctly."""
     # Setup mock with test values
