@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: GUI",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/gui.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Main",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal"
+        }
+    ]
+}
