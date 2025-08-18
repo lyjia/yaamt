@@ -172,3 +172,16 @@ setup(
 6.  **Building the Executable:** Execute the build process using the command: `python setup.py build`.
 7.  **Output:** The packaged application will be in the `build/` directory.
 8.  **Installer Creation (Optional):** Use `bdist_msi` on Windows or `bdist_dmg` on macOS to create user-friendly installers.
+
+### Testing
+
+When writing tests, please note that the `conftest.py` file in the `tests` directory adds the `src` directory to the system path. This means that you do not need to prefix imports with `src`. For example, to import the `MediaFile` class, you would use the following statement:
+
+```python
+from models.media_file import MediaFile
+```
+instead of：
+
+```python
+from src.models.media_file import MediaFile
+```
