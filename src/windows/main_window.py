@@ -9,7 +9,8 @@ from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
 from models.settings import settings
-from util.const import KEY_IS_MEDIA
+from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
+from windows.properties_window import PropertiesWindow
 
 
 class MainWindow(QMainWindow):
@@ -201,7 +202,7 @@ class MainWindow(QMainWindow):
 
         self.action_properties = QAction("Properties...", self)
         self.action_properties.setEnabled(False)
-        # self.action_properties.triggered.connect(self.show_properties)
+        self.action_properties.triggered.connect(self.show_properties)
         file_menu.addAction(self.action_properties)
 
         file_menu.addSeparator()
@@ -226,6 +227,22 @@ class MainWindow(QMainWindow):
             "<p>A simple tool for editing audio metadata.</p>"
             "<p>Version 0.1</p>"
         )
+
+    def show_properties(self):
+        selected_indexes = self.files_view.selectionModel().selectedIndexes()
+        if not selected_indexes:
+            return
+
+        first_index = selected_indexes[0]
+        source_index = self.proxy_model.mapToSource(first_index)
+        
+        # Get the dictionary for the selected row
+        row_data = self.file_model._data[source_index.row()]
+        file_path = row_data.get(KEY_FILE_PATH)
+
+        if file_path:
+            self.properties_window = PropertiesWindow(file_path, self)
+            self.properties_window.show()
 
     def update_file_actions(self):
         selected_indexes = self.files_view.selectionModel().selectedIndexes()
