@@ -22,7 +22,7 @@ class MediaFile:
             KEY_STREAM_INFO: {}, # bitrate, channels, audio type, etc
             KEY_TAGS: {}, # title, artist, album, genre, bpm, key, etc
             KEY_INTERNAL: { #fs/internal data
-                KEY_FILE_PATH: file_path,
+                KEY_FILE_PATH: str(file_path),
                 KEY_FILE_TYPE: os.path.splitext(file_path)[1].replace(".", ""),
                 KEY_FILE_SIZE: os.path.getsize(file_path),
                 KEY_FILE_MTIME: os.path.getmtime(file_path),

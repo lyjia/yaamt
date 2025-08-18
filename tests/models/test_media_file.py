@@ -8,7 +8,7 @@ FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "metadata"
 
 # Discover all audio files in the fixture directory.
 # This list will be used to parameterize the test function.
-test_files = [p for p in FIXTURE_DIR.glob('*') if p.suffix != '.json']
+test_files = [p for p in FIXTURE_DIR.glob('*') if (p.suffix == '.mp3' or p.suffix == ".flac")]
 
 @pytest.mark.parametrize("media_path", test_files)
 def test_to_dict_parameterized(media_path):
