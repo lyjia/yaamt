@@ -93,6 +93,7 @@ class PropertiesWindow(QMainWindow):
         tree.setColumnCount(2)
         tree.setHeaderLabels(["Tag", "Value"])
         layout.addWidget(tree)
+        tree.itemChanged.connect(self.on_advanced_item_changed)
 
         metadata = self.media_file.metadata
         providers_to_tags = {}
@@ -109,10 +110,18 @@ class PropertiesWindow(QMainWindow):
             font = provider_item.font(0)
             font.setBold(True)
             provider_item.setFont(0, font)
+            provider_item.setFlags(provider_item.flags() & ~Qt.ItemIsEditable)
 
             for tag_name, tag_value in sorted(tags):
                 child = QTreeWidgetItem(provider_item, [tag_name, str(tag_value)])
-                child.setFlags(child.flags() & ~Qt.ItemIsEditable)
+                child.setFlags(child.flags() | Qt.ItemIsEditable)
 
         for i in range(tree.columnCount()):
             tree.resizeColumnToContents(i)
+
+    def on_advanced_item_changed(self, item, column):
+        if column == 1 and item.parent():
+            provider_name = item.parent().text(0)
+            tag_name = item.text(0)
+            new_value = item.text(1)
+            print(f"Advanced item changed: Provider='{provider_name}', Tag='{tag_name}', New Value='{new_value}'")
