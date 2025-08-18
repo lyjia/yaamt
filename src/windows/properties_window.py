@@ -22,6 +22,7 @@ class PropertiesWindow(QMainWindow):
         self.media_file = MediaFile(file_path)
         self.setWindowTitle(f"Properties for {os.path.basename(file_path)}")
         self.changes = {}
+        self.original_values = {}
 
         # Central widget and main layout
         central_widget = QWidget()
@@ -106,10 +107,12 @@ class PropertiesWindow(QMainWindow):
     def setup_advanced_tab(self, tab_widget):
         layout = QVBoxLayout(tab_widget)
         tree = QTreeWidget()
-        tree.setColumnCount(2)
-        tree.setHeaderLabels(["Tag", "Value"])
+        tree.setColumnCount(3)
+        tree.setHeaderLabels(["Tag", "Value", ""])
         layout.addWidget(tree)
         tree.itemChanged.connect(self.on_advanced_item_changed)
+
+        self.advanced_tree = tree
 
         metadata = self.media_file.metadata
         providers_to_tags = {}
@@ -151,7 +154,66 @@ class PropertiesWindow(QMainWindow):
             provider_name = item.parent().text(0)
             tag_name = item.text(0)
             new_value = item.text(1)
+
+            # Store original value if it's the first change
+            if provider_name not in self.original_values or tag_name not in self.original_values.get(provider_name, {}):
+                original_value = self.media_file.metadata.get(KEY_TAGS, {}).get(tag_name, {}).get("value")
+                display_value = ""
+                if isinstance(original_value, list):
+                    display_value = "; ".join(map(str, original_value))
+                elif isinstance(original_value, bytes):
+                    display_value = "(binary data)"
+                else:
+                    display_value = str(original_value)
+
+                if provider_name not in self.original_values:
+                    self.original_values[provider_name] = {}
+                self.original_values[provider_name][tag_name] = display_value
+
             if provider_name not in self.changes:
                 self.changes[provider_name] = {}
             self.changes[provider_name][tag_name] = new_value
+
+            # Make font bold
+            font = item.font(1)
+            font.setBold(True)
+            item.setFont(1, font)
+
+            # Add revert button
+            revert_button = QPushButton("Revert")
+            revert_button.clicked.connect(
+                lambda: self.revert_change(item, provider_name, tag_name)
+            )
+            self.advanced_tree.setItemWidget(item, 2, revert_button)
+
             self.update_button_states()
+
+    def revert_change(self, item, provider_name, tag_name):
+        self.advanced_tree.blockSignals(True)
+        original_value = self.original_values[provider_name][tag_name]
+
+        # Update item in QTreeWidget
+        item.setText(1, original_value)
+
+        # Reset font
+        font = item.font(1)
+        font.setBold(False)
+        item.setFont(1, font)
+
+        # Remove from changes
+        if provider_name in self.changes and tag_name in self.changes[provider_name]:
+            del self.changes[provider_name][tag_name]
+            if not self.changes[provider_name]:
+                del self.changes[provider_name]
+
+        # Remove from original_values
+        if provider_name in self.original_values and tag_name in self.original_values[provider_name]:
+            del self.original_values[provider_name][tag_name]
+            if not self.original_values[provider_name]:
+                del self.original_values[provider_name]
+
+        # Remove revert button
+        self.advanced_tree.setItemWidget(item, 2, None)
+        self.advanced_tree.blockSignals(False)
+
+        self.update_button_states()
