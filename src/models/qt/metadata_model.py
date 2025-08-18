@@ -2,7 +2,7 @@ import os
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from util.const import KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN, \
-    KEY_FILE_CTIME, KEY_FILE_ATIME
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN
 from util.display import human_readable_size, human_readable_timestamp
 
 
@@ -39,7 +39,10 @@ class MetadataTableModel(QAbstractTableModel):
                     return fsize
 
             elif header == "Type":
-                return os.path.splitext(row_data.get(KEY_FILE_PATH, ""))[1].replace(".", "")
+                if role == Qt.ItemDataRole.DisplayRole:
+                    return row_data.get(KEY_FILE_TYPE_HUMAN)
+                else:
+                    return row_data.get(KEY_FILE_TYPE)
 
             elif header == "Date Modified":
                 fmtime = row_data.get(KEY_FILE_MTIME)

@@ -1,4 +1,8 @@
-from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, KEY_ALL_VALUES
+import os
+
+from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
+    KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
+    KEY_FILE_CTIME, KEY_FILE_ATIME
 from providers.metadata.mutagen_provider import MutagenProvider
 
 
@@ -12,7 +16,16 @@ class MediaFile:
         # read combined metadata in as-needed, not at load
         self._combined_metadata = {
             KEY_STREAM_INFO: {}, # bitrate, channels, audio type, etc
-            KEY_TAGS: {} # title, artist, album, genre, bpm, key, etc
+            KEY_TAGS: {}, # title, artist, album, genre, bpm, key, etc
+            KEY_INTERNAL: { #fs/internal data
+                KEY_FILE_PATH: file_path,
+                KEY_FILE_TYPE: os.path.splitext(file_path)[1].replace(".", ""),
+                KEY_FILE_SIZE: os.path.getsize(file_path),
+                KEY_FILE_MTIME: os.path.getmtime(file_path),
+                KEY_FILE_CTIME: os.path.getctime(file_path),
+                KEY_FILE_ATIME: os.path.getatime(file_path),
+                KEY_IS_MEDIA: False,
+            }
         }
 
         self._registered_providers = {
@@ -47,6 +60,9 @@ class MediaFile:
                 if not key in self._tag_provider_lookup[KEY_STREAM_INFO]:
                     self._tag_provider_lookup[KEY_STREAM_INFO][key] = []
                 self._tag_provider_lookup[KEY_STREAM_INFO][key].append(provider)
+
+            if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
+                self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
         pass #for debugger attach
 
@@ -83,6 +99,9 @@ class MediaFile:
             KEY_VALUE: provider_to_use.get_stream_info(key),
             KEY_PROVIDER: provider_to_use
         }
+
+    def get_internal_data(self, key):
+        return self._combined_metadata[KEY_INTERNAL].get(key)
 
     def save(self):
         self._provider.save()

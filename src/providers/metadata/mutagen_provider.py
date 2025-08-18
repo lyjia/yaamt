@@ -1,6 +1,6 @@
 import mutagen
 
-from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_ENCODING, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
+from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES
 from .base import MetadataProviderBase
 
@@ -47,7 +47,7 @@ class MutagenProvider(MetadataProviderBase):
             return getattr(self._audio.info, 'bits_per_sample', None)
         elif key == KEY_TOTAL_SAMPLES:
             return self._audio.info.length * self._audio.info.channels
-        elif key == KEY_ENCODING:
+        elif key == KEY_FORMAT:
             return self._audio.info.pprint().split(',')[0]
         return None
 
@@ -58,7 +58,7 @@ class MutagenProvider(MetadataProviderBase):
         return []
 
     def available_stream_info_keys(self):
-        return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES, KEY_ENCODING]
+        return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES, KEY_FORMAT]
 
     def all_tags(self):
         return dict(self._audio.tags)
@@ -69,8 +69,14 @@ class MutagenProvider(MetadataProviderBase):
             KEY_LENGTH: self.get_stream_info(KEY_LENGTH),
             KEY_SAMPLE_RATE: self.get_stream_info(KEY_SAMPLE_RATE),
             KEY_CHANNELS: self.get_stream_info(KEY_CHANNELS),
-            KEY_ENCODING: self.get_stream_info(KEY_ENCODING)
+            KEY_FORMAT: self.get_stream_info(KEY_FORMAT)
         }
+
+    def is_readable(self):
+        return self._audio is not None
+
+    def is_writable(self):
+        return False #disable all writes for now
 
     # @property
     # def title(self):

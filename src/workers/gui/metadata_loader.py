@@ -3,7 +3,8 @@ import traceback
 from PySide6.QtCore import QRunnable, QObject, Signal
 
 from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_FILE_PATH, \
-    KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN, KEY_FILE_CTIME, KEY_FILE_ATIME
+    KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN, KEY_FILE_CTIME, KEY_FILE_ATIME, \
+    KEY_ENCODER_INFO, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_FORMAT
 from models.media_file import MediaFile
 from util.display import human_readable_size, human_readable_timestamp
 
@@ -36,10 +37,11 @@ class MetadataLoader(QRunnable):
             self.signals.progress.emit(progress_percentage)
             try:
                 media_file = MediaFile(file_path)
-                mf_size = os.path.getsize(file_path)
-                mf_mtime = os.path.getmtime(file_path)
-                mf_ctime = os.path.getctime(file_path)
-                mf_atime = os.path.getatime(file_path)
+                mf_size = media_file.get_internal_data(KEY_FILE_SIZE)
+                mf_ctime = media_file.get_internal_data(KEY_FILE_CTIME)
+                mf_mtime = media_file.get_internal_data(KEY_FILE_MTIME)
+                mf_atime = media_file.get_internal_data(KEY_FILE_ATIME)
+                mf_type = media_file.get_internal_data(KEY_FILE_TYPE)
 
                 metadata = {
                     # fs attributes
@@ -48,6 +50,8 @@ class MetadataLoader(QRunnable):
                     KEY_FILE_MTIME: mf_mtime,
                     KEY_FILE_CTIME: mf_ctime,
                     KEY_FILE_ATIME: mf_atime,
+                    KEY_FILE_TYPE: mf_type,
+                    KEY_FILE_TYPE_HUMAN: media_file.get_stream_info_value(KEY_FORMAT),
 
                     # tag attributes
                     KEY_TITLE: media_file.get_tag_simple(KEY_TITLE),
