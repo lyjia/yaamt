@@ -1,8 +1,9 @@
 import os
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
-from util.const import KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN
-from util.display import human_readable_size
+from util.const import KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN, \
+    KEY_FILE_CTIME, KEY_FILE_ATIME
+from util.display import human_readable_size, human_readable_timestamp
 
 
 class MetadataTableModel(QAbstractTableModel):
@@ -30,19 +31,39 @@ class MetadataTableModel(QAbstractTableModel):
                 return os.path.basename(row_data.get(KEY_FILE_PATH, ""))
 
             elif header == "Size":
+                fsize = row_data.get(KEY_FILE_SIZE, 0)
+
                 if role == Qt.ItemDataRole.DisplayRole:
-                    return row_data.get(KEY_FILE_SIZE_HUMAN, "N/A")
+                    return human_readable_size( fsize )
                 else:
-                    return row_data.get(KEY_FILE_SIZE, 0)
+                    return fsize
 
             elif header == "Type":
                 return os.path.splitext(row_data.get(KEY_FILE_PATH, ""))[1].replace(".", "")
 
             elif header == "Date Modified":
+                fmtime = row_data.get(KEY_FILE_MTIME)
+
                 if role == Qt.ItemDataRole.DisplayRole:
-                    return row_data.get(KEY_FILE_MTIME_HUMAN, "N/A")
+                    return human_readable_timestamp( fmtime )
                 else:
-                    return row_data.get(KEY_FILE_MTIME, "N/A")
+                    return fmtime
+
+            elif header == "Date Created":
+                fctime = row_data.get(KEY_FILE_CTIME)
+
+                if role == Qt.ItemDataRole.DisplayRole:
+                    return human_readable_timestamp( fctime )
+                else:
+                    return fctime
+
+            elif header == "Last Accessed":
+                fatime = row_data.get(KEY_FILE_ATIME)
+
+                if role == Qt.ItemDataRole.DisplayRole:
+                    return human_readable_timestamp( fatime )
+                else:
+                    return fatime
 
             else:
                 return row_data.get(header.lower(), "")

@@ -3,7 +3,7 @@ import traceback
 from PySide6.QtCore import QRunnable, QObject, Signal
 
 from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_FILE_PATH, \
-    KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN
+    KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN, KEY_FILE_CTIME, KEY_FILE_ATIME
 from models.media_file import MediaFile
 from util.display import human_readable_size, human_readable_timestamp
 
@@ -38,12 +38,18 @@ class MetadataLoader(QRunnable):
                 media_file = MediaFile(file_path)
                 mf_size = os.path.getsize(file_path)
                 mf_mtime = os.path.getmtime(file_path)
+                mf_ctime = os.path.getctime(file_path)
+                mf_atime = os.path.getatime(file_path)
+
                 metadata = {
+                    # fs attributes
                     KEY_FILE_PATH: file_path,
                     KEY_FILE_SIZE: mf_size,
-                    KEY_FILE_SIZE_HUMAN: human_readable_size(mf_size),
                     KEY_FILE_MTIME: mf_mtime,
-                    KEY_FILE_MTIME_HUMAN: human_readable_timestamp(mf_mtime),
+                    KEY_FILE_CTIME: mf_ctime,
+                    KEY_FILE_ATIME: mf_atime,
+
+                    # tag attributes
                     KEY_TITLE: media_file.get_tag_simple(KEY_TITLE),
                     KEY_ARTIST: media_file.get_tag_simple(KEY_ARTIST),
                     KEY_ALBUM: media_file.get_tag_simple(KEY_ALBUM),

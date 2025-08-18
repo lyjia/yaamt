@@ -9,6 +9,8 @@ KEY_FILE_MTIME = "fmtime"
 KEY_FILE_MTIME_HUMAN = "fmtimeHR"
 KEY_FILE_CTIME = "fctime"
 KEY_FILE_CTIME_HUMAN = "fctimeHR"
+KEY_FILE_ATIME = "fatime"
+KEY_FILE_ATIME_HUMAN = "fatimeHR"
 
 # STREAM INFO keys
 KEY_BITRATE = "bitrate"
