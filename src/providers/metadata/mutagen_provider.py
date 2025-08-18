@@ -12,6 +12,7 @@ class MutagenProvider(MetadataProviderBase):
     def __init__(self, file_path: str):
         self._file_path = file_path
         self._audio = None
+
         try:
             self._audio = mutagen.File(file_path, easy=True)
         except FileNotFoundError:

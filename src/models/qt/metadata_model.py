@@ -26,7 +26,7 @@ class MetadataTableModel(QAbstractTableModel):
         row_data = self._data[index.row()]
 
         if role == KEY_IS_MEDIA:
-            return row_data.get(KEY_IS_MEDIA) is not None
+            return row_data.get(KEY_IS_MEDIA) is True
 
         if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole:
             header = self._headers[index.column()]
