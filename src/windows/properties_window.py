@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QTreeWidget,
     QTreeWidgetItem,
+    QLabel,
 )
 from models.media_file import MediaFile
 from util.const import KEY_INTERNAL, KEY_STREAM_INFO, KEY_TAGS
@@ -39,13 +40,13 @@ class PropertiesWindow(QMainWindow):
         self.setup_advanced_tab(tab_widget.widget(1))
 
         # Bottom button layout
-        bottom_layout = QHBoxLayout()
+        self.bottom_layout = QHBoxLayout()
 
         # Left-aligned button
         tools_button = QPushButton("Tools")
-        bottom_layout.addWidget(tools_button)
+        self.bottom_layout.addWidget(tools_button)
 
-        bottom_layout.addStretch()
+        self.bottom_layout.addStretch()
 
         # Right-aligned buttons
         self.close_button = QPushButton("Close")
@@ -55,13 +56,22 @@ class PropertiesWindow(QMainWindow):
         self.ok_button.clicked.connect(self.on_ok_clicked)
         self.close_button.clicked.connect(self.close)
 
-        bottom_layout.addWidget(self.ok_button)
-        bottom_layout.addWidget(self.close_button)
+        self.bottom_layout.addWidget(self.ok_button)
+        self.bottom_layout.addWidget(self.close_button)
 
-        main_layout.addLayout(bottom_layout)
+        main_layout.addLayout(self.bottom_layout)
 
     def on_ok_clicked(self):
-        print(self.changes)
+        self.setEnabled(False)
+
+        status_label = QLabel("Writing changes...")
+        self.bottom_layout.insertWidget(1, status_label)
+
+        for provider_name, tags in self.changes.items():
+            for tag_name, new_value in tags.items():
+                print(
+                    f"Provider: {provider_name}, Tag: {tag_name}, New Value: {new_value}"
+                )
         self.close()
 
     def update_button_states(self):
@@ -189,7 +199,7 @@ class PropertiesWindow(QMainWindow):
             self.update_button_states()
 
     def revert_change(self, item, provider_name, tag_name):
-        self.advanced_tree.blockSignals(True)
+        self.advanced_tree.blockSignals(True) # we do this because it stops the value from being bolded after reverting the change. TODO: is this the best way to handle this? It seems to address the underlying issue in an unnecessarily oblique fashion
         original_value = self.original_values[provider_name][tag_name]
 
         # Update item in QTreeWidget
@@ -214,6 +224,6 @@ class PropertiesWindow(QMainWindow):
 
         # Remove revert button
         self.advanced_tree.setItemWidget(item, 2, None)
-        self.advanced_tree.blockSignals(False)
+        self.advanced_tree.blockSignals(False) # see comment where we set this to true
 
         self.update_button_states()
