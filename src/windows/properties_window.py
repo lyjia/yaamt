@@ -21,6 +21,7 @@ class PropertiesWindow(QMainWindow):
         self.file_path = file_path
         self.media_file = MediaFile(file_path)
         self.setWindowTitle(f"Properties for {os.path.basename(file_path)}")
+        self.changes = {}
 
         # Central widget and main layout
         central_widget = QWidget()
@@ -46,14 +47,29 @@ class PropertiesWindow(QMainWindow):
         bottom_layout.addStretch()
 
         # Right-aligned buttons
-        close_button = QPushButton("Close")
-        ok_button = QPushButton("OK")
-        ok_button.setEnabled(False)
+        self.close_button = QPushButton("Close")
+        self.ok_button = QPushButton("OK")
+        self.ok_button.setEnabled(False)
 
-        bottom_layout.addWidget(ok_button)
-        bottom_layout.addWidget(close_button)
+        self.ok_button.clicked.connect(self.on_ok_clicked)
+        self.close_button.clicked.connect(self.close)
+
+        bottom_layout.addWidget(self.ok_button)
+        bottom_layout.addWidget(self.close_button)
 
         main_layout.addLayout(bottom_layout)
+
+    def on_ok_clicked(self):
+        print(self.changes)
+        self.close()
+
+    def update_button_states(self):
+        if self.changes:
+            self.ok_button.setEnabled(True)
+            self.close_button.setText("Cancel")
+        else:
+            self.ok_button.setEnabled(False)
+            self.close_button.setText("Close")
 
     def setup_details_tab(self, tab_widget):
         layout = QVBoxLayout(tab_widget)
@@ -113,8 +129,19 @@ class PropertiesWindow(QMainWindow):
             provider_item.setFlags(provider_item.flags() & ~Qt.ItemIsEditable)
 
             for tag_name, tag_value in sorted(tags):
-                child = QTreeWidgetItem(provider_item, [tag_name, str(tag_value)])
+                display_value = ""
+                if isinstance(tag_value, list):
+                    display_value = "; ".join(map(str, tag_value))
+                elif isinstance(tag_value, bytes):
+                    display_value = "(binary data)"
+                else:
+                    display_value = str(tag_value)
+
+                child = QTreeWidgetItem(provider_item, [tag_name, display_value])
                 child.setFlags(child.flags() | Qt.ItemIsEditable)
+
+                if isinstance(tag_value, bytes):
+                    child.setFlags(child.flags() & ~Qt.ItemIsEditable)
 
         for i in range(tree.columnCount()):
             tree.resizeColumnToContents(i)
@@ -124,4 +151,7 @@ class PropertiesWindow(QMainWindow):
             provider_name = item.parent().text(0)
             tag_name = item.text(0)
             new_value = item.text(1)
-            print(f"Advanced item changed: Provider='{provider_name}', Tag='{tag_name}', New Value='{new_value}'")
+            if provider_name not in self.changes:
+                self.changes[provider_name] = {}
+            self.changes[provider_name][tag_name] = new_value
+            self.update_button_states()
