@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QTreeWidget,
     QTreeWidgetItem,
-    QLabel,
+    QLabel, QStyle,
 )
 from models.media_file import MediaFile
 from util.const import KEY_INTERNAL, KEY_STREAM_INFO, KEY_TAGS
@@ -19,11 +19,17 @@ class PropertiesWindow(QMainWindow):
     def __init__(self, file_path, parent=None):
         super().__init__(parent)
 
+        self.changes = {}
+        self.original_values = {}
+
         self.file_path = file_path
         self.media_file = MediaFile(file_path)
         self.setWindowTitle(f"Properties for {os.path.basename(file_path)}")
-        self.changes = {}
-        self.original_values = {}
+        self.resize(720, 480)
+        self.setMinimumSize(400, 300)
+        self.setWindowIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
+        )
 
         # Central widget and main layout
         central_widget = QWidget()

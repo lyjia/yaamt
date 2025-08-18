@@ -17,7 +17,11 @@ class MainWindow(QMainWindow):
     def __init__(self, path=None):
         super().__init__()
         self.setWindowTitle("YAAMT")
-        self.resize(800, 600)
+        self.resize(1024, 768)
+        self.setMinimumSize(640, 480)
+        self.setWindowIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        )
         self.thread_pool = QThreadPool()
         self._current_path = ""
         self.metadata_results = []
