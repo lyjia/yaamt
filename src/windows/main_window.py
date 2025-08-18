@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import QDir, QThreadPool, Qt
+from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
 from models.settings import settings
@@ -73,7 +73,13 @@ class MainWindow(QMainWindow):
         # Right Pane (File List)
         self.file_list = QTreeView()
         self.file_model = MetadataTableModel()
-        self.file_list.setModel(self.file_model)
+
+        self.proxy_model = QSortFilterProxyModel()
+        self.proxy_model.setSourceModel(self.file_model)
+        self.proxy_model.setSortRole(Qt.ItemDataRole.UserRole)
+
+        self.file_list.setModel(self.proxy_model)
+        self.file_list.setSortingEnabled(True)
         self.file_list.header().setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_list.header().customContextMenuRequested.connect(self.on_header_context_menu)
         splitter.addWidget(self.file_list)

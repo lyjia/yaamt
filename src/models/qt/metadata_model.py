@@ -79,3 +79,9 @@ class MetadataTableModel(QAbstractTableModel):
         self.beginResetModel()
         self._data = data
         self.endResetModel()
+
+    def sort(self, column, order):
+        self.layoutAboutToBeChanged.emit()
+        header = self._headers[column]
+        self._data.sort(key=lambda x: x.get(header.lower(), ""), reverse=order == Qt.SortOrder.DescendingOrder)
+        self.layoutChanged.emit()

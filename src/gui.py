@@ -19,7 +19,6 @@ def run_gui():
     app = QApplication(sys.argv)
     window = MainWindow(path=args.path)
     window.show()
-    log("Quitting QT application...")
     sys.exit(app.exec())
 
 if __name__ == "__main__":
