@@ -49,23 +49,25 @@ In particular, we want the user to be able to perform the following (note that w
 
 The agent shall adhere to a structured project layout to ensure maintainability and scalability.
 
-**Recommended Project Structure:**
+**Simplified Project Structure:**
 
 ```
 project_name/
 ├── src/
-│   ├── models/
+│   ├── models/                       # Data model modules, QT models, and Python data classes
 │   │   └── media_file.py
-│   ├── providers/
+│   ├── providers/                    # Provider services used by various parts of the program
 │   │   ├── metadata/
 │   │   │   ├── base.py
 │   │   │   └── mutagen_provider.py
 │   │   └── media_file.py
-│   ├── windows/
-│   │   └── main_window.py
+│   ├── util/                         # Utility modules
+│   │   └── const.py                  # Program constants
+│   ├── windows/                      # Various windows in the program
+│   │   └── main_window.py            # The main window
 │   ├── workers/
-│   ├── main.py
-|   ├── gui.py
+│   ├── main.py                       # Entrypoint for command-line operations
+|   ├── gui.py                        # Entrypoint for accessing the desktop GUI
 ├── resources/
 │   ├── icons/
 │   │   └── app_icon.png
@@ -170,3 +172,16 @@ setup(
 6.  **Building the Executable:** Execute the build process using the command: `python setup.py build`.
 7.  **Output:** The packaged application will be in the `build/` directory.
 8.  **Installer Creation (Optional):** Use `bdist_msi` on Windows or `bdist_dmg` on macOS to create user-friendly installers.
+
+### Testing
+
+When writing tests, please note that the `conftest.py` file in the `tests` directory adds the `src` directory to the system path. This means that you do not need to prefix imports with `src`. For example, to import the `MediaFile` class, you would use the following statement:
+
+```python
+from models.media_file import MediaFile
+```
+instead of：
+
+```python
+from src.models.media_file import MediaFile
+```

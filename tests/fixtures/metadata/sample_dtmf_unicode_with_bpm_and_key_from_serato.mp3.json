@@ -1,0 +1,103 @@
+{
+    "stream_info": {
+        "bitrate": {
+            "value": 320000,
+            "provider": "MutagenProvider"
+        },
+        "length": {
+            "value": 1.256,
+            "provider": "MutagenProvider"
+        },
+        "sample_rate": {
+            "value": 44100,
+            "provider": "MutagenProvider"
+        },
+        "channels": {
+            "value": 2,
+            "provider": "MutagenProvider"
+        },
+        "bits_per_sample": {
+            "value": null,
+            "provider": "MutagenProvider"
+        },
+        "total_samples": {
+            "value": 2.512,
+            "provider": "MutagenProvider"
+        },
+        "format": {
+            "value": "MPEG 1 layer 3",
+            "provider": "MutagenProvider"
+        }
+    },
+    "tags": {
+        "album": {
+            "value": "pytest",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "pytest"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "bpm": {
+            "value": "125",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "125"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "copyright": {
+            "value": "2025",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "2025"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "title": {
+            "value": "DTMF Sample Unicode",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "DTMF Sample Unicode"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "artist": {
+            "value": "Lyjia",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Lyjia"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "genre": {
+            "value": "Power Ballad",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Power Ballad"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        }
+    },
+    "internal": {
+        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\sample_dtmf_unicode_with_bpm_and_key_from_serato.mp3",
+        "ftype": "mp3",
+        "fsize": 56163,
+        "fmtime": 1755454552.1383226,
+        "fctime": 1755454506.9007492,
+        "ismedia": true,
+        "iswritable": false
+    }
+}

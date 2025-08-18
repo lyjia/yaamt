@@ -1,0 +1,83 @@
+{
+    "stream_info": {
+        "bitrate": {
+            "value": 272440,
+            "provider": "MutagenProvider"
+        },
+        "length": {
+            "value": 1.2,
+            "provider": "MutagenProvider"
+        },
+        "sample_rate": {
+            "value": 44100,
+            "provider": "MutagenProvider"
+        },
+        "channels": {
+            "value": 2,
+            "provider": "MutagenProvider"
+        },
+        "bits_per_sample": {
+            "value": 16,
+            "provider": "MutagenProvider"
+        },
+        "total_samples": {
+            "value": 2.4,
+            "provider": "MutagenProvider"
+        },
+        "format": {
+            "value": "FLAC",
+            "provider": "MutagenProvider"
+        }
+    },
+    "tags": {
+        "genre": {
+            "value": "Power Ballad",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Power Ballad"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "artist": {
+            "value": "Lyjia",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Lyjia"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "album": {
+            "value": "pytest",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "pytest"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "title": {
+            "value": "DTMF Sample Original",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "DTMF Sample Original"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        }
+    },
+    "internal": {
+        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\sample_dtmf_original.flac",
+        "ftype": "flac",
+        "fsize": 41118,
+        "fmtime": 1755451193.9155762,
+        "fctime": 1755406704.160587,
+        "ismedia": true,
+        "iswritable": false
+    }
+}

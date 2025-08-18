@@ -1,18 +1,36 @@
-from const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, KEY_ALL_VALUES
+import os
+
+from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
+    KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE
 from providers.metadata.mutagen_provider import MutagenProvider
+from util.logging import log
 
 
 class MediaFile:
     """
     Public interface for accessing audio file metadata.
     """
-    def __init__(self, file_path: str):
-        self._providers = self._get_providers_for_file(file_path)
+    def __init__(self, file_path: str, enable_write=False):
+        self._file_path = os.path.abspath(file_path)
+        self._file_name = os.path.basename(file_path)
+        self._providers = self._get_providers_for_file()
+        self._write_enabled = enable_write
 
         # read combined metadata in as-needed, not at load
         self._combined_metadata = {
             KEY_STREAM_INFO: {}, # bitrate, channels, audio type, etc
-            KEY_TAGS: {} # title, artist, album, genre, bpm, key, etc
+            KEY_TAGS: {}, # title, artist, album, genre, bpm, key, etc
+            KEY_INTERNAL: { #fs/internal data
+                KEY_FILE_PATH: str(file_path),
+                KEY_FILE_TYPE: os.path.splitext(file_path)[1].replace(".", ""),
+                KEY_FILE_SIZE: os.path.getsize(file_path),
+                KEY_FILE_MTIME: os.path.getmtime(file_path),
+                KEY_FILE_CTIME: os.path.getctime(file_path),
+                # KEY_FILE_ATIME: os.path.getatime(file_path),
+                KEY_IS_MEDIA: False,
+                KEY_IS_WRITABLE: False
+            }
         }
 
         self._registered_providers = {
@@ -47,6 +65,20 @@ class MediaFile:
                 if not key in self._tag_provider_lookup[KEY_STREAM_INFO]:
                     self._tag_provider_lookup[KEY_STREAM_INFO][key] = []
                 self._tag_provider_lookup[KEY_STREAM_INFO][key].append(provider)
+
+            # TODO: temporary while we only support one provider
+            if provider.is_readable():
+                self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
+
+            if provider.is_readable() and self._write_enabled:
+                self._combined_metadata[KEY_INTERNAL][KEY_IS_WRITABLE] = True
+            else:
+                if self._write_enabled:
+                    log(f"{self._file_name}: Write is enabled but file is not readable by metadata providers. Disabling write!")
+
+        # TODO: refine this when we have more provider support, KEY_IS_MEDIA should only be true if the file being loaded is a media file we care about
+        # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
+        #     self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
         pass #for debugger attach
 
@@ -84,6 +116,9 @@ class MediaFile:
             KEY_PROVIDER: provider_to_use
         }
 
+    def get_internal_data(self, key):
+        return self._combined_metadata[KEY_INTERNAL].get(key)
+
     def save(self):
         self._provider.save()
 
@@ -93,7 +128,8 @@ class MediaFile:
         """
         to_ret = {
             KEY_STREAM_INFO: {},
-            KEY_TAGS: {}
+            KEY_TAGS: {},
+            KEY_INTERNAL: {}
         }
 
         for key in self._tag_provider_lookup[KEY_TAGS].keys():
@@ -110,12 +146,18 @@ class MediaFile:
                 KEY_PROVIDER: self._tag_provider_lookup[KEY_STREAM_INFO][key][0].__class__.__name__,
             }
 
+        to_ret[KEY_INTERNAL] = self._combined_metadata[KEY_INTERNAL]
+
         return to_ret
 
-    def _get_providers_for_file(self, file_path: str):
+    @property
+    def metadata(self):
+        return self.to_dict()
+
+    def _get_providers_for_file(self):
         """
         Get the MetadataProvider instance(s) most appropriate for the given file in order of preference.
         :param file_path:
         :return:
         """
-        return [ MutagenProvider(file_path) ]
+        return [ MutagenProvider(self._file_path) ]

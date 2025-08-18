@@ -56,12 +56,35 @@ def main():
             print(json.dumps(media_file.to_dict(), indent=4))
         elif not write_ops:
             print(f"Metadata for: {args.file_path}")
-            print(f"  Title: {media_file.title}")
-            print(f"  Artist: {media_file.artist}")
-            print(f"  Album: {media_file.album}")
-            print(f"  Genre: {media_file.genre}")
-            print(f"  BPM: {media_file.bpm}")
-            print(f"  Key: {media_file.key}")
+            
+            # Print all available tags
+            print("\nTags:")
+            if media_file._tag_provider_lookup['tags']:
+                for key in sorted(media_file._tag_provider_lookup['tags'].keys()):
+                    value = media_file.get_tag_simple(key)
+                    if value:
+                        print(f"  {key}: {value}")
+            else:
+                print("  No tags found.")
+
+            # Print all available stream info
+            print("\nStream Info:")
+            if media_file._tag_provider_lookup['stream_info']:
+                for key in sorted(media_file._tag_provider_lookup['stream_info'].keys()):
+                    value = media_file.get_stream_info_value(key)
+                    if value:
+                        print(f"  {key}: {value}")
+            else:
+                print("  No stream info found.")
+
+            # Print all internal data
+            print("\nInternal Info:")
+            if media_file._combined_metadata['internal']:
+                for key, value in sorted(media_file._combined_metadata['internal'].items()):
+                    if value:
+                        print(f"  {key}: {value}")
+            else:
+                print("  No internal info found.")
     except FileNotFoundError:
         if args.json:
             print(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
@@ -76,7 +99,7 @@ def main():
             traceback.print_exc()
             print(f"An error occurred: {e}", file=sys.stderr)
 
-    sys.exit(1)
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
