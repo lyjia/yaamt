@@ -11,7 +11,8 @@ class MediaFile:
     Public interface for accessing audio file metadata.
     """
     def __init__(self, file_path: str):
-        self._providers = self._get_providers_for_file(file_path)
+        self._file_path = file_path
+        self._providers = self._get_providers_for_file()
 
         # read combined metadata in as-needed, not at load
         self._combined_metadata = {
@@ -61,8 +62,13 @@ class MediaFile:
                     self._tag_provider_lookup[KEY_STREAM_INFO][key] = []
                 self._tag_provider_lookup[KEY_STREAM_INFO][key].append(provider)
 
-            if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
+            # TODO: temporary while we only support one provider
+            if provider.is_readable():
                 self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
+
+        # TODO: refine this when we have more provider support, KEY_IS_MEDIA should only be true if the file being loaded is a media file we care about
+        # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
+        #     self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
         pass #for debugger attach
 
@@ -131,10 +137,10 @@ class MediaFile:
 
         return to_ret
 
-    def _get_providers_for_file(self, file_path: str):
+    def _get_providers_for_file(self):
         """
         Get the MetadataProvider instance(s) most appropriate for the given file in order of preference.
         :param file_path:
         :return:
         """
-        return [ MutagenProvider(file_path) ]
+        return [ MutagenProvider(self._file_path) ]
