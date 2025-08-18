@@ -40,7 +40,7 @@ class MetadataLoader(QRunnable):
                 mf_size = media_file.get_internal_data(KEY_FILE_SIZE)
                 mf_ctime = media_file.get_internal_data(KEY_FILE_CTIME)
                 mf_mtime = media_file.get_internal_data(KEY_FILE_MTIME)
-                mf_atime = media_file.get_internal_data(KEY_FILE_ATIME)
+                # mf_atime = media_file.get_internal_data(KEY_FILE_ATIME)
                 mf_type = media_file.get_internal_data(KEY_FILE_TYPE)
 
                 metadata = {
@@ -49,7 +49,7 @@ class MetadataLoader(QRunnable):
                     KEY_FILE_SIZE: mf_size,
                     KEY_FILE_MTIME: mf_mtime,
                     KEY_FILE_CTIME: mf_ctime,
-                    KEY_FILE_ATIME: mf_atime,
+                    # KEY_FILE_ATIME: mf_atime,
                     KEY_FILE_TYPE: mf_type,
                     KEY_FILE_TYPE_HUMAN: media_file.get_stream_info_value(KEY_FORMAT),
 

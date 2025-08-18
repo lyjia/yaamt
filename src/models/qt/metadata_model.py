@@ -64,13 +64,13 @@ class MetadataTableModel(QAbstractTableModel):
                 else:
                     return fctime
 
-            elif header == "Last Accessed":
-                fatime = row_data.get(KEY_FILE_ATIME)
-
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return human_readable_timestamp( fatime )
-                else:
-                    return fatime
+            # elif header == "Last Accessed":
+            #     fatime = row_data.get(KEY_FILE_ATIME)
+            #
+            #     if role == Qt.ItemDataRole.DisplayRole:
+            #         return human_readable_timestamp( fatime )
+            #     else:
+            #         return fatime
 
             else:
                 return row_data.get(header.lower(), "")

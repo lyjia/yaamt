@@ -31,7 +31,7 @@ def test_to_dict_parameterized(media_path):
     expected_json_path = media_path.with_suffix(media_path.suffix + '.json')
 
     # Load the expected results from the JSON file.
-    with open(expected_json_path, 'r', encoding='utf-16') as f:
+    with open(expected_json_path, 'r', encoding='utf-8') as f:
         expected_dict = json.load(f)
 
     # Initialize the MediaFile object with the path to the test file.

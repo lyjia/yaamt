@@ -16,8 +16,8 @@ KEY_FILE_MTIME = "fmtime"
 KEY_FILE_MTIME_HUMAN = "fmtimeHR"
 KEY_FILE_CTIME = "fctime"
 KEY_FILE_CTIME_HUMAN = "fctimeHR"
-KEY_FILE_ATIME = "fatime"
-KEY_FILE_ATIME_HUMAN = "fatimeHR"
+KEY_FILE_ATIME = "fatime" #do not use! TODO: remove me
+KEY_FILE_ATIME_HUMAN = "fatimeHR" #do not use! TODO: remove me
 KEY_FILE_TYPE = "ftype"
 KEY_FILE_TYPE_HUMAN = "ftypeHR"
 

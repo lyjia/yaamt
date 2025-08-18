@@ -27,7 +27,7 @@ class MediaFile:
                 KEY_FILE_SIZE: os.path.getsize(file_path),
                 KEY_FILE_MTIME: os.path.getmtime(file_path),
                 KEY_FILE_CTIME: os.path.getctime(file_path),
-                KEY_FILE_ATIME: os.path.getatime(file_path),
+                # KEY_FILE_ATIME: os.path.getatime(file_path),
                 KEY_IS_MEDIA: False,
                 KEY_IS_WRITABLE: False
             }
