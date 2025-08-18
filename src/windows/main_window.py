@@ -9,6 +9,8 @@ from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
 from models.settings import settings
+from util.const import KEY_IS_MEDIA
+
 
 class MainWindow(QMainWindow):
     def __init__(self, path=None):
@@ -71,23 +73,26 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.directory_tree)
 
         # Right Pane (File List)
-        self.file_list = QTreeView()
+        self.files_view = QTreeView()
         self.file_model = MetadataTableModel()
 
         self.proxy_model = QSortFilterProxyModel()
         self.proxy_model.setSourceModel(self.file_model)
         self.proxy_model.setSortRole(Qt.ItemDataRole.UserRole)
 
-        self.file_list.setModel(self.proxy_model)
-        self.file_list.setSortingEnabled(True)
-        self.file_list.header().setContextMenuPolicy(Qt.CustomContextMenu)
-        self.file_list.header().customContextMenuRequested.connect(self.on_header_context_menu)
-        splitter.addWidget(self.file_list)
+        self.files_view.setModel(self.proxy_model)
+        self.files_view.setSortingEnabled(True)
+        self.files_view.header().setContextMenuPolicy(Qt.CustomContextMenu)
+        self.files_view.header().customContextMenuRequested.connect(self.on_header_context_menu)
+        self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
+        splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
 
         # Connect the panes
         self.directory_tree.selectionModel().currentChanged.connect(self.on_directory_changed)
+        self.files_view.selectionModel().selectionChanged.connect(self.update_file_actions)
 
         self.setup_view_menu()
 
@@ -101,6 +106,7 @@ class MainWindow(QMainWindow):
             else:
                 initial_path = QDir.homePath()
         self.set_path(initial_path)
+        self.update_file_actions()
 
     def set_path(self, path):
         self._current_path = path
@@ -138,17 +144,22 @@ class MainWindow(QMainWindow):
         self.metadata_results.append(result_data)
 
     def on_header_context_menu(self, pos):
-        self.column_menu.exec_(self.file_list.header().mapToGlobal(pos))
+        self.column_menu.exec_(self.files_view.header().mapToGlobal(pos))
+
+    def on_files_view_customContextMenuRequested(self, pos):
+        menu = QMenu()
+        menu.addAction(self.action_properties)
+        menu.exec_(self.files_view.mapToGlobal(pos))
 
     def toggle_column(self, index, checked):
-        self.file_list.setColumnHidden(index, not checked)
+        self.files_view.setColumnHidden(index, not checked)
 
     def setup_view_menu(self):
         self.column_menu.clear()
         for i in range(self.file_model.columnCount()):
             action = QAction(self.file_model.headerData(i, Qt.Horizontal), self)
             action.setCheckable(True)
-            action.setChecked(not self.file_list.isColumnHidden(i))
+            action.setChecked(not self.files_view.isColumnHidden(i))
             action.setData(i)
             action.toggled.connect(lambda checked, index=i: self.toggle_column(index, checked))
             self.column_menu.addAction(action)
@@ -187,6 +198,14 @@ class MainWindow(QMainWindow):
     def _create_menus(self):
         # File Menu
         file_menu = self.menuBar().addMenu("&File")
+
+        self.action_properties = QAction("Properties...", self)
+        self.action_properties.setEnabled(False)
+        # self.action_properties.triggered.connect(self.show_properties)
+        file_menu.addAction(self.action_properties)
+
+        file_menu.addSeparator()
+
         quit_action = QAction("&Quit", self)
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
@@ -207,3 +226,15 @@ class MainWindow(QMainWindow):
             "<p>A simple tool for editing audio metadata.</p>"
             "<p>Version 0.1</p>"
         )
+
+    def update_file_actions(self):
+        selected_indexes = self.files_view.selectionModel().selectedIndexes()
+        selected_rows = {index.row() for index in selected_indexes}
+
+        is_media_file = False
+        if len(selected_rows) == 1:
+            first_index = selected_indexes[0]
+            source_index = self.proxy_model.mapToSource(first_index)
+            is_media_file = self.file_model.data(source_index, KEY_IS_MEDIA)
+
+        self.action_properties.setEnabled(len(selected_rows) == 1 and is_media_file)

@@ -2,7 +2,7 @@ import os
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from util.const import KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN, \
-    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA
 from util.display import human_readable_size, human_readable_timestamp
 
 
@@ -23,8 +23,12 @@ class MetadataTableModel(QAbstractTableModel):
         if not index.isValid():
             return None
 
+        row_data = self._data[index.row()]
+
+        if role == KEY_IS_MEDIA:
+            return row_data.get(KEY_IS_MEDIA) is not None
+
         if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole:
-            row_data = self._data[index.row()]
             header = self._headers[index.column()]
 
             if header == "Name":
