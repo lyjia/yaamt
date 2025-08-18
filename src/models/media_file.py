@@ -128,7 +128,8 @@ class MediaFile:
         """
         to_ret = {
             KEY_STREAM_INFO: {},
-            KEY_TAGS: {}
+            KEY_TAGS: {},
+            KEY_INTERNAL: {}
         }
 
         for key in self._tag_provider_lookup[KEY_TAGS].keys():
@@ -145,7 +146,13 @@ class MediaFile:
                 KEY_PROVIDER: self._tag_provider_lookup[KEY_STREAM_INFO][key][0].__class__.__name__,
             }
 
+        to_ret[KEY_INTERNAL] = self._combined_metadata[KEY_INTERNAL]
+
         return to_ret
+
+    @property
+    def metadata(self):
+        return self.to_dict()
 
     def _get_providers_for_file(self):
         """
