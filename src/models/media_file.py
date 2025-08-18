@@ -1,4 +1,4 @@
-from const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, KEY_ALL_VALUES
+from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, KEY_ALL_VALUES
 from providers.metadata.mutagen_provider import MutagenProvider
 
 

@@ -1,6 +1,6 @@
 import mutagen
 
-from const import KEY_BITRATE, KEY_CHANNELS, KEY_ENCODING, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
+from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_ENCODING, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES
 from .base import MetadataProviderBase
 

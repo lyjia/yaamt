@@ -1,6 +1,14 @@
 KEY_STREAM_INFO = "stream_info"
 KEY_TAGS = "tags"
-KEY_FILE_PATH = "file_path"
+
+# FILESYSTEM keys
+KEY_FILE_PATH = "fpath"
+KEY_FILE_SIZE = "fsize"
+KEY_FILE_SIZE_HUMAN = "fsizeHR"
+KEY_FILE_MTIME = "fmtime"
+KEY_FILE_MTIME_HUMAN = "fmtimeHR"
+KEY_FILE_CTIME = "fctime"
+KEY_FILE_CTIME_HUMAN = "fctimeHR"
 
 # STREAM INFO keys
 KEY_BITRATE = "bitrate"

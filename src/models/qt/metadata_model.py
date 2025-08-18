@@ -1,6 +1,9 @@
 import os
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
+from util.const import KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN
+from util.display import human_readable_size
+
 
 class MetadataTableModel(QAbstractTableModel):
     def __init__(self, parent=None):
@@ -15,22 +18,35 @@ class MetadataTableModel(QAbstractTableModel):
         return len(self._headers)
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+
         if not index.isValid():
             return None
-        if role == Qt.ItemDataRole.DisplayRole:
+
+        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole:
             row_data = self._data[index.row()]
             header = self._headers[index.column()]
+
             if header == "Name":
-                return os.path.basename(row_data.get("file_path", ""))
+                return os.path.basename(row_data.get(KEY_FILE_PATH, ""))
+
             elif header == "Size":
-                size_in_bytes = row_data.get('size', 0)
-                return f"{size_in_bytes / 1024:.2f} KB" if size_in_bytes else "N/A"
+                if role == Qt.ItemDataRole.DisplayRole:
+                    return row_data.get(KEY_FILE_SIZE_HUMAN, "N/A")
+                else:
+                    return row_data.get(KEY_FILE_SIZE, 0)
+
             elif header == "Type":
-                return os.path.splitext(row_data.get("file_path", ""))
+                return os.path.splitext(row_data.get(KEY_FILE_PATH, ""))[1].replace(".", "")
+
             elif header == "Date Modified":
-                return str(row_data.get("date_modified", "N/A"))
+                if role == Qt.ItemDataRole.DisplayRole:
+                    return row_data.get(KEY_FILE_MTIME_HUMAN, "N/A")
+                else:
+                    return row_data.get(KEY_FILE_MTIME, "N/A")
+
             else:
                 return row_data.get(header.lower(), "")
+                
         return None
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
