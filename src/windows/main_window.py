@@ -202,7 +202,7 @@ class MainWindow(QMainWindow):
 
         self.action_properties = QAction("Properties...", self)
         self.action_properties.setEnabled(False)
-        self.action_properties.triggered.connect(self.show_properties)
+        self.action_properties.triggered.connect(self.open_properties_window)
         file_menu.addAction(self.action_properties)
 
         file_menu.addSeparator()
@@ -228,7 +228,7 @@ class MainWindow(QMainWindow):
             "<p>Version 0.1</p>"
         )
 
-    def show_properties(self):
+    def open_properties_window(self):
         selected_indexes = self.files_view.selectionModel().selectedIndexes()
         if not selected_indexes:
             return
