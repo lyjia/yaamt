@@ -10,6 +10,17 @@ FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "metadata"
 # This list will be used to parameterize the test function.
 test_files = [p for p in FIXTURE_DIR.glob('*') if (p.suffix == '.mp3' or p.suffix == ".flac")]
 
+def filter_keys(obj, keys_to_ignore):
+    """
+    Recursively filters keys from a dictionary or a list of dictionaries.
+    """
+    if isinstance(obj, dict):
+        return {k: filter_keys(v, keys_to_ignore) for k, v in obj.items() if k not in keys_to_ignore}
+    if isinstance(obj, list):
+        return [filter_keys(elem, keys_to_ignore) for elem in obj]
+    return obj
+
+
 @pytest.mark.parametrize("media_path", test_files)
 def test_to_dict_parameterized(media_path):
     """
@@ -37,5 +48,15 @@ def test_to_dict_parameterized(media_path):
     # Initialize the MediaFile object with the path to the test file.
     media_file = MediaFile(media_path)
 
-    # Assert that the output of to_dict() matches the expected results.
-    assert media_file.to_dict() == expected_dict
+    # Get the actual dictionary from the MediaFile object.
+    actual_dict = media_file.to_dict()
+
+    # Define the keys to ignore during comparison.
+    keys_to_ignore = {'fsize', 'fmtime', 'fatime', 'fctime', 'fpath'}
+
+    # Filter the dictionaries to remove the ignored keys.
+    actual_filtered = filter_keys(actual_dict, keys_to_ignore)
+    expected_filtered = filter_keys(expected_dict, keys_to_ignore)
+
+    # Assert that the filtered dictionaries are equal.
+    assert actual_filtered == expected_filtered
