@@ -104,6 +104,8 @@ class MainWindow(QMainWindow):
 
         # Connect header signals
         header = self.files_view.header()
+        header.setSectionsMovable(True)
+        header.setFirstSectionMovable(True)
         header.sectionResized.connect(self.on_column_resized)
         header.sectionMoved.connect(self.on_column_moved)
         header.sortIndicatorChanged.connect(self.on_sort_indicator_changed)
