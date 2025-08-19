@@ -7,7 +7,6 @@ KEY_INTERNAL = "internal"
 KEY_IS_MEDIA = "ismedia" # is this file a media file we care about or something else?
 KEY_IS_WRITABLE = "iswritable"
 
-
 # FILESYSTEM keys
 KEY_FILE_PATH = "fpath"
 KEY_FILE_SIZE = "fsize"
@@ -49,6 +48,19 @@ KEY_BPM = 'bpm'
 KEY_COMPOSER = 'composer'
 KEY_MUSICAL_KEY = 'musical_key'
 #### END metadata model keys ####
+
+#### COLUMN names for file list ####
+COL_MAIN_NAME = "name"
+COL_MAIN_SIZE = "size"
+COL_MAIN_TYPE = "type"
+COL_MAIN_DATE_MODIFIED = "date_modified"
+COL_MAIN_TITLE = "title"
+COL_MAIN_ARTIST = "artist"
+COL_MAIN_ALBUM = "album"
+COL_MAIN_GENRE = "genre"
+COL_MAIN_BPM = "bpm"
+COL_MAIN_KEY = "key"
+#### END column names for file list ####
 
 KEY_PROVIDER = 'provider'
 KEY_ALL_PROVIDERS = 'all_providers'

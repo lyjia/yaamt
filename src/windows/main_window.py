@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
 
         # Right Pane (File List)
         self.files_view = QTreeView()
-        self.file_model = MetadataTableModel()
+        self.file_model = MetadataTableModel(self.file_list_settings.columns)
 
         self.proxy_model = QSortFilterProxyModel()
         self.proxy_model.setSourceModel(self.file_model)
@@ -299,7 +299,10 @@ class MainWindow(QMainWindow):
 
     def _reset_column_settings(self):
         self.file_list_settings = FileListSettings()
+        self.file_model = MetadataTableModel(self.file_list_settings.columns)
+        self.proxy_model.setSourceModel(self.file_model)
         self._apply_column_settings()
+        self.setup_view_menu()
 
     def _get_column_settings_by_logical_index(self, logical_index):
         if logical_index < 0 or logical_index >= len(self._logical_column_ids):
