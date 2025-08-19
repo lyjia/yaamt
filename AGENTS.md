@@ -99,6 +99,10 @@ The agent will follow these best practices when developing the PySide6 applicati
 
 ### Testing
 
+A unit test suite (using pytest) can be found in `tests` in the project root.
+
+#### Notes
+
 When writing tests, please note that the `conftest.py` file in the `tests` directory adds the `src` directory to the system path. This means that you do not need to prefix imports with `src`. For example, to import the `MediaFile` class, you would use the following statement:
 
 ```python
@@ -109,3 +113,7 @@ instead of：
 ```python
 from src.models.media_file import MediaFile
 ```
+
+#### Running tests
+
+`pytest` to run all tests or `pytest tests/test_my_test.py` to run tests in a specific file.
