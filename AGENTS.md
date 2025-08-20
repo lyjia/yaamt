@@ -25,7 +25,8 @@ In particular, we want the user to be able to perform the following (note that w
 * Analyze the audio streams of a file and generate useful metadata, such as BPM, key, MusicBrainz ID, or an acoustic fingerprint.
 * Edit specific metadata fields of a MediaFile, such as title, track, album, key, or bpm
 * Seamlessly translate the contents of the key field between different representations for musical key, including Camelot notation
-* Play back the MediaFile using a simple playback interface with Play, Pause/Stop, Volume, and Playback Position controls 
+* Play back the MediaFile using a simple playback interface with Play, Pause/Stop, Volume, and Playback Position controls
+* Write data to the user's precious files only when requested, and as safely as possible, so as to minimize the risk of screwing up the user's carefully curated audio metadata. We want to avoid creating the same disaster that iTunes did when it started spontaneously saving scan results to metadata and potentially corrupting users' files without their explicit permission.
 
 ## Conversational style
 
