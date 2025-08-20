@@ -1,7 +1,7 @@
 import mutagen
 
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
-    KEY_TOTAL_SAMPLES
+    KEY_TOTAL_SAMPLES, ALL_TAGS
 from .base import MetadataProviderBase
 
 
@@ -52,10 +52,9 @@ class MutagenProvider(MetadataProviderBase):
             return self._audio.info.pprint().split(',')[0]
         return None
 
-    #TODO: this currently only reports tags found in file, not all possible tags
     def available_tags(self):
         if self._audio:
-            return self._audio.tags.keys()
+            return set(self._audio.tags.keys() | ALL_TAGS.keys())
         return []
 
     def available_stream_info_keys(self):
@@ -73,7 +72,23 @@ class MutagenProvider(MetadataProviderBase):
             KEY_FORMAT: self.get_stream_info(KEY_FORMAT)
         }
 
+    def get_internal_tag_name_for_generic(self, generic_name: str)-> str:
+        """
+        Maps the internal tag name native to this provider, from the given higher-level generic tag name.
+        :param generic_name:
+        :rtype: str
+        :return:
+        """
+        # if generic_name == KEY_TITLE: #example
+        #     return 'title'
+        # TODO: we may need to audit the list in ALL_TAGS and make sure that they correctly map to mutagen's Easy keys
+        return generic_name
+
     def is_readable(self):
+        """
+        Should we attempt to read tags from this provider?
+        :return: 
+        """
         return self._audio is not None
 
     def is_writable(self):

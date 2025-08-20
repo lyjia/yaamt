@@ -35,6 +35,7 @@ class MetadataProviderBase(ABC):
     def all_tags(self):
         pass
 
+
     # @property
     # @abstractmethod
     # def title(self):
