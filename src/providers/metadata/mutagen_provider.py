@@ -1,3 +1,5 @@
+from argparse import ArgumentError
+
 import mutagen
 
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
@@ -29,9 +31,14 @@ class MutagenProvider(MetadataProviderBase):
             return self._audio[key]
         return None
 
-    def set_tag(self, key, value):
+    def set_tag(self, key, value, is_internal_tag_key = False):
+        if not is_internal_tag_key:
+            actual_key = self.get_internal_tag_name_for_generic(key)
+        else:
+            actual_key = key
+
         if self._audio:
-            self._audio[key] = value
+            self._audio[actual_key] = value
 
     def get_stream_info(self, key):
         if not self._audio:
@@ -82,7 +89,10 @@ class MutagenProvider(MetadataProviderBase):
         # if generic_name == KEY_TITLE: #example
         #     return 'title'
         # TODO: we may need to audit the list in ALL_TAGS and make sure that they correctly map to mutagen's Easy keys
-        return generic_name
+        if generic_name in ALL_TAGS:
+            return generic_name
+        else:
+            raise ArgumentError(f'generic_name {generic_name} not found in ALL_TAGS. Available tags: {ALL_TAGS.keys()}')
 
     def is_readable(self):
         """
