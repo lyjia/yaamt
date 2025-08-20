@@ -1,7 +1,9 @@
 import json
+import shutil
 from pathlib import Path
 import pytest
 from models.media_file import MediaFile
+from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY
 
 # Define the directory containing the test fixtures.
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "metadata"
@@ -60,3 +62,54 @@ def test_to_dict_parameterized(media_path):
 
     # Assert that the filtered dictionaries are equal.
     assert actual_filtered == expected_filtered
+
+
+@pytest.mark.parametrize("media_path", test_files)
+def test_write_tags(media_path, tmp_path):
+    """
+    A parameterized test that verifies the write functionality of the MediaFile class.
+    """
+    # Create a temporary copy of the file to write to.
+    temp_media_path = tmp_path / media_path.name
+    shutil.copy(media_path, temp_media_path)
+
+    # Create a MediaFile instance for the temporary file.
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+
+    # Define the new tags to write.
+    new_tags = {
+        KEY_TITLE: 'New Title',
+        KEY_ARTIST: 'New Artist',
+        KEY_ALBUM: 'New Album',
+        KEY_GENRE: 'New Genre',
+        KEY_BPM: '123',
+        KEY_MUSICAL_KEY: 'C'
+    }
+
+    # Write the new tags to the file.
+    for key, value in new_tags.items():
+        media_file.set_tag(key, value)
+    media_file.save()
+
+    # Create a new MediaFile instance to read the tags back.
+    media_file_read = MediaFile(str(temp_media_path))
+
+    # Verify that the tags were written correctly.
+    for key, value in new_tags.items():
+        assert media_file_read.get_tag_simple(key) == value
+
+
+def test_write_permission_error(tmp_path):
+    """
+    Tests that a PermissionError is raised when trying to write to a file without write permissions.
+    """
+    # Create a dummy file.
+    temp_file_path = tmp_path / "test.txt"
+    temp_file_path.touch()
+
+    # Create a MediaFile instance with write disabled.
+    media_file = MediaFile(str(temp_file_path))
+
+    # Verify that a PermissionError is raised when trying to save.
+    with pytest.raises(PermissionError):
+        media_file.save()

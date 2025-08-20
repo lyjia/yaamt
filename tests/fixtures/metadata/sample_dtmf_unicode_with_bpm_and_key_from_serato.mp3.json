@@ -40,6 +40,16 @@
                 "MutagenProvider"
             ]
         },
+        "artist": {
+            "value": "Lyjia",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Lyjia"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "bpm": {
             "value": "125",
             "provider": "MutagenProvider",
@@ -60,31 +70,31 @@
                 "MutagenProvider"
             ]
         },
-        "title": {
-            "value": "DTMF Sample Unicode",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "DTMF Sample Unicode"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "artist": {
-            "value": "Lyjia",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "Lyjia"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
         "genre": {
             "value": "Power Ballad",
             "provider": "MutagenProvider",
             "all_values": [
                 "Power Ballad"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "musical_key": {
+            "value": "Fm",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Fm"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "title": {
+            "value": "DTMF Sample Unicode",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "DTMF Sample Unicode"
             ],
             "all_providers": [
                 "MutagenProvider"

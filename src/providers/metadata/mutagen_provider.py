@@ -8,6 +8,40 @@ from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, K
     KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY
 from .base import MetadataProviderBase
 
+## Here is the list of easy key names and their mappings to ID3, from
+# .venv/Lib/site-packages/mutagen/easyid3.py:
+# for frameid, key in {
+#     "TALB": "album",
+#     "TBPM": "bpm",
+#     "TCMP": "compilation",  # iTunes extension
+#     "TCOM": "composer",
+#     "TCOP": "copyright",
+#     "TENC": "encodedby",
+#     "TEXT": "lyricist",
+#     "TLEN": "length",
+#     "TMED": "media",
+#     "TMOO": "mood",
+#     "TIT1": "grouping",
+#     "TIT2": "title",
+#     "TIT3": "version",
+#     "TPE1": "artist",
+#     "TPE2": "albumartist",
+#     "TPE3": "conductor",
+#     "TPE4": "arranger",
+#     "TPOS": "discnumber",
+#     "TPUB": "organization",
+#     "TRCK": "tracknumber",
+#     "TOLY": "author",
+#     "TSO2": "albumartistsort",  # iTunes extension
+#     "TSOA": "albumsort",
+#     "TSOC": "composersort",  # iTunes extension
+#     "TSOP": "artistsort",
+#     "TSOT": "titlesort",
+#     "TSRC": "isrc",
+#     "TSST": "discsubtitle",
+#     "TLAN": "language",
+# }.items():
+
 EasyID3.RegisterTextKey('MUSICAL_KEY', 'TKEY')
 
 class MutagenProvider(MetadataProviderBase):
@@ -66,7 +100,8 @@ class MutagenProvider(MetadataProviderBase):
         if not self._audio:
             return []
 
-        all_tag_keys = self._audio.tags.keys() | ALL_TAGS.keys()
+        all_tag_keys = self._audio.keys() | ALL_TAGS.keys()
+        all_tag_keys = self._audio.keys()
         tag_infos = []
         for tag_name in sorted(list(all_tag_keys)):
             is_generic = tag_name in ALL_TAGS

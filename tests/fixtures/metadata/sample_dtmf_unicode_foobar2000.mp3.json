@@ -40,26 +40,6 @@
                 "MutagenProvider"
             ]
         },
-        "copyright": {
-            "value": "2025",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "2025"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "title": {
-            "value": "DTMF Sample Unicode foobar2000",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "DTMF Sample Unicode foobar2000"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
         "artist": {
             "value": "Lyjia",
             "provider": "MutagenProvider",
@@ -70,11 +50,31 @@
                 "MutagenProvider"
             ]
         },
+        "copyright": {
+            "value": "2025",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "2025"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "genre": {
             "value": "Power Ballad",
             "provider": "MutagenProvider",
             "all_values": [
                 "Power Ballad"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "title": {
+            "value": "DTMF Sample Unicode foobar2000",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "DTMF Sample Unicode foobar2000"
             ],
             "all_providers": [
                 "MutagenProvider"

@@ -36,35 +36,48 @@ KEY_REPLAYGAIN_ALBUM_GAIN = 'replaygain_album_gain'
 KEY_REPLAYGAIN_TRACK_PEAK = 'replaygain_track_peak'
 
 # TAG KEYS
-KEY_TITLE = 'title'
-KEY_ARTIST = 'artist'
 KEY_ALBUM = 'album'
-KEY_GENRE = 'genre'
-KEY_TRACK_NUMBER = 'track_number'
-KEY_TRACK_TOTAL = 'track_total'
-KEY_DISC_NUMBER = 'disc_number'
-KEY_DISC_TOTAL = 'disc_total'
-KEY_DATE = 'date'
-KEY_YEAR = 'year'
-KEY_COMMENT = 'comment'
+KEY_ALBUM_ARTIST = 'albumartist'
+KEY_ARTIST = 'artist'
 KEY_BPM = 'bpm'
+KEY_COMMENT = 'comment'
 KEY_COMPOSER = 'composer'
+KEY_COPYRIGHT = 'copyright'
+KEY_DATE = 'date'
+KEY_DISC_NUMBER = 'discnumber'
+KEY_DISC_TOTAL = 'disctotal'
+KEY_ENCODED_BY = 'encodedby'
+KEY_GENRE = 'genre'
+KEY_GROUPING = 'grouping'
+KEY_ISRC = 'isrc'
+KEY_LANGUAGE = 'language'
+KEY_MOOD = 'mood'
 KEY_MUSICAL_KEY = 'musical_key'
+KEY_TITLE = 'title'
+KEY_TRACK_NUMBER = 'tracknumber'
+KEY_TRACK_TOTAL = 'tracktotal'
+KEY_YEAR = 'year'
 
 ALL_TAGS = { #display names for each tag
-    KEY_TITLE: "Title",
-    KEY_ARTIST: "Artist",
     KEY_ALBUM: "Album",
-    KEY_GENRE: "Genre",
-    KEY_COMMENT: "Comment",
+    KEY_ALBUM_ARTIST: "Album Artist",
+    KEY_ARTIST: "Artist",
     KEY_BPM: "BPM",
-    KEY_TRACK_NUMBER: "Track",
-    KEY_TRACK_TOTAL: "Tracks",
-    KEY_DISC_NUMBER: "Disc",
-    KEY_DISC_TOTAL: "Discs",
+    KEY_COMMENT: "Comment",
     KEY_COMPOSER: "Composer",
     KEY_DATE: "Date",
+    KEY_DISC_NUMBER: "Disc",
+    KEY_DISC_TOTAL: "Discs",
+    KEY_ENCODED_BY: "Encoded By",
+    KEY_GENRE: "Genre",
+    KEY_GROUPING: "Grouping",
+    KEY_ISRC: "ISRC",
+    KEY_LANGUAGE: "Language",
+    KEY_MOOD: "Mood",
     KEY_MUSICAL_KEY: "Key",
+    KEY_TITLE: "Title",
+    KEY_TRACK_NUMBER: "Track",
+    KEY_TRACK_TOTAL: "Tracks",
     KEY_YEAR: "Year"
 }
 

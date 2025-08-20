@@ -40,11 +40,31 @@
                 "MutagenProvider"
             ]
         },
+        "artist": {
+            "value": "Lyjia",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Lyjia"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "copyright": {
             "value": "2025",
             "provider": "MutagenProvider",
             "all_values": [
                 "2025"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "genre": {
+            "value": "Power Ballad",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Power Ballad"
             ],
             "all_providers": [
                 "MutagenProvider"
@@ -60,31 +80,11 @@
                 "MutagenProvider"
             ]
         },
-        "artist": {
-            "value": "Lyjia",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "Lyjia"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
         "tracknumber": {
             "value": "99",
             "provider": "MutagenProvider",
             "all_values": [
                 "99"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "genre": {
-            "value": "Power Ballad",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "Power Ballad"
             ],
             "all_providers": [
                 "MutagenProvider"

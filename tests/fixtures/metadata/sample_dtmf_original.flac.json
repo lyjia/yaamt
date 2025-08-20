@@ -30,11 +30,11 @@
         }
     },
     "tags": {
-        "genre": {
-            "value": "Power Ballad",
+        "album": {
+            "value": "pytest",
             "provider": "MutagenProvider",
             "all_values": [
-                "Power Ballad"
+                "pytest"
             ],
             "all_providers": [
                 "MutagenProvider"
@@ -50,11 +50,11 @@
                 "MutagenProvider"
             ]
         },
-        "album": {
-            "value": "pytest",
+        "genre": {
+            "value": "Power Ballad",
             "provider": "MutagenProvider",
             "all_values": [
-                "pytest"
+                "Power Ballad"
             ],
             "all_providers": [
                 "MutagenProvider"
