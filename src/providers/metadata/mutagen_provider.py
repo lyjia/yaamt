@@ -1,12 +1,14 @@
 from argparse import ArgumentError
 
 import mutagen
+from mutagen.easyid3 import EasyID3
 
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY
 from .base import MetadataProviderBase
 
+EasyID3.RegisterTextKey('MUSICAL_KEY', 'TKEY')
 
 class MutagenProvider(MetadataProviderBase):
     """
