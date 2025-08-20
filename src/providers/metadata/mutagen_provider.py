@@ -2,6 +2,7 @@ from argparse import ArgumentError
 
 import mutagen
 
+from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES, ALL_TAGS
 from .base import MetadataProviderBase
@@ -59,16 +60,22 @@ class MutagenProvider(MetadataProviderBase):
             return self._audio.info.pprint().split(',')[0]
         return None
 
-    def available_tags(self):
-        if self._audio:
-            return set(self._audio.tags.keys() | ALL_TAGS.keys())
-        return []
+    def available_tags(self) -> list[TagInfo]:
+        if not self._audio:
+            return []
+
+        all_tag_keys = self._audio.tags.keys() | ALL_TAGS.keys()
+        tag_infos = []
+        for tag_name in sorted(list(all_tag_keys)):
+            is_generic = tag_name in ALL_TAGS
+            tag_infos.append(TagInfo(name=tag_name, is_writable=True, is_generic=is_generic))
+        return tag_infos
 
     def available_stream_info_keys(self):
         return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES, KEY_FORMAT]
 
-    def all_tags(self):
-        return dict(self._audio.tags)
+    # def all_tags(self):
+    #     return dict(self._audio.tags)
 
     def all_stream_infos(self):
         return {
@@ -102,7 +109,7 @@ class MutagenProvider(MetadataProviderBase):
         return self._audio is not None
 
     def is_writable(self):
-        return False #disable all writes for now
+        return True
 
     # @property
     # def title(self):

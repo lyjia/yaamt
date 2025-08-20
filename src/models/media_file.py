@@ -16,6 +16,7 @@ class MediaFile:
         self._file_name = os.path.basename(file_path)
         self._providers = self._get_providers_for_file()
         self._write_enabled = enable_write
+        self._pending_changes = {}
 
         # read combined metadata in as-needed, not at load
         self._combined_metadata = {
@@ -45,9 +46,10 @@ class MediaFile:
 
         for provider in self._providers:
             # TODO: provider should be added only if it supports the kind of metadata reporting its being registered to
+            available_tags = provider.available_tags()
             self._registered_providers[KEY_TAGS].append({
                 KEY_PROVIDER: provider,
-                KEY_AVAIL_KEYS: provider.available_tags(),
+                KEY_AVAIL_KEYS: available_tags,
             })
             self._registered_providers[KEY_STREAM_INFO].append({
                 KEY_PROVIDER: provider,
@@ -56,10 +58,10 @@ class MediaFile:
 
             # create a lookup of available providers on a per-key basis
             # to be used for JIT loading of tag data
-            for key in provider.available_tags():
-                if not key in self._tag_provider_lookup[KEY_TAGS]:
-                    self._tag_provider_lookup[KEY_TAGS][key] = []
-                self._tag_provider_lookup[KEY_TAGS][key].append(provider)
+            for tag_info in available_tags:
+                if not tag_info.name in self._tag_provider_lookup[KEY_TAGS]:
+                    self._tag_provider_lookup[KEY_TAGS][tag_info.name] = []
+                self._tag_provider_lookup[KEY_TAGS][tag_info.name].append(provider)
 
             for key in provider.available_stream_info_keys():
                 if not key in self._tag_provider_lookup[KEY_STREAM_INFO]:
@@ -83,6 +85,8 @@ class MediaFile:
         pass #for debugger attach
 
     def get_tag_all_values(self, key):
+        if key in self._pending_changes:
+            return self._pending_changes[key]
         if not self._combined_metadata[KEY_TAGS].get(key):
             self.load_meta_for_tag(key)
         return self._combined_metadata[KEY_TAGS].get(key, {}).get(KEY_VALUE)
@@ -92,6 +96,30 @@ class MediaFile:
         if grab:
             return grab[0]
         return None
+
+    def set_tag(self, key, value, is_internal_tag_key=False):
+        """
+        Sets a tag value in the pending changes.
+        :param key: The tag key to set.
+        :param value: The value to set for the tag.
+        :param is_internal_tag_key: Whether the key is an internal tag key.
+        """
+        writable = False
+        # This logic is a bit convoluted because we don't have a direct lookup for TagInfo.
+        # We have to iterate through the providers for a given tag key and check their available tags.
+        if key in self._tag_provider_lookup[KEY_TAGS]:
+            for provider in self._tag_provider_lookup[KEY_TAGS][key]:
+                for tag_info in provider.available_tags():
+                    if tag_info.name == key and tag_info.is_writable:
+                        writable = True
+                        break
+                if writable:
+                    break
+
+        if not writable:
+            raise PermissionError(f"Tag '{key}' is not writable.")
+
+        self._pending_changes[key] = [value]
 
     def load_meta_for_tag(self, key):
         providers = self._tag_provider_lookup[KEY_TAGS].get(key, [])
@@ -120,7 +148,30 @@ class MediaFile:
         return self._combined_metadata[KEY_INTERNAL].get(key)
 
     def save(self):
-        self._provider.save()
+        if not self._write_enabled:
+            raise PermissionError("Write is not enabled for this file.")
+
+        if not self._pending_changes:
+            return
+
+        modified_providers = set()
+
+        for key, value in self._pending_changes.items():
+            if key in self._tag_provider_lookup[KEY_TAGS]:
+                # Write to the first available provider
+                provider = self._tag_provider_lookup[KEY_TAGS][key]
+                provider.set_tag(key, value)
+                modified_providers.add(provider)
+
+        for provider in modified_providers:
+            provider.save()
+
+        # Clear the cache for the tags that were changed
+        for key in self._pending_changes.keys():
+            if key in self._combined_metadata[KEY_TAGS]:
+                del self._combined_metadata[KEY_TAGS][key]
+
+        self._pending_changes.clear()
 
     def to_dict(self):
         """
