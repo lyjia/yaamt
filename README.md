@@ -47,17 +47,44 @@ To launch the graphical user interface, run:
 python src/gui.py
 ```
 
-### Command-Line Mode
+### Command-Line Usage
 
-The command-line interface allows for scripting and batch operations.
+The command-line interface provides powerful options for scripting and batch processing.
 
-**Example: View metadata of a single file**
+#### Reading Metadata
+
+To view all metadata for a specific file, use the `view` command:
+
 ```bash
-python src/main.py view "path/to/your/file.mp3"```
+python src/main.py view "path/to/your/audio.mp3"
+```
 
-**Example: Set the artist for all files in a directory**
+#### Writing Metadata
+
+You can write metadata in several ways:
+
+**1. Using Shortcut Arguments**
+
+For common tags, you can use dedicated shortcut arguments. For example, to set the title:
+
 ```bash
-python src/main.py set --artist "New Artist" "path/to/your/directory/"
+python src/main.py set --title "New Title" "path/to/your/audio.mp3"
+```
+
+**2. Using Generic Tag Arguments**
+
+To update any standard metadata tag, use the `--update-tag` argument with a `KEY=VALUE` pair:
+
+```bash
+python src/main.py set --update-tag "ALBUM=New Album" "path/to/your/audio.mp3"
+```
+
+**3. Using Internal Tag Arguments**
+
+For internal or non-standard tags, use the `--update-internal-tag` argument:
+
+```bash
+python src/main.py set --update-internal-tag "ENCODER=My Encoder" "path/to/your/audio.mp3"
 ```
 
 For a full list of commands and options, use the help flag:
