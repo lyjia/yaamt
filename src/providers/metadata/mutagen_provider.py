@@ -4,7 +4,7 @@ import mutagen
 
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
-    KEY_TOTAL_SAMPLES, ALL_TAGS
+    KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY
 from .base import MetadataProviderBase
 
 
@@ -99,7 +99,7 @@ class MutagenProvider(MetadataProviderBase):
         if generic_name in ALL_TAGS:
             return generic_name
         else:
-            raise ArgumentError(f'generic_name {generic_name} not found in ALL_TAGS. Available tags: {ALL_TAGS.keys()}')
+            raise KeyError(f'generic_name "{generic_name}" not found in ALL_TAGS. Available tags: {ALL_TAGS.keys()}')
 
     def is_readable(self):
         """

@@ -44,6 +44,10 @@ class MediaFile:
             KEY_TAGS: {}
         }
 
+        self._tag_writers = {
+            KEY_TAGS: {}
+        }
+
         for provider in self._providers:
             # TODO: provider should be added only if it supports the kind of metadata reporting its being registered to
             available_tags = provider.available_tags()
@@ -62,6 +66,8 @@ class MediaFile:
                 if not tag_info.name in self._tag_provider_lookup[KEY_TAGS]:
                     self._tag_provider_lookup[KEY_TAGS][tag_info.name] = []
                 self._tag_provider_lookup[KEY_TAGS][tag_info.name].append(provider)
+                if tag_info.is_writable and not tag_info.name in self._tag_writers[KEY_TAGS]: #just store the first provider
+                    self._tag_writers[KEY_TAGS][tag_info.name] = [ provider ]
 
             for key in provider.available_stream_info_keys():
                 if not key in self._tag_provider_lookup[KEY_STREAM_INFO]:
@@ -104,22 +110,11 @@ class MediaFile:
         :param value: The value to set for the tag.
         :param is_internal_tag_key: Whether the key is an internal tag key.
         """
-        writable = False
-        # This logic is a bit convoluted because we don't have a direct lookup for TagInfo.
-        # We have to iterate through the providers for a given tag key and check their available tags.
-        if key in self._tag_provider_lookup[KEY_TAGS]:
-            for provider in self._tag_provider_lookup[KEY_TAGS][key]:
-                for tag_info in provider.available_tags():
-                    if tag_info.name == key and tag_info.is_writable:
-                        writable = True
-                        break
-                if writable:
-                    break
 
-        if not writable:
+        if key in self._tag_writers[KEY_TAGS] and self._tag_writers[KEY_TAGS][key][0].is_writable():
+            self._pending_changes[key] = [value]
+        else:
             raise PermissionError(f"Tag '{key}' is not writable.")
-
-        self._pending_changes[key] = [value]
 
     def load_meta_for_tag(self, key):
         providers = self._tag_provider_lookup[KEY_TAGS].get(key, [])
@@ -159,7 +154,7 @@ class MediaFile:
         for key, value in self._pending_changes.items():
             if key in self._tag_provider_lookup[KEY_TAGS]:
                 # Write to the first available provider
-                provider = self._tag_provider_lookup[KEY_TAGS][key]
+                provider = self._tag_provider_lookup[KEY_TAGS][key][0]
                 provider.set_tag(key, value)
                 modified_providers.add(provider)
 
