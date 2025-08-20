@@ -4,6 +4,7 @@ import json
 import traceback
 from models.media_file import MediaFile
 from util.const import ALL_TAGS
+from util.logging import log
 
 def main():
     """
