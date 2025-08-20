@@ -40,6 +40,14 @@
                 "MutagenProvider"
             ]
         },
+        "albumartist": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "artist": {
             "value": "Lyjia",
             "provider": "MutagenProvider",
@@ -60,6 +68,54 @@
                 "MutagenProvider"
             ]
         },
+        "comment": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "composer": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "date": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "discnumber": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "disctotal": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "encodedby": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "genre": {
             "value": "Power Ballad",
             "provider": "MutagenProvider",
@@ -70,12 +126,52 @@
                 "MutagenProvider"
             ]
         },
+        "grouping": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "initialkey": {
             "value": "Fm",
             "provider": "MutagenProvider",
             "all_values": [
                 "Fm"
             ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "isrc": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "language": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "mood": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "musical_key": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -166,6 +262,30 @@
             "all_values": [
                 "DTMF Sample Original"
             ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "tracknumber": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "tracktotal": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "year": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
             "all_providers": [
                 "MutagenProvider"
             ]
