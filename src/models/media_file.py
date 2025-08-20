@@ -22,6 +22,10 @@ class MediaFile:
     Rather, a separate SeratoProvider should contain the logic for interpreting and writing those frames. Since both
     providers will potentially see the same data it is important to disambiguate which provider should be used for which
     tag.
+
+    Note that we have a couple different categories of 'tags':
+    * "generic" tags, which reference the labels we present to the user, and are names used internally by YAAMT
+    * "internal" tags, which are tags that are used internally by the Provider but not exposed to the user. (Note that for MutagenProvider many of these tags have the same names.)
     """
     def __init__(self, file_path: str, enable_write=False):
         self._file_path = os.path.abspath(file_path)

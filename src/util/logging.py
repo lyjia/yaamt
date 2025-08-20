@@ -2,9 +2,9 @@ import logging
 import sys
 
 
-def setup_logging(log_name='YAAMT', log_level=logging.DEBUG):
+def create_logger(log_name='YAAMT', log_level=logging.DEBUG):
     hand = logging.StreamHandler(sys.stderr)
-    hand.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+    hand.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(funcName)s: %(message)s', "%Y%m%d-%H%M%S"))
 
     logger = logging.getLogger(name=log_name)
     logger.setLevel(log_level)
@@ -12,5 +12,4 @@ def setup_logging(log_name='YAAMT', log_level=logging.DEBUG):
 
     return logger
 
-
-log = setup_logging()
+log = create_logger()

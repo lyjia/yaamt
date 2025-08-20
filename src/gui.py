@@ -3,14 +3,11 @@ import argparse
 import logging
 from PySide6.QtWidgets import QApplication
 from windows.main_window import MainWindow
-from util.logging import setup_logging, log
+from util.logging import create_logger, log
 
 
 def run_gui():
     """Initializes and runs the GUI application."""
-
-    setup_logging(log_level = logging.DEBUG)
-
     parser = argparse.ArgumentParser(description="Audio Metadata Tool")
     parser.add_argument("path", nargs='?', default=None, help="The starting path for the file browser.")
     args = parser.parse_args()

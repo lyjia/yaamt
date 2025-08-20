@@ -1,3 +1,4 @@
+import traceback
 from argparse import ArgumentError
 
 import mutagen
@@ -6,6 +7,7 @@ from mutagen.easyid3 import EasyID3
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY
+from util.logging import log
 from .base import MetadataProviderBase
 
 ## Here is the list of easy key names and their mappings to ID3, from
@@ -54,13 +56,15 @@ class MutagenProvider(MetadataProviderBase):
 
         try:
             self._audio = mutagen.File(file_path, easy=True)
-            if self._audio is None:
-                self._audio = EasyID3()
+            if self._audio == {}:
+                log.debug(f"No audio tags found in file {file_path}.")
+
         except FileNotFoundError:
-            print(f"Error: File not found at {file_path}")
+            log.error(f"Error: File not found at {file_path}")
             raise
         except mutagen.MutagenError as e:
-            print(f"Error loading file {file_path}: {e}")
+            traceback.print_exc()
+            log.error(f"{e.__class__.__name__} loading file {file_path}: {e}")
             raise
 
     def get_tag(self, key):
@@ -70,17 +74,16 @@ class MutagenProvider(MetadataProviderBase):
             return self._audio[key]
         return None
 
+    # Note that 'internal' tags are the tag keys that mutagen's 'easy' interface provides.
+    # 'generic' tag keys are names this program presents.
+    # for mutagen, mappings between these two are mostly identical.
     def set_tag(self, key, value, is_internal_tag_key = False):
         if not is_internal_tag_key:
             actual_key = self.get_internal_tag_name_for_generic(key)
         else:
             actual_key = key
 
-        if self._audio:
-            # For some filetypes, a tag frame must be added before tags can be written.
-            if self._audio.tags is None and hasattr(self._audio, 'add_tags') and callable(self._audio.add_tags):
-                self._audio.add_tags()
-            self._audio[actual_key] = value
+        self._audio[actual_key] = value
 
     def get_stream_info(self, key):
         if not self._audio:
@@ -107,6 +110,7 @@ class MutagenProvider(MetadataProviderBase):
 
         all_tag_keys = self._audio.keys() | ALL_TAGS.keys()
         #all_tag_keys = self._audio.keys()
+        log.debug("all_tag_keys: " + str(all_tag_keys) + "")
         tag_infos = []
         for tag_name in sorted(list(all_tag_keys)):
             is_generic = tag_name in ALL_TAGS
@@ -152,65 +156,6 @@ class MutagenProvider(MetadataProviderBase):
 
     def is_writable(self):
         return True
-
-    # @property
-    # def title(self):
-    #     tag = self.get_tag(['title', 'TIT2'])
-    #     return tag if tag else None
-    #
-    # @title.setter
-    # def title(self, value):
-    #     self.set_tag('title', value)
-    #
-    # @property
-    # def artist(self):
-    #     tag = self.get_tag(['artist', 'TPE1'])
-    #     return tag if tag else None
-    #
-    # @artist.setter
-    # def artist(self, value):
-    #     self.set_tag('artist', value)
-    #
-    # @property
-    # def album(self):
-    #     tag = self.get_tag(['album', 'TALB'])
-    #     return tag if tag else None
-    #
-    # @album.setter
-    # def album(self, value):
-    #     self.set_tag('album', value)
-    #
-    # @property
-    # def genre(self):
-    #     tag = self.get_tag(['genre', 'TCON'])
-    #     return tag if tag else None
-    #
-    # @genre.setter
-    # def genre(self, value):
-    #     self.set_tag('genre', value)
-    #
-    # @property
-    # def bpm(self):
-    #     tag = self.get_tag(['bpm', 'TBPM'])
-    #     if tag:
-    #         try:
-    #             return float(tag)
-    #         except (ValueError, TypeError):
-    #             return None
-    #     return None
-    #
-    # @bpm.setter
-    # def bpm(self, value):
-    #     self.set_tag('bpm', str(value))
-    #
-    # @property
-    # def key(self):
-    #     tag = self.get_tag(['key', 'TKEY'])
-    #     return tag if tag else None
-    #
-    # @key.setter
-    # def key(self, value):
-    #     self.set_tag('key', value)
 
     def save(self):
         if self._audio:
