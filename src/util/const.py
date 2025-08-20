@@ -4,7 +4,7 @@ KEY_INTERNAL = "internal"
 
 ### Metadata Model keys ####
 # INTERNAL keys
-KEY_IS_MEDIA = "ismedia" # is this file a media file we care about or something else?
+KEY_IS_MEDIA = "ismedia"  # is this file a media file we care about or something else?
 KEY_IS_WRITABLE = "iswritable"
 
 # FILESYSTEM keys
@@ -15,8 +15,8 @@ KEY_FILE_MTIME = "fmtime"
 KEY_FILE_MTIME_HUMAN = "fmtimeHR"
 KEY_FILE_CTIME = "fctime"
 KEY_FILE_CTIME_HUMAN = "fctimeHR"
-KEY_FILE_ATIME = "fatime" #do not use! TODO: remove me
-KEY_FILE_ATIME_HUMAN = "fatimeHR" #do not use! TODO: remove me
+KEY_FILE_ATIME = "fatime"  # do not use! TODO: remove me
+KEY_FILE_ATIME_HUMAN = "fatimeHR"  # do not use! TODO: remove me
 KEY_FILE_TYPE = "ftype"
 KEY_FILE_TYPE_HUMAN = "ftypeHR"
 
@@ -41,16 +41,38 @@ KEY_ARTIST = 'artist'
 KEY_ALBUM = 'album'
 KEY_GENRE = 'genre'
 KEY_TRACK_NUMBER = 'track_number'
+KEY_TRACK_TOTAL = 'track_total'
 KEY_DISC_NUMBER = 'disc_number'
+KEY_DISC_TOTAL = 'disc_total'
+KEY_DATE = 'date'
 KEY_YEAR = 'year'
 KEY_COMMENT = 'comment'
 KEY_BPM = 'bpm'
 KEY_COMPOSER = 'composer'
 KEY_MUSICAL_KEY = 'musical_key'
+
+ALL_TAGS = { #display names for each tag
+    KEY_TITLE: "Title",
+    KEY_ARTIST: "Artist",
+    KEY_ALBUM: "Album",
+    KEY_GENRE: "Genre",
+    KEY_COMMENT: "Comment",
+    KEY_BPM: "BPM",
+    KEY_TRACK_NUMBER: "Track",
+    KEY_TRACK_TOTAL: "Tracks",
+    KEY_DISC_NUMBER: "Disc",
+    KEY_DISC_TOTAL: "Discs",
+    KEY_COMPOSER: "Composer",
+    KEY_DATE: "Date",
+    KEY_MUSICAL_KEY: "Key",
+    KEY_YEAR: "Year"
+}
+
+
 #### END metadata model keys ####
 
 #### COLUMN names for file list ####
-COL_MAIN_NAME = "name"
+COL_MAIN_FILENAME = "filename"
 COL_MAIN_SIZE = "size"
 COL_MAIN_TYPE = "type"
 COL_MAIN_DATE_MODIFIED = "date_modified"
@@ -60,6 +82,23 @@ COL_MAIN_ALBUM = "album"
 COL_MAIN_GENRE = "genre"
 COL_MAIN_BPM = "bpm"
 COL_MAIN_KEY = "key"
+
+GROUP_FILE = "file"
+GROUP_META = "metadata"
+
+AVAILABLE_COLUMNS = { # for right-side file pane
+    COL_MAIN_FILENAME: {"id": COL_MAIN_FILENAME, "group": GROUP_FILE, "label": "Filename", "width": 250, "is_visible": True},
+    COL_MAIN_SIZE: {"id": COL_MAIN_SIZE, "group": GROUP_FILE, "label": "Size", "width": 100, "is_visible": True},
+    COL_MAIN_TYPE: {"id": COL_MAIN_TYPE, "group": GROUP_FILE, "label": "Type", "width": 100, "is_visible": True},
+    COL_MAIN_DATE_MODIFIED: {"id": COL_MAIN_DATE_MODIFIED, "group": GROUP_FILE, "label": "Date Modified", "width": 150, "is_visible": True},
+
+    COL_MAIN_TITLE: {"id": COL_MAIN_TITLE, "group": GROUP_META, "label": ALL_TAGS[KEY_TITLE], "width": 200, "is_visible": True},
+    COL_MAIN_ARTIST: {"id": COL_MAIN_ARTIST, "group": GROUP_META, "label": ALL_TAGS[KEY_ARTIST], "width": 150, "is_visible": True},
+    COL_MAIN_ALBUM: {"id": COL_MAIN_ALBUM, "group": GROUP_META, "label": ALL_TAGS[KEY_ALBUM], "width": 150, "is_visible": True},
+    COL_MAIN_GENRE: {"id": COL_MAIN_GENRE, "group": GROUP_META, "label": ALL_TAGS[KEY_GENRE], "width": 100, "is_visible": True},
+    COL_MAIN_BPM: {"id": COL_MAIN_BPM, "group": GROUP_META, "label": ALL_TAGS[KEY_BPM], "width": 50, "is_visible": True},
+    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_MUSICAL_KEY], "width": 50, "is_visible": True}
+}
 #### END column names for file list ####
 
 KEY_PROVIDER = 'provider'
@@ -68,4 +107,3 @@ KEY_AVAIL_KEYS = 'available_keys'
 
 KEY_VALUE = 'value'
 KEY_ALL_VALUES = 'all_values'
-

@@ -6,11 +6,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel
+
+import windows
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
 from models.settings import settings, FileListSettings, ColumnSettings
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
-from windows.properties_window import PropertiesWindow
 
 
 class MainWindow(QMainWindow):
@@ -250,12 +251,8 @@ class MainWindow(QMainWindow):
         help_menu.addAction(about_action)
 
     def _show_about_dialog(self):
-        QMessageBox.about(
-            self,
-            "About Audio Metadata Tool",
-            "<p>A simple tool for editing audio metadata.</p>"
-            "<p>Version 0.1</p>"
-        )
+        about_window = windows.AboutWindow(self)
+        about_window.exec()
 
     def open_properties_window(self):
         selected_indexes = self.files_view.selectionModel().selectedIndexes()
@@ -270,7 +267,7 @@ class MainWindow(QMainWindow):
         file_path = row_data.get(KEY_FILE_PATH)
 
         if file_path:
-            self.properties_window = PropertiesWindow(file_path, self)
+            self.properties_window = windows.PropertiesWindow(file_path, self)
             self.properties_window.show()
 
     def on_column_resized(self, logical_index, old_size, new_size):
@@ -326,6 +323,7 @@ class MainWindow(QMainWindow):
                 col_settings = ColumnSettings(
                     id=settings.value("id"),
                     label=settings.value("label"),
+                    group=settings.value("group"),
                     width=int(settings.value("width")),
                     is_visible=settings.value("is_visible", type=bool)
                 )
@@ -380,6 +378,7 @@ class MainWindow(QMainWindow):
                 columns_to_save.append(ColumnSettings(
                     id=col_id,
                     label=original_col.label,
+                    group=original_col.group,
                     width=header.sectionSize(logical_index),
                     is_visible=not header.isSectionHidden(logical_index)
                 ))
