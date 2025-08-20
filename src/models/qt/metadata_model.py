@@ -5,7 +5,7 @@ from models.settings import ColumnSettings
 from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA,
-    COL_MAIN_NAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED
+    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED
 )
 from util.display import human_readable_size, human_readable_timestamp
 
@@ -35,7 +35,7 @@ class MetadataTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole:
             column = self._columns[index.column()]
 
-            if column.id == COL_MAIN_NAME:
+            if column.id == COL_MAIN_FILENAME:
                 return os.path.basename(row_data.get(KEY_FILE_PATH, ""))
 
             elif column.id == COL_MAIN_SIZE:

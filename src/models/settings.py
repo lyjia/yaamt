@@ -2,29 +2,15 @@ from dataclasses import dataclass, field
 from typing import List
 
 from PySide6.QtCore import QSettings, Qt
-from util.const import (
-    COL_MAIN_NAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED,
-    COL_MAIN_TITLE, COL_MAIN_ARTIST, COL_MAIN_ALBUM, COL_MAIN_GENRE,
-    COL_MAIN_BPM, COL_MAIN_KEY
-)
+from util.const import AVAILABLE_COLUMNS
 
-AVAILABLE_COLUMNS = {
-    COL_MAIN_NAME: {"id": COL_MAIN_NAME, "label": "Filename", "width": 250, "is_visible": True},
-    COL_MAIN_SIZE: {"id": COL_MAIN_SIZE, "label": "Size", "width": 100, "is_visible": True},
-    COL_MAIN_TYPE: {"id": COL_MAIN_TYPE, "label": "Type", "width": 100, "is_visible": True},
-    COL_MAIN_DATE_MODIFIED: {"id": COL_MAIN_DATE_MODIFIED, "label": "Date Modified", "width": 150, "is_visible": True},
-    COL_MAIN_TITLE: {"id": COL_MAIN_TITLE, "label": "Title", "width": 200, "is_visible": True},
-    COL_MAIN_ARTIST: {"id": COL_MAIN_ARTIST, "label": "Artist", "width": 150, "is_visible": True},
-    COL_MAIN_ALBUM: {"id": COL_MAIN_ALBUM, "label": "Album", "width": 150, "is_visible": True},
-    COL_MAIN_GENRE: {"id": COL_MAIN_GENRE, "label": "Genre", "width": 100, "is_visible": True},
-    COL_MAIN_BPM: {"id": COL_MAIN_BPM, "label": "BPM", "width": 50, "is_visible": True},
-    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "label": "Key", "width": 50, "is_visible": True}
-}
+
 
 @dataclass
 class ColumnSettings:
     """Stores the state of an individual column in the file list view."""
     id: str
+    group: str
     label: str
     width: int
     is_visible: bool
