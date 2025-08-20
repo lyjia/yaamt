@@ -10,6 +10,18 @@ from util.logging import log
 class MediaFile:
     """
     Public interface for accessing audio file metadata.
+
+    Provides a unified interface for accessing metadata from multiple metadata providers. The assumption is that
+    a given tag (such a "title") is available from multiple possible providers, and that the most appropriate provider
+    for reading vs writing a tag may differ. So there is a lot of plumbing here to determine which providers are
+    fit for task and routing requests accordingly. This area has gotten more complex than I initial expected,
+    so it may be worth revisiting this logic in the future.
+
+    One such use-case I was thinking of when I wrote this is for reading/writing Serato tags: the raw ID3 frames are
+    picked up by Mutagen, but in the interest of separating concerns we do not want to handle them with mutagen.
+    Rather, a separate SeratoProvider should contain the logic for interpreting and writing those frames. Since both
+    providers will potentially see the same data it is important to disambiguate which provider should be used for which
+    tag.
     """
     def __init__(self, file_path: str, enable_write=False):
         self._file_path = os.path.abspath(file_path)
