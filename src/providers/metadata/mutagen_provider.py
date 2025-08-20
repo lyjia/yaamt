@@ -54,6 +54,8 @@ class MutagenProvider(MetadataProviderBase):
 
         try:
             self._audio = mutagen.File(file_path, easy=True)
+            if self._audio is None:
+                self._audio = EasyID3()
         except FileNotFoundError:
             print(f"Error: File not found at {file_path}")
             raise
@@ -75,6 +77,9 @@ class MutagenProvider(MetadataProviderBase):
             actual_key = key
 
         if self._audio:
+            # For some filetypes, a tag frame must be added before tags can be written.
+            if self._audio.tags is None and hasattr(self._audio, 'add_tags') and callable(self._audio.add_tags):
+                self._audio.add_tags()
             self._audio[actual_key] = value
 
     def get_stream_info(self, key):
@@ -101,7 +106,7 @@ class MutagenProvider(MetadataProviderBase):
             return []
 
         all_tag_keys = self._audio.keys() | ALL_TAGS.keys()
-        all_tag_keys = self._audio.keys()
+        #all_tag_keys = self._audio.keys()
         tag_infos = []
         for tag_name in sorted(list(all_tag_keys)):
             is_generic = tag_name in ALL_TAGS
@@ -209,4 +214,4 @@ class MutagenProvider(MetadataProviderBase):
 
     def save(self):
         if self._audio:
-            self._audio.save()
+            self._audio.save(self._file_path)
