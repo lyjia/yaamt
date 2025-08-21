@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/audio-metadata-tool.iml" filepath="$PROJECT_DIR$/.idea/audio-metadata-tool.iml" />
+      <module fileurl="file://$PROJECT_DIR$/audio-metadata-tool.iml" filepath="$PROJECT_DIR$/audio-metadata-tool.iml" />
     </modules>
   </component>
 </project>

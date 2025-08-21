@@ -30,12 +30,20 @@
         }
     },
     "tags": {
-        "genre": {
-            "value": "Power Ballad",
+        "album": {
+            "value": "pytest",
             "provider": "MutagenProvider",
             "all_values": [
-                "Power Ballad"
+                "pytest"
             ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "albumartist": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -50,12 +58,108 @@
                 "MutagenProvider"
             ]
         },
-        "album": {
-            "value": "pytest",
+        "bpm": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "comment": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "composer": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "date": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "discnumber": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "disctotal": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "encodedby": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "genre": {
+            "value": "Power Ballad",
             "provider": "MutagenProvider",
             "all_values": [
-                "pytest"
+                "Power Ballad"
             ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "grouping": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "isrc": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "language": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "mood": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "musical_key": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -66,6 +170,30 @@
             "all_values": [
                 "DTMF Sample Original"
             ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "tracknumber": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "tracktotal": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "year": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
             "all_providers": [
                 "MutagenProvider"
             ]

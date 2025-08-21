@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from models.tag_info import TagInfo
+
 
 class MetadataProviderBase(ABC):
     """
@@ -22,7 +24,7 @@ class MetadataProviderBase(ABC):
 
     @property
     @abstractmethod
-    def available_tags(self):
+    def available_tags(self) -> list[TagInfo]:
         pass
 
     @property
@@ -32,8 +34,9 @@ class MetadataProviderBase(ABC):
 
     @property
     @abstractmethod
-    def all_tags(self):
+    def available_tags(self):
         pass
+
 
     # @property
     # @abstractmethod

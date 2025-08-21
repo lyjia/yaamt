@@ -1,7 +1,15 @@
 import logging
+import sys
 
-def setup_logging(log_level):
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s-%(levelname)s-%(name)s: %(message)s')
 
-def log(message, level=logging.DEBUG):
-    logging.log(level, message)
+def create_logger(log_name='YAAMT', log_level=logging.DEBUG):
+    hand = logging.StreamHandler(sys.stderr)
+    hand.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(funcName)s: %(message)s', "%Y%m%d-%H%M%S"))
+
+    logger = logging.getLogger(name=log_name)
+    logger.setLevel(log_level)
+    logger.addHandler(hand)
+
+    return logger
+
+log = create_logger()
