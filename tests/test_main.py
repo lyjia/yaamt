@@ -8,7 +8,7 @@ import sys
 from util.const import ALL_TAGS
 
 # Fixture file to use for testing
-SOURCE_FILE = "tests/fixtures/metadata/sample_dtmf_unicode.mp3"
+SOURCE_FILE = os.path.join(os.path.dirname(__file__), "fixtures/metadata/sample_dtmf_unicode.mp3")
 
 
 def run_cli_command(args, timeout=5):
