@@ -124,3 +124,4 @@ KEY_VALUE = 'value'
 KEY_ALL_VALUES = 'all_values'
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+

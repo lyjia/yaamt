@@ -6,6 +6,10 @@ from models.media_file import MediaFile
 from util.const import ALL_TAGS
 from util.logging import log
 
+SYS_RETURN_UNKNOWN_FATAL_ERROR = 1
+SYS_RETURN_FILE_INVALID = 2
+SYS_RETURN_FILE_NOT_FOUND = 3
+
 def main():
     """
     Main function to parse command-line arguments and display audio file metadata.
@@ -28,6 +32,13 @@ def main():
 
     try:
         media_file = MediaFile(args.file_path)
+
+        if not media_file.is_readable():
+            if args.json:
+                print(json.dumps({"error": "File is not readable"}, indent=4))
+            else:
+                print(f"Error: File is not readable: {args.file_path}", file=sys.stderr)
+            sys.exit(SYS_RETURN_FILE_INVALID)
         
         write_ops = []
         if args.update_tag:
@@ -54,6 +65,7 @@ def main():
 
         if args.json:
             print(json.dumps(media_file.to_dict(), indent=4))
+
         elif not write_ops:
             print(f"Metadata for: {args.file_path}")
             
@@ -85,20 +97,21 @@ def main():
                         print(f"  {key}: {value}")
             else:
                 print("  No internal info found.")
+
     except FileNotFoundError:
         if args.json:
             print(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
         else:
             traceback.print_exc()
             print(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(SYS_RETURN_FILE_NOT_FOUND)
     except Exception as e:
         if args.json:
             print(json.dumps({"error": str(e)}, indent=4))
         else:
             traceback.print_exc()
             print(f"An error occurred: {e}", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(SYS_RETURN_UNKNOWN_FATAL_ERROR)
 
     sys.exit(0)
 

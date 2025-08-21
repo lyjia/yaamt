@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 
-from util.const import ALL_TAGS
+from main import SYS_RETURN_FILE_NOT_FOUND, SYS_RETURN_FILE_INVALID
 
 # Fixture file to use for testing
 SOURCE_FILE = os.path.join(os.path.dirname(__file__), "fixtures/metadata/sample_dtmf_unicode.mp3")
@@ -49,7 +49,7 @@ class TestMainCli:
         """Test handling of file not found errors."""
         result = run_cli_command(["non_existent_file.mp3"])
         assert "File not found" in result.stderr or "No such file or directory" in result.stderr
-        assert result.returncode == 1
+        assert result.returncode == SYS_RETURN_FILE_NOT_FOUND
 
     def test_file_not_found_json(self):
         """Test handling of file not found errors with --json flag."""
@@ -57,7 +57,7 @@ class TestMainCli:
         data = json.loads(result.stdout)
         assert "error" in data
         assert "File not found" in data["error"] or "No such file or directory" in data["error"]
-        assert result.returncode == 1
+        assert result.returncode == SYS_RETURN_FILE_NOT_FOUND
 
     @pytest.mark.xfail(reason="File permissions issue in test environment")
     def test_update_single_tag(self, tmp_path):
@@ -117,8 +117,8 @@ class TestMainCli:
             f.write("this is not an mp3 file")
 
         result = run_cli_command([str(corrupted_file)])
-        assert "An error occurred" in result.stderr
-        assert result.returncode == 1
+        assert "File is not readable" in result.stderr
+        assert result.returncode == SYS_RETURN_FILE_INVALID
 
     def test_corrupted_file_json(self, tmp_path):
         """Test handling of a corrupted file with --json flag."""
@@ -128,4 +128,4 @@ class TestMainCli:
 
         result = run_cli_command([str(corrupted_file), "--json"])
         data = json.loads(result.stdout)
-        assert "error" in data
+        assert data.get('error') is not None

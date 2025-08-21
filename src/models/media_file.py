@@ -221,6 +221,9 @@ class MediaFile:
 
         return to_ret
 
+    def is_readable(self):
+        return self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA]
+
     @property
     def metadata(self):
         return self.to_dict()
