@@ -152,14 +152,17 @@ class MediaFile:
     def get_stream_info_value(self, key):
         if not self._combined_metadata[KEY_STREAM_INFO].get(key):
             self.load_meta_for_stream_info(key)
-        return self._combined_metadata[KEY_STREAM_INFO][key][KEY_VALUE]  # only return first value in array of values
+        if key in self._combined_metadata[KEY_STREAM_INFO]:
+            return self._combined_metadata[KEY_STREAM_INFO][key].get(KEY_VALUE)  # only return first value in array of values
+        return None
 
     def load_meta_for_stream_info(self, key):
-        provider_to_use = self._tag_provider_lookup[KEY_STREAM_INFO][key][0]
-        self._combined_metadata[KEY_STREAM_INFO][key] = {
-            KEY_VALUE: provider_to_use.get_stream_info(key),
-            KEY_PROVIDER: provider_to_use
-        }
+        if key in self._tag_provider_lookup[KEY_STREAM_INFO]:
+            provider_to_use = self._tag_provider_lookup[KEY_STREAM_INFO][key][0]
+            self._combined_metadata[KEY_STREAM_INFO][key] = {
+                KEY_VALUE: provider_to_use.get_stream_info(key),
+                KEY_PROVIDER: provider_to_use
+            }
 
     def get_internal_data(self, key):
         return self._combined_metadata[KEY_INTERNAL].get(key)
@@ -228,4 +231,16 @@ class MediaFile:
         :param file_path:
         :return:
         """
-        return [ MutagenProvider(self._file_path) ]
+        potential_providers = [ MutagenProvider ]
+        to_ret = []
+
+        for provider in potential_providers:
+            try:
+                provider_instance = provider(self._file_path)
+                if provider_instance.is_readable():
+                    to_ret.append( provider_instance )
+            except Exception as e:
+                log.debug(f"Provider {provider.__name__} failed to load file {self._file_path}: {e}")
+                continue
+
+        return to_ret

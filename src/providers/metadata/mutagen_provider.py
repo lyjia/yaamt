@@ -115,12 +115,12 @@ class MutagenProvider(MetadataProviderBase):
             raise SomethingsReallyFuckedUpException("self._audio is None. This should not happen!")
 
         all_tag_keys = self._audio.keys() | ALL_TAGS.keys()
-        #all_tag_keys = self._audio.keys()
-        log.debug("all_tag_keys: " + str(all_tag_keys) + "")
         tag_infos = []
+
         for tag_name in sorted(list(all_tag_keys)):
             is_generic = tag_name in ALL_TAGS
             tag_infos.append(TagInfo(name=tag_name, is_writable=True, is_generic=is_generic))
+
         return tag_infos
 
     def available_stream_info_keys(self):
