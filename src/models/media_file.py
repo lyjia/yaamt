@@ -69,11 +69,14 @@ class MediaFile:
 
         for provider in self._providers:
             # TODO: provider should be added only if it supports the kind of metadata reporting its being registered to
+
             available_tags = provider.available_tags()
+
             self._registered_providers[KEY_TAGS].append({
                 KEY_PROVIDER: provider,
                 KEY_AVAIL_KEYS: available_tags,
             })
+
             self._registered_providers[KEY_STREAM_INFO].append({
                 KEY_PROVIDER: provider,
                 KEY_AVAIL_KEYS: provider.available_stream_info_keys(),
@@ -133,7 +136,7 @@ class MediaFile:
         if key in self._tag_writers[KEY_TAGS] and self._tag_writers[KEY_TAGS][key][0].is_writable():
             self._pending_changes[key] = [value]
         else:
-            raise PermissionError(f"Tag '{key}' is not writable.")
+            raise PermissionError(f"Tag '{key}' is not writable. (Writable tags: {list(self._tag_writers[KEY_TAGS].keys())})")
 
     def load_meta_for_tag(self, key):
         providers = self._tag_provider_lookup[KEY_TAGS].get(key, [])

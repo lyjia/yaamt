@@ -7,6 +7,7 @@ from mutagen.easyid3 import EasyID3
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY
+from util.exceptions import SomethingsReallyFuckedUpException
 from util.logging import log
 from .base import MetadataProviderBase
 
@@ -105,8 +106,8 @@ class MutagenProvider(MetadataProviderBase):
         return None
 
     def available_tags(self) -> list[TagInfo]:
-        if not self._audio:
-            return []
+        if self._audio is None:
+            raise SomethingsReallyFuckedUpException("self._audio is None. This should not happen!")
 
         all_tag_keys = self._audio.keys() | ALL_TAGS.keys()
         #all_tag_keys = self._audio.keys()
