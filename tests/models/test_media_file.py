@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 import pytest
 from models.media_file import MediaFile
-from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, PROJECT_ROOT
+from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA
 from util.exceptions import InvalidFileError
 
 # Define the directory containing the test fixtures.
@@ -110,9 +110,8 @@ def test_empty_file(tmp_path):
     temp_file_path = tmp_path / "test.txt"
     temp_file_path.touch()
 
-    # Create a MediaFile instance with write disabled.
-    with pytest.raises(InvalidFileError):
-        MediaFile(str(temp_file_path))
+    mf = MediaFile(str(temp_file_path))
+    assert mf.get_internal_data(KEY_IS_MEDIA) is False
 
 def test_write_permissions_error(tmp_path):
     """
