@@ -58,12 +58,12 @@ class MutagenProvider(MetadataProviderBase):
 
         try:
             self._audio = mutagen.File(file_path, easy=True)
-            if self._audio is not None:
+            if self.is_readable():
                 if self._audio == {}:
                     log.debug(f"No audio tags found in file {file_path}.")
                 self._write_enabled = True
-            else:
-                raise InvalidFileError(f"{__class__.__name__} could not load {file_path}")
+            # else: # I don't think we need to crash here
+            #     raise InvalidFileError(f"{__class__.__name__} could not load {file_path}")
 
         except FileNotFoundError:
             log.error(f"Error: File not found at {file_path}")
