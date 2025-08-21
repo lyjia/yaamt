@@ -1,39 +1,30 @@
 # Project AGENTS.md Guide for AI Agents (OpenAI Codex, Roo Code, Cline, Claude Code, etc)
 
-This document describes this codebase, and outlines the coding conventions and architectural patterns used in its
-development, 
-All AI-generated code must adhere to these guidelines to ensure consistency, readability, and maintainability.
+This document describes this codebase, and outlines code conventions and architectural patterns used in its
+development. All code, AI-generated or not, must adhere to these guidelines to ensure consistency, readability, and maintainability.
 
-This codebase is a Python project. The project utilizes PySide6 for its graphical user interface (GUI), `mutagen` for handling audio metadata, and `cx_freeze` for packaging the application into standalone executables.
+This codebase is a Python project. It uses:
+* `PySide6` for its graphical user interface (GUI), 
+* `mutagen` for handling audio metadata, 
+* `pytest` for testing,
+* `cx_freeze` for packaging the application into standalone executables.
 
-This document is written following the AGENTS.md spec located at https://ampcode.com/AGENT.md
+This document is to follow the AGENTS.md spec at https://ampcode.com/AGENT.md
 
 ## About this project
 
 This project implements an audio file metadata manager, through a few primary components:
 
 * A Python class ("MediaFile") that is responsible for reading and writing metadata (ID3, ACID, etc) to a single media file. This class represents a single media file (for now we are focusing on audio files only -- WAV/MP3/FLAC/etc). It should have internal fields representing all of the major kinds of metadata that describe a media file, such as title, artist, album, and so on. (Refer to the ID3 specification as needed.) In particular, we need to have fields for storing BPM and musical key.
-* A command-line Python entrypoint that uses MediaFile to interact with, analyze, and edit metadata on media files requested by the user. It should support operating on both a single file or a directory of files.
-* A user interface, written in PySide6, that implements a file+directory browser. This component also uses MediaFile to both display metadata to the user (as configurable columns in the file browser), and to interact with, analyze, and edit metadata on behalf of the user.
+* A command-line Python entrypoint that uses MediaFile to interact with, analyze, and edit metadata on media files requested by the user. It should support operating on both a single file or a directory of files. (Entrypoint is `src/main.py`)
+* A GUI that implements a file+directory browser. This component also uses MediaFile to both display metadata to the user (as configurable columns in the file browser), and to interact with, analyze, and edit metadata on behalf of the user. (Entrypoint is `src/gui.py`)
 
-The goal is to give the user a format-agnostic metadata editor that can be used at the command-line or in a GUI. This metadata is then consumed and used in other software, such as FLStudio, Sound Forge, Serato, RekordBox, Foobar2000, and the like. It will primarily be a tool for DJs to intake new music and prepare the files' metadata to their specification.
-
-In particular, we want the user to be able to perform the following (note that when we mention a MediaFile, we mean both a media file itself, a list of media files, or a directory of media files):
-
-* Display the contents of a folder in a tabular format, as columns in the file browser (GUI only) 
-* Destroy and recreate the metadata on a MediaFile
-* Analyze the audio streams of a file and generate useful metadata, such as BPM, key, MusicBrainz ID, or an acoustic fingerprint.
-* Edit specific metadata fields of a MediaFile, such as title, track, album, key, or bpm
-* Seamlessly translate the contents of the key field between different representations for musical key, including Camelot notation
-* Play back the MediaFile using a simple playback interface with Play, Pause/Stop, Volume, and Playback Position controls 
-
-## Conversational style
+## AI Conversational style
 
 * As an AI coding agent, remember that your role is to assist the user, not entertain them.
 * In all interactions, please adopt a serious, sober, and professional tone, regardless of the communication style of
-  the user. Please minimize any sycophancy.
-* While your writing should be lively and easy to read, please avoid the use of emoji, generational slang, profanity,
-  and/or cuteness. Emoji are permitted in an explanatory or illustrative context, but should not be used decoratively.
+  the user. Please minimize any sycophancy. Please do not reassure the user of how good their plan or actions are.
+* Please do not use of emoji, generational slang, profanity, and/or cuteness. Emoji are only permitted in an explanatory or illustrative context, but should not be used decoratively.
 * While you are free to point out genuinely good ideas, do not blindly agree with or praise the user. Instead, encourage
   them to continue that line of thinking, and provide thought-provoking questions or supportive context where
   appropriate.
@@ -43,16 +34,22 @@ In particular, we want the user to be able to perform the following (note that w
 * Always remember why we are here: to build great software!
 * When prompted to do something, do not hesistate to ask exploratory questions or clarifying details before beginning
   work. Always prefer ironing out details earlier rather than later or mid-process.
-  Here are the updated instructions for the AI agent, now including best practices for utilizing the `mutagen` library.
 
-### Project Initialization and Structure
+## Code Conventions
 
-The agent shall adhere to a structured project layout to ensure maintainability and scalability.
+* Refer to the design spec in `docs/DESIGN.md`
+* Keep your commits small; focus on a single change.
+* Explain complicated logic using comments.
+* When adding large systems, document them as a new markdown file in `docs/designs`.
+* All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
+* All other changes should have test coverage where appropriate and reasonable. 
+* The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 
-**Simplified Project Structure:**
+## Project Structure
+Adhere to the following structured project layout to ensure maintainability and scalability:
 
 ```
-project_name/
+audio-metadata-tool/
 ├── src/
 │   ├── models/                       # Data model modules, QT models, and Python data classes
 │   │   └── media_file.py
@@ -81,29 +78,9 @@ project_name/
 └── README.md
 ```
 
-**Instructions for the AI Agent:**
-
-1.  **Create the Boilerplate:** Upon project initiation, generate the directory structure as outlined above, including an `audio_metadata.py` file.
-2.  **Virtual Environment:** Always work within a Python virtual environment to manage dependencies effectively. Activate the virtual environment before installing any packages.
-3.  **Dependency Management:** Maintain a `requirements.txt` file listing all project dependencies.
-
-    *Example `requirements.txt`*:
-    ```
-    PySide6
-    cx_freeze
-    mutagen
-    ```
-
 ### Development Workflow with PySide6
 
-The agent will follow these best practices when developing the PySide6 application.
-
-**UI Development:**
-
-*   **Qt Designer:** Utilize Qt Designer for creating and modifying UI files (`.ui`). This promotes a separation of the UI layout from the application's logic.
-*   **UI File Compilation:** Employ the `pyside6-uic` tool to compile `.ui` files into Python source code. The compiled UI file should be placed within the `app` directory.
-  *   **Command:** `pyside6-uic ui/main_window.ui -o src/app/ui_main_window.py`
-*   **UI Integration:** The generated UI class should be inherited by the main application window class to integrate the UI elements.
+Follow these best practices when developing the PySide6 application.
 
 **Resource Management:**
 
@@ -118,70 +95,20 @@ The agent will follow these best practices when developing the PySide6 applicati
 *   **Threading:** To prevent the GUI from becoming unresponsive during long-running tasks, execute them in separate threads (`QThread`). **This is critical for file I/O operations.**
 *   **Signals and Slots:** Use Qt's signals and slots mechanism for communication between components.
 
-### Working with `mutagen` for Audio Metadata
-
-The agent will handle all audio file metadata operations using the `mutagen` library, following these best practices to ensure a responsive and robust application.
-
-*   **Non-Blocking Operations:** All file reading and writing operations with `mutagen` are potential blocking calls that can freeze the GUI. **Always perform `mutagen.File()` loading and `audio.save()` calls on a separate `QThread`**. Use signals to communicate the results (the metadata or success/failure status) back to the main UI thread for display.
-*   **Graceful Error Handling:** Wrap calls to `mutagen.File()` in a `try...except` block to handle potential errors, such as `FileNotFoundError` or `mutagen.MutagenError` (for corrupted or unsupported files). Report these errors to the user through dialog boxes or status bar messages.
-*   **Unicode Support:** When writing metadata, always use Unicode strings to ensure compatibility across different operating systems and file formats.
-*   **Handle Multi-Value Tags:** Be aware that `mutagen` returns tag values as a list (e.g., `['My Title']`) because most formats support multiple values per tag. Your code should always anticipate a list, even for tags that typically have a single value.
-*   **Album Art Integration:** To display embedded album art, extract the binary data directly from the appropriate tag (e.g., `'APIC:'` for ID3). Load this data directly into a `QPixmap` using `pixmap.loadFromData(tag.data)`. This is highly efficient and avoids the need to save the image to a temporary file.
-
-### Packaging with cx_freeze
-
-The agent will use `cx_freeze` to create standalone executables. `mutagen` is a pure Python library with no external dependencies, so `cx_freeze` should be able to include it automatically without special configuration.
-
-**`setup.py` Configuration:**
-
-A `setup.py` file is required to configure the `cx_freeze` build process.
-
-```python
-import sys
-from cx_Freeze import setup, Executable
-
-# Dependencies are automatically detected, but it might need fine tuning.
-# mutagen is a pure python package and should be detected automatically.
-build_exe_options = {
-    "packages": ["os", "sys", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets"],
-    "excludes": ["tkinter"],
-    "include_files": ["resources/"],  # Include the entire resources directory
-}
-
-# base="Win32GUI" should be used on Windows for a GUI application
-base = None
-if sys.platform == "win32":
-    base = "Win32GUI"
-
-setup(
-    name="YourAppName",
-    version="0.1",
-    description="Your application description",
-    options={"build_exe": build_exe_options},
-    executables=[Executable("src/main.py", base=base, target_name="YourAppName")],
-)
-```
-
-**Instructions for the AI Agent:**
-
-1.  **`setup.py` Generation:** Create a `setup.py` file in the project root with the necessary configurations.
-2.  **Dependency Handling:** While `cx_freeze` is excellent at auto-detection, explicitly list core PySide6 modules in the `packages` list to be safe. It is generally not necessary to add `mutagen` here.
-3.  **Excluding Unnecessary Packages:** To reduce executable size, exclude unused libraries like `tkinter`.
-4.  **Including Files and Directories:** Use the `include_files` option to bundle non-Python assets.
-5.  **Platform-Specific Configuration:** Set the `base` to `"Win32GUI"` for Windows GUI applications.
-6.  **Building the Executable:** Execute the build process using the command: `python setup.py build`.
-7.  **Output:** The packaged application will be in the `build/` directory.
-8.  **Installer Creation (Optional):** Use `bdist_msi` on Windows or `bdist_dmg` on macOS to create user-friendly installers.
-
 ### Testing
 
-When writing tests, please note that the `conftest.py` file in the `tests` directory adds the `src` directory to the system path. This means that you do not need to prefix imports with `src`. For example, to import the `MediaFile` class, you would use the following statement:
+A unit test suite (using pytest) can be found in `tests` in the project root.
+
+* DO NOT write to the test fixtures in `tests/fixtures`. Instead, copy the original file to a temporary location and perform your tests on that.
+
+#### Notes
+
+When writing tests, please note that `conftest.py` in the `tests` directory adds the `src` directory to the system path. This means that you do not need to prefix imports with `src`. For example, to import the `MediaFile` class, you would use the following statement:
 
 ```python
 from models.media_file import MediaFile
 ```
-instead of：
 
-```python
-from src.models.media_file import MediaFile
-```
+#### Running tests
+
+`pytest` to run all tests or `pytest tests/test_my_test.py` to run tests in a specific file.

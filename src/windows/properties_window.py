@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QTreeWidget,
     QTreeWidgetItem,
-    QLabel,
+    QLabel, QStyle, QHeaderView, QSizePolicy,
 )
 from models.media_file import MediaFile
 from util.const import KEY_INTERNAL, KEY_STREAM_INFO, KEY_TAGS
@@ -19,11 +19,17 @@ class PropertiesWindow(QMainWindow):
     def __init__(self, file_path, parent=None):
         super().__init__(parent)
 
+        self.changes = {}
+        self.original_values = {}
+
         self.file_path = file_path
         self.media_file = MediaFile(file_path)
         self.setWindowTitle(f"Properties for {os.path.basename(file_path)}")
-        self.changes = {}
-        self.original_values = {}
+        self.resize(720, 480)
+        self.setMinimumSize(400, 300)
+        self.setWindowIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
+        )
 
         # Central widget and main layout
         central_widget = QWidget()
@@ -156,8 +162,10 @@ class PropertiesWindow(QMainWindow):
                 if isinstance(tag_value, bytes):
                     child.setFlags(child.flags() & ~Qt.ItemIsEditable)
 
-        for i in range(tree.columnCount()):
-            tree.resizeColumnToContents(i)
+        header = tree.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
     def on_advanced_item_changed(self, item, column):
         if column == 1 and item.parent():
@@ -191,6 +199,7 @@ class PropertiesWindow(QMainWindow):
 
             # Add revert button
             revert_button = QPushButton("Revert")
+            revert_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
             revert_button.clicked.connect(
                 lambda: self.revert_change(item, provider_name, tag_name)
             )

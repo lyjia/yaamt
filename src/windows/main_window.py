@@ -6,22 +6,30 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel
+
+import windows
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
-from models.settings import settings
+from models.settings import settings, FileListSettings, ColumnSettings
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
-from windows.properties_window import PropertiesWindow
 
 
 class MainWindow(QMainWindow):
     def __init__(self, path=None):
         super().__init__()
         self.setWindowTitle("YAAMT")
-        self.resize(800, 600)
+        self.resize(1024, 768)
+        self.setMinimumSize(640, 480)
+        self.setWindowIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        )
         self.thread_pool = QThreadPool()
         self._current_path = ""
         self.metadata_results = []
         self.column_menu = QMenu("Columns", self)
+
+        self.file_list_settings = FileListSettings()
+        self._logical_column_ids = [c.id for c in FileListSettings().columns]
 
         # Menus
         self._create_menus()
@@ -75,7 +83,7 @@ class MainWindow(QMainWindow):
 
         # Right Pane (File List)
         self.files_view = QTreeView()
-        self.file_model = MetadataTableModel()
+        self.file_model = MetadataTableModel(self.file_list_settings.columns)
 
         self.proxy_model = QSortFilterProxyModel()
         self.proxy_model.setSourceModel(self.file_model)
@@ -95,6 +103,14 @@ class MainWindow(QMainWindow):
         self.directory_tree.selectionModel().currentChanged.connect(self.on_directory_changed)
         self.files_view.selectionModel().selectionChanged.connect(self.update_file_actions)
 
+        # Connect header signals
+        header = self.files_view.header()
+        header.setSectionsMovable(True)
+        header.setFirstSectionMovable(True)
+        header.sectionResized.connect(self.on_column_resized)
+        header.sectionMoved.connect(self.on_column_moved)
+        header.sortIndicatorChanged.connect(self.on_sort_indicator_changed)
+
         self.setup_view_menu()
 
         # Set initial path
@@ -108,6 +124,11 @@ class MainWindow(QMainWindow):
                 initial_path = QDir.homePath()
         self.set_path(initial_path)
         self.update_file_actions()
+        self._load_column_settings()
+
+    def closeEvent(self, event):
+        self._save_column_settings()
+        super().closeEvent(event)
 
     def set_path(self, path):
         self._current_path = path
@@ -154,6 +175,11 @@ class MainWindow(QMainWindow):
 
     def toggle_column(self, index, checked):
         self.files_view.setColumnHidden(index, not checked)
+        # The main settings are now saved directly from the header in _save_column_settings.
+        # However, we still need to update the is_visible flag for the context menu to work correctly.
+        col_settings = self._get_column_settings_by_logical_index(index)
+        if col_settings:
+            col_settings.is_visible = checked
 
     def setup_view_menu(self):
         self.column_menu.clear()
@@ -166,6 +192,10 @@ class MainWindow(QMainWindow):
             self.column_menu.addAction(action)
         self.view_menu.clear()
         self.view_menu.addMenu(self.column_menu)
+        self.view_menu.addSeparator()
+        action_reset_columns = QAction("Reset Columns", self)
+        action_reset_columns.triggered.connect(self._reset_column_settings)
+        self.view_menu.addAction(action_reset_columns)
 
     def open_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Select Folder", self._current_path)
@@ -221,12 +251,8 @@ class MainWindow(QMainWindow):
         help_menu.addAction(about_action)
 
     def _show_about_dialog(self):
-        QMessageBox.about(
-            self,
-            "About Audio Metadata Tool",
-            "<p>A simple tool for editing audio metadata.</p>"
-            "<p>Version 0.1</p>"
-        )
+        about_window = windows.AboutWindow(self)
+        about_window.exec()
 
     def open_properties_window(self):
         selected_indexes = self.files_view.selectionModel().selectedIndexes()
@@ -241,8 +267,20 @@ class MainWindow(QMainWindow):
         file_path = row_data.get(KEY_FILE_PATH)
 
         if file_path:
-            self.properties_window = PropertiesWindow(file_path, self)
+            self.properties_window = windows.PropertiesWindow(file_path, self)
             self.properties_window.show()
+
+    def on_column_resized(self, logical_index, old_size, new_size):
+        # This is now handled by _save_column_settings, which reads the visual layout
+        pass
+
+    def on_column_moved(self, logical_index, old_visual_index, new_visual_index):
+        # This is now handled by _save_column_settings, which reads the visual layout
+        pass
+
+    def on_sort_indicator_changed(self, logical_index, order):
+        self.file_list_settings.sort_column = logical_index
+        self.file_list_settings.sort_order = order
 
     def update_file_actions(self):
         selected_indexes = self.files_view.selectionModel().selectedIndexes()
@@ -255,3 +293,108 @@ class MainWindow(QMainWindow):
             is_media_file = self.file_model.data(source_index, KEY_IS_MEDIA)
 
         self.action_properties.setEnabled(len(selected_rows) == 1 and is_media_file)
+
+    def _reset_column_settings(self):
+        self.file_list_settings = FileListSettings()
+        self.file_model = MetadataTableModel(self.file_list_settings.columns)
+        self.proxy_model.setSourceModel(self.file_model)
+        self._apply_column_settings()
+        self.setup_view_menu()
+
+    def _get_column_settings_by_logical_index(self, logical_index):
+        if logical_index < 0 or logical_index >= len(self._logical_column_ids):
+            return None
+        
+        column_id = self._logical_column_ids[logical_index]
+        for col in self.file_list_settings.columns:
+            if col.id == column_id:
+                return col
+        return None
+
+    def _load_column_settings(self):
+        settings.beginGroup("file_list")
+        
+        # Load column settings
+        num_columns = settings.beginReadArray("columns")
+        if num_columns > 0:
+            self.file_list_settings.columns = []
+            for i in range(num_columns):
+                settings.setArrayIndex(i)
+                col_settings = ColumnSettings(
+                    id=settings.value("id"),
+                    label=settings.value("label"),
+                    group=settings.value("group"),
+                    width=int(settings.value("width")),
+                    is_visible=settings.value("is_visible", type=bool)
+                )
+                self.file_list_settings.columns.append(col_settings)
+        settings.endArray()
+
+        # Load sort settings
+        self.file_list_settings.sort_column = settings.value("sort_column", 0, type=int)
+        self.file_list_settings.sort_order = settings.value("sort_order", Qt.SortOrder.AscendingOrder, type=int)
+        
+        settings.endGroup()
+
+        self._apply_column_settings()
+
+    def _apply_column_settings(self):
+        header = self.files_view.header()
+        model_columns_by_id = {id: i for i, id in enumerate(self._logical_column_ids)}
+
+        # Set properties for columns based on settings
+        for col_settings in self.file_list_settings.columns:
+            if col_settings.id in model_columns_by_id:
+                logical_index = model_columns_by_id[col_settings.id]
+                header.resizeSection(logical_index, col_settings.width)
+                header.setSectionHidden(logical_index, not col_settings.is_visible)
+
+        # Set visual order of columns
+        for visual_index, col_settings in enumerate(self.file_list_settings.columns):
+            if col_settings.id in model_columns_by_id:
+                logical_index = model_columns_by_id[col_settings.id]
+                current_visual_index = header.visualIndex(logical_index)
+                if current_visual_index != visual_index:
+                    header.moveSection(current_visual_index, visual_index)
+
+        self.files_view.sortByColumn(
+            self.file_list_settings.sort_column,
+            Qt.SortOrder(self.file_list_settings.sort_order)
+        )
+
+    def _save_column_settings(self):
+        settings.beginGroup("file_list")
+        header = self.files_view.header()
+        
+        # Get current visual layout
+        columns_to_save = []
+        for visual_index in range(header.count()):
+            logical_index = header.logicalIndex(visual_index)
+            col_id = self._logical_column_ids[logical_index]
+            
+            # Find original column settings to get label
+            original_col = next((c for c in FileListSettings().columns if c.id == col_id), None)
+            if original_col:
+                columns_to_save.append(ColumnSettings(
+                    id=col_id,
+                    label=original_col.label,
+                    group=original_col.group,
+                    width=header.sectionSize(logical_index),
+                    is_visible=not header.isSectionHidden(logical_index)
+                ))
+
+        # Save column settings
+        settings.beginWriteArray("columns", len(columns_to_save))
+        for i, col in enumerate(columns_to_save):
+            settings.setArrayIndex(i)
+            settings.setValue("id", col.id)
+            settings.setValue("label", col.label)
+            settings.setValue("width", col.width)
+            settings.setValue("is_visible", col.is_visible)
+        settings.endArray()
+
+        # Save sort settings
+        settings.setValue("sort_column", self.file_list_settings.sort_column)
+        settings.setValue("sort_order", self.file_list_settings.sort_order)
+
+        settings.endGroup()

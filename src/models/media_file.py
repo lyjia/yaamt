@@ -10,12 +10,32 @@ from util.logging import log
 class MediaFile:
     """
     Public interface for accessing audio file metadata.
+
+    Provides a unified interface for accessing metadata from multiple metadata providers. The assumption is that
+    a given tag (such a "title") is available from multiple possible providers, and that the most appropriate provider
+    for reading vs writing a tag may differ. So there is a lot of plumbing here to determine which providers are
+    fit for task and routing requests accordingly. This area has gotten more complex than I initial expected,
+    so it may be worth revisiting this logic in the future.
+
+    One such use-case I was thinking of when I wrote this is for reading/writing Serato tags: the raw ID3 frames are
+    picked up by Mutagen, but in the interest of separating concerns we do not want to handle them with MutagenProvider.
+    Rather, a separate SeratoProvider should contain the logic for interpreting and writing those frames. Since both
+    providers will potentially see the same data it is important to disambiguate which provider should be used for which
+    tag.
+
+    Also, note that we have a couple different categories of 'tags':
+    * "generic" tags, which reference the labels we present to the user, and are names used internally by YAAMT
+    * "internal" tags, which are tags that are used internally by the Provider but not exposed to the user. 
+    ** Note that for MutagenProvider many tags have the same name for both categories.
+    ** It is the provider's responsibility to accept generic tag names and route them to whatever internal name that provider uses.
+    ** Mapping between these two is handled by `get_internal_tag_name_for_generic()`
     """
     def __init__(self, file_path: str, enable_write=False):
         self._file_path = os.path.abspath(file_path)
         self._file_name = os.path.basename(file_path)
         self._providers = self._get_providers_for_file()
         self._write_enabled = enable_write
+        self._pending_changes = {}
 
         # read combined metadata in as-needed, not at load
         self._combined_metadata = {
@@ -43,12 +63,20 @@ class MediaFile:
             KEY_TAGS: {}
         }
 
+        self._tag_writers = {
+            KEY_TAGS: {}
+        }
+
         for provider in self._providers:
             # TODO: provider should be added only if it supports the kind of metadata reporting its being registered to
+
+            available_tags = provider.available_tags()
+
             self._registered_providers[KEY_TAGS].append({
                 KEY_PROVIDER: provider,
-                KEY_AVAIL_KEYS: provider.available_tags(),
+                KEY_AVAIL_KEYS: available_tags,
             })
+
             self._registered_providers[KEY_STREAM_INFO].append({
                 KEY_PROVIDER: provider,
                 KEY_AVAIL_KEYS: provider.available_stream_info_keys(),
@@ -56,10 +84,12 @@ class MediaFile:
 
             # create a lookup of available providers on a per-key basis
             # to be used for JIT loading of tag data
-            for key in provider.available_tags():
-                if not key in self._tag_provider_lookup[KEY_TAGS]:
-                    self._tag_provider_lookup[KEY_TAGS][key] = []
-                self._tag_provider_lookup[KEY_TAGS][key].append(provider)
+            for tag_info in available_tags:
+                if not tag_info.name in self._tag_provider_lookup[KEY_TAGS]:
+                    self._tag_provider_lookup[KEY_TAGS][tag_info.name] = []
+                self._tag_provider_lookup[KEY_TAGS][tag_info.name].append(provider)
+                if tag_info.is_writable and not tag_info.name in self._tag_writers[KEY_TAGS]: #just store the first provider
+                    self._tag_writers[KEY_TAGS][tag_info.name] = [ provider ]
 
             for key in provider.available_stream_info_keys():
                 if not key in self._tag_provider_lookup[KEY_STREAM_INFO]:
@@ -74,7 +104,7 @@ class MediaFile:
                 self._combined_metadata[KEY_INTERNAL][KEY_IS_WRITABLE] = True
             else:
                 if self._write_enabled:
-                    log(f"{self._file_name}: Write is enabled but file is not readable by metadata providers. Disabling write!")
+                    log.error(f"{self._file_name}: Write is enabled but file is not readable by metadata providers. Disabling write!")
 
         # TODO: refine this when we have more provider support, KEY_IS_MEDIA should only be true if the file being loaded is a media file we care about
         # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
@@ -83,6 +113,8 @@ class MediaFile:
         pass #for debugger attach
 
     def get_tag_all_values(self, key):
+        if key in self._pending_changes:
+            return self._pending_changes[key]
         if not self._combined_metadata[KEY_TAGS].get(key):
             self.load_meta_for_tag(key)
         return self._combined_metadata[KEY_TAGS].get(key, {}).get(KEY_VALUE)
@@ -92,6 +124,19 @@ class MediaFile:
         if grab:
             return grab[0]
         return None
+
+    def set_tag(self, key, value, is_internal_tag_key=False):
+        """
+        Sets a tag value in the pending changes.
+        :param key: The tag key to set.
+        :param value: The value to set for the tag.
+        :param is_internal_tag_key: Whether the key is an internal tag key.
+        """
+
+        if key in self._tag_writers[KEY_TAGS] and self._tag_writers[KEY_TAGS][key][0].is_writable():
+            self._pending_changes[key] = [value]
+        else:
+            raise PermissionError(f"Tag '{key}' is not writable. (Writable tags: {list(self._tag_writers[KEY_TAGS].keys())})")
 
     def load_meta_for_tag(self, key):
         providers = self._tag_provider_lookup[KEY_TAGS].get(key, [])
@@ -107,20 +152,46 @@ class MediaFile:
     def get_stream_info_value(self, key):
         if not self._combined_metadata[KEY_STREAM_INFO].get(key):
             self.load_meta_for_stream_info(key)
-        return self._combined_metadata[KEY_STREAM_INFO][key][KEY_VALUE]  # only return first value in array of values
+        if key in self._combined_metadata[KEY_STREAM_INFO]:
+            return self._combined_metadata[KEY_STREAM_INFO][key].get(KEY_VALUE)  # only return first value in array of values
+        return None
 
     def load_meta_for_stream_info(self, key):
-        provider_to_use = self._tag_provider_lookup[KEY_STREAM_INFO][key][0]
-        self._combined_metadata[KEY_STREAM_INFO][key] = {
-            KEY_VALUE: provider_to_use.get_stream_info(key),
-            KEY_PROVIDER: provider_to_use
-        }
+        if key in self._tag_provider_lookup[KEY_STREAM_INFO]:
+            provider_to_use = self._tag_provider_lookup[KEY_STREAM_INFO][key][0]
+            self._combined_metadata[KEY_STREAM_INFO][key] = {
+                KEY_VALUE: provider_to_use.get_stream_info(key),
+                KEY_PROVIDER: provider_to_use
+            }
 
     def get_internal_data(self, key):
         return self._combined_metadata[KEY_INTERNAL].get(key)
 
     def save(self):
-        self._provider.save()
+        if not self._write_enabled:
+            raise PermissionError("Write is not enabled for this file.")
+
+        if not self._pending_changes:
+            return
+
+        modified_providers = set()
+
+        for key, value in self._pending_changes.items():
+            if key in self._tag_provider_lookup[KEY_TAGS]:
+                # Write to the first available provider
+                provider = self._tag_provider_lookup[KEY_TAGS][key][0]
+                provider.set_tag(key, value)
+                modified_providers.add(provider)
+
+        for provider in modified_providers:
+            provider.save()
+
+        # Clear the cache for the tags that were changed
+        for key in self._pending_changes.keys():
+            if key in self._combined_metadata[KEY_TAGS]:
+                del self._combined_metadata[KEY_TAGS][key]
+
+        self._pending_changes.clear()
 
     def to_dict(self):
         """
@@ -150,6 +221,9 @@ class MediaFile:
 
         return to_ret
 
+    def is_readable(self):
+        return self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA]
+
     @property
     def metadata(self):
         return self.to_dict()
@@ -160,4 +234,16 @@ class MediaFile:
         :param file_path:
         :return:
         """
-        return [ MutagenProvider(self._file_path) ]
+        potential_providers = [ MutagenProvider ]
+        to_ret = []
+
+        for provider in potential_providers:
+            try:
+                provider_instance = provider(self._file_path)
+                if provider_instance.is_readable():
+                    to_ret.append( provider_instance )
+            except Exception as e:
+                log.debug(f"Provider {provider.__name__} failed to load file {self._file_path}: {e}")
+                continue
+
+        return to_ret
