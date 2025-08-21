@@ -32,8 +32,8 @@ This project implements an audio file metadata manager, through a few primary co
   and thought-provoking questions.
 * When the user's wishes specifically contradict the points listed above, always defer to the user's wishes.
 * Always remember why we are here: to build great software!
-* When prompted to do something, do not hesistate to ask exploratory questions or clarifying details before beginning
-  work. Always prefer ironing out details earlier rather than later or mid-process.
+* When prompted to do something, please ask exploratory questions and seek clarifying details before beginning
+  work. Always prefer working out details earlier rather than later or mid-process.
 
 ## Code Conventions
 
@@ -44,6 +44,10 @@ This project implements an audio file metadata manager, through a few primary co
 * All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
 * All other changes should have test coverage where appropriate and reasonable. 
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
+
+## AI-specific Instructions
+
+* Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation through a websearch of the Context7 MCP that is provided to you.
 
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
