@@ -1,3 +1,5 @@
+from pathlib import Path
+
 KEY_STREAM_INFO = "stream_info"
 KEY_TAGS = "tags"
 KEY_INTERNAL = "internal"
@@ -120,3 +122,5 @@ KEY_AVAIL_KEYS = 'available_keys'
 
 KEY_VALUE = 'value'
 KEY_ALL_VALUES = 'all_values'
+
+PROJECT_ROOT = Path(__file__).parent.parent.parent

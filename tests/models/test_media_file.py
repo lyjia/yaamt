@@ -1,12 +1,15 @@
 import json
+import os
 import shutil
 from pathlib import Path
 import pytest
 from models.media_file import MediaFile
-from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY
+from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, PROJECT_ROOT
+from util.exceptions import InvalidFileError
 
 # Define the directory containing the test fixtures.
-FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "metadata"
+FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "metadata"
+SOURCE_FILE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "sample_dtmf_unicode.mp3"
 
 # Discover all audio files in the fixture directory.
 # This list will be used to parameterize the test function.
@@ -99,7 +102,7 @@ def test_write_tags(media_path, tmp_path):
         assert media_file_read.get_tag_simple(key) == value
 
 
-def test_write_permission_error(tmp_path):
+def test_empty_file(tmp_path):
     """
     Tests that a PermissionError is raised when trying to write to a file without write permissions.
     """
@@ -108,8 +111,24 @@ def test_write_permission_error(tmp_path):
     temp_file_path.touch()
 
     # Create a MediaFile instance with write disabled.
-    media_file = MediaFile(str(temp_file_path))
+    with pytest.raises(InvalidFileError):
+        MediaFile(str(temp_file_path))
 
-    # Verify that a PermissionError is raised when trying to save.
-    with pytest.raises(PermissionError):
-        media_file.save()
+def test_write_permissions_error(tmp_path):
+    """
+    Tests that a PermissionError is raised when trying to write to a file without write permissions.
+    """
+    # Create a temporary copy of the file to write to.
+    temp_media_path = tmp_path / "write_protected.mp3"
+    shutil.copy(SOURCE_FILE, temp_media_path)
+
+    try:
+        # Make the file read-only
+        os.chmod(temp_media_path, 0o444)
+
+        # Attempt to create a MediaFile instance with write enabled
+        with pytest.raises(PermissionError):
+            MediaFile(str(temp_media_path), enable_write=True)
+    finally:
+        # Restore write permissions to allow cleanup
+        os.chmod(temp_media_path, 0o644)

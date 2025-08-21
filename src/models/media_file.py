@@ -18,12 +18,12 @@ class MediaFile:
     so it may be worth revisiting this logic in the future.
 
     One such use-case I was thinking of when I wrote this is for reading/writing Serato tags: the raw ID3 frames are
-    picked up by Mutagen, but in the interest of separating concerns we do not want to handle them with mutagen.
+    picked up by Mutagen, but in the interest of separating concerns we do not want to handle them with MutagenProvider.
     Rather, a separate SeratoProvider should contain the logic for interpreting and writing those frames. Since both
     providers will potentially see the same data it is important to disambiguate which provider should be used for which
     tag.
 
-    Note that we have a couple different categories of 'tags':
+    Also, note that we have a couple different categories of 'tags':
     * "generic" tags, which reference the labels we present to the user, and are names used internally by YAAMT
     * "internal" tags, which are tags that are used internally by the Provider but not exposed to the user. 
     ** Note that for MutagenProvider many tags have the same name for both categories.

@@ -7,7 +7,7 @@ from mutagen.easyid3 import EasyID3
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY
-from util.exceptions import SomethingsReallyFuckedUpException
+from util.exceptions import SomethingsReallyFuckedUpException, InvalidFileError
 from util.logging import log
 from .base import MetadataProviderBase
 
@@ -53,12 +53,17 @@ class MutagenProvider(MetadataProviderBase):
     """
     def __init__(self, file_path: str):
         self._file_path = file_path
+        self._write_enabled = False
         self._audio = None
 
         try:
             self._audio = mutagen.File(file_path, easy=True)
-            if self._audio == {}:
-                log.debug(f"No audio tags found in file {file_path}.")
+            if self._audio is not None:
+                if self._audio == {}:
+                    log.debug(f"No audio tags found in file {file_path}.")
+                self._write_enabled = True
+            else:
+                raise InvalidFileError(f"{__class__.__name__} could not load {file_path}")
 
         except FileNotFoundError:
             log.error(f"Error: File not found at {file_path}")
@@ -156,8 +161,10 @@ class MutagenProvider(MetadataProviderBase):
         return self._audio is not None
 
     def is_writable(self):
-        return True
+        return self._write_enabled
 
     def save(self):
-        if self._audio:
+        if self._write_enabled and self._audio:
             self._audio.save(self._file_path)
+        else:
+            raise PermissionError("File is not writable. (write_enabled is {self._write_enabled} and _audio is {self._audio})")
