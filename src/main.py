@@ -98,6 +98,7 @@ def main():
         else:
             traceback.print_exc()
             print(f"An error occurred: {e}", file=sys.stderr)
+        sys.exit(1)
 
     sys.exit(0)
 
