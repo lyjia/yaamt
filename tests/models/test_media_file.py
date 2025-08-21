@@ -127,8 +127,11 @@ def test_write_permissions_error(tmp_path):
         os.chmod(temp_media_path, 0o444)
 
         # Attempt to create a MediaFile instance with write enabled
+        mf = MediaFile(str(temp_media_path), enable_write=True)
         with pytest.raises(PermissionError):
-            MediaFile(str(temp_media_path), enable_write=True)
+            mf.set_tag(KEY_TITLE, "New Title")
+            mf.save()
+
     finally:
         # Restore write permissions to allow cleanup
         os.chmod(temp_media_path, 0o644)
