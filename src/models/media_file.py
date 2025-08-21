@@ -104,7 +104,7 @@ class MediaFile:
                 self._combined_metadata[KEY_INTERNAL][KEY_IS_WRITABLE] = True
             else:
                 if self._write_enabled:
-                    log(f"{self._file_name}: Write is enabled but file is not readable by metadata providers. Disabling write!")
+                    log.error(f"{self._file_name}: Write is enabled but file is not readable by metadata providers. Disabling write!")
 
         # TODO: refine this when we have more provider support, KEY_IS_MEDIA should only be true if the file being loaded is a media file we care about
         # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
