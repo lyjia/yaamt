@@ -48,12 +48,52 @@
                 "MutagenProvider"
             ]
         },
+        "albumartistsort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "albumsort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "arranger": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "artist": {
             "value": "Lyjia",
             "provider": "MutagenProvider",
             "all_values": [
                 "Lyjia"
             ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "artistsort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "author": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -66,7 +106,7 @@
                 "MutagenProvider"
             ]
         },
-        "comment": {
+        "compilation": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -82,7 +122,23 @@
                 "MutagenProvider"
             ]
         },
-        "date": {
+        "composersort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "conductor": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "copyright": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -98,7 +154,7 @@
                 "MutagenProvider"
             ]
         },
-        "disctotal": {
+        "discsubtitle": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -148,6 +204,30 @@
                 "MutagenProvider"
             ]
         },
+        "length": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "lyricist": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "media": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "mood": {
             "value": null,
             "provider": "MutagenProvider",
@@ -157,6 +237,14 @@
             ]
         },
         "musical_key": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "organization": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -174,6 +262,14 @@
                 "MutagenProvider"
             ]
         },
+        "titlesort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "tracknumber": {
             "value": null,
             "provider": "MutagenProvider",
@@ -182,15 +278,7 @@
                 "MutagenProvider"
             ]
         },
-        "tracktotal": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "year": {
+        "version": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,

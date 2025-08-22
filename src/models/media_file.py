@@ -36,6 +36,8 @@ class MediaFile:
         self._providers = self._get_providers_for_file()
         self._write_enabled = enable_write
         self._pending_changes = {}
+        self._generic_to_internal_map = {}
+        self._internal_to_generic_map = {}
 
         # read combined metadata in as-needed, not at load
         self._combined_metadata = {
@@ -85,6 +87,10 @@ class MediaFile:
             # create a lookup of available providers on a per-key basis
             # to be used for JIT loading of tag data
             for tag_info in available_internal_tags:
+                if tag_info.generic_tag_name:
+                    self._generic_to_internal_map[tag_info.generic_tag_name] = tag_info.internal_tag_name
+                    self._internal_to_generic_map[tag_info.internal_tag_name] = tag_info.generic_tag_name
+
                 if not tag_info.internal_tag_name in self._tag_provider_lookup[KEY_TAGS]:
                     self._tag_provider_lookup[KEY_TAGS][tag_info.internal_tag_name] = []
                 self._tag_provider_lookup[KEY_TAGS][tag_info.internal_tag_name].append(provider)
@@ -112,15 +118,19 @@ class MediaFile:
 
         pass #for debugger attach
 
-    def get_tag_all_values(self, key):
-        if key in self._pending_changes:
-            return self._pending_changes[key]
-        if not self._combined_metadata[KEY_TAGS].get(key):
-            self.load_meta_for_tag(key)
-        return self._combined_metadata[KEY_TAGS].get(key, {}).get(KEY_VALUE)
+    def get_tag_all_values(self, key, is_internal_tag_key=False):
+        actual_key = key
+        if not is_internal_tag_key and key in self._generic_to_internal_map:
+            actual_key = self._generic_to_internal_map[key]
 
-    def get_tag_simple(self, key):
-        grab = self.get_tag_all_values(key)
+        if actual_key in self._pending_changes:
+            return self._pending_changes[actual_key]
+        if not self._combined_metadata[KEY_TAGS].get(actual_key):
+            self.load_meta_for_tag(actual_key)
+        return self._combined_metadata[KEY_TAGS].get(actual_key, {}).get(KEY_VALUE)
+
+    def get_tag_simple(self, key, is_internal_tag_key=False):
+        grab = self.get_tag_all_values(key, is_internal_tag_key)
         if grab:
             return grab[0]
         return None
@@ -132,9 +142,12 @@ class MediaFile:
         :param value: The value to set for the tag.
         :param is_internal_tag_key: Whether the key is an internal tag key.
         """
+        actual_key = key
+        if not is_internal_tag_key and key in self._generic_to_internal_map:
+            actual_key = self._generic_to_internal_map[key]
 
-        if key in self._tag_writers[KEY_TAGS] and self._tag_writers[KEY_TAGS][key][0].is_writable():
-            self._pending_changes[key] = [value]
+        if actual_key in self._tag_writers[KEY_TAGS] and self._tag_writers[KEY_TAGS][actual_key][0].is_writable():
+            self._pending_changes[actual_key] = [value]
         else:
             raise PermissionError(f"Tag '{key}' is not writable. (Writable tags: {list(self._tag_writers[KEY_TAGS].keys())})")
 
@@ -205,9 +218,9 @@ class MediaFile:
 
         for key in self._tag_provider_lookup[KEY_TAGS].keys():
             to_ret[KEY_TAGS][key] = {
-                KEY_VALUE: self.get_tag_simple(key),
+                KEY_VALUE: self.get_tag_simple(key, is_internal_tag_key=True),
                 KEY_PROVIDER: self._tag_provider_lookup[KEY_TAGS][key][0].__class__.__name__,
-                KEY_ALL_VALUES: self.get_tag_all_values(key),
+                KEY_ALL_VALUES: self.get_tag_all_values(key, is_internal_tag_key=True),
                 KEY_ALL_PROVIDERS: [x.__class__.__name__ for x in self._tag_provider_lookup[KEY_TAGS][key]]
             }
 
