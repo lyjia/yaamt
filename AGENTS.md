@@ -45,6 +45,11 @@ This project implements an audio file metadata manager, through a few primary co
 * All other changes should have test coverage where appropriate and reasonable. 
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 
+## AI-specific instructions
+
+* Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation through a websearch of the Context7 MCP that is provided to you.
+* Break large edits up into smaller, bite-size chunks. Large diffs sometimes fail.
+
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
 
