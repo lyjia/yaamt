@@ -1,5 +1,6 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource>
     <file alias="logo.png">../doc/YAAMT_logo.png</file>
+    <file alias="icons/spinner">icons/spinner.gif</file>
 </qresource>
 </RCC>
