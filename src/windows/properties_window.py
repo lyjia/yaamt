@@ -9,10 +9,21 @@ from PySide6.QtWidgets import (
     QWidget,
     QTreeWidget,
     QTreeWidgetItem,
-    QLabel, QStyle, QHeaderView, QSizePolicy,
+    QLabel,
+    QStyle,
+    QHeaderView,
+    QSizePolicy,
+    QFormLayout,
+    QLineEdit,
+    QGroupBox,
 )
 from models.media_file import MediaFile
-from util.const import KEY_INTERNAL, KEY_STREAM_INFO, KEY_TAGS
+from util.const import (
+    KEY_INTERNAL, KEY_STREAM_INFO, KEY_TAGS, KEY_TITLE, KEY_ARTIST, KEY_ALBUM,
+    KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE, KEY_COMMENT, KEY_COMPOSER,
+    KEY_TRACK_NUMBER, KEY_DISC_NUMBER, KEY_BPM, KEY_MUSICAL_KEY,
+    KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN
+)
 
 
 class PropertiesWindow(QMainWindow):
@@ -38,12 +49,20 @@ class PropertiesWindow(QMainWindow):
 
         # Tab widget
         tab_widget = QTabWidget()
-        tab_widget.addTab(QWidget(), "Details")
-        tab_widget.addTab(QWidget(), "Advanced")
         main_layout.addWidget(tab_widget)
 
-        self.setup_details_tab(tab_widget.widget(0))
-        self.setup_advanced_tab(tab_widget.widget(1))
+        # Create and set up tabs
+        self.basic_info_tab = QWidget()
+        self.details_tab = QWidget()
+        self.advanced_tab = QWidget()
+
+        tab_widget.addTab(self.basic_info_tab, "Basic Info")
+        tab_widget.addTab(self.details_tab, "Details")
+        tab_widget.addTab(self.advanced_tab, "Advanced")
+
+        self.setup_basic_info_tab(self.basic_info_tab)
+        self.setup_details_tab(self.details_tab)
+        self.setup_advanced_tab(self.advanced_tab)
 
         # Bottom button layout
         self.bottom_layout = QHBoxLayout()
@@ -87,6 +106,70 @@ class PropertiesWindow(QMainWindow):
         else:
             self.ok_button.setEnabled(False)
             self.close_button.setText("Close")
+
+    def setup_basic_info_tab(self, tab_widget):
+        layout = QFormLayout(tab_widget)
+        
+        # Metadata fields
+        self.title_edit = QLineEdit()
+        self.artist_edit = QLineEdit()
+        self.album_edit = QLineEdit()
+        self.album_artist_edit = QLineEdit()
+        self.date_edit = QLineEdit()
+        self.genre_edit = QLineEdit()
+        self.comment_edit = QLineEdit()
+        self.composer_edit = QLineEdit()
+        self.publisher_edit = QLineEdit()
+        self.track_num_edit = QLineEdit()
+        self.disc_num_edit = QLineEdit()
+        self.bpm_edit = QLineEdit()
+        self.key_edit = QLineEdit()
+
+        layout.addRow("Title:", self.title_edit)
+        layout.addRow("Artist:", self.artist_edit)
+        layout.addRow("Album:", self.album_edit)
+        layout.addRow("Album Artist:", self.album_artist_edit)
+        layout.addRow("Date:", self.date_edit)
+        layout.addRow("Genre:", self.genre_edit)
+        layout.addRow("Comment:", self.comment_edit)
+        layout.addRow("Composer:", self.composer_edit)
+        layout.addRow("Publisher:", self.publisher_edit)
+        layout.addRow("Track #:", self.track_num_edit)
+        layout.addRow("Disc #:", self.disc_num_edit)
+        layout.addRow("BPM:", self.bpm_edit)
+        layout.addRow("Key:", self.key_edit)
+
+        # ReplayGain GroupBox
+        replaygain_group = QGroupBox("ReplayGain")
+        replaygain_layout = QFormLayout()
+        replaygain_group.setLayout(replaygain_layout)
+
+        self.replaygain_track_edit = QLineEdit()
+        self.replaygain_track_edit.setReadOnly(True)
+        self.replaygain_album_edit = QLineEdit()
+        self.replaygain_album_edit.setReadOnly(True)
+
+        replaygain_layout.addRow("Track:", self.replaygain_track_edit)
+        replaygain_layout.addRow("Album:", self.replaygain_album_edit)
+        
+        layout.addRow(replaygain_group)
+
+        # Populate fields
+        self.title_edit.setText(str(self.media_file.get_tag_simple(KEY_TITLE) or ''))
+        self.artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ARTIST) or ''))
+        self.album_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM) or ''))
+        self.album_artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM_ARTIST) or ''))
+        self.date_edit.setText(str(self.media_file.get_tag_simple(KEY_DATE) or ''))
+        self.genre_edit.setText(str(self.media_file.get_tag_simple(KEY_GENRE) or ''))
+        self.comment_edit.setText(str(self.media_file.get_tag_simple(KEY_COMMENT) or ''))
+        self.composer_edit.setText(str(self.media_file.get_tag_simple(KEY_COMPOSER) or ''))
+        self.track_num_edit.setText(str(self.media_file.get_tag_simple(KEY_TRACK_NUMBER) or ''))
+        self.disc_num_edit.setText(str(self.media_file.get_tag_simple(KEY_DISC_NUMBER) or ''))
+        self.bpm_edit.setText(str(self.media_file.get_tag_simple(KEY_BPM) or ''))
+        self.key_edit.setText(str(self.media_file.get_tag_simple(KEY_MUSICAL_KEY) or ''))
+
+        self.replaygain_track_edit.setText(str(self.media_file.get_tag_simple(KEY_REPLAYGAIN_TRACK_GAIN) or ''))
+        self.replaygain_album_edit.setText(str(self.media_file.get_tag_simple(KEY_REPLAYGAIN_ALBUM_GAIN) or ''))
 
     def setup_details_tab(self, tab_widget):
         layout = QVBoxLayout(tab_widget)
