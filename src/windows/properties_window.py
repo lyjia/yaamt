@@ -1,5 +1,6 @@
 import os
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QMovie
 from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
@@ -24,17 +25,27 @@ from util.const import (
     KEY_TRACK_NUMBER, KEY_DISC_NUMBER, KEY_BPM, KEY_MUSICAL_KEY,
     KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN
 )
+import windows.__resources_rc
+
+
+class SaveWorker(QThread):
+    finished = Signal()
+
+    def __init__(self, media_file):
+        super().__init__()
+        self.media_file = media_file
+
+    def run(self):
+        self.media_file.save()
+        self.finished.emit()
 
 
 class PropertiesWindow(QMainWindow):
     def __init__(self, file_path, parent=None):
         super().__init__(parent)
 
-        self.changes = {}
-        self.original_values = {}
-
         self.file_path = file_path
-        self.media_file = MediaFile(file_path)
+        self.media_file = MediaFile(file_path, enable_write=True)
         self.setWindowTitle(f"Properties for {os.path.basename(file_path)}")
         self.resize(720, 480)
         self.setMinimumSize(400, 300)
@@ -43,22 +54,22 @@ class PropertiesWindow(QMainWindow):
         )
 
         # Central widget and main layout
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        main_layout = QVBoxLayout(self.central_widget)
 
         # Tab widget
-        tab_widget = QTabWidget()
-        main_layout.addWidget(tab_widget)
+        self.tab_widget = QTabWidget()
+        main_layout.addWidget(self.tab_widget)
 
         # Create and set up tabs
         self.basic_info_tab = QWidget()
         self.details_tab = QWidget()
         self.advanced_tab = QWidget()
 
-        tab_widget.addTab(self.basic_info_tab, "Simplified")
-        tab_widget.addTab(self.details_tab, "Details")
-        tab_widget.addTab(self.advanced_tab, "Advanced")
+        self.tab_widget.addTab(self.basic_info_tab, "Simplified")
+        self.tab_widget.addTab(self.details_tab, "Details")
+        self.tab_widget.addTab(self.advanced_tab, "Advanced")
 
         self.setup_basic_info_tab(self.basic_info_tab)
         self.setup_details_tab(self.details_tab)
@@ -87,20 +98,28 @@ class PropertiesWindow(QMainWindow):
         main_layout.addLayout(self.bottom_layout)
 
     def on_ok_clicked(self):
-        self.setEnabled(False)
+        self.central_widget.setEnabled(False)
 
-        status_label = QLabel("Writing changes...")
-        self.bottom_layout.insertWidget(1, status_label)
+        self.status_label = QLabel("Writing changes...")
+        self.spinner = QLabel()
+        movie = QMovie(":/icons/spinner.gif")
+        self.spinner.setMovie(movie)
+        movie.start()
 
-        for provider_name, tags in self.changes.items():
-            for tag_name, new_value in tags.items():
-                print(
-                    f"Provider: {provider_name}, Tag: {tag_name}, New Value: {new_value}"
-                )
+        self.bottom_layout.insertWidget(2, self.spinner)
+        self.bottom_layout.insertWidget(3, self.status_label)
+
+        self.worker = SaveWorker(self.media_file)
+        self.worker.finished.connect(self.on_save_finished)
+        self.worker.start()
+
+    def on_save_finished(self):
+        self.spinner.hide()
+        self.status_label.hide()
         self.close()
 
     def update_button_states(self):
-        if self.changes:
+        if self.media_file.has_pending_changes():
             self.ok_button.setEnabled(True)
             self.close_button.setText("Cancel")
         else:
@@ -171,6 +190,28 @@ class PropertiesWindow(QMainWindow):
         self.replaygain_track_edit.setText(str(self.media_file.get_tag_simple(KEY_REPLAYGAIN_TRACK_GAIN) or ''))
         self.replaygain_album_edit.setText(str(self.media_file.get_tag_simple(KEY_REPLAYGAIN_ALBUM_GAIN) or ''))
 
+        # Connect signals
+        self.title_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_TITLE, self.title_edit.text()))
+        self.artist_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_ARTIST, self.artist_edit.text()))
+        self.album_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_ALBUM, self.album_edit.text()))
+        self.album_artist_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_ALBUM_ARTIST, self.album_artist_edit.text()))
+        self.date_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_DATE, self.date_edit.text()))
+        self.genre_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_GENRE, self.genre_edit.text()))
+        self.comment_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_COMMENT, self.comment_edit.text()))
+        self.composer_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_COMPOSER, self.composer_edit.text()))
+        self.track_num_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_TRACK_NUMBER, self.track_num_edit.text()))
+        self.disc_num_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_DISC_NUMBER, self.disc_num_edit.text()))
+        self.bpm_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_BPM, self.bpm_edit.text()))
+        self.key_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_MUSICAL_KEY, self.key_edit.text()))
+
+    def _on_simple_tab_edited(self, generic_tag_name, new_value):
+        self.media_file.set_tag(generic_tag_name, new_value)
+        self._refresh_advanced_tab()
+        self.update_button_states()
+
+    def _refresh_advanced_tab(self):
+        self.setup_advanced_tab(self.advanced_tab)
+
     def setup_details_tab(self, tab_widget):
         layout = QVBoxLayout(tab_widget)
         tree = QTreeWidget()
@@ -204,14 +245,17 @@ class PropertiesWindow(QMainWindow):
             tree.resizeColumnToContents(i)
 
     def setup_advanced_tab(self, tab_widget):
-        layout = QVBoxLayout(tab_widget)
-        tree = QTreeWidget()
-        tree.setColumnCount(3)
-        tree.setHeaderLabels(["Tag", "Value", ""])
-        layout.addWidget(tree)
-        tree.itemChanged.connect(self.on_advanced_item_changed)
-
-        self.advanced_tree = tree
+        if not hasattr(self, 'advanced_tree'):
+            layout = QVBoxLayout(tab_widget)
+            tree = QTreeWidget()
+            tree.setColumnCount(3)
+            tree.setHeaderLabels(["Tag", "Value", ""])
+            layout.addWidget(tree)
+            tree.itemChanged.connect(self.on_advanced_item_changed)
+            self.advanced_tree = tree
+        
+        self.advanced_tree.clear()
+        tree = self.advanced_tree
 
         metadata = self.media_file.metadata
         providers_to_tags = {}
@@ -252,28 +296,10 @@ class PropertiesWindow(QMainWindow):
 
     def on_advanced_item_changed(self, item, column):
         if column == 1 and item.parent():
-            provider_name = item.parent().text(0)
             tag_name = item.text(0)
             new_value = item.text(1)
 
-            # Store original value if it's the first change
-            if provider_name not in self.original_values or tag_name not in self.original_values.get(provider_name, {}):
-                original_value = self.media_file.metadata.get(KEY_TAGS, {}).get(tag_name, {}).get("value")
-                display_value = ""
-                if isinstance(original_value, list):
-                    display_value = "; ".join(map(str, original_value))
-                elif isinstance(original_value, bytes):
-                    display_value = "(binary data)"
-                else:
-                    display_value = str(original_value)
-
-                if provider_name not in self.original_values:
-                    self.original_values[provider_name] = {}
-                self.original_values[provider_name][tag_name] = display_value
-
-            if provider_name not in self.changes:
-                self.changes[provider_name] = {}
-            self.changes[provider_name][tag_name] = new_value
+            self.media_file.set_tag(tag_name, new_value, is_internal_tag_key=True)
 
             # Make font bold
             font = item.font(1)
@@ -284,38 +310,50 @@ class PropertiesWindow(QMainWindow):
             revert_button = QPushButton("Revert")
             revert_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
             revert_button.clicked.connect(
-                lambda: self.revert_change(item, provider_name, tag_name)
+                lambda: self.revert_change(item, tag_name)
             )
             self.advanced_tree.setItemWidget(item, 2, revert_button)
 
             self.update_button_states()
+            self._refresh_simple_tab()
 
-    def revert_change(self, item, provider_name, tag_name):
-        self.advanced_tree.blockSignals(True) # we do this because it stops the value from being bolded after reverting the change. TODO: is this the best way to handle this? It seems to address the underlying issue in an unnecessarily oblique fashion
-        original_value = self.original_values[provider_name][tag_name]
+    def _refresh_simple_tab(self):
+        self.title_edit.setText(str(self.media_file.get_tag_simple(KEY_TITLE) or ''))
+        self.artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ARTIST) or ''))
+        self.album_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM) or ''))
+        self.album_artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM_ARTIST) or ''))
+        self.date_edit.setText(str(self.media_file.get_tag_simple(KEY_DATE) or ''))
+        self.genre_edit.setText(str(self.media_file.get_tag_simple(KEY_GENRE) or ''))
+        self.comment_edit.setText(str(self.media_file.get_tag_simple(KEY_COMMENT) or ''))
+        self.composer_edit.setText(str(self.media_file.get_tag_simple(KEY_COMPOSER) or ''))
+        self.track_num_edit.setText(str(self.media_file.get_tag_simple(KEY_TRACK_NUMBER) or ''))
+        self.disc_num_edit.setText(str(self.media_file.get_tag_simple(KEY_DISC_NUMBER) or ''))
+        self.bpm_edit.setText(str(self.media_file.get_tag_simple(KEY_BPM) or ''))
+        self.key_edit.setText(str(self.media_file.get_tag_simple(KEY_MUSICAL_KEY) or ''))
 
-        # Update item in QTreeWidget
-        item.setText(1, original_value)
+    def revert_change(self, item, tag_name):
+        self.advanced_tree.blockSignals(True)
+        self.media_file.revert_tag_change(tag_name, is_internal_tag_key=True)
+
+        original_value = self.media_file.get_tag_simple(tag_name, is_internal_tag_key=True)
+        display_value = ""
+        if isinstance(original_value, list):
+            display_value = "; ".join(map(str, original_value))
+        elif isinstance(original_value, bytes):
+            display_value = "(binary data)"
+        else:
+            display_value = str(original_value)
+
+        item.setText(1, display_value)
 
         # Reset font
         font = item.font(1)
         font.setBold(False)
         item.setFont(1, font)
 
-        # Remove from changes
-        if provider_name in self.changes and tag_name in self.changes[provider_name]:
-            del self.changes[provider_name][tag_name]
-            if not self.changes[provider_name]:
-                del self.changes[provider_name]
-
-        # Remove from original_values
-        if provider_name in self.original_values and tag_name in self.original_values[provider_name]:
-            del self.original_values[provider_name][tag_name]
-            if not self.original_values[provider_name]:
-                del self.original_values[provider_name]
-
         # Remove revert button
         self.advanced_tree.setItemWidget(item, 2, None)
-        self.advanced_tree.blockSignals(False) # see comment where we set this to true
+        self.advanced_tree.blockSignals(False)
 
         self.update_button_states()
+        self._refresh_simple_tab()

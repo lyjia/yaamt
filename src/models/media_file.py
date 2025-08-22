@@ -211,6 +211,20 @@ class MediaFile:
 
         self._pending_changes.clear()
 
+    def has_pending_changes(self):
+        return bool(self._pending_changes)
+
+    def revert_pending_changes(self):
+        self._pending_changes.clear()
+
+    def revert_tag_change(self, key, is_internal_tag_key=False):
+        actual_key = key
+        if not is_internal_tag_key and key in self._generic_to_internal_map:
+            actual_key = self._generic_to_internal_map[key]
+
+        if actual_key in self._pending_changes:
+            del self._pending_changes[actual_key]
+
     def to_dict(self):
         """
         Returns a dictionary representation of the media file's metadata.
@@ -245,6 +259,12 @@ class MediaFile:
     @property
     def metadata(self):
         return self.to_dict()
+
+    def get_internal_tag_name_for_generic(self, generic_tag_name):
+        return self._generic_to_internal_map.get(generic_tag_name)
+
+    def get_generic_tag_name_for_internal(self, internal_tag_name):
+        return self._internal_to_generic_map.get(internal_tag_name)
 
     def _get_providers_for_file(self):
         """
