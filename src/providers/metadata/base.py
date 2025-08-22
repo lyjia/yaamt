@@ -6,35 +6,25 @@ class MetadataProviderBase(ABC):
     """
     An abstract base class that defines the interface for metadata providers.
     """
-    @property
     @abstractmethod
     def get_tag(self, key):
         '''Abstract method to get a tag value.'''
         pass
 
-    @property
     @abstractmethod
-    def set_tag(self, key, values):
+    def set_tag(self, key, value):
         pass
 
-    @property
     @abstractmethod
     def get_stream_info(self, key):
         pass
 
-    @property
     @abstractmethod
-    def available_tags(self) -> list[TagInfo]:
+    def available_internal_tags(self) -> list[TagInfo]:
         pass
 
-    @property
     @abstractmethod
     def available_stream_info_keys(self):
-        pass
-
-    @property
-    @abstractmethod
-    def available_tags(self):
         pass
 
 
