@@ -6,7 +6,7 @@ from mutagen.easyid3 import EasyID3
 
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
-    KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY
+    KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY, MAP_INTERNAL_TO_GENERIC, MAP_GENERIC_TO_INTERNAL
 from util.exceptions import SomethingsReallyFuckedUpException, InvalidFileError
 from util.logging import log
 from .base import MetadataProviderBase
@@ -45,16 +45,61 @@ from .base import MetadataProviderBase
 #     "TLAN": "language",
 # }.items():
 
-EasyID3.RegisterTextKey('MUSICAL_KEY', 'TKEY')
+EasyID3.RegisterTextKey(KEY_MUSICAL_KEY, 'TKEY')
+MUT_EASY_TAG_NAMES = ['album',
+                      'bpm',
+                      'compilation',
+                      'composer',
+                      'copyright',
+                      'encodedby',
+                      'lyricist',
+                      'length',
+                      'media',
+                      'mood',
+                      'grouping',
+                      'title',
+                      'version',
+                      'artist',
+                      'albumartist',
+                      'conductor',
+                      'arranger',
+                      'discnumber',
+                      'organization',
+                      'tracknumber',
+                      'author',
+                      'albumartistsort',
+                      'albumsort',
+                      'composersort',
+                      'artistsort',
+                      'titlesort',
+                      'isrc',
+                      'discsubtitle',
+                      'language',
+                      # added manually, above
+                      KEY_MUSICAL_KEY,
+                      # doesnt appear in above comment for some reason?
+                      'genre'] #TODO: figure out why
 
 class MutagenProvider(MetadataProviderBase):
     """
     A concrete implementation of MetadataProvider that uses the mutagen library.
     """
+
     def __init__(self, file_path: str):
         self._file_path = file_path
         self._write_enabled = False
         self._audio = None
+        self._tag_mappings = {
+            MAP_INTERNAL_TO_GENERIC: {},
+            MAP_GENERIC_TO_INTERNAL: {}
+        }
+
+        for internal_name in MUT_EASY_TAG_NAMES:
+            self._tag_mappings[MAP_INTERNAL_TO_GENERIC][internal_name] = None
+            if internal_name in ALL_TAGS:
+                generic_name = internal_name
+                self._tag_mappings[MAP_GENERIC_TO_INTERNAL][generic_name] = internal_name
+                self._tag_mappings[MAP_INTERNAL_TO_GENERIC][internal_name] = generic_name
 
         try:
             self._audio = mutagen.File(file_path, easy=True)
@@ -73,17 +118,24 @@ class MutagenProvider(MetadataProviderBase):
             log.error(f"{e.__class__.__name__} loading file {file_path}: {e}")
             raise
 
-    def get_tag(self, key):
+    def get_tag(self, key, is_internal_tag_key=False):
         if not self._audio:
             return None
-        if key in self._audio:
-            return self._audio[key]
+
+        if not is_internal_tag_key:
+            actual_key = self.get_internal_tag_name_for_generic(key)
+        else:
+            actual_key = key
+
+        if actual_key in self._audio:
+            return self._audio[actual_key]
+
         return None
 
     # Note that 'internal' tags are the tag keys that mutagen's 'easy' interface provides.
     # 'generic' tag keys are names this program presents.
     # for mutagen, mappings between these two are mostly identical.
-    def set_tag(self, key, value, is_internal_tag_key = False):
+    def set_tag(self, key, value, is_internal_tag_key=False):
         if not is_internal_tag_key:
             actual_key = self.get_internal_tag_name_for_generic(key)
         else:
@@ -110,21 +162,22 @@ class MutagenProvider(MetadataProviderBase):
             return self._audio.info.pprint().split(',')[0]
         return None
 
-    def available_tags(self) -> list[TagInfo]:
+    def available_internal_tags(self) -> list[TagInfo]:
         if self._audio is None:
             raise SomethingsReallyFuckedUpException("self._audio is None. This should not happen!")
 
-        all_tag_keys = self._audio.keys() | ALL_TAGS.keys()
+        all_tag_keys = set(list(self._audio.keys())) | set(MUT_EASY_TAG_NAMES)
         tag_infos = []
 
         for tag_name in sorted(list(all_tag_keys)):
             is_generic = tag_name in ALL_TAGS
-            tag_infos.append(TagInfo(name=tag_name, is_writable=True, is_generic=is_generic))
+            tag_infos.append(TagInfo(internal_tag_name=tag_name, is_writable=True, is_generic=is_generic))
 
         return tag_infos
 
     def available_stream_info_keys(self):
-        return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES, KEY_FORMAT]
+        return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES,
+                KEY_FORMAT]
 
     # def all_tags(self):
     #     return dict(self._audio.tags)
@@ -138,7 +191,7 @@ class MutagenProvider(MetadataProviderBase):
             KEY_FORMAT: self.get_stream_info(KEY_FORMAT)
         }
 
-    def get_internal_tag_name_for_generic(self, generic_name: str)-> str:
+    def get_internal_tag_name_for_generic(self, generic_name: str) -> str:
         """
         Maps the internal tag name native to this provider, from the given higher-level generic tag name.
         :param generic_name:
@@ -147,11 +200,10 @@ class MutagenProvider(MetadataProviderBase):
         """
         # if generic_name == KEY_TITLE: #example
         #     return 'title'
-        # TODO: we may need to audit the list in ALL_TAGS and make sure that they correctly map to mutagen's Easy keys
-        if generic_name in ALL_TAGS:
-            return generic_name
+        if generic_name in self._tag_mappings[MAP_GENERIC_TO_INTERNAL]:
+            return self._tag_mappings[MAP_GENERIC_TO_INTERNAL][generic_name]
         else:
-            raise KeyError(f'generic_name "{generic_name}" not found in ALL_TAGS. Available tags: {ALL_TAGS.keys()}')
+            raise KeyError(f'generic_name "{generic_name}" not found in g2i tag mappings. Available tags: {list(self._tag_mappings[MAP_GENERIC_TO_INTERNAL].keys())}')
 
     def is_readable(self):
         """
@@ -169,9 +221,11 @@ class MutagenProvider(MetadataProviderBase):
                 self._audio.save(self._file_path)
             except Exception as e:
                 if "Permission denied" in str(e):
-                    raise PermissionError(f"File is not writable. Mutagen returned: <{e}>. (write_enabled is {self._write_enabled} and _audio is {self._audio})")
+                    raise PermissionError(
+                        f"File is not writable. Mutagen returned: <{e}>. (write_enabled is {self._write_enabled} and _audio is {self._audio})")
                 else:
                     raise
 
         else:
-            raise PermissionError("File is not writable. (write_enabled is {self._write_enabled} and _audio is {self._audio})")
+            raise PermissionError(
+                "File is not writable. (write_enabled is {self._write_enabled} and _audio is {self._audio})")

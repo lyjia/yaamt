@@ -24,7 +24,7 @@ class MetadataProviderBase(ABC):
 
     @property
     @abstractmethod
-    def available_tags(self) -> list[TagInfo]:
+    def available_internal_tags(self) -> list[TagInfo]:
         pass
 
     @property
@@ -34,7 +34,7 @@ class MetadataProviderBase(ABC):
 
     @property
     @abstractmethod
-    def available_tags(self):
+    def available_internal_tags(self):
         pass
 
 

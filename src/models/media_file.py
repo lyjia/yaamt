@@ -70,11 +70,11 @@ class MediaFile:
         for provider in self._providers:
             # TODO: provider should be added only if it supports the kind of metadata reporting its being registered to
 
-            available_tags = provider.available_tags()
+            available_internal_tags = provider.available_internal_tags()
 
             self._registered_providers[KEY_TAGS].append({
                 KEY_PROVIDER: provider,
-                KEY_AVAIL_KEYS: available_tags,
+                KEY_AVAIL_KEYS: available_internal_tags,
             })
 
             self._registered_providers[KEY_STREAM_INFO].append({
@@ -84,12 +84,12 @@ class MediaFile:
 
             # create a lookup of available providers on a per-key basis
             # to be used for JIT loading of tag data
-            for tag_info in available_tags:
-                if not tag_info.name in self._tag_provider_lookup[KEY_TAGS]:
-                    self._tag_provider_lookup[KEY_TAGS][tag_info.name] = []
-                self._tag_provider_lookup[KEY_TAGS][tag_info.name].append(provider)
-                if tag_info.is_writable and not tag_info.name in self._tag_writers[KEY_TAGS]: #just store the first provider
-                    self._tag_writers[KEY_TAGS][tag_info.name] = [ provider ]
+            for tag_info in available_internal_tags:
+                if not tag_info.internal_tag_name in self._tag_provider_lookup[KEY_TAGS]:
+                    self._tag_provider_lookup[KEY_TAGS][tag_info.internal_tag_name] = []
+                self._tag_provider_lookup[KEY_TAGS][tag_info.internal_tag_name].append(provider)
+                if tag_info.is_writable and not tag_info.internal_tag_name in self._tag_writers[KEY_TAGS]: #just store the first provider
+                    self._tag_writers[KEY_TAGS][tag_info.internal_tag_name] = [ provider ]
 
             for key in provider.available_stream_info_keys():
                 if not key in self._tag_provider_lookup[KEY_STREAM_INFO]:
