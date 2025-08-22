@@ -23,6 +23,11 @@ class MediaFile:
     providers will potentially see the same data it is important to disambiguate which provider should be used for which
     tag.
 
+    Another use-case might be for WAV files with both ID3 and ACID tags. Each of these tag formats provides different
+    (and possibly overlapping, like with BPM) tags for a given audio file. The ACID tags may also have markers or regions
+    defined. What if the user then loads that WAV into Serato and sets cue points and loop regions? We have to tame
+    the inevitable tagging madness!
+
     Also, note that we have a couple different categories of 'tags':
     * "generic" tags, which reference the labels we present to the user, and are names used internally by YAAMT
     * "internal" tags, which are tags that are used internally by the Provider but not exposed to the user. 
