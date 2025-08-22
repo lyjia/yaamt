@@ -45,10 +45,6 @@ This project implements an audio file metadata manager, through a few primary co
 * All other changes should have test coverage where appropriate and reasonable. 
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 
-## AI-Specific Instructions
-
-* 
-
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
 
