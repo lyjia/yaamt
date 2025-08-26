@@ -12,6 +12,7 @@ class EditManager(QObject):
     staged_changes_exist = Signal(bool)
     autosave_changed = Signal(bool)
     commit_requested = Signal(dict)  # Signal with provider context for committing changes
+    commit_successful = Signal(list)  # Signal emitted when commit is successful, with list of file paths
 
     _instance = None
 
@@ -120,6 +121,15 @@ class EditManager(QObject):
             if file_changes['generic_tags'] or file_changes['internal_tags']:
                 return True
         return False
+
+    def emit_commit_successful(self, file_paths: List[str]):
+        """
+        Emit the commit_successful signal with the list of successfully updated file paths.
+
+        Args:
+            file_paths: List of file paths that were successfully updated
+        """
+        self.commit_successful.emit(file_paths)
 
     def get_staged_value(self, file_path: str, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
         """

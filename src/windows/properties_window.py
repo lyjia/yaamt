@@ -130,6 +130,8 @@ class PropertiesWindow(QMainWindow):
     def on_save_finished(self):
         self.spinner.hide()
         self.status_label.hide()
+        # Emit signal to notify MainWindow that the file has been successfully updated
+        self.edit_manager.emit_commit_successful([self.file_path])
         self.close()
 
     def on_staged_changes_changed(self, has_changes):

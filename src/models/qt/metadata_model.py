@@ -1,11 +1,13 @@
 import os
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from models.settings import ColumnSettings
+from models.media_file import MediaFile
 
 from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA,
-    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED
+    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY
 )
 from util.display import human_readable_size, human_readable_timestamp
 
@@ -96,3 +98,51 @@ class MetadataTableModel(QAbstractTableModel):
         column_settings = self._columns[column]
         self._data.sort(key=lambda x: x.get(column_settings.id, ""), reverse=order == Qt.SortOrder.DescendingOrder)
         self.layoutChanged.emit()
+
+    def refresh_files(self, file_paths):
+        """
+        Refresh the metadata for specific files in the model.
+
+        Args:
+            file_paths: List of file paths to refresh
+        """
+        updated_rows = []
+        for row_index, row_data in enumerate(self._data):
+            file_path = row_data.get(KEY_FILE_PATH)
+            if file_path in file_paths:
+                # Reload metadata for this file using the same structure as MetadataLoader
+                media_file = MediaFile(file_path)
+                mf_size = media_file.get_internal_data(KEY_FILE_SIZE)
+                mf_ctime = media_file.get_internal_data(KEY_FILE_CTIME)
+                mf_mtime = media_file.get_internal_data(KEY_FILE_MTIME)
+                mf_type = media_file.get_internal_data(KEY_FILE_TYPE)
+
+                new_metadata = {
+                    # fs attributes
+                    KEY_FILE_PATH: file_path,
+                    KEY_FILE_SIZE: mf_size,
+                    KEY_FILE_MTIME: mf_mtime,
+                    KEY_FILE_CTIME: mf_ctime,
+                    KEY_FILE_TYPE: mf_type,
+                    KEY_FILE_TYPE_HUMAN: media_file.get_stream_info_value(KEY_FORMAT),
+
+                    # tag attributes
+                    KEY_TITLE: media_file.get_tag_simple(KEY_TITLE),
+                    KEY_ARTIST: media_file.get_tag_simple(KEY_ARTIST),
+                    KEY_ALBUM: media_file.get_tag_simple(KEY_ALBUM),
+                    KEY_GENRE: media_file.get_tag_simple(KEY_GENRE),
+                    KEY_BPM: media_file.get_tag_simple(KEY_BPM),
+                    KEY_MUSICAL_KEY: media_file.get_tag_simple(KEY_MUSICAL_KEY),
+
+                    # internal
+                    KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA)
+                }
+                # Update the row data with new metadata
+                self._data[row_index] = new_metadata
+                updated_rows.append(row_index)
+
+        # Emit signals for the updated rows
+        if updated_rows:
+            for row in updated_rows:
+                index = self.createIndex(row, 0)
+                self.dataChanged.emit(index, index, [])
