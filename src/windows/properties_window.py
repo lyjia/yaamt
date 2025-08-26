@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
 )
 from models.media_file import MediaFile
+from models.edit_manager import EditManager
 from util.const import (
     KEY_INTERNAL, KEY_STREAM_INFO, KEY_TAGS, KEY_TITLE, KEY_ARTIST, KEY_ALBUM,
     KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE, KEY_COMMENT, KEY_COMPOSER,
@@ -31,12 +32,13 @@ import windows.__resources_rc
 class SaveWorker(QThread):
     finished = Signal()
 
-    def __init__(self, media_file):
+    def __init__(self, media_file, changes=None):
         super().__init__()
         self.media_file = media_file
+        self.changes = changes
 
     def run(self):
-        self.media_file.save()
+        self.media_file.save(self.changes)
         self.finished.emit()
 
 
@@ -46,6 +48,7 @@ class PropertiesWindow(QMainWindow):
 
         self.file_path = file_path
         self.media_file = MediaFile(file_path, enable_write=True)
+        self.edit_manager = EditManager()
         self.setWindowTitle(f"Properties for {os.path.basename(file_path)}")
         self.resize(720, 480)
         self.setMinimumSize(400, 300)
@@ -74,6 +77,9 @@ class PropertiesWindow(QMainWindow):
         self.setup_basic_info_tab(self.basic_info_tab)
         self.setup_details_tab(self.details_tab)
         self.setup_advanced_tab(self.advanced_tab)
+
+        # Connect to EditManager signals
+        self.edit_manager.staged_changes_exist.connect(self.on_staged_changes_changed)
 
         # Bottom button layout
         self.bottom_layout = QHBoxLayout()
@@ -109,17 +115,31 @@ class PropertiesWindow(QMainWindow):
         self.bottom_layout.insertWidget(2, self.spinner)
         self.bottom_layout.insertWidget(3, self.status_label)
 
-        self.worker = SaveWorker(self.media_file)
-        self.worker.finished.connect(self.on_save_finished)
-        self.worker.start()
+        # Commit changes via EditManager
+        self.edit_manager.commit_requested.connect(self.on_commit_requested)
+        self.edit_manager.commit_changes()
+
+    def on_commit_requested(self, commit_data):
+        """Handle the commit request from EditManager"""
+        if self.file_path in commit_data:
+            changes = commit_data[self.file_path]
+            self.worker = SaveWorker(self.media_file, changes)
+            self.worker.finished.connect(self.on_save_finished)
+            self.worker.start()
 
     def on_save_finished(self):
         self.spinner.hide()
         self.status_label.hide()
+        # Emit signal to notify MainWindow that the file has been successfully updated
+        self.edit_manager.emit_commit_successful([self.file_path])
         self.close()
 
+    def on_staged_changes_changed(self, has_changes):
+        """Handle changes in staged changes state"""
+        self.update_button_states()
+
     def update_button_states(self):
-        if self.media_file.has_pending_changes():
+        if self.edit_manager.has_staged_changes():
             self.ok_button.setEnabled(True)
             self.close_button.setText("Cancel")
         else:
@@ -173,22 +193,22 @@ class PropertiesWindow(QMainWindow):
         
         layout.addRow(replaygain_group)
 
-        # Populate fields
-        self.title_edit.setText(str(self.media_file.get_tag_simple(KEY_TITLE) or ''))
-        self.artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ARTIST) or ''))
-        self.album_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM) or ''))
-        self.album_artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM_ARTIST) or ''))
-        self.date_edit.setText(str(self.media_file.get_tag_simple(KEY_DATE) or ''))
-        self.genre_edit.setText(str(self.media_file.get_tag_simple(KEY_GENRE) or ''))
-        self.comment_edit.setText(str(self.media_file.get_tag_simple(KEY_COMMENT) or ''))
-        self.composer_edit.setText(str(self.media_file.get_tag_simple(KEY_COMPOSER) or ''))
-        self.track_num_edit.setText(str(self.media_file.get_tag_simple(KEY_TRACK_NUMBER) or ''))
-        self.disc_num_edit.setText(str(self.media_file.get_tag_simple(KEY_DISC_NUMBER) or ''))
-        self.bpm_edit.setText(str(self.media_file.get_tag_simple(KEY_BPM) or ''))
-        self.key_edit.setText(str(self.media_file.get_tag_simple(KEY_MUSICAL_KEY) or ''))
+        # Populate fields with staged values or committed values
+        self.title_edit.setText(str(self._get_display_value(KEY_TITLE) or ''))
+        self.artist_edit.setText(str(self._get_display_value(KEY_ARTIST) or ''))
+        self.album_edit.setText(str(self._get_display_value(KEY_ALBUM) or ''))
+        self.album_artist_edit.setText(str(self._get_display_value(KEY_ALBUM_ARTIST) or ''))
+        self.date_edit.setText(str(self._get_display_value(KEY_DATE) or ''))
+        self.genre_edit.setText(str(self._get_display_value(KEY_GENRE) or ''))
+        self.comment_edit.setText(str(self._get_display_value(KEY_COMMENT) or ''))
+        self.composer_edit.setText(str(self._get_display_value(KEY_COMPOSER) or ''))
+        self.track_num_edit.setText(str(self._get_display_value(KEY_TRACK_NUMBER) or ''))
+        self.disc_num_edit.setText(str(self._get_display_value(KEY_DISC_NUMBER) or ''))
+        self.bpm_edit.setText(str(self._get_display_value(KEY_BPM) or ''))
+        self.key_edit.setText(str(self._get_display_value(KEY_MUSICAL_KEY) or ''))
 
-        self.replaygain_track_edit.setText(str(self.media_file.get_tag_simple(KEY_REPLAYGAIN_TRACK_GAIN) or ''))
-        self.replaygain_album_edit.setText(str(self.media_file.get_tag_simple(KEY_REPLAYGAIN_ALBUM_GAIN) or ''))
+        self.replaygain_track_edit.setText(str(self._get_display_value(KEY_REPLAYGAIN_TRACK_GAIN) or ''))
+        self.replaygain_album_edit.setText(str(self._get_display_value(KEY_REPLAYGAIN_ALBUM_GAIN) or ''))
 
         # Connect signals
         self.title_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_TITLE, self.title_edit.text()))
@@ -205,9 +225,15 @@ class PropertiesWindow(QMainWindow):
         self.key_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_MUSICAL_KEY, self.key_edit.text()))
 
     def _on_simple_tab_edited(self, generic_tag_name, new_value):
-        self.media_file.set_tag(generic_tag_name, new_value)
+        self.edit_manager.stage_change([self.file_path], generic_tag_name, new_value)
         self._refresh_advanced_tab()
-        self.update_button_states()
+
+    def _get_display_value(self, tag_name):
+        """Get the display value - staged if available, otherwise committed"""
+        staged_value = self.edit_manager.get_staged_value(self.file_path, tag_name)
+        if staged_value is not None:
+            return staged_value
+        return self.media_file.get_tag_simple(tag_name)
 
     def _refresh_advanced_tab(self):
         self.setup_advanced_tab(self.advanced_tab)
@@ -283,11 +309,39 @@ class PropertiesWindow(QMainWindow):
                 else:
                     display_value = str(tag_value)
 
+                # Check for staged value
+                staged_value = self.edit_manager.get_staged_value(self.file_path, tag_name, is_internal_tag=True)
+                if staged_value is not None:
+                    if isinstance(staged_value, list):
+                        display_value = "; ".join(map(str, staged_value))
+                    elif isinstance(staged_value, bytes):
+                        display_value = "(binary data)"
+                    else:
+                        display_value = str(staged_value)
+                    # Mark as staged by making it bold
+                    is_staged = True
+                else:
+                    is_staged = False
+
                 child = QTreeWidgetItem(provider_item, [tag_name, display_value])
                 child.setFlags(child.flags() | Qt.ItemIsEditable)
 
                 if isinstance(tag_value, bytes):
                     child.setFlags(child.flags() & ~Qt.ItemIsEditable)
+
+                # Make staged values bold
+                if is_staged:
+                    font = child.font(1)
+                    font.setBold(True)
+                    child.setFont(1, font)
+
+                    # Add revert button for staged changes
+                    revert_button = QPushButton("Revert")
+                    revert_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+                    revert_button.clicked.connect(
+                        lambda: self.revert_change(child, tag_name)
+                    )
+                    self.advanced_tree.setItemWidget(child, 2, revert_button)
 
         header = tree.header()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
@@ -299,43 +353,64 @@ class PropertiesWindow(QMainWindow):
             tag_name = item.text(0)
             new_value = item.text(1)
 
-            self.media_file.set_tag(tag_name, new_value, is_internal_tag_key=True)
+            # Find the provider for this internal tag
+            provider = None
+            metadata = self.media_file.metadata
+            if KEY_TAGS in metadata:
+                for tag_info in metadata[KEY_TAGS].values():
+                    if tag_info.get("provider") and tag_name in [k for k in self.media_file._tag_provider_lookup[KEY_TAGS].keys()]:
+                        provider = tag_info.get("provider")
+                        break
 
-            # Make font bold
-            font = item.font(1)
-            font.setBold(True)
-            item.setFont(1, font)
+            if provider:
+                self.edit_manager.stage_change([self.file_path], tag_name, new_value, is_internal_tag=True, provider=provider)
 
-            # Add revert button
-            revert_button = QPushButton("Revert")
-            revert_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-            revert_button.clicked.connect(
-                lambda: self.revert_change(item, tag_name)
-            )
-            self.advanced_tree.setItemWidget(item, 2, revert_button)
+                # Make font bold
+                font = item.font(1)
+                font.setBold(True)
+                item.setFont(1, font)
 
-            self.update_button_states()
-            self._refresh_simple_tab()
+                # Add revert button
+                revert_button = QPushButton("Revert")
+                revert_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+                revert_button.clicked.connect(
+                    lambda: self.revert_change(item, tag_name)
+                )
+                self.advanced_tree.setItemWidget(item, 2, revert_button)
+
+                self._refresh_simple_tab()
 
     def _refresh_simple_tab(self):
-        self.title_edit.setText(str(self.media_file.get_tag_simple(KEY_TITLE) or ''))
-        self.artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ARTIST) or ''))
-        self.album_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM) or ''))
-        self.album_artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM_ARTIST) or ''))
-        self.date_edit.setText(str(self.media_file.get_tag_simple(KEY_DATE) or ''))
-        self.genre_edit.setText(str(self.media_file.get_tag_simple(KEY_GENRE) or ''))
-        self.comment_edit.setText(str(self.media_file.get_tag_simple(KEY_COMMENT) or ''))
-        self.composer_edit.setText(str(self.media_file.get_tag_simple(KEY_COMPOSER) or ''))
-        self.track_num_edit.setText(str(self.media_file.get_tag_simple(KEY_TRACK_NUMBER) or ''))
-        self.disc_num_edit.setText(str(self.media_file.get_tag_simple(KEY_DISC_NUMBER) or ''))
-        self.bpm_edit.setText(str(self.media_file.get_tag_simple(KEY_BPM) or ''))
-        self.key_edit.setText(str(self.media_file.get_tag_simple(KEY_MUSICAL_KEY) or ''))
+        self.title_edit.setText(str(self._get_display_value(KEY_TITLE) or ''))
+        self.artist_edit.setText(str(self._get_display_value(KEY_ARTIST) or ''))
+        self.album_edit.setText(str(self._get_display_value(KEY_ALBUM) or ''))
+        self.album_artist_edit.setText(str(self._get_display_value(KEY_ALBUM_ARTIST) or ''))
+        self.date_edit.setText(str(self._get_display_value(KEY_DATE) or ''))
+        self.genre_edit.setText(str(self._get_display_value(KEY_GENRE) or ''))
+        self.comment_edit.setText(str(self._get_display_value(KEY_COMMENT) or ''))
+        self.composer_edit.setText(str(self._get_display_value(KEY_COMPOSER) or ''))
+        self.track_num_edit.setText(str(self._get_display_value(KEY_TRACK_NUMBER) or ''))
+        self.disc_num_edit.setText(str(self._get_display_value(KEY_DISC_NUMBER) or ''))
+        self.bpm_edit.setText(str(self._get_display_value(KEY_BPM) or ''))
+        self.key_edit.setText(str(self._get_display_value(KEY_MUSICAL_KEY) or ''))
 
     def revert_change(self, item, tag_name):
         self.advanced_tree.blockSignals(True)
-        self.media_file.revert_tag_change(tag_name, is_internal_tag_key=True)
 
+        # For now, just reset the staged value by staging the original committed value
         original_value = self.media_file.get_tag_simple(tag_name, is_internal_tag_key=True)
+        if original_value is not None:
+            provider = None
+            metadata = self.media_file.metadata
+            if KEY_TAGS in metadata:
+                for tag_info in metadata[KEY_TAGS].values():
+                    if tag_info.get("provider") and tag_name in [k for k in self.media_file._tag_provider_lookup[KEY_TAGS].keys()]:
+                        provider = tag_info.get("provider")
+                        break
+
+            if provider:
+                self.edit_manager.stage_change([self.file_path], tag_name, original_value, is_internal_tag=True, provider=provider)
+
         display_value = ""
         if isinstance(original_value, list):
             display_value = "; ".join(map(str, original_value))
@@ -355,5 +430,4 @@ class PropertiesWindow(QMainWindow):
         self.advanced_tree.setItemWidget(item, 2, None)
         self.advanced_tree.blockSignals(False)
 
-        self.update_button_states()
         self._refresh_simple_tab()

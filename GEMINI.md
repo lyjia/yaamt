@@ -1,0 +1,1 @@
+Please read and incorporate AGENTS.md in this same folder if you have not already.

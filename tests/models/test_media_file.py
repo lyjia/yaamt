@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 import pytest
 from models.media_file import MediaFile
+from models.edit_manager import EditManager
 from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA
 from util.exceptions import InvalidFileError
 
@@ -89,10 +90,21 @@ def test_write_tags(media_path, tmp_path):
         KEY_MUSICAL_KEY: 'C'
     }
 
-    # Write the new tags to the file.
+    # Stage the new tags using EditManager
+    edit_manager = EditManager()
     for key, value in new_tags.items():
-        media_file.set_tag(key, value)
-    media_file.save()
+        edit_manager.stage_change([str(temp_media_path)], key, value)
+
+    # Connect to the commit signal to handle saving
+    def handle_commit(commit_data):
+        if str(temp_media_path) in commit_data:
+            changes = commit_data[str(temp_media_path)]
+            media_file.save(changes)
+
+    edit_manager.commit_requested.connect(handle_commit)
+
+    # Commit changes via EditManager (this will call media_file.save with changes)
+    edit_manager.commit_changes()
 
     # Create a new MediaFile instance to read the tags back.
     media_file_read = MediaFile(str(temp_media_path))
@@ -127,10 +139,68 @@ def test_write_permissions_error(tmp_path):
 
         # Attempt to create a MediaFile instance with write enabled
         mf = MediaFile(str(temp_media_path), enable_write=True)
+        edit_manager = EditManager()
         with pytest.raises(PermissionError):
-            mf.set_tag(KEY_TITLE, "New Title")
-            mf.save()
+            # Try to stage a change and commit it
+            edit_manager.stage_change([str(temp_media_path)], KEY_TITLE, "New Title")
+            # This should raise PermissionError when trying to save
+            mf.save({'generic_tags': {KEY_TITLE: "New Title"}})
 
     finally:
         # Restore write permissions to allow cleanup
         os.chmod(temp_media_path, 0o644)
+
+
+def test_edit_manager_integration(tmp_path):
+    """
+    Tests that MediaFile integrates correctly with EditManager for staging and committing changes.
+    """
+    # Create a temporary copy of the file to write to.
+    temp_media_path = tmp_path / SOURCE_FILE.name
+    shutil.copy(SOURCE_FILE, temp_media_path)
+
+    # Create a MediaFile instance for the temporary file.
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+    edit_manager = EditManager()
+
+    # Reset EditManager to ensure clean state
+    edit_manager.reset_changes()
+
+    # Verify no staged changes initially
+    assert not edit_manager.has_staged_changes()
+
+    # Stage some changes
+    test_changes = {
+        KEY_TITLE: 'Test Title',
+        KEY_ARTIST: 'Test Artist',
+        KEY_ALBUM: 'Test Album'
+    }
+
+    for key, value in test_changes.items():
+        edit_manager.stage_change([str(temp_media_path)], key, value)
+
+    # Verify changes are staged
+    assert edit_manager.has_staged_changes()
+
+    # Verify staged values are returned correctly
+    for key, value in test_changes.items():
+        assert edit_manager.get_staged_value(str(temp_media_path), key) == value
+
+    # Connect to the commit signal to handle saving
+    def handle_commit(commit_data):
+        if str(temp_media_path) in commit_data:
+            changes = commit_data[str(temp_media_path)]
+            media_file.save(changes)
+
+    edit_manager.commit_requested.connect(handle_commit)
+
+    # Commit changes via EditManager (this will call media_file.save with changes)
+    edit_manager.commit_changes()
+
+    # Verify no staged changes after commit
+    assert not edit_manager.has_staged_changes()
+
+    # Create a new MediaFile instance to read the tags back and verify they were written.
+    media_file_read = MediaFile(str(temp_media_path))
+    for key, value in test_changes.items():
+        assert media_file_read.get_tag_simple(key) == value

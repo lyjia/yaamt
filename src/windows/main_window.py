@@ -11,6 +11,7 @@ import windows
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
 from models.settings import settings, FileListSettings, ColumnSettings
+from models.edit_manager import EditManager
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
 
 
@@ -95,6 +96,10 @@ class MainWindow(QMainWindow):
         self.files_view.header().customContextMenuRequested.connect(self.on_header_context_menu)
         self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
+
+        # Connect to EditManager signals
+        self.edit_manager = EditManager()
+        self.edit_manager.commit_successful.connect(self.on_commit_successful)
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
@@ -293,6 +298,15 @@ class MainWindow(QMainWindow):
             is_media_file = self.file_model.data(source_index, KEY_IS_MEDIA)
 
         self.action_properties.setEnabled(len(selected_rows) == 1 and is_media_file)
+
+    def on_commit_successful(self, file_paths):
+        """
+        Slot called when commit is successful. Refreshes the model for the updated files.
+
+        Args:
+            file_paths: List of file paths that were successfully updated
+        """
+        self.file_model.refresh_files(file_paths)
 
     def _reset_column_settings(self):
         self.file_list_settings = FileListSettings()

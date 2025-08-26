@@ -4,6 +4,7 @@ from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, 
     KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE
 from providers.metadata.mutagen_provider import MutagenProvider
+from models.edit_manager import EditManager
 from util.logging import log
 
 
@@ -40,7 +41,6 @@ class MediaFile:
         self._file_name = os.path.basename(file_path)
         self._providers = self._get_providers_for_file()
         self._write_enabled = enable_write
-        self._pending_changes = {}
         self._generic_to_internal_map = {}
         self._internal_to_generic_map = {}
 
@@ -128,8 +128,6 @@ class MediaFile:
         if not is_internal_tag_key and key in self._generic_to_internal_map:
             actual_key = self._generic_to_internal_map[key]
 
-        if actual_key in self._pending_changes:
-            return self._pending_changes[actual_key]
         if not self._combined_metadata[KEY_TAGS].get(actual_key):
             self.load_meta_for_tag(actual_key)
         return self._combined_metadata[KEY_TAGS].get(actual_key, {}).get(KEY_VALUE)
@@ -139,22 +137,6 @@ class MediaFile:
         if grab:
             return grab[0]
         return None
-
-    def set_tag(self, key, value, is_internal_tag_key=False):
-        """
-        Sets a tag value in the pending changes.
-        :param key: The tag key to set.
-        :param value: The value to set for the tag.
-        :param is_internal_tag_key: Whether the key is an internal tag key.
-        """
-        actual_key = key
-        if not is_internal_tag_key and key in self._generic_to_internal_map:
-            actual_key = self._generic_to_internal_map[key]
-
-        if actual_key in self._tag_writers[KEY_TAGS] and self._tag_writers[KEY_TAGS][actual_key][0].is_writable():
-            self._pending_changes[actual_key] = [value]
-        else:
-            raise PermissionError(f"Tag '{key}' is not writable. (Writable tags: {list(self._tag_writers[KEY_TAGS].keys())})")
 
     def load_meta_for_tag(self, key):
         providers = self._tag_provider_lookup[KEY_TAGS].get(key, [])
@@ -185,45 +167,42 @@ class MediaFile:
     def get_internal_data(self, key):
         return self._combined_metadata[KEY_INTERNAL].get(key)
 
-    def save(self):
+    def save(self, changes=None):
         if not self._write_enabled:
             raise PermissionError("Write is not enabled for this file.")
 
-        if not self._pending_changes:
+        if changes is None:
             return
 
         modified_providers = set()
 
-        for key, value in self._pending_changes.items():
-            if key in self._tag_provider_lookup[KEY_TAGS]:
-                # Write to the first available provider
-                provider = self._tag_provider_lookup[KEY_TAGS][key][0]
-                provider.set_tag(key, value)
+        # Process generic tag changes
+        for tag, value in changes.get('generic_tags', {}).items():
+            internal_tag = self._generic_to_internal_map.get(tag, tag)
+            if internal_tag in self._tag_writers[KEY_TAGS]:
+                provider = self._tag_writers[KEY_TAGS][internal_tag][0]
+                provider.set_tag(internal_tag, [value])
                 modified_providers.add(provider)
+
+        # Process internal tag changes
+        for tag, tag_data in changes.get('internal_tags', {}).items():
+            provider = tag_data['provider']
+            provider.set_tag(tag, [tag_data['value']])
+            modified_providers.add(provider)
 
         for provider in modified_providers:
             provider.save()
 
         # Clear the cache for the tags that were changed
-        for key in self._pending_changes.keys():
-            if key in self._combined_metadata[KEY_TAGS]:
-                del self._combined_metadata[KEY_TAGS][key]
+        for tag in changes.get('generic_tags', {}).keys():
+            internal_tag = self._generic_to_internal_map.get(tag, tag)
+            if internal_tag in self._combined_metadata[KEY_TAGS]:
+                del self._combined_metadata[KEY_TAGS][internal_tag]
 
-        self._pending_changes.clear()
+        for tag in changes.get('internal_tags', {}).keys():
+            if tag in self._combined_metadata[KEY_TAGS]:
+                del self._combined_metadata[KEY_TAGS][tag]
 
-    def has_pending_changes(self):
-        return bool(self._pending_changes)
-
-    def revert_pending_changes(self):
-        self._pending_changes.clear()
-
-    def revert_tag_change(self, key, is_internal_tag_key=False):
-        actual_key = key
-        if not is_internal_tag_key and key in self._generic_to_internal_map:
-            actual_key = self._generic_to_internal_map[key]
-
-        if actual_key in self._pending_changes:
-            del self._pending_changes[actual_key]
 
     def to_dict(self):
         """
