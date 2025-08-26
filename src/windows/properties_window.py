@@ -32,24 +32,33 @@ import windows.__resources_rc
 class SaveWorker(QThread):
     finished = Signal()
 
-    def __init__(self, media_file, changes=None):
+    def __init__(self, media_files, changes=None):
         super().__init__()
-        self.media_file = media_file
+        self.media_files = media_files
         self.changes = changes
 
     def run(self):
-        self.media_file.save(self.changes)
+        for media_file in self.media_files:
+            if media_file.file_path in self.changes:
+                media_file.save(self.changes[media_file.file_path])
         self.finished.emit()
 
 
 class PropertiesWindow(QMainWindow):
-    def __init__(self, file_path, parent=None):
+    def __init__(self, file_paths, parent=None):
         super().__init__(parent)
 
-        self.file_path = file_path
-        self.media_file = MediaFile(file_path, enable_write=True)
+        if isinstance(file_paths, str):
+            self.file_paths = [file_paths]
+        else:
+            self.file_paths = file_paths
+
+        self.media_files = [MediaFile(file_path, enable_write=True) for file_path in self.file_paths]
         self.edit_manager = EditManager()
-        self.setWindowTitle(f"Properties for {os.path.basename(file_path)}")
+        if len(self.file_paths) == 1:
+            self.setWindowTitle(f"Properties for {os.path.basename(self.file_paths)}")
+        else:
+            self.setWindowTitle(f"Properties for {len(self.file_paths)} files")
         self.resize(720, 480)
         self.setMinimumSize(400, 300)
         self.setWindowIcon(
@@ -121,17 +130,15 @@ class PropertiesWindow(QMainWindow):
 
     def on_commit_requested(self, commit_data):
         """Handle the commit request from EditManager"""
-        if self.file_path in commit_data:
-            changes = commit_data[self.file_path]
-            self.worker = SaveWorker(self.media_file, changes)
-            self.worker.finished.connect(self.on_save_finished)
-            self.worker.start()
+        self.worker = SaveWorker(self.media_files, commit_data)
+        self.worker.finished.connect(self.on_save_finished)
+        self.worker.start()
 
     def on_save_finished(self):
         self.spinner.hide()
         self.status_label.hide()
         # Emit signal to notify MainWindow that the file has been successfully updated
-        self.edit_manager.emit_commit_successful([self.file_path])
+        self.edit_manager.emit_commit_successful(self.file_paths)
         self.close()
 
     def on_staged_changes_changed(self, has_changes):
@@ -193,22 +200,32 @@ class PropertiesWindow(QMainWindow):
         
         layout.addRow(replaygain_group)
 
-        # Populate fields with staged values or committed values
-        self.title_edit.setText(str(self._get_display_value(KEY_TITLE) or ''))
-        self.artist_edit.setText(str(self._get_display_value(KEY_ARTIST) or ''))
-        self.album_edit.setText(str(self._get_display_value(KEY_ALBUM) or ''))
-        self.album_artist_edit.setText(str(self._get_display_value(KEY_ALBUM_ARTIST) or ''))
-        self.date_edit.setText(str(self._get_display_value(KEY_DATE) or ''))
-        self.genre_edit.setText(str(self._get_display_value(KEY_GENRE) or ''))
-        self.comment_edit.setText(str(self._get_display_value(KEY_COMMENT) or ''))
-        self.composer_edit.setText(str(self._get_display_value(KEY_COMPOSER) or ''))
-        self.track_num_edit.setText(str(self._get_display_value(KEY_TRACK_NUMBER) or ''))
-        self.disc_num_edit.setText(str(self._get_display_value(KEY_DISC_NUMBER) or ''))
-        self.bpm_edit.setText(str(self._get_display_value(KEY_BPM) or ''))
-        self.key_edit.setText(str(self._get_display_value(KEY_MUSICAL_KEY) or ''))
+        # Helper to populate fields and set style for "<< multiple values >>"
+        def populate_field(line_edit, tag_name):
+            value = self._get_display_value(tag_name)
+            if value == "<< multiple values >>":
+                line_edit.setText(value)
+                line_edit.setStyleSheet("color: gray;")
+            else:
+                line_edit.setText(str(value or ''))
+                line_edit.setStyleSheet("")
 
-        self.replaygain_track_edit.setText(str(self._get_display_value(KEY_REPLAYGAIN_TRACK_GAIN) or ''))
-        self.replaygain_album_edit.setText(str(self._get_display_value(KEY_REPLAYGAIN_ALBUM_GAIN) or ''))
+        # Populate fields
+        populate_field(self.title_edit, KEY_TITLE)
+        populate_field(self.artist_edit, KEY_ARTIST)
+        populate_field(self.album_edit, KEY_ALBUM)
+        populate_field(self.album_artist_edit, KEY_ALBUM_ARTIST)
+        populate_field(self.date_edit, KEY_DATE)
+        populate_field(self.genre_edit, KEY_GENRE)
+        populate_field(self.comment_edit, KEY_COMMENT)
+        populate_field(self.composer_edit, KEY_COMPOSER)
+        populate_field(self.track_num_edit, KEY_TRACK_NUMBER)
+        populate_field(self.disc_num_edit, KEY_DISC_NUMBER)
+        populate_field(self.bpm_edit, KEY_BPM)
+        populate_field(self.key_edit, KEY_MUSICAL_KEY)
+
+        populate_field(self.replaygain_track_edit, KEY_REPLAYGAIN_TRACK_GAIN)
+        populate_field(self.replaygain_album_edit, KEY_REPLAYGAIN_ALBUM_GAIN)
 
         # Connect signals
         self.title_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_TITLE, self.title_edit.text()))
@@ -225,15 +242,29 @@ class PropertiesWindow(QMainWindow):
         self.key_edit.editingFinished.connect(lambda: self._on_simple_tab_edited(KEY_MUSICAL_KEY, self.key_edit.text()))
 
     def _on_simple_tab_edited(self, generic_tag_name, new_value):
-        self.edit_manager.stage_change([self.file_path], generic_tag_name, new_value)
+        self.edit_manager.stage_change(self.file_paths, generic_tag_name, new_value)
         self._refresh_advanced_tab()
 
-    def _get_display_value(self, tag_name):
-        """Get the display value - staged if available, otherwise committed"""
-        staged_value = self.edit_manager.get_staged_value(self.file_path, tag_name)
-        if staged_value is not None:
-            return staged_value
-        return self.media_file.get_tag_simple(tag_name)
+    def _get_display_value(self, tag_name, is_internal_tag=False):
+        """
+        Get the display value for a given tag.
+        - If a value is staged, it is returned.
+        - If values for all files are the same, that value is returned.
+        - Otherwise, "<< multiple values >>" is returned.
+        """
+        # Check for a staged value first (only for the first file, as edits are applied to all)
+        if self.file_paths:
+            staged_value = self.edit_manager.get_staged_value(self.file_paths, tag_name, is_internal_tag=is_internal_tag)
+            if staged_value is not None:
+                return staged_value
+
+        # Get committed values from all files
+        values = {media_file.get_tag_simple(tag_name, is_internal_tag_key=is_internal_tag) for media_file in self.media_files}
+
+        if len(values) == 1:
+            return values.pop()
+        else:
+            return "<< multiple values >>"
 
     def _refresh_advanced_tab(self):
         self.setup_advanced_tab(self.advanced_tab)
@@ -251,20 +282,28 @@ class PropertiesWindow(QMainWindow):
         font.setBold(True)
         file_item.setFont(0, font)
 
-        metadata = self.media_file.metadata
-        if KEY_INTERNAL in metadata:
-            for key, value in metadata[KEY_INTERNAL].items():
-                child = QTreeWidgetItem(file_item, [key, str(value)])
-                child.setFlags(child.flags() & ~Qt.ItemIsEditable)
+        if len(self.media_files) == 1:
+            if self.media_files:
+                metadata = self.media_files.metadata
+                if KEY_INTERNAL in metadata:
+                    for key, value in metadata[KEY_INTERNAL].items():
+                        child = QTreeWidgetItem(file_item, [key, str(value)])
+                        child.setFlags(child.flags() & ~Qt.ItemIsEditable)
+        else:
+            file_item.setText(0, f"{len(self.media_files)} files selected")
 
         # Stream section
         stream_item = QTreeWidgetItem(tree, ["Stream"])
         stream_item.setFont(0, font)
 
-        if KEY_STREAM_INFO in metadata:
-            for key, value in metadata[KEY_STREAM_INFO].items():
-                child = QTreeWidgetItem(stream_item, [key, str(value["value"])])
-                child.setFlags(child.flags() & ~Qt.ItemIsEditable)
+        if len(self.media_files) == 1:
+            if self.media_files:
+                if KEY_STREAM_INFO in self.media_files.metadata:
+                    for key, value in self.media_files.metadata[KEY_STREAM_INFO].items():
+                        child = QTreeWidgetItem(stream_item, [key, str(value["value"])])
+                        child.setFlags(child.flags() & ~Qt.ItemIsEditable)
+        else:
+            stream_item.setFlags(stream_item.flags() | Qt.ItemIsHidden)
 
         tree.expandAll()
         for i in range(tree.columnCount()):
@@ -283,50 +322,56 @@ class PropertiesWindow(QMainWindow):
         self.advanced_tree.clear()
         tree = self.advanced_tree
 
-        metadata = self.media_file.metadata
-        providers_to_tags = {}
+        all_providers_to_tags = {}
+        for media_file in self.media_files:
+            if KEY_TAGS in media_file.metadata:
+                for tag_name, tag_info in media_file.metadata[KEY_TAGS].items():
+                    provider_name = tag_info.get("provider", "Unknown")
+                    if provider_name not in all_providers_to_tags:
+                        all_providers_to_tags[provider_name] = {}
+                    if tag_name not in all_providers_to_tags[provider_name]:
+                        all_providers_to_tags[provider_name][tag_name] = set()
+                    
+                    value = tag_info.get("value")
+                    if isinstance(value, list):
+                        value = tuple(value)
+                    try:
+                        all_providers_to_tags[provider_name][tag_name].add(value)
+                    except TypeError:  # unhashable type
+                        all_providers_to_tags[provider_name][tag_name].add(str(value))
 
-        if KEY_TAGS in metadata:
-            for tag_name, tag_info in metadata[KEY_TAGS].items():
-                provider_name = tag_info.get("provider", "Unknown")
-                if provider_name not in providers_to_tags:
-                    providers_to_tags[provider_name] = []
-                providers_to_tags[provider_name].append((tag_name, tag_info.get("value")))
-
-        for provider_name, tags in providers_to_tags.items():
+        for provider_name, tags in all_providers_to_tags.items():
             provider_item = QTreeWidgetItem(tree, [provider_name])
             font = provider_item.font(0)
             font.setBold(True)
             provider_item.setFont(0, font)
             provider_item.setFlags(provider_item.flags() & ~Qt.ItemIsEditable)
 
-            for tag_name, tag_value in sorted(tags):
-                display_value = ""
-                if isinstance(tag_value, list):
-                    display_value = "; ".join(map(str, tag_value))
-                elif isinstance(tag_value, bytes):
-                    display_value = "(binary data)"
-                else:
-                    display_value = str(tag_value)
-
-                # Check for staged value
-                staged_value = self.edit_manager.get_staged_value(self.file_path, tag_name, is_internal_tag=True)
+            for tag_name, values in sorted(tags.items()):
+                is_binary = any(isinstance(v, bytes) for v in values)
+                
+                # Check for staged value first
+                staged_value = self.edit_manager.get_staged_value(self.file_paths, tag_name, is_internal_tag=True)
                 if staged_value is not None:
-                    if isinstance(staged_value, list):
-                        display_value = "; ".join(map(str, staged_value))
-                    elif isinstance(staged_value, bytes):
+                    display_value = str(staged_value)
+                    is_staged = True
+                elif len(values) > 1:
+                    display_value = "<< multiple values >>"
+                    is_staged = False
+                else:
+                    value = values.pop()
+                    if isinstance(value, list) or isinstance(value, tuple):
+                        display_value = "; ".join(map(str, value))
+                    elif isinstance(value, bytes):
                         display_value = "(binary data)"
                     else:
-                        display_value = str(staged_value)
-                    # Mark as staged by making it bold
-                    is_staged = True
-                else:
+                        display_value = str(value)
                     is_staged = False
 
                 child = QTreeWidgetItem(provider_item, [tag_name, display_value])
                 child.setFlags(child.flags() | Qt.ItemIsEditable)
 
-                if isinstance(tag_value, bytes):
+                if is_binary:
                     child.setFlags(child.flags() & ~Qt.ItemIsEditable)
 
                 # Make staged values bold
@@ -355,15 +400,15 @@ class PropertiesWindow(QMainWindow):
 
             # Find the provider for this internal tag
             provider = None
-            metadata = self.media_file.metadata
-            if KEY_TAGS in metadata:
-                for tag_info in metadata[KEY_TAGS].values():
-                    if tag_info.get("provider") and tag_name in [k for k in self.media_file._tag_provider_lookup[KEY_TAGS].keys()]:
-                        provider = tag_info.get("provider")
-                        break
+            for media_file in self.media_files:
+                if KEY_TAGS in media_file.metadata:
+                    if tag_name in media_file.metadata[KEY_TAGS]:
+                         provider = media_file.metadata[KEY_TAGS][tag_name].get("provider")
+                         if provider:
+                            break
 
             if provider:
-                self.edit_manager.stage_change([self.file_path], tag_name, new_value, is_internal_tag=True, provider=provider)
+                self.edit_manager.stage_change(self.file_paths, tag_name, new_value, is_internal_tag=True, provider=provider)
 
                 # Make font bold
                 font = item.font(1)
@@ -397,37 +442,24 @@ class PropertiesWindow(QMainWindow):
     def revert_change(self, item, tag_name):
         self.advanced_tree.blockSignals(True)
 
-        # For now, just reset the staged value by staging the original committed value
-        original_value = self.media_file.get_tag_simple(tag_name, is_internal_tag_key=True)
-        if original_value is not None:
-            provider = None
-            metadata = self.media_file.metadata
-            if KEY_TAGS in metadata:
-                for tag_info in metadata[KEY_TAGS].values():
-                    if tag_info.get("provider") and tag_name in [k for k in self.media_file._tag_provider_lookup[KEY_TAGS].keys()]:
-                        provider = tag_info.get("provider")
-                        break
+        # Reverting a change for multiple files is complex if their original values differed.
+        # As a simple solution, we revert the value to the one from the first selected file.
+        # A more robust solution would require changes to EditManager.
+        if not self.media_files:
+            self.advanced_tree.blockSignals(False)
+            return
 
-            if provider:
-                self.edit_manager.stage_change([self.file_path], tag_name, original_value, is_internal_tag=True, provider=provider)
+        original_value = self.media_files.get_tag_simple(tag_name, is_internal_tag_key=True)
 
-        display_value = ""
-        if isinstance(original_value, list):
-            display_value = "; ".join(map(str, original_value))
-        elif isinstance(original_value, bytes):
-            display_value = "(binary data)"
-        else:
-            display_value = str(original_value)
+        provider = None
+        if self.media_files:
+            metadata = self.media_files.metadata
+            if KEY_TAGS in metadata and tag_name in metadata[KEY_TAGS]:
+                provider = metadata[KEY_TAGS][tag_name].get("provider")
 
-        item.setText(1, display_value)
+        if provider:
+            self.edit_manager.stage_change(self.file_paths, tag_name, original_value, is_internal_tag=True, provider=provider)
 
-        # Reset font
-        font = item.font(1)
-        font.setBold(False)
-        item.setFont(1, font)
-
-        # Remove revert button
-        self.advanced_tree.setItemWidget(item, 2, None)
-        self.advanced_tree.blockSignals(False)
-
+        self._refresh_advanced_tab()
         self._refresh_simple_tab()
+        self.advanced_tree.blockSignals(False)
