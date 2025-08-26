@@ -37,6 +37,7 @@ class TestEditManager:
         # Verify no staged changes initially
         assert self.edit_manager.has_staged_changes() is False
         assert self.edit_manager._staged_changes == {}
+        assert self.edit_manager.get_staged_changes_for_file('nonexistent.mp3') == {'generic_tags': {}, 'internal_tags': {}}
 
     def test_autosave_property_getter(self):
         """Test the autosave property getter."""
@@ -45,15 +46,15 @@ class TestEditManager:
     def test_autosave_property_setter_changes_value(self):
         """Test that setting autosave property changes the internal value."""
         # Spy on the autosave_changed signal
-        spy = SignalSpy(self.edit_manager.autosave_changed)
+        spy = QSignalSpy(self.edit_manager.autosave_changed)
 
         # Set autosave to True
         self.edit_manager.autosave = True
         assert self.edit_manager.autosave is True
 
         # Verify signal was emitted
-        assert len(spy) == 1
-        assert spy[0][0] is True
+        assert spy.count() == 1
+        assert spy.at(0)[0] is True
 
     def test_autosave_property_setter_no_signal_when_unchanged(self):
         """Test that setting autosave to the same value doesn't emit signal."""
@@ -61,51 +62,56 @@ class TestEditManager:
         self.edit_manager._autosave = True
 
         # Spy on the autosave_changed signal
-        spy = SignalSpy(self.edit_manager.autosave_changed)
+        spy = QSignalSpy(self.edit_manager.autosave_changed)
 
         # Set the same value again
         self.edit_manager.autosave = True
 
         # Verify no signal was emitted
-        assert len(spy) == 0
+        assert spy.count() == 0
 
     def test_autosave_property_setter_signal_emission(self):
         """Test that autosave_changed signal is emitted when value changes."""
-        spy = SignalSpy(self.edit_manager.autosave_changed)
+        spy = QSignalSpy(self.edit_manager.autosave_changed)
 
         # Test True -> False -> True transitions
         self.edit_manager.autosave = True
-        assert len(spy) == 1
-        assert spy[0][0] is True
+        assert spy.count() == 1
+        assert spy.at(0)[0] is True
 
         self.edit_manager.autosave = False
-        assert len(spy) == 2
-        assert spy[1][0] is False
+        assert spy.count() == 2
+        assert spy.at(1)[0] is False
 
         self.edit_manager.autosave = True
-        assert len(spy) == 3
-        assert spy[2][0] is True
+        assert spy.count() == 3
+        assert spy.at(2)[0] is True
 
     def test_stage_change_single_file_single_tag(self):
         """Test staging a change for a single file and single tag."""
-        spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         self.edit_manager.stage_change(['file1.mp3'], 'title', 'New Title')
 
         # Verify the change was staged
         assert 'file1.mp3' in self.edit_manager._staged_changes
-        assert self.edit_manager._staged_changes['file1.mp3']['title'] == 'New Title'
+        assert self.edit_manager._staged_changes['file1.mp3']['generic_tags']['title'] == 'New Title'
+        assert self.edit_manager._staged_changes['file1.mp3']['internal_tags'] == {}
+
+        # Verify helper methods work correctly
+        assert self.edit_manager.get_staged_value('file1.mp3', 'title') == 'New Title'
+        assert self.edit_manager.get_staged_value('file1.mp3', 'title', is_internal_tag=False) == 'New Title'
 
         # Verify has_staged_changes returns True
         assert self.edit_manager.has_staged_changes() is True
 
         # Verify signal was emitted
-        assert len(spy) == 1
-        assert spy[0][0] is True
+        assert spy.count() == 1
+        assert spy.at(0)[0] is True
 
     def test_stage_change_multiple_files_same_tag(self):
         """Test staging a change for multiple files with the same tag."""
-        spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         file_paths = ['file1.mp3', 'file2.mp3', 'file3.mp3']
         self.edit_manager.stage_change(file_paths, 'artist', 'New Artist')
@@ -113,15 +119,16 @@ class TestEditManager:
         # Verify changes were staged for all files
         for file_path in file_paths:
             assert file_path in self.edit_manager._staged_changes
-            assert self.edit_manager._staged_changes[file_path]['artist'] == 'New Artist'
+            assert self.edit_manager._staged_changes[file_path]['generic_tags']['artist'] == 'New Artist'
+            assert self.edit_manager._staged_changes[file_path]['internal_tags'] == {}
 
         # Verify signal was emitted
-        assert len(spy) == 1
-        assert spy[0][0] is True
+        assert spy.count() == 1
+        assert spy.at(0)[0] is True
 
     def test_stage_change_single_file_multiple_tags(self):
         """Test staging multiple changes for a single file."""
-        spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         # Stage first change
         self.edit_manager.stage_change(['file1.mp3'], 'title', 'New Title')
@@ -130,22 +137,23 @@ class TestEditManager:
         self.edit_manager.stage_change(['file1.mp3'], 'artist', 'New Artist')
 
         # Verify both changes were staged
-        assert self.edit_manager._staged_changes['file1.mp3']['title'] == 'New Title'
-        assert self.edit_manager._staged_changes['file1.mp3']['artist'] == 'New Artist'
+        assert self.edit_manager._staged_changes['file1.mp3']['generic_tags']['title'] == 'New Title'
+        assert self.edit_manager._staged_changes['file1.mp3']['generic_tags']['artist'] == 'New Artist'
+        assert self.edit_manager._staged_changes['file1.mp3']['internal_tags'] == {}
 
         # Verify signal was emitted for each stage_change call
-        assert len(spy) == 2
-        assert spy[0][0] is True
-        assert spy[1][0] is True
+        assert spy.count() == 2
+        assert spy.at(0)[0] is True
+        assert spy.at(1)[0] is True
 
     def test_stage_change_overwrites_existing_value(self):
         """Test that staging a change overwrites existing staged value."""
         self.edit_manager.stage_change(['file1.mp3'], 'title', 'Old Title')
-        assert self.edit_manager._staged_changes['file1.mp3']['title'] == 'Old Title'
+        assert self.edit_manager._staged_changes['file1.mp3']['generic_tags']['title'] == 'Old Title'
 
         # Stage new value for same file and tag
         self.edit_manager.stage_change(['file1.mp3'], 'title', 'New Title')
-        assert self.edit_manager._staged_changes['file1.mp3']['title'] == 'New Title'
+        assert self.edit_manager._staged_changes['file1.mp3']['generic_tags']['title'] == 'New Title'
 
     def test_stage_change_different_files_different_tags(self):
         """Test staging changes for different files and different tags."""
@@ -154,14 +162,20 @@ class TestEditManager:
         self.edit_manager.stage_change(['file1.mp3'], 'album', 'Album 1')
 
         expected = {
-            'file1.mp3': {'title': 'Title 1', 'album': 'Album 1'},
-            'file2.mp3': {'artist': 'Artist 2'}
+            'file1.mp3': {
+                'generic_tags': {'title': 'Title 1', 'album': 'Album 1'},
+                'internal_tags': {}
+            },
+            'file2.mp3': {
+                'generic_tags': {'artist': 'Artist 2'},
+                'internal_tags': {}
+            }
         }
         assert self.edit_manager._staged_changes == expected
 
     def test_stage_change_empty_file_paths(self):
         """Test staging changes with empty file paths list."""
-        spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         self.edit_manager.stage_change([], 'title', 'New Title')
 
@@ -170,12 +184,12 @@ class TestEditManager:
         assert self.edit_manager.has_staged_changes() is False
 
         # Verify signal was emitted (signal is emitted regardless of file paths)
-        assert len(spy) == 1
-        assert spy[0][0] is False
+        assert spy.count() == 1
+        assert spy.at(0)[0] is False
 
     def test_commit_changes_clears_staged_changes(self):
         """Test that commit_changes clears all staged changes."""
-        spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         # Stage some changes
         self.edit_manager.stage_change(['file1.mp3'], 'title', 'New Title')
@@ -190,14 +204,14 @@ class TestEditManager:
         assert self.edit_manager.has_staged_changes() is False
 
         # Verify signal was emitted (2 staging calls + 1 reset call)
-        assert len(spy) == 3
-        assert spy[0][0] is True
-        assert spy[1][0] is True
-        assert spy[2][0] is False
+        assert spy.count() == 3
+        assert spy.at(0)[0] is True
+        assert spy.at(1)[0] is True
+        assert spy.at(2)[0] is False
 
     def test_commit_changes_no_changes_staged(self):
         """Test commit_changes when no changes are staged."""
-        spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         # Commit without any staged changes
         self.edit_manager.commit_changes()
@@ -207,12 +221,12 @@ class TestEditManager:
         assert self.edit_manager.has_staged_changes() is False
 
         # Verify signal was emitted (reset_changes always emits signal)
-        assert len(spy) == 1
-        assert spy[0][0] is False
+        assert spy.count() == 1
+        assert spy.at(0)[0] is False
 
     def test_reset_changes_clears_staged_changes(self):
         """Test that reset_changes clears all staged changes."""
-        spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         # Stage some changes
         self.edit_manager.stage_change(['file1.mp3'], 'title', 'New Title')
@@ -227,14 +241,14 @@ class TestEditManager:
         assert self.edit_manager.has_staged_changes() is False
 
         # Verify signal was emitted (2 staging calls + 1 reset call)
-        assert len(spy) == 3
-        assert spy[0][0] is True
-        assert spy[1][0] is True
-        assert spy[2][0] is False
+        assert spy.count() == 3
+        assert spy.at(0)[0] is True
+        assert spy.at(1)[0] is True
+        assert spy.at(2)[0] is False
 
     def test_reset_changes_no_changes_staged(self):
         """Test reset_changes when no changes are staged."""
-        spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         # Reset without any staged changes
         self.edit_manager.reset_changes()
@@ -244,8 +258,8 @@ class TestEditManager:
         assert self.edit_manager.has_staged_changes() is False
 
         # Verify signal was emitted (reset_changes always emits signal)
-        assert len(spy) == 1
-        assert spy[0][0] is False
+        assert spy.count() == 1
+        assert spy.at(0)[0] is False
 
     def test_has_staged_changes_empty_dict(self):
         """Test has_staged_changes returns False for empty staged changes."""
@@ -259,28 +273,34 @@ class TestEditManager:
     def test_has_staged_changes_empty_file_dict(self):
         """Test has_staged_changes with file entry but no tags."""
         # Manually create empty dict for a file (edge case)
-        self.edit_manager._staged_changes['file1.mp3'] = {}
-        assert self.edit_manager.has_staged_changes() is True
+        self.edit_manager._staged_changes['file1.mp3'] = {'generic_tags': {}, 'internal_tags': {}}
+        assert self.edit_manager.has_staged_changes() is False
+
+    def test_has_staged_changes_empty_tags_dicts(self):
+        """Test has_staged_changes with empty tag dictionaries."""
+        # Manually create file entry with empty tag dicts
+        self.edit_manager._staged_changes['file1.mp3'] = {'generic_tags': {}, 'internal_tags': {}}
+        assert self.edit_manager.has_staged_changes() is False
 
     def test_signal_emissions_independence(self):
         """Test that different signals are emitted independently."""
-        autosave_spy = SignalSpy(self.edit_manager.autosave_changed)
-        changes_spy = SignalSpy(self.edit_manager.staged_changes_exist)
+        autosave_spy = QSignalSpy(self.edit_manager.autosave_changed)
+        changes_spy = QSignalSpy(self.edit_manager.staged_changes_exist)
 
         # Change autosave - should only emit autosave_changed
         self.edit_manager.autosave = True
-        assert len(autosave_spy) == 1
-        assert len(changes_spy) == 0
+        assert autosave_spy.count() == 1
+        assert changes_spy.count() == 0
 
         # Stage changes - should only emit staged_changes_exist
         self.edit_manager.stage_change(['file1.mp3'], 'title', 'New Title')
-        assert len(autosave_spy) == 1
-        assert len(changes_spy) == 1
+        assert autosave_spy.count() == 1
+        assert changes_spy.count() == 1
 
         # Change autosave again - should only emit autosave_changed
         self.edit_manager.autosave = False
-        assert len(autosave_spy) == 2
-        assert len(changes_spy) == 1
+        assert autosave_spy.count() == 2
+        assert changes_spy.count() == 1
 
     def test_multiple_instances_share_state(self):
         """Test that multiple EditManager instances share the same state."""
@@ -297,7 +317,7 @@ class TestEditManager:
         # Verify changes are reflected in second instance
         assert edit_manager2.has_staged_changes() is True
         assert edit_manager2.autosave is True
-        assert edit_manager2._staged_changes['file1.mp3']['title'] == 'New Title'
+        assert edit_manager2._staged_changes['file1.mp3']['generic_tags']['title'] == 'New Title'
 
     def test_stage_change_with_various_value_types(self):
         """Test staging changes with various value types."""
@@ -348,12 +368,12 @@ class TestEditManager:
         self.edit_manager.stage_change(['file2.mp3'], 'title', 'Title 2')
 
         # Verify file1 changes are preserved
-        assert self.edit_manager._staged_changes['file1.mp3']['title'] == 'Title 1'
-        assert self.edit_manager._staged_changes['file1.mp3']['artist'] == 'Artist 1'
+        assert self.edit_manager._staged_changes['file1.mp3']['generic_tags']['title'] == 'Title 1'
+        assert self.edit_manager._staged_changes['file1.mp3']['generic_tags']['artist'] == 'Artist 1'
 
         # Verify file2 changes are correct
-        assert self.edit_manager._staged_changes['file2.mp3']['title'] == 'Title 2'
-        assert 'artist' not in self.edit_manager._staged_changes['file2.mp3']
+        assert self.edit_manager._staged_changes['file2.mp3']['generic_tags']['title'] == 'Title 2'
+        assert 'artist' not in self.edit_manager._staged_changes['file2.mp3']['generic_tags']
 
     @pytest.mark.parametrize("tag,value", [
         ('title', 'Test Title'),
@@ -368,4 +388,78 @@ class TestEditManager:
         file_path = 'test.mp3'
         self.edit_manager.stage_change([file_path], tag, value)
 
-        assert self.edit_manager._staged_changes[file_path][tag] == value
+        assert self.edit_manager._staged_changes[file_path]['generic_tags'][tag] == value
+
+    def test_stage_change_internal_tag_without_provider_raises_error(self):
+        """Test that staging an internal tag without provider raises ValueError."""
+        with pytest.raises(ValueError, match="Provider must be specified for internal tag"):
+            self.edit_manager.stage_change(['file1.mp3'], 'TIT2', 'Title', is_internal_tag=True)
+
+    def test_stage_change_internal_tag_with_provider(self):
+        """Test staging changes for internal tags with provider context."""
+        # Create a mock provider
+        mock_provider = Mock()
+
+        self.edit_manager.stage_change(['file1.mp3'], 'TIT2', 'New Title', is_internal_tag=True, provider=mock_provider)
+
+        # Verify the change was staged correctly
+        assert 'file1.mp3' in self.edit_manager._staged_changes
+        assert self.edit_manager._staged_changes['file1.mp3']['generic_tags'] == {}
+        assert self.edit_manager._staged_changes['file1.mp3']['internal_tags']['TIT2']['value'] == 'New Title'
+        assert self.edit_manager._staged_changes['file1.mp3']['internal_tags']['TIT2']['provider'] is mock_provider
+
+    def test_get_staged_value_for_generic_tag(self):
+        """Test getting staged value for generic tags."""
+        self.edit_manager.stage_change(['file1.mp3'], 'title', 'Test Title')
+
+        assert self.edit_manager.get_staged_value('file1.mp3', 'title') == 'Test Title'
+        assert self.edit_manager.get_staged_value('file1.mp3', 'title', is_internal_tag=False) == 'Test Title'
+        assert self.edit_manager.get_staged_value('file1.mp3', 'title', is_internal_tag=True) is None
+
+    def test_get_staged_value_for_internal_tag(self):
+        """Test getting staged value for internal tags."""
+        mock_provider = Mock()
+        self.edit_manager.stage_change(['file1.mp3'], 'TIT2', 'Test Title', is_internal_tag=True, provider=mock_provider)
+
+        assert self.edit_manager.get_staged_value('file1.mp3', 'TIT2', is_internal_tag=True) == 'Test Title'
+        assert self.edit_manager.get_staged_value('file1.mp3', 'TIT2', is_internal_tag=False) is None
+
+    def test_get_staged_value_nonexistent_file(self):
+        """Test getting staged value for nonexistent file returns None."""
+        assert self.edit_manager.get_staged_value('nonexistent.mp3', 'title') is None
+
+    def test_get_staged_changes_for_file(self):
+        """Test getting all staged changes for a specific file."""
+        # Stage some changes
+        self.edit_manager.stage_change(['file1.mp3'], 'title', 'Test Title')
+        mock_provider = Mock()
+        self.edit_manager.stage_change(['file1.mp3'], 'TIT2', 'Internal Title', is_internal_tag=True, provider=mock_provider)
+
+        changes = self.edit_manager.get_staged_changes_for_file('file1.mp3')
+        expected = {
+            'generic_tags': {'title': 'Test Title'},
+            'internal_tags': {'TIT2': {'value': 'Internal Title', 'provider': mock_provider}}
+        }
+        assert changes == expected
+
+    def test_commit_changes_emits_signal_with_provider_context(self):
+        """Test that commit_changes emits signal with provider context."""
+        # Stage some changes
+        self.edit_manager.stage_change(['file1.mp3'], 'title', 'Test Title')
+        mock_provider = Mock()
+        self.edit_manager.stage_change(['file1.mp3'], 'TIT2', 'Internal Title', is_internal_tag=True, provider=mock_provider)
+
+        # Spy on the commit_requested signal
+        spy = QSignalSpy(self.edit_manager.commit_requested)
+
+        # Commit changes
+        self.edit_manager.commit_changes()
+
+        # Verify signal was emitted with correct data
+        assert spy.count() == 1
+        commit_data = spy.at(0)[0]
+
+        assert 'file1.mp3' in commit_data
+        assert commit_data['file1.mp3']['generic_tags']['title'] == 'Test Title'
+        assert commit_data['file1.mp3']['internal_tags']['TIT2']['value'] == 'Internal Title'
+        assert commit_data['file1.mp3']['internal_tags']['TIT2']['provider'] is mock_provider
