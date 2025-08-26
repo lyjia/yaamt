@@ -239,6 +239,10 @@ class MediaFile:
     def metadata(self):
         return self.to_dict()
 
+    @property
+    def file_path(self):
+        return self._file_path
+
     def get_internal_tag_name_for_generic(self, generic_tag_name):
         return self._generic_to_internal_map.get(generic_tag_name)
 

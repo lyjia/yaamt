@@ -8,6 +8,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel
 
 import windows
+from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
 from models.settings import settings, FileListSettings, ColumnSettings
@@ -260,19 +261,20 @@ class MainWindow(QMainWindow):
         about_window.exec()
 
     def open_properties_window(self):
-        selected_indexes = self.files_view.selectionModel().selectedIndexes()
+        selected_indexes = self.files_view.selectionModel().selectedRows()
         if not selected_indexes:
             return
 
-        first_index = selected_indexes[0]
-        source_index = self.proxy_model.mapToSource(first_index)
-        
-        # Get the dictionary for the selected row
-        row_data = self.file_model._data[source_index.row()]
-        file_path = row_data.get(KEY_FILE_PATH)
+        media_files = []
+        for index in selected_indexes:
+            source_index = self.proxy_model.mapToSource(index)
+            row_data = self.file_model._data[source_index.row()]
+            file_path = row_data.get(KEY_FILE_PATH)
+            if file_path and row_data.get(KEY_IS_MEDIA):
+                media_files.append(MediaFile(file_path, enable_write=True))
 
-        if file_path:
-            self.properties_window = windows.PropertiesWindow(file_path, self)
+        if media_files:
+            self.properties_window = windows.PropertiesWindow(media_files, self)
             self.properties_window.show()
 
     def on_column_resized(self, logical_index, old_size, new_size):
@@ -289,15 +291,20 @@ class MainWindow(QMainWindow):
 
     def update_file_actions(self):
         selected_indexes = self.files_view.selectionModel().selectedIndexes()
-        selected_rows = {index.row() for index in selected_indexes}
+        selected_rows = {self.proxy_model.mapToSource(index).row() for index in selected_indexes}
 
         is_media_file = False
-        if len(selected_rows) == 1:
-            first_index = selected_indexes[0]
-            source_index = self.proxy_model.mapToSource(first_index)
-            is_media_file = self.file_model.data(source_index, KEY_IS_MEDIA)
+        if selected_rows:
+            # Check if all selected items are media files
+            all_media = True
+            for row in selected_rows:
+                index = self.file_model.index(row, 0) # Check first column
+                if not self.file_model.data(index, KEY_IS_MEDIA):
+                    all_media = False
+                    break
+            is_media_file = all_media
 
-        self.action_properties.setEnabled(len(selected_rows) == 1 and is_media_file)
+        self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
 
     def on_commit_successful(self, file_paths):
         """
