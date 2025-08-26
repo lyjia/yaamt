@@ -78,6 +78,10 @@ class EditManager(QObject):
         with provider context for each change.
         """
         if not self.has_staged_changes():
+            # Emit signal with empty data to indicate commit operation completed
+            self.commit_requested.emit({})
+            # Emit staged_changes_exist signal to indicate no changes exist
+            self.staged_changes_exist.emit(False)
             return
 
         # Prepare commit data with provider context

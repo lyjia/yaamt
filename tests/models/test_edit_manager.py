@@ -337,7 +337,7 @@ class TestEditManager:
             tag = f'tag{i}'
             self.edit_manager.stage_change([file_path], tag, value)
 
-            assert self.edit_manager._staged_changes[file_path][tag] == value
+            assert self.edit_manager._staged_changes[file_path]['generic_tags'][tag] == value
 
     def test_stage_change_with_special_characters(self):
         """Test staging changes with special characters in values."""
@@ -356,7 +356,7 @@ class TestEditManager:
             file_path = f'file{i}.mp3'
             self.edit_manager.stage_change([file_path], 'title', value)
 
-            assert self.edit_manager._staged_changes[file_path]['title'] == value
+            assert self.edit_manager._staged_changes[file_path]['generic_tags']['title'] == value
 
     def test_stage_change_preserves_other_files_changes(self):
         """Test that staging changes for one file doesn't affect other files."""
