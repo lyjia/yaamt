@@ -33,3 +33,66 @@ The objectives are as follows:
   * Users activate analyzers through the right-click menu, the File menu, or dedicated toolbar buttons. 
   * We will also make an extremely simple 'analyzer', which will read the audio stream and return the peak volume level 
 
+---
+## Proposed Architecture and Implementation Plan
+
+This section outlines the proposed architecture to implement the features described above, focusing on centralization of state, testability, and extensibility.
+
+### 1. Core Architecture: The `EditManager` Singleton
+
+To ensure a single, consistent source of truth for all metadata edits, we will introduce a new `EditManager` class, implemented as a singleton. This will centralize all edit-related state and logic, making it accessible and respected throughout the entire application.
+
+*   **Singleton Implementation:** The `EditManager` will be instantiated as a single, module-level object (e.g., `from src.models import edit_manager`). All parts of the application (`MainWindow`, `PropertiesWindow`, etc.) will import and use this same instance.
+*   **Responsibilities:**
+    *   **State Management:** It will track the global "Autosave" mode (`True`/`False`).
+    *   **Staging:** It will hold a dictionary of staged changes, structured as `{file_path: {tag_name: new_value}}`. This replaces the previous staging implementation within the `MediaFile` class.
+    *   **Core API:** It will expose a clear API for managing edits:
+        *   `stage_change(file_paths: list[str], tag: str, value: any)`
+        *   `commit_changes()`
+        *   `reset_changes()`
+        *   `has_staged_changes() -> bool`
+    *   **Signaling:** It will use Qt's signal/slot mechanism to notify the UI of state changes (e.g., `staged_changes_exist(bool)`), allowing UI components like buttons to be enabled or disabled automatically.
+
+### 2. Refactoring and Integration
+
+A key first step is to refactor existing code to use the new `EditManager`.
+
+*   **`MediaFile` Simplification:** The `MediaFile` class will be refactored to remove all staging logic. It will revert to being a simple data object representing the **committed** state of a file's metadata.
+*   **`PropertiesWindow` Update:** The `PropertiesWindow` will be modified to interact with the `EditManager` singleton instead of calling methods on `MediaFile` instances.
+
+### 3. UI/UX Implementation Plan
+
+With the backend logic centralized, UI components will primarily be responsible for presentation and delegating actions to the `EditManager`.
+
+*   **In-Place Editing (`MainWindow`):**
+    *   A custom `QStyledItemDelegate` will be implemented for the main table view to provide a `QLineEdit` for editing.
+    *   The `MetadataModel` will be the intermediary:
+        *   `flags()`: Will check if a tag is writable to determine if `Qt.ItemFlag.ItemIsEditable` should be returned.
+        *   `data()`: Will query `edit_manager.get_staged_value(file, tag)` to show pending edits and will provide styling hints to visually distinguish them.
+        *   `setData()`: Will receive the final value from the delegate and call `edit_manager.stage_change()`, applying the change to all selected files by querying the view's selection model.
+*   **Mass Editing (`PropertiesWindow`):**
+    *   The window will be initialized with a list of files.
+    *   It will compare values for each tag across all files, displaying `<< multiple values >>` if they differ.
+    *   Any edits made in the window will be applied to all files by calling `edit_manager.stage_change()`.
+
+### 4. Analyzer Framework
+
+We will build a new, extensible framework for file analysis modules.
+
+*   **Architecture:**
+    *   A new directory, `src/analyzers/`, will house all analyzer plugins.
+    *   A `BaseAnalyzer` abstract class in `src/analyzers/base.py` will define the interface with a single method: `analyze(audio_stream: io.BytesIO) -> dict`.
+    *   An `AnalyzerManager` class will handle the discovery and execution of available analyzers.
+*   **Execution Flow:**
+    *   Analysis will be performed on a background `QThread` to keep the UI responsive.
+    *   The worker thread will read the audio file into an in-memory `io.BytesIO` stream **once**.
+    *   This stream is passed to the analyzer's `analyze()` method.
+    *   The resulting metadata dictionary is then passed to `edit_manager.stage_change()` to be staged like any other edit.
+
+### 5. Testing Strategy
+
+A rigorous, test-driven approach is essential to protect user data and ensure stability.
+
+*   **`EditManager` First:** A comprehensive suite of unit tests for the `EditManager` class will be written *before* integration. These tests will validate all state management, staging, committing, and resetting logic.
+*   **Refactoring with Tests:** Existing tests for `MediaFile` and `PropertiesWindow` will be adapted during the refactoring process. The goal is for the test suite to continue passing, verifying that the new architecture is a correct replacement for the old one.
+*   **New Feature Tests:** All new features (in-place editing, mass-edit workflows, each new analyzer) will be developed with dedicated unit and integration tests.
