@@ -96,23 +96,18 @@ class EditManager(QObject):
         # Prepare commit data with provider context
         commit_data = {}
         for file_id, changes in self._staged_changes.items():
-            print(f"Processing file_id: {file_id}")
             media_file = self._media_files.get(file_id)
-            print(f"media_file: {media_file}")
-            print(f"changes: {changes}")
             if not media_file:
-                print(f"Media file not found for file_id: {file_id}")
                 continue # Or handle error
 
-            commit_data[media_file.file_id] = {
+            commit_data[str(media_file.file_id)] = {
                 'generic_tags': changes['generic_tags'].copy(),
                 'internal_tags': {}
             }
-            print(f"commit_data after generic tags: {commit_data}")
 
             # Process internal tags with provider context
             for internal_tag, tag_data in changes['internal_tags'].items():
-                commit_data[media_file.file_id]['internal_tags'][internal_tag] = {
+                commit_data[str(media_file.file_id)]['internal_tags'][internal_tag] = {
                     'value': tag_data['value'],
                     'provider': tag_data['provider']
                 }
@@ -136,10 +131,13 @@ class EditManager(QObject):
         """
         Check if there are any staged changes.
         """
+        result = False
         for file_changes in self._staged_changes.values():
             if file_changes['generic_tags'] or file_changes['internal_tags']:
-                return True
-        return False
+                result = True
+                break
+        print(f"has_staged_changes returning: {result}")
+        return result
 
     def emit_commit_successful(self, media_files: List[MediaFile]):
         """

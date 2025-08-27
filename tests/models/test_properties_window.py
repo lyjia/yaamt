@@ -110,16 +110,16 @@ def test_commit_request_handling(qapp, sample_file):
     with patch.object(sample_file, 'save') as mock_save:
         # Simulate commit request - use the window's file_id to ensure exact match
         commit_data = {
-            sample_file.file_id: {
+            str(sample_file.file_id): {
                 'generic_tags': {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
                 'internal_tags': {}
             }
         }
         # Connect the handle_commit function to the commit_requested signal
-        window.edit_manager.commit_requested.connect(lambda data: sample_file.save(data[sample_file.file_id]))
+        window.edit_manager.commit_requested.connect(lambda data: sample_file.save(data[str(sample_file.file_id)]))
 
         # Commit changes via EditManager (this will emit the commit_requested signal)
         window.edit_manager.commit_changes()
 
         # Verify save was called with correct changes
-        mock_save.assert_called_once_with(commit_data[sample_file.file_id])
+        mock_save.assert_called_once_with(commit_data[str(sample_file.file_id)])

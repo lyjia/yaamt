@@ -547,7 +547,7 @@ class TestEditManager:
         assert len(emitted_data) == 1
         commit_data = emitted_data[0]
 
-        assert self.dummy_media_file.file_id in commit_data
-        assert commit_data[self.dummy_media_file.file_id]['generic_tags']['title'] == 'Test Title'
-        assert commit_data[self.dummy_media_file.file_id]['internal_tags']['TIT2']['value'] == 'Internal Title'
-        assert commit_data[self.dummy_media_file.file_id]['internal_tags']['TIT2']['provider'] is mock_provider
+        assert str(self.dummy_media_file.file_id) in commit_data
+        assert commit_data[str(self.dummy_media_file.file_id)]['generic_tags']['title'] == 'Test Title'
+        assert commit_data[str(self.dummy_media_file.file_id)]['internal_tags']['TIT2']['value'] == 'Internal Title'
+        assert commit_data[str(self.dummy_media_file.file_id)]['internal_tags']['TIT2']['provider'] is mock_provider
