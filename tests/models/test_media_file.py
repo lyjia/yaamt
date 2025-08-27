@@ -92,13 +92,14 @@ def test_write_tags(media_path, tmp_path):
 
     # Stage the new tags using EditManager
     edit_manager = EditManager()
+    edit_manager.register_media_files([media_file])
     for key, value in new_tags.items():
-        edit_manager.stage_change([str(temp_media_path)], key, value)
+        edit_manager.stage_change([media_file], key, value)
 
     # Connect to the commit signal to handle saving
     def handle_commit(commit_data):
-        if str(temp_media_path) in commit_data:
-            changes = commit_data[str(temp_media_path)]
+        if media_file.file_path in commit_data:
+            changes = commit_data[media_file.file_path]
             media_file.save(changes)
 
     edit_manager.commit_requested.connect(handle_commit)
@@ -140,9 +141,10 @@ def test_write_permissions_error(tmp_path):
         # Attempt to create a MediaFile instance with write enabled
         mf = MediaFile(str(temp_media_path), enable_write=True)
         edit_manager = EditManager()
+        edit_manager.register_media_files([mf])
         with pytest.raises(PermissionError):
             # Try to stage a change and commit it
-            edit_manager.stage_change([str(temp_media_path)], KEY_TITLE, "New Title")
+            edit_manager.stage_change([mf], KEY_TITLE, "New Title")
             # This should raise PermissionError when trying to save
             mf.save({'generic_tags': {KEY_TITLE: "New Title"}})
 
@@ -162,6 +164,7 @@ def test_edit_manager_integration(tmp_path):
     # Create a MediaFile instance for the temporary file.
     media_file = MediaFile(str(temp_media_path), enable_write=True)
     edit_manager = EditManager()
+    edit_manager.register_media_files([media_file])
 
     # Reset EditManager to ensure clean state
     edit_manager.reset_changes()
@@ -177,19 +180,19 @@ def test_edit_manager_integration(tmp_path):
     }
 
     for key, value in test_changes.items():
-        edit_manager.stage_change([str(temp_media_path)], key, value)
+        edit_manager.stage_change([media_file], key, value)
 
     # Verify changes are staged
     assert edit_manager.has_staged_changes()
 
     # Verify staged values are returned correctly
     for key, value in test_changes.items():
-        assert edit_manager.get_staged_value(str(temp_media_path), key) == value
+        assert edit_manager.get_staged_value(media_file, key) == value
 
     # Connect to the commit signal to handle saving
     def handle_commit(commit_data):
-        if str(temp_media_path) in commit_data:
-            changes = commit_data[str(temp_media_path)]
+        if media_file.file_path in commit_data:
+            changes = commit_data[media_file.file_path]
             media_file.save(changes)
 
     edit_manager.commit_requested.connect(handle_commit)

@@ -2,6 +2,7 @@ import os
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from models.settings import ColumnSettings
 from models.media_file import MediaFile
+from models.edit_manager import EditManager
 
 from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
@@ -99,31 +100,30 @@ class MetadataTableModel(QAbstractTableModel):
         self._data.sort(key=lambda x: x.get(column_settings.id, ""), reverse=order == Qt.SortOrder.DescendingOrder)
         self.layoutChanged.emit()
 
-    def refresh_files(self, file_paths):
+    def refresh_files(self, file_ids: list[str], edit_manager: EditManager):
         """
         Refresh the metadata for specific files in the model.
 
         Args:
-            file_paths: List of file paths to refresh
+            file_ids: List of file ids to refresh
+            edit_manager: The EditManager instance
         """
         updated_rows = []
         for row_index, row_data in enumerate(self._data):
-            file_path = row_data.get(KEY_FILE_PATH)
-            if file_path in file_paths:
-                # Reload metadata for this file using the same structure as MetadataLoader
-                media_file = MediaFile(file_path)
-                mf_size = media_file.get_internal_data(KEY_FILE_SIZE)
-                mf_ctime = media_file.get_internal_data(KEY_FILE_CTIME)
-                mf_mtime = media_file.get_internal_data(KEY_FILE_MTIME)
-                mf_type = media_file.get_internal_data(KEY_FILE_TYPE)
+            file_id = row_data.get("file_id") # Assuming file_id is stored in the row_data
+            if file_id in file_ids:
+                media_file = edit_manager._media_files.get(file_id)
+                if not media_file:
+                    continue
 
+                # Re-fetch metadata from the MediaFile object
                 new_metadata = {
                     # fs attributes
-                    KEY_FILE_PATH: file_path,
-                    KEY_FILE_SIZE: mf_size,
-                    KEY_FILE_MTIME: mf_mtime,
-                    KEY_FILE_CTIME: mf_ctime,
-                    KEY_FILE_TYPE: mf_type,
+                    KEY_FILE_PATH: media_file.file_path,
+                    KEY_FILE_SIZE: media_file.get_internal_data(KEY_FILE_SIZE),
+                    KEY_FILE_MTIME: media_file.get_internal_data(KEY_FILE_MTIME),
+                    KEY_FILE_CTIME: media_file.get_internal_data(KEY_FILE_CTIME),
+                    KEY_FILE_TYPE: media_file.get_internal_data(KEY_FILE_TYPE),
                     KEY_FILE_TYPE_HUMAN: media_file.get_stream_info_value(KEY_FORMAT),
 
                     # tag attributes
@@ -135,7 +135,8 @@ class MetadataTableModel(QAbstractTableModel):
                     KEY_MUSICAL_KEY: media_file.get_tag_simple(KEY_MUSICAL_KEY),
 
                     # internal
-                    KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA)
+                    KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA),
+                    "file_id": media_file.file_id
                 }
                 # Update the row data with new metadata
                 self._data[row_index] = new_metadata

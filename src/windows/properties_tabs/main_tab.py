@@ -11,7 +11,6 @@ class MainTab(QWidget):
         super().__init__(parent)
         self.media_files = media_files
         self.edit_manager = edit_manager
-        self.file_paths = [mf.file_path for mf in self.media_files]
 
         layout = QFormLayout(self)
 
@@ -76,10 +75,10 @@ class MainTab(QWidget):
         self.key_edit.editingFinished.connect(lambda: self._on_edited(KEY_MUSICAL_KEY, self.key_edit.text()))
 
     def _on_edited(self, generic_tag_name, new_value):
-        self.edit_manager.stage_change(self.file_paths, generic_tag_name, new_value)
+        self.edit_manager.stage_change(self.media_files, generic_tag_name, new_value)
 
     def _get_display_value(self, tag_name):
-        staged_value = self.edit_manager.get_staged_value(self.file_paths[0], tag_name)
+        staged_value = self.edit_manager.get_staged_value(self.media_files[0], tag_name)
         if staged_value is not None:
             return staged_value
 

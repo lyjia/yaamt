@@ -1,5 +1,6 @@
 from PySide6.QtCore import QObject, Signal
 from typing import Dict, List, Any, Optional
+from models.media_file import MediaFile
 from models.tag_info import TagInfo
 
 class EditManager(QObject):
@@ -12,7 +13,7 @@ class EditManager(QObject):
     staged_changes_exist = Signal(bool)
     autosave_changed = Signal(bool)
     commit_requested = Signal(dict)  # Signal with provider context for committing changes
-    commit_successful = Signal(list)  # Signal emitted when commit is successful, with list of file paths
+    commit_successful = Signal(list)  # Signal emitted when commit is successful, with list of file ids
 
     _instance = None
 
@@ -26,8 +27,9 @@ class EditManager(QObject):
         if self._initialized:
             return
         super().__init__()
-        # Structure: {file_path: {'generic_tags': {tag: value}, 'internal_tags': {tag: {'value': value, 'provider': provider}}}}
+        # Structure: {file_id: {'generic_tags': {tag: value}, 'internal_tags': {tag: {'value': value, 'provider': provider}}}}
         self._staged_changes: Dict[str, Dict[str, Dict]] = {}
+        self._media_files: Dict[str, MediaFile] = {}
         self._autosave = False
         self._initialized = True
 
@@ -41,20 +43,26 @@ class EditManager(QObject):
             self._autosave = value
             self.autosave_changed.emit(self._autosave)
 
-    def stage_change(self, file_paths: List[str], tag: str, value: Any, is_internal_tag: bool = False, provider = None):
+    def register_media_files(self, media_files: List[MediaFile]):
+        for media_file in media_files:
+            if media_file.file_id not in self._media_files:
+                self._media_files[media_file.file_id] = media_file
+
+    def stage_change(self, media_files: List[MediaFile], tag: str, value: Any, is_internal_tag: bool = False, provider = None):
         """
         Stage a change for one or more files.
 
         Args:
-            file_paths: List of file paths to apply the change to
+            media_files: List of MediaFile objects to apply the change to
             tag: The tag name (generic or internal)
             value: The new value for the tag
             is_internal_tag: Whether the tag is an internal tag name
             provider: The provider instance for internal tags (required if is_internal_tag=True)
         """
-        for file_path in file_paths:
-            if file_path not in self._staged_changes:
-                self._staged_changes[file_path] = {
+        for media_file in media_files:
+            file_id = media_file.file_id
+            if file_id not in self._staged_changes:
+                self._staged_changes[file_id] = {
                     'generic_tags': {},
                     'internal_tags': {}
                 }
@@ -63,13 +71,13 @@ class EditManager(QObject):
                 # For internal tags, store with provider context
                 if provider is None:
                     raise ValueError(f"Provider must be specified for internal tag '{tag}'")
-                self._staged_changes[file_path]['internal_tags'][tag] = {
+                self._staged_changes[file_id]['internal_tags'][tag] = {
                     'value': value,
                     'provider': provider
                 }
             else:
                 # For generic tags, store directly
-                self._staged_changes[file_path]['generic_tags'][tag] = value
+                self._staged_changes[file_id]['generic_tags'][tag] = value
 
         self.staged_changes_exist.emit(self.has_staged_changes())
 
@@ -87,15 +95,19 @@ class EditManager(QObject):
 
         # Prepare commit data with provider context
         commit_data = {}
-        for file_path, changes in self._staged_changes.items():
-            commit_data[file_path] = {
+        for file_id, changes in self._staged_changes.items():
+            media_file = self._media_files.get(file_id)
+            if not media_file:
+                continue # Or handle error
+
+            commit_data[media_file.file_id] = {
                 'generic_tags': changes['generic_tags'].copy(),
                 'internal_tags': {}
             }
 
             # Process internal tags with provider context
             for internal_tag, tag_data in changes['internal_tags'].items():
-                commit_data[file_path]['internal_tags'][internal_tag] = {
+                commit_data[media_file.file_id]['internal_tags'][internal_tag] = {
                     'value': tag_data['value'],
                     'provider': tag_data['provider']
                 }
@@ -122,49 +134,50 @@ class EditManager(QObject):
                 return True
         return False
 
-    def emit_commit_successful(self, file_paths: List[str]):
+    def emit_commit_successful(self, media_files: List[MediaFile]):
         """
-        Emit the commit_successful signal with the list of successfully updated file paths.
+        Emit the commit_successful signal with the list of successfully updated file ids.
 
         Args:
-            file_paths: List of file paths that were successfully updated
+            media_files: List of MediaFile objects that were successfully updated
         """
-        self.commit_successful.emit(file_paths)
+        self.commit_successful.emit([media_file.file_id for media_file in media_files])
 
-    def get_staged_value(self, file_path: str, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
+    def get_staged_value(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
         """
         Get the staged value for a specific tag in a file.
 
         Args:
-            file_path: The file path to check
+            media_file: The MediaFile object to check
             tag: The tag name to look for
             is_internal_tag: Whether the tag is an internal tag name
 
         Returns:
             The staged value if found, None otherwise
         """
-        if file_path not in self._staged_changes:
+        file_id = media_file.file_id
+        if file_id not in self._staged_changes:
             return None
 
         if is_internal_tag:
-            internal_changes = self._staged_changes[file_path]['internal_tags']
+            internal_changes = self._staged_changes[file_id]['internal_tags']
             if tag in internal_changes:
                 return internal_changes[tag]['value']
         else:
-            generic_changes = self._staged_changes[file_path]['generic_tags']
+            generic_changes = self._staged_changes[file_id]['generic_tags']
             if tag in generic_changes:
                 return generic_changes[tag]
 
         return None
 
-    def get_staged_changes_for_file(self, file_path: str) -> Dict[str, Dict]:
+    def get_staged_changes_for_file(self, media_file: MediaFile) -> Dict[str, Dict]:
         """
         Get all staged changes for a specific file.
 
         Args:
-            file_path: The file path to get changes for
+            media_file: The MediaFile object to get changes for
 
         Returns:
             Dictionary with 'generic_tags' and 'internal_tags' keys
         """
-        return self._staged_changes.get(file_path, {'generic_tags': {}, 'internal_tags': {}})
+        return self._staged_changes.get(media_file.file_id, {'generic_tags': {}, 'internal_tags': {}})

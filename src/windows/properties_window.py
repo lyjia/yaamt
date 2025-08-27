@@ -20,12 +20,12 @@ import windows.__resources_rc
 
 
 class PropertiesWindow(QMainWindow):
-    def __init__(self, media_files, parent=None):
+    def __init__(self, media_files: list, parent=None):
         super().__init__(parent)
 
         self.media_files = media_files
         self.edit_manager = EditManager()
-
+        self.edit_manager.register_media_files(self.media_files)
         if len(self.media_files) == 1:
             self.setWindowTitle(f"Properties for {os.path.basename(self.media_files[0].file_path)}")
         else:
@@ -87,12 +87,15 @@ class PropertiesWindow(QMainWindow):
         self.spinner.setMovie(movie)
         movie.start()
 
+        # Replace OK and Close buttons with spinner and status label
+        self.bottom_layout.itemAt(self.bottom_layout.indexOf(self.ok_button)).widget().hide()
+        self.bottom_layout.itemAt(self.bottom_layout.indexOf(self.close_button)).widget().hide()
         self.bottom_layout.insertWidget(2, self.spinner)
         self.bottom_layout.insertWidget(3, self.status_label)
 
         self.edit_manager.commit_changes()
 
-    def on_save_finished(self, file_paths):
+    def on_save_finished(self, file_ids):
         self.spinner.hide()
         self.status_label.hide()
         self.close()

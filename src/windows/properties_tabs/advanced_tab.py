@@ -9,7 +9,6 @@ class AdvancedTab(QWidget):
         super().__init__(parent)
         self.media_files = media_files
         self.edit_manager = edit_manager
-        self.file_paths = [mf.file_path for mf in self.media_files]
 
         layout = QVBoxLayout(self)
         self.tree = QTreeWidget()
@@ -52,7 +51,7 @@ class AdvancedTab(QWidget):
                 value = tag_info.get("value")
                 is_binary = isinstance(value, bytes)
 
-                staged_value = self.edit_manager.get_staged_value(self.file_paths[0], tag_name, is_internal_tag=True)
+                staged_value = self.edit_manager.get_staged_value(self.media_files[0], tag_name, is_internal_tag=True)
                 is_staged = staged_value is not None
 
                 display_value = str(staged_value) if is_staged else self._format_value(value)
@@ -88,7 +87,7 @@ class AdvancedTab(QWidget):
 
             provider = self._get_provider_for_tag(tag_name)
             if provider:
-                self.edit_manager.stage_change(self.file_paths, tag_name, new_value, is_internal_tag=True, provider=provider)
+                self.edit_manager.stage_change(self.media_files, tag_name, new_value, is_internal_tag=True, provider=provider)
                 font = item.font(1)
                 font.setBold(True)
                 item.setFont(1, font)
@@ -98,7 +97,11 @@ class AdvancedTab(QWidget):
         if self.media_files:
             metadata = self.media_files[0].metadata
             if KEY_TAGS in metadata and tag_name in metadata[KEY_TAGS]:
-                return metadata[KEY_TAGS][tag_name].get("provider")
+                provider_class_name = metadata[KEY_TAGS][tag_name].get("provider")
+                # Find the provider instance in the media_file's providers
+                for provider in self.media_files[0]._providers:
+                    if provider.__class__.__name__ == provider_class_name:
+                        return provider
         return None
 
     def _add_revert_button(self, item, tag_name):
@@ -112,6 +115,6 @@ class AdvancedTab(QWidget):
         original_value = self.media_files[0].get_tag_simple(tag_name, is_internal_tag_key=True)
         provider = self._get_provider_for_tag(tag_name)
         if provider:
-            self.edit_manager.stage_change(self.file_paths, tag_name, original_value, is_internal_tag=True, provider=provider)
+            self.edit_manager.stage_change(self.media_files, tag_name, original_value, is_internal_tag=True, provider=provider)
         self.refresh()
         self.tree.blockSignals(False)

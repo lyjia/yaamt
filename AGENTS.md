@@ -44,7 +44,7 @@ This project implements an audio file metadata manager, through a few primary co
 * All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
 * All other changes should have test coverage where appropriate and reasonable. 
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
-* Logging should be done using `log`, which is provided by `util.logging`.
+* Logging should be done using `log`, which is provided by `util.logging`. 
 
 ## AI-specific instructions
 

@@ -4,7 +4,6 @@ from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, 
     KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE
 from providers.metadata.mutagen_provider import MutagenProvider
-from models.edit_manager import EditManager
 from util.logging import log
 
 
@@ -38,6 +37,7 @@ class MediaFile:
     """
     def __init__(self, file_path: str, enable_write=False):
         self._file_path = os.path.abspath(file_path)
+        self._file_id = hash(self._file_path)
         self._file_name = os.path.basename(file_path)
         self._providers = self._get_providers_for_file()
         self._write_enabled = enable_write
@@ -242,6 +242,10 @@ class MediaFile:
     @property
     def file_path(self):
         return self._file_path
+
+    @property
+    def file_id(self):
+        return self._file_id
 
     def get_internal_tag_name_for_generic(self, generic_tag_name):
         return self._generic_to_internal_map.get(generic_tag_name)

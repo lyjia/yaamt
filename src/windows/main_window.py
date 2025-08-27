@@ -306,14 +306,14 @@ class MainWindow(QMainWindow):
 
         self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
 
-    def on_commit_successful(self, file_paths):
+    def on_commit_successful(self, file_ids):
         """
         Slot called when commit is successful. Refreshes the model for the updated files.
 
         Args:
-            file_paths: List of file paths that were successfully updated
+            file_ids: List of file ids that were successfully updated
         """
-        self.file_model.refresh_files(file_paths)
+        self.file_model.refresh_files(file_ids, self.edit_manager)
 
     def _reset_column_settings(self):
         self.file_list_settings = FileListSettings()
