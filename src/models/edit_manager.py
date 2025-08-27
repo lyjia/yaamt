@@ -1,8 +1,10 @@
+import threading
+
 from PySide6.QtCore import QObject, Signal
 from typing import Dict, List, Any, Optional
 from models.media_file import MediaFile
 from models.tag_info import TagInfo
-from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL
+from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_VALUE, KEY_PROVIDER
 from util.logging import log
 
 
@@ -19,6 +21,7 @@ class EditManager(QObject):
     commit_successful = Signal(list)  # Signal emitted when commit is successful, with list of file ids
 
     _instance = None
+    _write_lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -62,66 +65,68 @@ class EditManager(QObject):
             is_internal_tag: Whether the tag is an internal tag name
             provider: The provider instance for internal tags (required if is_internal_tag=True)
         """
-        for media_file in media_files:
-            file_id = media_file.file_id
-            if file_id not in self._staged_changes:
-                self._staged_changes[file_id] = {
-                    KEY_TAG_GENERIC: {},
-                    KEY_TAG_INTERNAL: {}
-                }
+        with self._write_lock:
+            for media_file in media_files:
+                file_id = media_file.file_id
+                if file_id not in self._staged_changes:
+                    self._staged_changes[file_id] = {
+                        KEY_TAG_GENERIC: {},
+                        KEY_TAG_INTERNAL: {}
+                    }
 
-            if is_internal_tag:
-                # For internal tags, store with provider context
-                if provider is None:
-                    raise ValueError(f"Provider must be specified for internal tag '{tag}'")
-                self._staged_changes[file_id][KEY_TAG_INTERNAL][tag] = {
-                    KEY_VALUE: value,
-                    KEY_PROVIDER: provider
-                }
-            else:
-                # For generic tags, store directly
-                self._staged_changes[file_id][KEY_TAG_GENERIC][tag] = value
+                if is_internal_tag:
+                    # For internal tags, store with provider context
+                    if provider is None:
+                        raise ValueError(f"Provider must be specified for internal tag '{tag}'")
+                    self._staged_changes[file_id][KEY_TAG_INTERNAL][tag] = {
+                        KEY_VALUE: value,
+                        KEY_PROVIDER: provider
+                    }
+                else:
+                    # For generic tags, store directly
+                    self._staged_changes[file_id][KEY_TAG_GENERIC][tag] = value
 
-        self.staged_changes_exist.emit(self.has_staged_changes())
+            self.staged_changes_exist.emit(self.has_staged_changes())
 
     def commit_changes(self):
         """
         Commit all staged changes to the files by emitting the commit_requested signal
         with provider context for each change.
         """
-        if not self.has_staged_changes():
-            # Emit signal with empty data to indicate commit operation completed
-            self.commit_requested.emit({})
-            # Emit staged_changes_exist signal to indicate no changes exist
-            self.staged_changes_exist.emit(False)
-            return
+        with self._write_lock:
+            if not self.has_staged_changes():
+                # Emit signal with empty data to indicate commit operation completed
+                self.commit_requested.emit({})
+                # Emit staged_changes_exist signal to indicate no changes exist
+                self.staged_changes_exist.emit(False)
+                return
 
-        # Prepare commit data with provider context
-        commit_data = {}
-        for file_id, changes in self._staged_changes.items():
-            media_file = self._media_files.get(file_id)
-            if not media_file:
-                continue # Or handle error
+            # Prepare commit data with provider context
+            commit_data = {}
+            for file_id, changes in self._staged_changes.items():
+                media_file = self._media_files.get(file_id)
+                if not media_file:
+                    continue # Or handle error
 
-            commit_data[str(media_file.file_id)] = {
-                KEY_TAG_GENERIC: changes[KEY_TAG_GENERIC].copy(),
-                KEY_TAG_INTERNAL: {}
-            }
-
-            # Process internal tags with provider context
-            for internal_tag, tag_data in changes[KEY_TAG_INTERNAL].items():
-                commit_data[str(media_file.file_id)][KEY_TAG_INTERNAL][internal_tag] = {
-                    KEY_VALUE: tag_data[KEY_VALUE],
-                    KEY_PROVIDER: tag_data[KEY_PROVIDER]
+                commit_data[str(media_file.file_id)] = {
+                    KEY_TAG_GENERIC: changes[KEY_TAG_GENERIC].copy(), #TODO: is .copy() necessary?
+                    KEY_TAG_INTERNAL: {}
                 }
 
+                # Process internal tags with provider context
+                for internal_tag, tag_data in changes[KEY_TAG_INTERNAL].items():
+                    commit_data[str(media_file.file_id)][KEY_TAG_INTERNAL][internal_tag] = {
+                        KEY_VALUE: tag_data[KEY_VALUE],
+                        KEY_PROVIDER: tag_data[KEY_PROVIDER]
+                    }
+
         # Emit signal with the commit data
-        self.commit_requested.emit(commit_data.copy())
+        self.commit_requested.emit(commit_data.copy()) #TODO: is .copy() necessary?
 
         # Clear staged changes after emitting signal
         self.reset_changes()
 
-        
+
 
     def reset_changes(self):
         """
