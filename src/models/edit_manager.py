@@ -96,14 +96,19 @@ class EditManager(QObject):
         # Prepare commit data with provider context
         commit_data = {}
         for file_id, changes in self._staged_changes.items():
+            print(f"Processing file_id: {file_id}")
             media_file = self._media_files.get(file_id)
+            print(f"media_file: {media_file}")
+            print(f"changes: {changes}")
             if not media_file:
+                print(f"Media file not found for file_id: {file_id}")
                 continue # Or handle error
 
             commit_data[media_file.file_id] = {
                 'generic_tags': changes['generic_tags'].copy(),
                 'internal_tags': {}
             }
+            print(f"commit_data after generic tags: {commit_data}")
 
             # Process internal tags with provider context
             for internal_tag, tag_data in changes['internal_tags'].items():
@@ -113,10 +118,12 @@ class EditManager(QObject):
                 }
 
         # Emit signal with the commit data
-        self.commit_requested.emit(commit_data)
+        self.commit_requested.emit(commit_data.copy())
 
         # Clear staged changes after emitting signal
         self.reset_changes()
+
+        
 
     def reset_changes(self):
         """

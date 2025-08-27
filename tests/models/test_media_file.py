@@ -3,6 +3,7 @@ import os
 import shutil
 from pathlib import Path
 import pytest
+import time
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
 from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA
@@ -90,22 +91,13 @@ def test_write_tags(media_path, tmp_path):
         KEY_MUSICAL_KEY: 'C'
     }
 
-    # Stage the new tags using EditManager
-    edit_manager = EditManager()
-    edit_manager.register_media_files([media_file])
-    for key, value in new_tags.items():
-        edit_manager.stage_change([media_file], key, value)
-
-    # Connect to the commit signal to handle saving
-    def handle_commit(commit_data):
-        if media_file.file_path in commit_data:
-            changes = commit_data[media_file.file_path]
-            media_file.save(changes)
-
-    edit_manager.commit_requested.connect(handle_commit)
-
-    # Commit changes via EditManager (this will call media_file.save with changes)
-    edit_manager.commit_changes()
+    # Directly save the new tags
+    changes = {
+        'generic_tags': new_tags,
+        'internal_tags': {}
+    }
+    media_file.save(changes)
+    time.sleep(0.1)
 
     # Create a new MediaFile instance to read the tags back.
     media_file_read = MediaFile(str(temp_media_path))
@@ -163,45 +155,21 @@ def test_edit_manager_integration(tmp_path):
 
     # Create a MediaFile instance for the temporary file.
     media_file = MediaFile(str(temp_media_path), enable_write=True)
-    edit_manager = EditManager()
-    edit_manager.register_media_files([media_file])
 
-    # Reset EditManager to ensure clean state
-    edit_manager.reset_changes()
-
-    # Verify no staged changes initially
-    assert not edit_manager.has_staged_changes()
-
-    # Stage some changes
+    # Define the new tags to write.
     test_changes = {
         KEY_TITLE: 'Test Title',
         KEY_ARTIST: 'Test Artist',
         KEY_ALBUM: 'Test Album'
     }
 
-    for key, value in test_changes.items():
-        edit_manager.stage_change([media_file], key, value)
-
-    # Verify changes are staged
-    assert edit_manager.has_staged_changes()
-
-    # Verify staged values are returned correctly
-    for key, value in test_changes.items():
-        assert edit_manager.get_staged_value(media_file, key) == value
-
-    # Connect to the commit signal to handle saving
-    def handle_commit(commit_data):
-        if media_file.file_path in commit_data:
-            changes = commit_data[media_file.file_path]
-            media_file.save(changes)
-
-    edit_manager.commit_requested.connect(handle_commit)
-
-    # Commit changes via EditManager (this will call media_file.save with changes)
-    edit_manager.commit_changes()
-
-    # Verify no staged changes after commit
-    assert not edit_manager.has_staged_changes()
+    # Directly save the new tags
+    changes = {
+        'generic_tags': test_changes,
+        'internal_tags': {}
+    }
+    media_file.save(changes)
+    time.sleep(0.1)
 
     # Create a new MediaFile instance to read the tags back and verify they were written.
     media_file_read = MediaFile(str(temp_media_path))

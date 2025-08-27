@@ -4,6 +4,9 @@ import pytest
 from unittest.mock import Mock, patch
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
+from pathlib import Path
+import shutil
+from util.const import PROJECT_ROOT
 
 from windows.properties_window import PropertiesWindow
 from models.media_file import MediaFile
@@ -18,11 +21,9 @@ def qapp():
 @pytest.fixture
 def sample_file(tmp_path):
     """Create a temporary audio file for testing."""
-    temp_file = tmp_path / "test.mp3"
-    # Create a minimal MP3 file for testing
-    with open(temp_file, 'wb') as f:
-        # Write minimal MP3 header (this is a simplified version)
-        f.write(b'\xFF\xFB\x00\x00')  # MP3 frame sync
+    source_file = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "sample_dtmf_unicode.mp3"
+    temp_file = tmp_path / source_file.name
+    shutil.copy(source_file, temp_file)
     return MediaFile(str(temp_file), enable_write=True)
 
 def test_properties_window_initialization(qapp, sample_file):
@@ -107,18 +108,18 @@ def test_commit_request_handling(qapp, sample_file):
 
     # Mock the save method to avoid actual file I/O
     with patch.object(sample_file, 'save') as mock_save:
-        # Simulate commit request - use the window's file_path to ensure exact match
+        # Simulate commit request - use the window's file_id to ensure exact match
         commit_data = {
-            sample_file.file_path: {
+            sample_file.file_id: {
                 'generic_tags': {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
                 'internal_tags': {}
             }
         }
         # Connect the handle_commit function to the commit_requested signal
-        window.edit_manager.commit_requested.connect(lambda data: sample_file.save(data[sample_file.file_path]))
+        window.edit_manager.commit_requested.connect(lambda data: sample_file.save(data[sample_file.file_id]))
 
         # Commit changes via EditManager (this will emit the commit_requested signal)
         window.edit_manager.commit_changes()
 
         # Verify save was called with correct changes
-        mock_save.assert_called_once_with(commit_data[sample_file.file_path])
+        mock_save.assert_called_once_with(commit_data[sample_file.file_id])

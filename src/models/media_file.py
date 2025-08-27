@@ -168,6 +168,7 @@ class MediaFile:
         return self._combined_metadata[KEY_INTERNAL].get(key)
 
     def save(self, changes=None):
+        print(f"MediaFile.save called for {self._file_path} with changes: {changes}")
         if not self._write_enabled:
             raise PermissionError("Write is not enabled for this file.")
 
@@ -181,16 +182,19 @@ class MediaFile:
             internal_tag = self._generic_to_internal_map.get(tag, tag)
             if internal_tag in self._tag_writers[KEY_TAGS]:
                 provider = self._tag_writers[KEY_TAGS][internal_tag][0]
+                print(f"  Calling provider.set_tag for {internal_tag}: {value}")
                 provider.set_tag(internal_tag, [value])
                 modified_providers.add(provider)
 
         # Process internal tag changes
         for tag, tag_data in changes.get('internal_tags', {}).items():
             provider = tag_data['provider']
+            print(f"  Calling provider.set_tag for internal tag {tag}: {tag_data['value']}")
             provider.set_tag(tag, [tag_data['value']])
             modified_providers.add(provider)
 
         for provider in modified_providers:
+            print(f"  Calling provider.save() for {provider.__class__.__name__}")
             provider.save()
 
         # Clear the cache for the tags that were changed
@@ -202,6 +206,7 @@ class MediaFile:
         for tag in changes.get('internal_tags', {}).keys():
             if tag in self._combined_metadata[KEY_TAGS]:
                 del self._combined_metadata[KEY_TAGS][tag]
+        print(f"MediaFile.save completed for {self._file_path}")
 
 
     def to_dict(self):
