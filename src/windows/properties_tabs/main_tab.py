@@ -7,10 +7,10 @@ from util.const import (
 )
 
 class MainTab(QWidget):
-    def __init__(self, media_files, parent=None):
+    def __init__(self, media_files, edit_manager, parent=None):
         super().__init__(parent)
         self.media_files = media_files
-        self.edit_manager = EditManager()
+        self.edit_manager = edit_manager
         self.file_paths = [mf.file_path for mf in self.media_files]
 
         layout = QFormLayout(self)
@@ -79,7 +79,7 @@ class MainTab(QWidget):
         self.edit_manager.stage_change(self.file_paths, generic_tag_name, new_value)
 
     def _get_display_value(self, tag_name):
-        staged_value = self.edit_manager.get_staged_value(self.file_paths, tag_name)
+        staged_value = self.edit_manager.get_staged_value(self.file_paths[0], tag_name)
         if staged_value is not None:
             return staged_value
 

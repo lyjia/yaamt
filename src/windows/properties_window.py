@@ -19,22 +19,6 @@ from windows.properties_tabs.artwork_tab import ArtworkTab
 import windows.__resources_rc
 
 
-class SaveWorker(QThread):
-    finished = Signal(list)
-
-    def __init__(self, media_files, changes=None):
-        super().__init__()
-        self.media_files = media_files
-        self.changes = changes
-
-    def run(self):
-        file_paths = [mf.file_path for mf in self.media_files]
-        for media_file in self.media_files:
-            if media_file.file_path in self.changes:
-                media_file.save(self.changes[media_file.file_path])
-        self.finished.emit(file_paths)
-
-
 class PropertiesWindow(QMainWindow):
     def __init__(self, media_files, parent=None):
         super().__init__(parent)
@@ -59,19 +43,20 @@ class PropertiesWindow(QMainWindow):
         main_layout.addWidget(self.tab_widget)
 
         # Create and set up tabs
-        self.main_tab = MainTab(self.media_files)
+        self.main_tab = MainTab(self.media_files, self.edit_manager)
         self.artwork_tab = ArtworkTab(self.media_files)
         self.tab_widget.addTab(self.main_tab, "Main")
         self.tab_widget.addTab(self.artwork_tab, "Artwork")
 
         if len(self.media_files) == 1:
             self.details_tab = DetailsTab(self.media_files)
-            self.advanced_tab = AdvancedTab(self.media_files)
+            self.advanced_tab = AdvancedTab(self.media_files, self.edit_manager)
             self.tab_widget.addTab(self.details_tab, "Details")
             self.tab_widget.addTab(self.advanced_tab, "Advanced")
 
         # Connect to EditManager signals
         self.edit_manager.staged_changes_exist.connect(self.on_staged_changes_changed)
+        self.edit_manager.commit_successful.connect(self.on_save_finished)
 
         # Bottom button layout
         self.bottom_layout = QHBoxLayout()
@@ -110,7 +95,6 @@ class PropertiesWindow(QMainWindow):
     def on_save_finished(self, file_paths):
         self.spinner.hide()
         self.status_label.hide()
-        self.edit_manager.emit_commit_successful(file_paths)
         self.close()
 
     def on_staged_changes_changed(self, has_changes):

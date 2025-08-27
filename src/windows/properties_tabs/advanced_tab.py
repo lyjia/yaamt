@@ -5,10 +5,10 @@ from models.edit_manager import EditManager
 from util.const import KEY_TAGS
 
 class AdvancedTab(QWidget):
-    def __init__(self, media_files, parent=None):
+    def __init__(self, media_files, edit_manager, parent=None):
         super().__init__(parent)
         self.media_files = media_files
-        self.edit_manager = EditManager()
+        self.edit_manager = edit_manager
         self.file_paths = [mf.file_path for mf in self.media_files]
 
         layout = QVBoxLayout(self)
@@ -52,7 +52,7 @@ class AdvancedTab(QWidget):
                 value = tag_info.get("value")
                 is_binary = isinstance(value, bytes)
 
-                staged_value = self.edit_manager.get_staged_value(self.file_paths, tag_name, is_internal_tag=True)
+                staged_value = self.edit_manager.get_staged_value(self.file_paths[0], tag_name, is_internal_tag=True)
                 is_staged = staged_value is not None
 
                 display_value = str(staged_value) if is_staged else self._format_value(value)
