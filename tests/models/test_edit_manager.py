@@ -532,9 +532,9 @@ class TestEditManager:
         mock_provider = Mock()
         self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Internal Title', is_internal_tag=True, provider=mock_provider)
 
-        print(f"dummy_media_file.file_id: {self.dummy_media_file.file_id}")
-        print(f"_staged_changes: {self.edit_manager._staged_changes}")
-        print(f"_media_files: {self.edit_manager._media_files}")
+        log.debug(f"dummy_media_file.file_id: {self.dummy_media_file.file_id}")
+        log.debug(f"_staged_changes: {self.edit_manager._staged_changes}")
+        log.debug(f"_media_files: {self.edit_manager._media_files}")
 
         # Create a list to capture emitted data
         emitted_data = []

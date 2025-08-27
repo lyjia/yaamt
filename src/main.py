@@ -26,7 +26,7 @@ def main():
     args = parser.parse_args()
 
     if not args.file_path:
-        print("For the GUI, run: python src/gui.py")
+        log.debug("For the GUI, run: python src/gui.py")
         parser.print_help()
         sys.exit(0)
 
@@ -35,9 +35,9 @@ def main():
 
         if not media_file.is_readable():
             if args.json:
-                print(json.dumps({"error": "File is not readable"}, indent=4))
+                log.debug(json.dumps({"error": "File is not readable"}, indent=4))
             else:
-                print(f"Error: File is not readable: {args.file_path}", file=sys.stderr)
+                log.debug(f"Error: File is not readable: {args.file_path}", file=sys.stderr)
             sys.exit(SYS_RETURN_FILE_INVALID)
         
         write_ops = []
@@ -61,56 +61,56 @@ def main():
         if write_ops:
             media_file.save()
             if not args.json:
-                print(f"Successfully updated {', '.join(write_ops)} for {args.file_path}")
+                log.debug(f"Successfully updated {', '.join(write_ops)} for {args.file_path}")
 
         if args.json:
-            print(json.dumps(media_file.to_dict(), indent=4))
+            log.debug(json.dumps(media_file.to_dict(), indent=4))
 
         elif not write_ops:
-            print(f"Metadata for: {args.file_path}")
+            log.debug(f"Metadata for: {args.file_path}")
             
             # Print all available tags
-            print("\nTags:")
+            log.debug("\nTags:")
             if media_file._tag_provider_lookup['tags']:
                 for key in sorted(media_file._tag_provider_lookup['tags'].keys()):
                     value = media_file.get_tag_simple(key)
                     if value:
-                        print(f"  {key}: {value}")
+                        log.debug(f"  {key}: {value}")
             else:
-                print("  No tags found.")
+                log.debug("  No tags found.")
 
             # Print all available stream info
-            print("\nStream Info:")
+            log.debug("\nStream Info:")
             if media_file._tag_provider_lookup['stream_info']:
                 for key in sorted(media_file._tag_provider_lookup['stream_info'].keys()):
                     value = media_file.get_stream_info_value(key)
                     if value:
-                        print(f"  {key}: {value}")
+                        log.debug(f"  {key}: {value}")
             else:
-                print("  No stream info found.")
+                log.debug("  No stream info found.")
 
             # Print all internal data
-            print("\nInternal Info:")
+            log.debug("\nInternal Info:")
             if media_file._combined_metadata['internal']:
                 for key, value in sorted(media_file._combined_metadata['internal'].items()):
                     if value:
-                        print(f"  {key}: {value}")
+                        log.debug(f"  {key}: {value}")
             else:
-                print("  No internal info found.")
+                log.debug("  No internal info found.")
 
     except FileNotFoundError:
         if args.json:
-            print(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
+            log.debug(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
         else:
             traceback.print_exc()
-            print(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
+            log.debug(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
         sys.exit(SYS_RETURN_FILE_NOT_FOUND)
     except Exception as e:
         if args.json:
-            print(json.dumps({"error": str(e)}, indent=4))
+            log.debug(json.dumps({"error": str(e)}, indent=4))
         else:
             traceback.print_exc()
-            print(f"An error occurred: {e}", file=sys.stderr)
+            log.debug(f"An error occurred: {e}", file=sys.stderr)
         sys.exit(SYS_RETURN_UNKNOWN_FATAL_ERROR)
 
     sys.exit(0)

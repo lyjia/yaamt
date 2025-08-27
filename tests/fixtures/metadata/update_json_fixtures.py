@@ -15,11 +15,11 @@ def main():
 
     # Verify that the main.py script exists before proceeding.
     if not os.path.exists(main_py_path):
-        print(f"Error: main.py not found at expected path: {main_py_path}", file=sys.stderr)
+        log.debug(f"Error: main.py not found at expected path: {main_py_path}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Using main script: {main_py_path}")
-    print(f"Processing audio files in: {script_dir}")
+    log.debug(f"Using main script: {main_py_path}")
+    log.debug(f"Processing audio files in: {script_dir}")
 
     # Define the audio file extensions to look for.
     audio_extensions = ['.mp3', '.flac', '.wav', '.ogg']
@@ -32,7 +32,7 @@ def main():
             audio_file_path = os.path.join(script_dir, filename)
             json_output_path = audio_file_path + '.json'
 
-            print(f"  -> Generating {os.path.basename(json_output_path)}...")
+            log.debug(f"  -> Generating {os.path.basename(json_output_path)}...")
 
             # Prepare the command to be executed.
             command = [
@@ -55,13 +55,13 @@ def main():
                     )
             except subprocess.CalledProcessError as e:
                 # Report any errors that occur during the execution of the command.
-                print(f"Error processing {filename}:", file=sys.stderr)
-                print(f"  Command: {' '.join(command)}", file=sys.stderr)
-                print(f"  Stderr: {e.stderr}", file=sys.stderr)
+                log.debug(f"Error processing {filename}:", file=sys.stderr)
+                log.debug(f"  Command: {' '.join(command)}", file=sys.stderr)
+                log.debug(f"  Stderr: {e.stderr}", file=sys.stderr)
             except Exception as e:
-                print(f"An unexpected error occurred for {filename}: {e}", file=sys.stderr)
+                log.debug(f"An unexpected error occurred for {filename}: {e}", file=sys.stderr)
 
-    print("JSON fixture update complete.")
+    log.debug("JSON fixture update complete.")
 
 if __name__ == "__main__":
     main()

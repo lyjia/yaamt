@@ -67,6 +67,6 @@ class MetadataLoader(QRunnable):
                 self.signals.result.emit(metadata)
             except Exception as e:
                 traceback.print_exc()
-                print(f"{e.__class__.__name__} processing {file_path}: {e}")
+                log.debug(f"{e.__class__.__name__} processing {file_path}: {e}")
 
         self.signals.finished.emit()

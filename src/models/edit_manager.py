@@ -2,6 +2,8 @@ from PySide6.QtCore import QObject, Signal
 from typing import Dict, List, Any, Optional
 from models.media_file import MediaFile
 from models.tag_info import TagInfo
+from util.logging import log
+
 
 class EditManager(QObject):
     """
@@ -136,7 +138,7 @@ class EditManager(QObject):
             if file_changes['generic_tags'] or file_changes['internal_tags']:
                 result = True
                 break
-        print(f"has_staged_changes returning: {result}")
+        log.debug(f"has_staged_changes returning: {result}")
         return result
 
     def emit_commit_successful(self, media_files: List[MediaFile]):
