@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QLabel,
     QStyle,
+    QMessageBox,
 )
 from models.edit_manager import EditManager
 from windows.properties_tabs.main_tab import MainTab
@@ -57,6 +58,7 @@ class PropertiesWindow(QMainWindow):
         # Connect to EditManager signals
         self.edit_manager.staged_changes_exist.connect(self.on_staged_changes_changed)
         self.edit_manager.commit_successful.connect(self.on_save_finished)
+        self.edit_manager.commit_failed.connect(self.on_commit_failed)
 
         # Bottom button layout
         self.bottom_layout = QHBoxLayout()
@@ -107,3 +109,23 @@ class PropertiesWindow(QMainWindow):
         has_changes = self.edit_manager.has_staged_changes()
         self.ok_button.setEnabled(has_changes)
         self.close_button.setText("Cancel" if has_changes else "Close")
+
+    def on_commit_failed(self, errors):
+        self.central_widget.setEnabled(True)
+        self.spinner.hide()
+        self.status_label.hide()
+        self.bottom_layout.itemAt(self.bottom_layout.indexOf(self.spinner)).widget().hide()
+        self.bottom_layout.itemAt(self.bottom_layout.indexOf(self.status_label)).widget().hide()
+        self.ok_button.show()
+        self.close_button.show()
+
+        error_message = "Failed to save changes to the following files:\n\n"
+        for error in errors:
+            error_message += f"- {os.path.basename(error['file_path'])}: {error['error']}\n"
+
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setText(error_message)
+        msg_box.setWindowTitle("Commit Failed")
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.exec()

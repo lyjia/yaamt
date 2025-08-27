@@ -19,6 +19,7 @@ class EditManager(QObject):
     autosave_changed = Signal(bool)
     commit_requested = Signal(dict)  # Signal with provider context for committing changes
     commit_successful = Signal(list)  # Signal emitted when commit is successful, with list of file ids
+    commit_failed = Signal(list)  # Signal emitted when commit fails, with list of errors
 
     _instance = None
     _write_lock = threading.Lock()

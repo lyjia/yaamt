@@ -5,12 +5,13 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel
+from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread
 
 import windows
 from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
+from workers.gui.commit_worker import CommitWorker
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
@@ -101,6 +102,15 @@ class MainWindow(QMainWindow):
         # Connect to EditManager signals
         self.edit_manager = EditManager()
         self.edit_manager.commit_successful.connect(self.on_commit_successful)
+
+        # Setup commit worker
+        self.commit_thread = QThread()
+        self.commit_worker = CommitWorker(self.edit_manager)
+        self.commit_worker.moveToThread(self.commit_thread)
+        self.edit_manager.commit_requested.connect(self.commit_worker.commit_changes)
+        self.commit_worker.signals.commit_finished.connect(self.on_commit_finished)
+        self.commit_thread.start()
+
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
@@ -134,6 +144,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._save_column_settings()
+        self.commit_thread.quit()
+        self.commit_thread.wait()
         super().closeEvent(event)
 
     def set_path(self, path):
@@ -314,6 +326,12 @@ class MainWindow(QMainWindow):
             file_ids: List of file ids that were successfully updated
         """
         self.file_model.refresh_files(file_ids, self.edit_manager)
+
+    def on_commit_finished(self, saved_files, errors):
+        if errors:
+            self.edit_manager.commit_failed.emit(errors)
+        else:
+            self.edit_manager.emit_commit_successful(saved_files)
 
     def _reset_column_settings(self):
         self.file_list_settings = FileListSettings()
