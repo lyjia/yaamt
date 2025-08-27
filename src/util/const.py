@@ -132,7 +132,8 @@ AVAILABLE_COLUMNS = { # for right-side file pane
 KEY_PROVIDER = 'provider'
 KEY_ALL_PROVIDERS = 'all_providers'
 KEY_AVAIL_KEYS = 'available_keys'
-
+KEY_TAG_INTERNAL = 'internal_tags'
+KEY_TAG_GENERIC = 'generic_tags'
 KEY_VALUE = 'value'
 KEY_ALL_VALUES = 'all_values'
 

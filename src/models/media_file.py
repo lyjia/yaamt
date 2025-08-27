@@ -2,7 +2,7 @@ import os
 
 from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
     KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
-    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
 from providers.metadata.mutagen_provider import MutagenProvider
 from util.logging import log
 
@@ -177,7 +177,7 @@ class MediaFile:
         modified_providers = set()
 
         # Process generic tag changes
-        for tag, value in changes.get('generic_tags', {}).items():
+        for tag, value in changes.get(KEY_TAG_GENERIC, {}).items():
             internal_tag = self._generic_to_internal_map.get(tag, tag)
             if internal_tag in self._tag_writers[KEY_TAGS]:
                 provider = self._tag_writers[KEY_TAGS][internal_tag][0]
@@ -185,21 +185,21 @@ class MediaFile:
                 modified_providers.add(provider)
 
         # Process internal tag changes
-        for tag, tag_data in changes.get('internal_tags', {}).items():
-            provider = tag_data['provider']
-            provider.set_tag(tag, [tag_data['value']])
+        for tag, tag_data in changes.get(KEY_TAG_INTERNAL, {}).items():
+            provider = tag_data[KEY_PROVIDER]
+            provider.set_tag(tag, [tag_data[KEY_VALUE]])
             modified_providers.add(provider)
 
         for provider in modified_providers:
             provider.save()
 
         # Clear the cache for the tags that were changed
-        for tag in changes.get('generic_tags', {}).keys():
+        for tag in changes.get(KEY_TAG_GENERIC, {}).keys():
             internal_tag = self._generic_to_internal_map.get(tag, tag)
             if internal_tag in self._combined_metadata[KEY_TAGS]:
                 del self._combined_metadata[KEY_TAGS][internal_tag]
 
-        for tag in changes.get('internal_tags', {}).keys():
+        for tag in changes.get(KEY_TAG_INTERNAL, {}).keys():
             if tag in self._combined_metadata[KEY_TAGS]:
                 del self._combined_metadata[KEY_TAGS][tag]
 

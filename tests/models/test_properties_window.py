@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from pathlib import Path
 import shutil
-from util.const import PROJECT_ROOT
+from util.const import PROJECT_ROOT, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
 
 from windows.properties_window import PropertiesWindow
 from models.media_file import MediaFile
@@ -111,8 +111,8 @@ def test_commit_request_handling(qapp, sample_file):
         # Simulate commit request - use the window's file_id to ensure exact match
         commit_data = {
             str(sample_file.file_id): {
-                'generic_tags': {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
-                'internal_tags': {}
+                KEY_TAG_GENERIC: {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
+                KEY_TAG_INTERNAL: {}
             }
         }
         # Connect the handle_commit function to the commit_requested signal

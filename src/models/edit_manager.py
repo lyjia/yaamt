@@ -2,6 +2,7 @@ from PySide6.QtCore import QObject, Signal
 from typing import Dict, List, Any, Optional
 from models.media_file import MediaFile
 from models.tag_info import TagInfo
+from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL
 from util.logging import log
 
 
@@ -29,7 +30,7 @@ class EditManager(QObject):
         if self._initialized:
             return
         super().__init__()
-        # Structure: {file_id: {'generic_tags': {tag: value}, 'internal_tags': {tag: {'value': value, 'provider': provider}}}}
+        # Structure: {file_id: {KEY_TAG_GENERIC: {tag: value}, KEY_TAG_INTERNAL: {tag: {KEY_VALUE: value, KEY_PROVIDER: provider}}}}
         self._staged_changes: Dict[str, Dict[str, Dict]] = {}
         self._media_files: Dict[str, MediaFile] = {}
         self._autosave = False
@@ -65,21 +66,21 @@ class EditManager(QObject):
             file_id = media_file.file_id
             if file_id not in self._staged_changes:
                 self._staged_changes[file_id] = {
-                    'generic_tags': {},
-                    'internal_tags': {}
+                    KEY_TAG_GENERIC: {},
+                    KEY_TAG_INTERNAL: {}
                 }
 
             if is_internal_tag:
                 # For internal tags, store with provider context
                 if provider is None:
                     raise ValueError(f"Provider must be specified for internal tag '{tag}'")
-                self._staged_changes[file_id]['internal_tags'][tag] = {
-                    'value': value,
-                    'provider': provider
+                self._staged_changes[file_id][KEY_TAG_INTERNAL][tag] = {
+                    KEY_VALUE: value,
+                    KEY_PROVIDER: provider
                 }
             else:
                 # For generic tags, store directly
-                self._staged_changes[file_id]['generic_tags'][tag] = value
+                self._staged_changes[file_id][KEY_TAG_GENERIC][tag] = value
 
         self.staged_changes_exist.emit(self.has_staged_changes())
 
@@ -103,15 +104,15 @@ class EditManager(QObject):
                 continue # Or handle error
 
             commit_data[str(media_file.file_id)] = {
-                'generic_tags': changes['generic_tags'].copy(),
-                'internal_tags': {}
+                KEY_TAG_GENERIC: changes[KEY_TAG_GENERIC].copy(),
+                KEY_TAG_INTERNAL: {}
             }
 
             # Process internal tags with provider context
-            for internal_tag, tag_data in changes['internal_tags'].items():
-                commit_data[str(media_file.file_id)]['internal_tags'][internal_tag] = {
-                    'value': tag_data['value'],
-                    'provider': tag_data['provider']
+            for internal_tag, tag_data in changes[KEY_TAG_INTERNAL].items():
+                commit_data[str(media_file.file_id)][KEY_TAG_INTERNAL][internal_tag] = {
+                    KEY_VALUE: tag_data[KEY_VALUE],
+                    KEY_PROVIDER: tag_data[KEY_PROVIDER]
                 }
 
         # Emit signal with the commit data
@@ -135,7 +136,7 @@ class EditManager(QObject):
         """
         result = False
         for file_changes in self._staged_changes.values():
-            if file_changes['generic_tags'] or file_changes['internal_tags']:
+            if file_changes[KEY_TAG_GENERIC] or file_changes[KEY_TAG_INTERNAL]:
                 result = True
                 break
         log.debug(f"has_staged_changes returning: {result}")
@@ -167,11 +168,11 @@ class EditManager(QObject):
             return None
 
         if is_internal_tag:
-            internal_changes = self._staged_changes[file_id]['internal_tags']
+            internal_changes = self._staged_changes[file_id][KEY_TAG_INTERNAL]
             if tag in internal_changes:
-                return internal_changes[tag]['value']
+                return internal_changes[tag][KEY_VALUE]
         else:
-            generic_changes = self._staged_changes[file_id]['generic_tags']
+            generic_changes = self._staged_changes[file_id][KEY_TAG_GENERIC]
             if tag in generic_changes:
                 return generic_changes[tag]
 
@@ -185,6 +186,6 @@ class EditManager(QObject):
             media_file: The MediaFile object to get changes for
 
         Returns:
-            Dictionary with 'generic_tags' and 'internal_tags' keys
+            Dictionary with KEY_TAG_GENERIC and KEY_TAG_INTERNAL keys
         """
-        return self._staged_changes.get(media_file.file_id, {'generic_tags': {}, 'internal_tags': {}})
+        return self._staged_changes.get(media_file.file_id, {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}})

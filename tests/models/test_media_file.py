@@ -93,8 +93,8 @@ def test_write_tags(media_path, tmp_path):
 
     # Directly save the new tags
     changes = {
-        'generic_tags': new_tags,
-        'internal_tags': {}
+        KEY_TAG_GENERIC: new_tags,
+        KEY_TAG_INTERNAL: {}
     }
     media_file.save(changes)
     time.sleep(0.1)
@@ -138,7 +138,7 @@ def test_write_permissions_error(tmp_path):
             # Try to stage a change and commit it
             edit_manager.stage_change([mf], KEY_TITLE, "New Title")
             # This should raise PermissionError when trying to save
-            mf.save({'generic_tags': {KEY_TITLE: "New Title"}})
+            mf.save({KEY_TAG_GENERIC: {KEY_TITLE: "New Title"}})
 
     finally:
         # Restore write permissions to allow cleanup
@@ -165,8 +165,8 @@ def test_edit_manager_integration(tmp_path):
 
     # Directly save the new tags
     changes = {
-        'generic_tags': test_changes,
-        'internal_tags': {}
+        KEY_TAG_GENERIC: test_changes,
+        KEY_TAG_INTERNAL: {}
     }
     media_file.save(changes)
     time.sleep(0.1)
