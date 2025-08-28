@@ -1,4 +1,5 @@
 import argparse
+print("MAIN.PY IS RUNNING")
 import sys
 import json
 import traceback
@@ -38,7 +39,7 @@ class CliApp:
         self.commit_thread.start()
 
     def run(self):
-        log.debug("CliApp.run() called")
+        log.debug(f"CliApp.run() called with changes: {self.changes}")
         for change in self.changes:
             self.edit_manager.stage_change([self.media_file], change['key'], change['value'], change.get('is_internal', False))
 
@@ -52,12 +53,14 @@ class CliApp:
             self.edit_manager.emit_commit_successful(saved_files)
 
     def on_commit_successful(self, file_ids):
+        log.debug(f"CliApp: commit successful for file_ids: {file_ids}")
         log.debug(f"Successfully updated tags for {self.media_file.file_path}")
         self.commit_thread.quit()
         self.commit_thread.wait()
         self.app.quit()
 
     def on_commit_failed(self, errors):
+        log.debug(f"CliApp: commit failed with errors: {errors}")
         log.debug(f"Failed to update tags for {self.media_file.file_path}:")
         for error in errors:
             log.debug(f"  - {error['error']}")
@@ -86,9 +89,9 @@ def main():
         configure_logger(use_formatter=False)
 
     if not args.file_path:
-        log.debug("For the GUI, run: python src/gui.py")
-        parser.print_help()
-        sys.exit(0)
+            print("For the GUI, run: python src/gui.py")
+            parser.print_help()
+            sys.exit(0)
 
     try:
         media_file = MediaFile(args.file_path, enable_write=True)
@@ -97,7 +100,7 @@ def main():
             if args.json:
                 print(json.dumps({"error": "File is not readable"}, indent=4))
             else:
-                log.debug(f"Error: File is not readable: {args.file_path}", file=sys.stderr)
+                print(f"Error: File is not readable: {args.file_path}", file=sys.stderr)
             sys.exit(SYS_RETURN_FILE_INVALID)
 
         write_ops = []
@@ -124,50 +127,50 @@ def main():
             print(json.dumps(media_file.to_dict(), indent=4))
 
         elif not write_ops:
-            log.debug(f"Metadata for: {args.file_path}")
+            print(f"Metadata for: {args.file_path}")
             
             # Print all available tags
-            log.debug("\nTags:")
+            print("\nTags:")
             if media_file._tag_provider_lookup['tags']:
                 for key in sorted(media_file._tag_provider_lookup['tags'].keys()):
                     value = media_file.get_tag_simple(key)
                     if value:
-                        log.debug(f"  {key}: {value}")
+                        print(f"  {key}: {value}")
             else:
-                log.debug("  No tags found.")
+                print("  No tags found.")
 
             # Print all available stream info
-            log.debug("\nStream Info:")
+            print("\nStream Info:")
             if media_file._tag_provider_lookup['stream_info']:
                 for key in sorted(media_file._tag_provider_lookup['stream_info'].keys()):
                     value = media_file.get_stream_info_value(key)
                     if value:
-                        log.debug(f"  {key}: {value}")
+                        print(f"  {key}: {value}")
             else:
-                log.debug("  No stream info found.")
+                print("  No stream info found.")
 
             # Print all internal data
-            log.debug("\nInternal Info:")
+            print("\nInternal Info:")
             if media_file._combined_metadata['internal']:
                 for key, value in sorted(media_file._combined_metadata['internal'].items()):
                     if value:
-                        log.debug(f"  {key}: {value}")
+                        print(f"  {key}: {value}")
             else:
-                log.debug("  No internal info found.")
+                print("  No internal info found.")
 
     except FileNotFoundError:
         if args.json:
             print(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
         else:
             traceback.print_exc()
-            log.debug(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
+            print(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
         sys.exit(SYS_RETURN_FILE_NOT_FOUND)
     except Exception as e:
         if args.json:
             print(json.dumps({"error": str(e)}, indent=4))
         else:
             traceback.print_exc()
-            log.debug(f"An error occurred: {e}", file=sys.stderr)
+            print(f"An error occurred: {e}", file=sys.stderr)
         sys.exit(SYS_RETURN_UNKNOWN_FATAL_ERROR)
 
     sys.exit(0)

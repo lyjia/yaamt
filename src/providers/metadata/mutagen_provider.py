@@ -220,10 +220,13 @@ class MutagenProvider(MetadataProviderBase):
         return self._write_enabled
 
     def save(self):
+        log.debug(f"Saving file: {self._file_path}")
         if self._write_enabled and self._audio:
             try:
                 self._audio.save(self._file_path)
+                log.debug(f"Successfully saved file: {self._file_path}")
             except Exception as e:
+                log.error(f"Failed to save file: {self._file_path}, error: {e}")
                 if "Permission denied" in str(e):
                     raise PermissionError(
                         f"File is not writable. Mutagen returned: <{e}>. (write_enabled is {self._write_enabled} and _audio is {self._audio})")
@@ -231,5 +234,6 @@ class MutagenProvider(MetadataProviderBase):
                     raise
 
         else:
+            log.error(f"File not writable: {self._file_path}")
             raise PermissionError(
                 "File is not writable. (write_enabled is {self._write_enabled} and _audio is {self._audio})")
