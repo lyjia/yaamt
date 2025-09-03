@@ -102,13 +102,15 @@ class MainWindow(QMainWindow):
         # Connect to EditManager signals
         self.edit_manager = EditManager()
         self.edit_manager.commit_successful.connect(self.on_commit_successful)
+        self.edit_manager.commit_failed.connect(self.on_commit_failed)
 
         # Setup commit worker
         self.commit_thread = QThread()
         self.commit_worker = CommitWorker(self.edit_manager)
         self.commit_worker.moveToThread(self.commit_thread)
-        self.edit_manager.commit_requested.connect(self.commit_worker.commit_changes)
-        self.commit_worker.signals.commit_finished.connect(self.on_commit_finished)
+        self.edit_manager.commit_requested.connect(self.commit_worker.run)
+        self.commit_worker.signals.commit_successful.connect(self.on_commit_successful)
+        self.commit_worker.signals.commit_failed.connect(self.on_commit_failed)
         self.commit_thread.start()
 
         splitter.addWidget(self.files_view)
@@ -286,7 +288,7 @@ class MainWindow(QMainWindow):
                 media_files.append(MediaFile(file_path, enable_write=True))
 
         if media_files:
-            self.properties_window = windows.PropertiesWindow(media_files, self)
+            self.properties_window = windows.PropertiesWindow(media_files, self.edit_manager, self)
             self.properties_window.show()
 
     def on_column_resized(self, logical_index, old_size, new_size):
@@ -318,20 +320,38 @@ class MainWindow(QMainWindow):
 
         self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
 
-    def on_commit_successful(self, file_ids):
+    def on_commit_successful(self, modified_files):
         """
         Slot called when commit is successful. Refreshes the model for the updated files.
 
         Args:
-            file_ids: List of file ids that were successfully updated
+            modified_files: List of file paths that were successfully updated
         """
-        self.file_model.refresh_files(file_ids, self.edit_manager)
+        # We need to get the file_ids from the file paths
+        file_ids = []
+        for media_file in self.edit_manager._media_files.values():
+            if media_file.file_path in modified_files:
+                file_ids.append(media_file.file_id)
 
-    def on_commit_finished(self, saved_files, errors):
-        if errors:
-            self.edit_manager.commit_failed.emit(errors)
-        else:
-            self.edit_manager.emit_commit_successful(saved_files)
+        if file_ids:
+            self.file_model.refresh_files(file_ids, self.edit_manager)
+        
+        self.edit_manager.commit_successful.emit(modified_files)
+
+    def on_commit_failed(self, error_message):
+        """
+        Slot called when a commit fails.
+        """
+        self.edit_manager.commit_failed.emit(error_message)
+        self._show_error_message("Error Committing Changes", error_message)
+
+    def _show_error_message(self, title, message):
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setText(title)
+        msg_box.setInformativeText(message)
+        msg_box.setWindowTitle("Error")
+        msg_box.exec()
 
     def _reset_column_settings(self):
         self.file_list_settings = FileListSettings()

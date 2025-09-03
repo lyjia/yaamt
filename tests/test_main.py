@@ -59,7 +59,7 @@ class TestMainCli:
         assert "File not found" in data["error"] or "No such file or directory" in data["error"]
         assert result.returncode == SYS_RETURN_FILE_NOT_FOUND
 
-    @pytest.mark.xfail(reason="File permissions issue in test environment")
+    
     def test_update_single_tag(self, tmp_path):
         """Test updating a single tag."""
         test_file = tmp_path / "test.mp3"
@@ -70,7 +70,7 @@ class TestMainCli:
         data = json.loads(result.stdout)
         assert data["tags"]["artist"]["value"] == "New Artist"
 
-    @pytest.mark.xfail(reason="File permissions issue in test environment")
+    
     def test_update_multiple_tags(self, tmp_path):
         """Test updating multiple tags at once."""
         test_file = tmp_path / "test.mp3"
@@ -86,7 +86,7 @@ class TestMainCli:
         assert data["tags"]["artist"]["value"] == "New Artist"
         assert data["tags"]["album"]["value"] == "New Album"
 
-    @pytest.mark.xfail(reason="File permissions issue in test environment")
+    
     def test_update_tags_shortcut(self, tmp_path):
         """Test updating tags using shortcut arguments."""
         test_file = tmp_path / "test.mp3"

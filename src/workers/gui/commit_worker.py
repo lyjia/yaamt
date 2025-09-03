@@ -7,7 +7,8 @@ class CommitWorkerSignals(QObject):
     """
     Defines the signals available from a running commit worker thread.
     """
-    commit_finished = Signal(list, list)  # (saved_files, errors)
+    commit_successful = Signal(list)  # List of modified file paths
+    commit_failed = Signal(str)       # Error message
 
 
 class CommitWorker(QObject):
@@ -20,28 +21,30 @@ class CommitWorker(QObject):
         self.signals = CommitWorkerSignals()
 
     @Slot(dict)
-    def commit_changes(self, commit_data: dict):
-        log.debug("CommitWorker.commit_changes() called")
+    def run(self, commit_data: dict):
         """
         Slot to receive commit data and save changes to files.
         """
         log.debug("CommitWorker: Received commit_requested signal.")
-        saved_media_files = []
+        saved_file_paths = []
         errors = []
-        with self.edit_manager._write_lock:
-            for file_id, changes in commit_data.items():
-                media_file = self.edit_manager._media_files.get(file_id)
-                if media_file:
-                    try:
-                        log.debug(f"Saving changes for {media_file.file_path}")
-                        media_file.save(changes)
-                        saved_media_files.append(media_file)
-                    except Exception as e:
-                        log.error(f"Error saving file {media_file.file_path}: {e}")
-                        errors.append({
-                            'file_path': media_file.file_path,
-                            'changes': changes,
-                            'error': str(e)
-                        })
+        try:
+            with self.edit_manager._write_lock:
+                for file_id, changes in commit_data.items():
+                    media_file = self.edit_manager._media_files.get(file_id)
+                    if media_file:
+                        try:
+                            log.debug(f"Saving changes for {media_file.file_path}")
+                            media_file.save(changes)
+                            saved_file_paths.append(media_file.file_path)
+                        except Exception as e:
+                            log.error(f"Error saving file {media_file.file_path}: {e}")
+                            errors.append(f"{media_file.file_path}: {e}")
 
-        self.signals.commit_finished.emit(saved_media_files, errors)
+            if errors:
+                self.signals.commit_failed.emit("\n".join(errors))
+            else:
+                self.signals.commit_successful.emit(saved_file_paths)
+        except Exception as e:
+            log.error(f"An unexpected error occurred in CommitWorker: {e}")
+            self.signals.commit_failed.emit(f"An unexpected error occurred: {e}")

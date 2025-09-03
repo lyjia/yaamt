@@ -21,11 +21,11 @@ import windows.__resources_rc
 
 
 class PropertiesWindow(QMainWindow):
-    def __init__(self, media_files: list, parent=None):
+    def __init__(self, media_files: list, edit_manager: EditManager, parent=None):
         super().__init__(parent)
 
         self.media_files = media_files
-        self.edit_manager = EditManager()
+        self.edit_manager = edit_manager
         self.edit_manager.register_media_files(self.media_files)
         if len(self.media_files) == 1:
             self.setWindowTitle(f"Properties for {os.path.basename(self.media_files[0].file_path)}")
@@ -66,6 +66,16 @@ class PropertiesWindow(QMainWindow):
         self.bottom_layout.addWidget(tools_button)
         self.bottom_layout.addStretch()
 
+        self.status_label = QLabel("Writing changes...")
+        self.spinner = QLabel()
+        movie = QMovie(":/icons/spinner.gif")
+        self.spinner.setMovie(movie)
+        movie.start()
+        self.bottom_layout.addWidget(self.spinner)
+        self.bottom_layout.addWidget(self.status_label)
+        self.spinner.hide()
+        self.status_label.hide()
+
         self.close_button = QPushButton("Close")
         self.ok_button = QPushButton("OK")
         self.ok_button.setEnabled(False)
@@ -83,23 +93,14 @@ class PropertiesWindow(QMainWindow):
     def on_ok_clicked(self):
         self.central_widget.setEnabled(False)
 
-        self.status_label = QLabel("Writing changes...")
-        self.spinner = QLabel()
-        movie = QMovie(":/icons/spinner.gif")
-        self.spinner.setMovie(movie)
-        movie.start()
-
-        # Replace OK and Close buttons with spinner and status label
-        self.bottom_layout.itemAt(self.bottom_layout.indexOf(self.ok_button)).widget().hide()
-        self.bottom_layout.itemAt(self.bottom_layout.indexOf(self.close_button)).widget().hide()
-        self.bottom_layout.insertWidget(2, self.spinner)
-        self.bottom_layout.insertWidget(3, self.status_label)
+        self.ok_button.hide()
+        self.close_button.hide()
+        self.spinner.show()
+        self.status_label.show()
 
         self.edit_manager.commit_changes()
 
     def on_save_finished(self, file_ids):
-        self.spinner.hide()
-        self.status_label.hide()
         self.close()
 
     def on_staged_changes_changed(self, has_changes):
@@ -110,22 +111,17 @@ class PropertiesWindow(QMainWindow):
         self.ok_button.setEnabled(has_changes)
         self.close_button.setText("Cancel" if has_changes else "Close")
 
-    def on_commit_failed(self, errors):
+    def on_commit_failed(self, error_message):
         self.central_widget.setEnabled(True)
         self.spinner.hide()
         self.status_label.hide()
-        self.bottom_layout.itemAt(self.bottom_layout.indexOf(self.spinner)).widget().hide()
-        self.bottom_layout.itemAt(self.bottom_layout.indexOf(self.status_label)).widget().hide()
         self.ok_button.show()
         self.close_button.show()
 
-        error_message = "Failed to save changes to the following files:\n\n"
-        for error in errors:
-            error_message += f"- {os.path.basename(error['file_path'])}: {error['error']}\n"
-
         msg_box = QMessageBox()
         msg_box.setIcon(QMessageBox.Critical)
-        msg_box.setText(error_message)
+        msg_box.setText("Failed to save changes to the following files:")
+        msg_box.setInformativeText(error_message)
         msg_box.setWindowTitle("Commit Failed")
         msg_box.setStandardButtons(QMessageBox.Ok)
         msg_box.exec()
