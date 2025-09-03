@@ -1,8 +1,8 @@
 import os
 
 from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
-    KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
-    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_FILE_ID
+    KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_MEDIA, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_FILE_ID
 from providers.metadata.mutagen_provider import MutagenProvider
 from util.logging import log
 
@@ -189,6 +189,8 @@ class MediaFile:
             provider = tag_data[KEY_PROVIDER]
             provider.set_tag(tag, [tag_data[KEY_VALUE]])
             modified_providers.add(provider)
+            # Update internal metadata after saving
+            self._combined_metadata[KEY_INTERNAL][tag] = tag_data[KEY_VALUE]
 
         for provider in modified_providers:
             provider.save()
@@ -228,7 +230,9 @@ class MediaFile:
                 KEY_PROVIDER: self._tag_provider_lookup[KEY_STREAM_INFO][key][0].__class__.__name__,
             }
 
-        to_ret[KEY_INTERNAL] = self._combined_metadata[KEY_INTERNAL]
+        # Include all internal data that has been set
+        for key, value in self._combined_metadata[KEY_INTERNAL].items():
+            to_ret[KEY_INTERNAL][key] = value
 
         return to_ret
 

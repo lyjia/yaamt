@@ -1,9 +1,8 @@
 import argparse
-
 import sys
 import json
 import traceback
-from PySide6.QtCore import QCoreApplication, QThread
+from PySide6.QtCore import QCoreApplication, QThread, QEventLoop
 from models.edit_manager import EditManager
 from models.media_file import MediaFile
 from util.const import ALL_TAGS
@@ -25,6 +24,7 @@ class CliApp:
         self.edit_manager = EditManager()
         self.edit_manager.register_media_files([self.media_file])
 
+        self.loop = QEventLoop()
         self.edit_manager.commit_finished.connect(self.on_commit_successful)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
 
@@ -34,20 +34,22 @@ class CliApp:
             self.edit_manager.stage_change([self.media_file], change['key'], change['value'], change.get('is_internal', False))
 
         self.edit_manager.commit_changes()
-        return self.app.exec()
+        self.loop.exec()
+        return self.return_code
 
     def on_commit_successful(self, saved_files):
         log.debug(f"CliApp: commit successful for files: {saved_files}")
         log.debug(f"Successfully updated tags for {self.media_file.file_path}")
-        self.app.quit()
+        self.return_code = 0
+        self.loop.quit()
 
     def on_commit_failed(self, errors):
         log.debug(f"CliApp: commit failed with errors: {errors}")
         log.debug(f"Failed to update tags for {self.media_file.file_path}:")
         for error in errors:
-            log.debug(f"  - {error['error']}")
-        self.app.quit()
-        sys.exit(1)  # Exit with error code
+            log.debug(f"  - {error}")
+        self.return_code = 1
+        self.loop.quit()
 
 
 def main():
@@ -69,9 +71,14 @@ def main():
         configure_logger(use_formatter=False)
 
     if not args.file_path:
-            print("For the GUI, run: python src/gui.py")
-            parser.print_help()
-            sys.exit(0)
+        print("For the GUI, run: python src/gui.py")
+        parser.print_help()
+        sys.exit(0)
+
+    # Initialize QCoreApplication if not already running (for CLI updates)
+    app = QCoreApplication.instance()
+    if not app:
+        app = QCoreApplication(sys.argv)
 
     try:
         media_file = MediaFile(args.file_path, enable_write=True)
@@ -101,7 +108,12 @@ def main():
         if write_ops:
             log.debug(f"write_ops: {write_ops}")
             cli_app = CliApp(media_file, write_ops)
-            sys.exit(cli_app.run())
+            return_code = cli_app.run()
+            if return_code != 0:
+                sys.exit(return_code)
+            
+            # Re-read the file to get the updated metadata after successful commit
+            media_file.refresh()
 
         if args.json:
             print(json.dumps(media_file.to_dict(), indent=4))

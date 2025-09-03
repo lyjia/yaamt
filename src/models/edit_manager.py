@@ -134,7 +134,7 @@ class EditManager(QObject):
         """
         Commit all staged changes to the files by running the save operation in a background thread.
         """
-        if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.finished and self._commit_thread.isRunning():
+        if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.isFinished() and self._commit_thread.isRunning():
             log.warning("Commit is already in progress.")
             return
         
