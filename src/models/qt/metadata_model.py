@@ -112,7 +112,7 @@ class MetadataTableModel(QAbstractTableModel):
         log.debug(f"Refreshing metadata for files: {file_ids}...")
         updated_rows = []
         #TODO: this iterates through every file in a folder just to find the file ids to redraw,
-        # and every file_id in file_ids **per row**, because we do not index file ID in self._data.
+        # because we do not index file ID in self._data.
         # We should figure out some way to easily reference a row in self._data by file ID without having to
         # enumerate the whole thing. This logic is also mostly the same as the logic in MetadataLoader.run(), we should
         # consolidate that.
