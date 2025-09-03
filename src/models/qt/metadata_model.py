@@ -111,8 +111,13 @@ class MetadataTableModel(QAbstractTableModel):
         """
         log.debug(f"Refreshing metadata for files: {file_ids}...")
         updated_rows = []
+        #TODO: this iterates through every file in a folder just to find the file ids to redraw,
+        # and every file_id in file_ids **per row**, because we do not index file ID in self._data.
+        # We should figure out some way to easily reference a row in self._data by file ID without having to
+        # enumerate the whole thing. This logic is also mostly the same as the logic in MetadataLoader.run(), we should
+        # consolidate that.
         for row_index, row_data in enumerate(self._data):
-            file_id = row_data.get(KEY_FILE_ID) # Assuming file_id is stored in the row_data
+            file_id = row_data.get(KEY_FILE_ID)
             if file_id in file_ids:
                 media_file = edit_manager._media_files.get(file_id)
                 if not media_file:
@@ -143,8 +148,6 @@ class MetadataTableModel(QAbstractTableModel):
                 # Update the row data with new metadata
                 self._data[row_index] = new_metadata
                 updated_rows.append(row_index)
-            else:
-                log.error(f"File ID {file_id} not found!")
 
         # Emit signals for the updated rows
         if updated_rows:
