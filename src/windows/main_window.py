@@ -10,7 +10,7 @@ from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread
 import windows
 from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
-from workers.gui.metadata_loader import MetadataLoader
+from workers.gui.load_files_worker import LoadFilesWorker
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
@@ -153,7 +153,7 @@ class MainWindow(QMainWindow):
         self.set_path(path)
         files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
         
-        worker = MetadataLoader(files)
+        worker = LoadFilesWorker(files)
         worker.signals.progress.connect(self.update_progress)
         worker.signals.finished.connect(self.on_worker_finished)
         worker.signals.result.connect(self.on_worker_result)

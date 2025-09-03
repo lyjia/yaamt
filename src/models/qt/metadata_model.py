@@ -101,6 +101,39 @@ class MetadataTableModel(QAbstractTableModel):
         self._data.sort(key=lambda x: x.get(column_settings.id, ""), reverse=order == Qt.SortOrder.DescendingOrder)
         self.layoutChanged.emit()
 
+    @staticmethod
+    def get_metadata_from_media_file(media_file: MediaFile) -> dict:
+        """
+        Given a MediaFile object, return a dictionary of its metadata.
+
+        Args:
+            media_file: The MediaFile object to get metadata from.
+
+        Returns:
+            A dictionary of metadata.
+        """
+        return {
+            # fs attributes
+            KEY_FILE_PATH: media_file.file_path,
+            KEY_FILE_SIZE: media_file.get_internal_data(KEY_FILE_SIZE),
+            KEY_FILE_MTIME: media_file.get_internal_data(KEY_FILE_MTIME),
+            KEY_FILE_CTIME: media_file.get_internal_data(KEY_FILE_CTIME),
+            KEY_FILE_TYPE: media_file.get_internal_data(KEY_FILE_TYPE),
+            KEY_FILE_TYPE_HUMAN: media_file.get_stream_info_value(KEY_FORMAT),
+
+            # tag attributes
+            KEY_TITLE: media_file.get_tag_simple(KEY_TITLE),
+            KEY_ARTIST: media_file.get_tag_simple(KEY_ARTIST),
+            KEY_ALBUM: media_file.get_tag_simple(KEY_ALBUM),
+            KEY_GENRE: media_file.get_tag_simple(KEY_GENRE),
+            KEY_BPM: media_file.get_tag_simple(KEY_BPM),
+            KEY_MUSICAL_KEY: media_file.get_tag_simple(KEY_MUSICAL_KEY),
+
+            # internal
+            KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA),
+            KEY_FILE_ID: media_file.file_id
+        }
+
     def refresh_files(self, file_ids: list[str], edit_manager: EditManager):
         """
         Refresh the metadata for specific files in the model.
@@ -124,27 +157,7 @@ class MetadataTableModel(QAbstractTableModel):
                     continue
 
                 # Re-fetch metadata from the MediaFile object
-                new_metadata = {
-                    # fs attributes
-                    KEY_FILE_PATH: media_file.file_path,
-                    KEY_FILE_SIZE: media_file.get_internal_data(KEY_FILE_SIZE),
-                    KEY_FILE_MTIME: media_file.get_internal_data(KEY_FILE_MTIME),
-                    KEY_FILE_CTIME: media_file.get_internal_data(KEY_FILE_CTIME),
-                    KEY_FILE_TYPE: media_file.get_internal_data(KEY_FILE_TYPE),
-                    KEY_FILE_TYPE_HUMAN: media_file.get_stream_info_value(KEY_FORMAT),
-
-                    # tag attributes
-                    KEY_TITLE: media_file.get_tag_simple(KEY_TITLE),
-                    KEY_ARTIST: media_file.get_tag_simple(KEY_ARTIST),
-                    KEY_ALBUM: media_file.get_tag_simple(KEY_ALBUM),
-                    KEY_GENRE: media_file.get_tag_simple(KEY_GENRE),
-                    KEY_BPM: media_file.get_tag_simple(KEY_BPM),
-                    KEY_MUSICAL_KEY: media_file.get_tag_simple(KEY_MUSICAL_KEY),
-
-                    # internal
-                    KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA),
-                    KEY_FILE_ID: media_file.file_id
-                }
+                new_metadata = self.get_metadata_from_media_file(media_file)
                 # Update the row data with new metadata
                 self._data[row_index] = new_metadata
                 updated_rows.append(row_index)
