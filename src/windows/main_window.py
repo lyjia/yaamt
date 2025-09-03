@@ -315,24 +315,18 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.show()
 
-    def on_commit_finished(self, saved_files):
+    def on_commit_finished(self, saved_file_ids):
         """
         Slot called when commit is successful. Refreshes the model for the updated files.
 
         Args:
-            saved_files: List of file paths that were successfully updated
+            saved_file_ids: List of file ids that were successfully updated
         """
-        self.status_label.setText(f"Saved {len(saved_files)} files.")
+        self.status_label.setText(f"Saved {len(saved_file_ids)} files.")
         self.progress_bar.hide()
 
-        # We need to get the file_ids from the file paths
-        file_ids = []
-        for media_file in self.edit_manager._media_files.values():
-            if media_file.file_path in saved_files:
-                file_ids.append(media_file.file_id)
-
-        if file_ids:
-            self.file_model.refresh_files(file_ids, self.edit_manager)
+        if saved_file_ids:
+            self.file_model.refresh_files(saved_file_ids, self.edit_manager)
 
     def on_commit_failed(self, errors):
         """

@@ -145,5 +145,6 @@ class MetadataTableModel(QAbstractTableModel):
         # Emit signals for the updated rows
         if updated_rows:
             for row in updated_rows:
-                index = self.createIndex(row, 0)
-                self.dataChanged.emit(index, index, [])
+                start_index = self.createIndex(row, 0)
+                end_index = self.createIndex(row, self.columnCount() - 1)
+                self.dataChanged.emit(start_index, end_index, [])

@@ -19,7 +19,7 @@ class EditManager(QObject):
     autosave_changed = Signal(bool)
     commit_started = Signal()
     commit_progress = Signal(int, int)
-    commit_finished = Signal(list)  # Signal emitted when commit is successful, with list of file ids
+    commit_finished = Signal(list)  # Signal emitted when commit is successful, with list of file_ids
     commit_failed = Signal(list)  # Signal emitted when commit fails, with list of errors
 
     _instance = None
@@ -97,7 +97,7 @@ class EditManager(QObject):
         Saves staged changes to files. This method is designed to be run in a separate thread.
         """
         log.debug("Starting background save operation...")
-        saved_file_paths = []
+        saved_file_ids = []
         errors = []
         try:
             with self._write_lock:
@@ -111,7 +111,7 @@ class EditManager(QObject):
                         try:
                             log.debug(f"Saving changes for {media_file.file_path}")
                             media_file.save(changes)
-                            saved_file_paths.append(media_file.file_path)
+                            saved_file_ids.append(file_id)
                         except Exception as e:
                             log.error(f"Error saving file {media_file.file_path}: {e}")
                             errors.append(f"{media_file.file_path}: {e}")
@@ -123,7 +123,7 @@ class EditManager(QObject):
             if errors:
                 self.commit_failed.emit(errors)
             else:
-                self.commit_finished.emit(saved_file_paths)
+                self.commit_finished.emit(saved_file_ids)
         except Exception as e:
             log.error(f"An unexpected error occurred in _save_changes: {e}")
             self.commit_failed.emit([f"An unexpected error occurred: {e}"])
