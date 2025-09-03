@@ -8,7 +8,6 @@ from models.edit_manager import EditManager
 from models.media_file import MediaFile
 from util.const import ALL_TAGS
 from util.logging import log, configure_logger
-from workers.gui.commit_worker import CommitWorker
 
 SYS_RETURN_UNKNOWN_FATAL_ERROR = 1
 SYS_RETURN_FILE_INVALID = 2
@@ -26,17 +25,8 @@ class CliApp:
         self.edit_manager = EditManager()
         self.edit_manager.register_media_files([self.media_file])
 
-        self.commit_thread = QThread()
-        self.commit_worker = CommitWorker(self.edit_manager)
-        self.commit_worker.moveToThread(self.commit_thread)
-
-        self.edit_manager.commit_requested.connect(self.commit_worker.commit_changes)
-        self.commit_worker.signals.commit_finished.connect(self.on_commit_finished)
-
-        self.edit_manager.commit_successful.connect(self.on_commit_successful)
+        self.edit_manager.commit_finished.connect(self.on_commit_successful)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
-
-        self.commit_thread.start()
 
     def run(self):
         log.debug(f"CliApp.run() called with changes: {self.changes}")
@@ -46,17 +36,9 @@ class CliApp:
         self.edit_manager.commit_changes()
         return self.app.exec()
 
-    def on_commit_finished(self, saved_files, errors):
-        if errors:
-            self.edit_manager.commit_failed.emit(errors)
-        else:
-            self.edit_manager.emit_commit_successful(saved_files)
-
-    def on_commit_successful(self, file_ids):
-        log.debug(f"CliApp: commit successful for file_ids: {file_ids}")
+    def on_commit_successful(self, saved_files):
+        log.debug(f"CliApp: commit successful for files: {saved_files}")
         log.debug(f"Successfully updated tags for {self.media_file.file_path}")
-        self.commit_thread.quit()
-        self.commit_thread.wait()
         self.app.quit()
 
     def on_commit_failed(self, errors):
@@ -64,8 +46,6 @@ class CliApp:
         log.debug(f"Failed to update tags for {self.media_file.file_path}:")
         for error in errors:
             log.debug(f"  - {error['error']}")
-        self.commit_thread.quit()
-        self.commit_thread.wait()
         self.app.quit()
         sys.exit(1)  # Exit with error code
 

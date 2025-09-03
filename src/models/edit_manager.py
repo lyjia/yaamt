@@ -1,56 +1,11 @@
 import threading
-import copy
 
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, Signal, QThread, Slot
 from typing import Dict, List, Any, Optional
 from models.media_file import MediaFile
 from models.tag_info import TagInfo
 from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_VALUE, KEY_PROVIDER
 from util.logging import log
-
-
-class _CommitWorker(QObject):
-    """
-    Worker for committing changes to files in a separate thread.
-    """
-    commit_progress = Signal(int, int)
-    commit_finished = Signal(list)
-    commit_failed = Signal(list)
-
-    def __init__(self, edit_manager: 'EditManager', commit_data: dict):
-        super().__init__()
-        self.edit_manager = edit_manager
-        self.commit_data = commit_data
-
-    def run(self):
-        """
-        Slot to receive commit data and save changes to files.
-        """
-        log.debug(f"CommitWorker: Saving {len(self.commit_data.keys())} files...")
-        saved_file_paths = []
-        errors = []
-        total_files = len(self.commit_data)
-        try:
-            with self.edit_manager._write_lock:
-                for i, (file_id, changes) in enumerate(self.commit_data.items()):
-                    media_file = self.edit_manager._media_files.get(file_id)
-                    if media_file:
-                        try:
-                            log.debug(f"Saving changes for {media_file.file_path}")
-                            media_file.save(changes)
-                            saved_file_paths.append(media_file.file_path)
-                        except Exception as e:
-                            log.error(f"Error saving file {media_file.file_path}: {e}")
-                            errors.append(f"{media_file.file_path}: {e}")
-                    self.commit_progress.emit(i + 1, total_files)
-
-            if errors:
-                self.commit_failed.emit(errors)
-            else:
-                self.commit_finished.emit(saved_file_paths)
-        except Exception as e:
-            log.error(f"An unexpected error occurred in CommitWorker: {e}")
-            self.commit_failed.emit([f"An unexpected error occurred: {e}"])
 
 
 class EditManager(QObject):
@@ -85,7 +40,6 @@ class EditManager(QObject):
         self._media_files: Dict[str, MediaFile] = {}
         self._autosave = False
         self._commit_thread = None
-        self._commit_worker = None
         self._initialized = True
 
     @property
@@ -137,67 +91,76 @@ class EditManager(QObject):
 
             self.staged_changes_exist.emit(self.has_staged_changes())
 
-    def _save_changes(self, commit_data: dict):
+    @Slot()
+    def _save_changes(self):
         """
-        Saves the changes to the files in a background thread.
+        Saves staged changes to files. This method is designed to be run in a separate thread.
         """
-        self._commit_thread = QThread()
-        self._commit_worker = _CommitWorker(self, commit_data)
-        self._commit_worker.moveToThread(self._commit_thread)
+        log.debug("Starting background save operation...")
+        saved_file_paths = []
+        errors = []
+        try:
+            with self._write_lock:
+                total_files = len(self._staged_changes)
+                if total_files == 0:
+                    return
 
-        self._commit_worker.commit_progress.connect(self.commit_progress)
-        self._commit_worker.commit_finished.connect(self.commit_finished)
-        self._commit_worker.commit_failed.connect(self.commit_failed)
-        self._commit_thread.started.connect(self._commit_worker.run)
-        self._commit_worker.commit_finished.connect(self._commit_thread.quit)
-        self._commit_worker.commit_failed.connect(self._commit_thread.quit)
-        self._commit_thread.finished.connect(self._commit_worker.deleteLater)
-        self._commit_thread.finished.connect(self._commit_thread.deleteLater)
+                for i, (file_id, changes) in enumerate(self._staged_changes.items()):
+                    media_file = self._media_files.get(file_id)
+                    if media_file:
+                        try:
+                            log.debug(f"Saving changes for {media_file.file_path}")
+                            media_file.save(changes)
+                            saved_file_paths.append(media_file.file_path)
+                        except Exception as e:
+                            log.error(f"Error saving file {media_file.file_path}: {e}")
+                            errors.append(f"{media_file.file_path}: {e}")
+                    self.commit_progress.emit(i + 1, total_files)
+                
+                self._staged_changes.clear()
+                self.staged_changes_exist.emit(False)
 
-        self.commit_started.emit()
-        self._commit_thread.start()
+            if errors:
+                self.commit_failed.emit(errors)
+            else:
+                self.commit_finished.emit(saved_file_paths)
+        except Exception as e:
+            log.error(f"An unexpected error occurred in _save_changes: {e}")
+            self.commit_failed.emit([f"An unexpected error occurred: {e}"])
+        finally:
+            self._commit_thread.quit()
 
     def commit_changes(self):
         """
         Commit all staged changes to the files by running the save operation in a background thread.
         """
-        with self._write_lock:
-            if not self.has_staged_changes():
-                self.staged_changes_exist.emit(False)
-                return
-
-            # Prepare commit data with provider context
-            commit_data = {}
-            for file_id, changes in self._staged_changes.items():
-                media_file = self._media_files.get(file_id)
-                if not media_file:
-                    continue
-
-                commit_data[str(media_file.file_id)] = {
-                    KEY_TAG_GENERIC: changes[KEY_TAG_GENERIC].copy(),
-                    KEY_TAG_INTERNAL: {}
-                }
-
-                # Process internal tags with provider context
-                for internal_tag, tag_data in changes[KEY_TAG_INTERNAL].items():
-                    commit_data[str(media_file.file_id)][KEY_TAG_INTERNAL][internal_tag] = {
-                        KEY_VALUE: tag_data[KEY_VALUE],
-                        KEY_PROVIDER: tag_data[KEY_PROVIDER]
-                    }
+        if hasattr(self, '_commit_thread') and self._commit_thread and self._commit_thread.isRunning():
+            log.warning("Commit is already in progress.")
+            return
         
-        self._save_changes(copy.deepcopy(commit_data))
+        if not self.has_staged_changes():
+            self.staged_changes_exist.emit(False)
+            return
 
-        # Clear staged changes after starting the commit
-        self.reset_changes()
+        self._commit_thread = QThread()
+        worker = QObject()
+        worker.moveToThread(self._commit_thread)
+        self._commit_thread.started.connect(self._save_changes)
+        self.commit_finished.connect(self._commit_thread.quit)
+        self.commit_failed.connect(self._commit_thread.quit)
+        self._commit_thread.finished.connect(worker.deleteLater)
+        self._commit_thread.finished.connect(self._commit_thread.deleteLater)
 
-
+        self.commit_started.emit()
+        self._commit_thread.start()
 
     def reset_changes(self):
         """
         Reset all staged changes.
         """
-        self._staged_changes.clear()
-        self.staged_changes_exist.emit(False)
+        with self._write_lock:
+            self._staged_changes.clear()
+            self.staged_changes_exist.emit(False)
 
     def has_staged_changes(self) -> bool:
         """
@@ -211,14 +174,6 @@ class EditManager(QObject):
         log.debug(f"has_staged_changes returning: {result}")
         return result
 
-    def emit_commit_successful(self, media_files: List[MediaFile]):
-        """
-        Emit the commit_successful signal with the list of successfully updated file ids.
-
-        Args:
-            media_files: List of MediaFile objects that were successfully updated
-        """
-        self.commit_successful.emit([media_file.file_id for media_file in media_files])
 
     def get_staged_value(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
         """

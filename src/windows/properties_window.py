@@ -57,7 +57,7 @@ class PropertiesWindow(QMainWindow):
 
         # Connect to EditManager signals
         self.edit_manager.staged_changes_exist.connect(self.on_staged_changes_changed)
-        self.edit_manager.commit_successful.connect(self.on_save_finished)
+        self.edit_manager.commit_finished.connect(self.on_save_finished)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
 
         # Bottom button layout

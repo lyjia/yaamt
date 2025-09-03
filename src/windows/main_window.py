@@ -100,17 +100,10 @@ class MainWindow(QMainWindow):
 
         # Connect to EditManager signals
         self.edit_manager = EditManager()
-        self.edit_manager.commit_successful.connect(self.on_commit_successful)
+        self.edit_manager.commit_started.connect(self.on_commit_started)
+        self.edit_manager.commit_progress.connect(self.update_progress)
+        self.edit_manager.commit_finished.connect(self.on_commit_finished)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
-
-        # Setup commit worker
-        self.commit_thread = QThread()
-        self.commit_worker = CommitWorker(self.edit_manager)
-        self.commit_worker.moveToThread(self.commit_thread)
-        self.edit_manager.commit_requested.connect(self.commit_worker.run)
-        self.commit_worker.signals.commit_successful.connect(self.on_commit_successful)
-        self.commit_worker.signals.commit_failed.connect(self.on_commit_failed)
-        self.commit_thread.start()
 
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
@@ -145,8 +138,6 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._save_column_settings()
-        self.commit_thread.quit()
-        self.commit_thread.wait()
         super().closeEvent(event)
 
     def set_path(self, path):
@@ -319,29 +310,36 @@ class MainWindow(QMainWindow):
 
         self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
 
-    def on_commit_successful(self, modified_files):
+    def on_commit_started(self):
+        self.status_label.setText("Saving changes...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.show()
+
+    def on_commit_finished(self, saved_files):
         """
         Slot called when commit is successful. Refreshes the model for the updated files.
 
         Args:
-            modified_files: List of file paths that were successfully updated
+            saved_files: List of file paths that were successfully updated
         """
+        self.status_label.setText(f"Saved {len(saved_files)} files.")
+        self.progress_bar.hide()
+
         # We need to get the file_ids from the file paths
         file_ids = []
         for media_file in self.edit_manager._media_files.values():
-            if media_file.file_path in modified_files:
+            if media_file.file_path in saved_files:
                 file_ids.append(media_file.file_id)
 
         if file_ids:
             self.file_model.refresh_files(file_ids, self.edit_manager)
-        
-        self.edit_manager.commit_successful.emit(modified_files)
 
-    def on_commit_failed(self, error_message):
+    def on_commit_failed(self, errors):
         """
         Slot called when a commit fails.
         """
-        self.edit_manager.commit_failed.emit(error_message)
+        self.progress_bar.hide()
+        error_message = "\n".join(errors)
         self._show_error_message("Error Committing Changes", error_message)
 
     def _show_error_message(self, title, message):
