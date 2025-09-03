@@ -2,7 +2,7 @@ import os
 
 from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
     KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
-    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_FILE_ID
 from providers.metadata.mutagen_provider import MutagenProvider
 from util.logging import log
 
@@ -56,7 +56,7 @@ class MediaFile:
                 KEY_FILE_CTIME: os.path.getctime(file_path),
                 # KEY_FILE_ATIME: os.path.getatime(file_path),
                 KEY_IS_MEDIA: False,
-                KEY_IS_WRITABLE: False
+                KEY_IS_WRITABLE: False,
             }
         }
 

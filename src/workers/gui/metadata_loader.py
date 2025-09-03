@@ -4,9 +4,10 @@ from PySide6.QtCore import QRunnable, QObject, Signal
 
 from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_FILE_PATH, \
     KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_CTIME, KEY_FILE_ATIME, \
-    KEY_ENCODER_INFO, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_FORMAT, KEY_IS_MEDIA
+    KEY_ENCODER_INFO, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_FORMAT, KEY_IS_MEDIA, KEY_FILE_ID
 from models.media_file import MediaFile
 from util.display import human_readable_size, human_readable_timestamp
+from util.logging import log
 
 
 class WorkerSignals(QObject):
@@ -62,7 +63,8 @@ class MetadataLoader(QRunnable):
                     KEY_MUSICAL_KEY: media_file.get_tag_simple(KEY_MUSICAL_KEY),
 
                     # internal
-                    KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA)
+                    KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA),
+                    KEY_FILE_ID: media_file.file_id
                 }
                 self.signals.result.emit(metadata)
             except Exception as e:

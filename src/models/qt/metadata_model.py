@@ -8,9 +8,10 @@ from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA,
     COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
-    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_FILE_ID
 )
 from util.display import human_readable_size, human_readable_timestamp
+from util.logging import log
 
 
 class MetadataTableModel(QAbstractTableModel):
@@ -108,9 +109,10 @@ class MetadataTableModel(QAbstractTableModel):
             file_ids: List of file ids to refresh
             edit_manager: The EditManager instance
         """
+        log.debug(f"Refreshing metadata for files: {file_ids}...")
         updated_rows = []
         for row_index, row_data in enumerate(self._data):
-            file_id = row_data.get("file_id") # Assuming file_id is stored in the row_data
+            file_id = row_data.get(KEY_FILE_ID) # Assuming file_id is stored in the row_data
             if file_id in file_ids:
                 media_file = edit_manager._media_files.get(file_id)
                 if not media_file:
@@ -136,11 +138,13 @@ class MetadataTableModel(QAbstractTableModel):
 
                     # internal
                     KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA),
-                    "file_id": media_file.file_id
+                    KEY_FILE_ID: media_file.file_id
                 }
                 # Update the row data with new metadata
                 self._data[row_index] = new_metadata
                 updated_rows.append(row_index)
+            else:
+                log.error(f"File ID {file_id} not found!")
 
         # Emit signals for the updated rows
         if updated_rows:

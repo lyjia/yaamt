@@ -8,6 +8,7 @@ KEY_INTERNAL = "internal"
 # INTERNAL keys
 KEY_IS_MEDIA = "ismedia"  # is this file a media file we care about or something else?
 KEY_IS_WRITABLE = "iswritable"
+KEY_FILE_ID = "file_id"
 
 # FILESYSTEM keys
 KEY_FILE_PATH = "fpath"
