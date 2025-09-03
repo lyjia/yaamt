@@ -11,7 +11,6 @@ import windows
 from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.metadata_loader import MetadataLoader
-from workers.gui.commit_worker import CommitWorker
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
