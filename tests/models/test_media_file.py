@@ -6,7 +6,7 @@ import pytest
 import time
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
-from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA
+from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
 from util.exceptions import InvalidFileError
 
 # Define the directory containing the test fixtures.

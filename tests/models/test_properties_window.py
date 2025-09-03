@@ -28,7 +28,8 @@ def sample_file(tmp_path):
 
 def test_properties_window_initialization(qapp, sample_file):
     """Test that PropertiesWindow initializes correctly with EditManager."""
-    window = PropertiesWindow([sample_file])
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Verify EditManager is initialized
     assert hasattr(window, 'edit_manager')
@@ -40,7 +41,8 @@ def test_properties_window_initialization(qapp, sample_file):
 
 def test_edit_manager_signal_connection(qapp, sample_file):
     """Test that PropertiesWindow connects to EditManager signals."""
-    window = PropertiesWindow([sample_file])
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Verify signal connection exists
     assert hasattr(window.edit_manager, 'staged_changes_exist')
@@ -48,7 +50,8 @@ def test_edit_manager_signal_connection(qapp, sample_file):
 
 def test_staged_changes_display(qapp, sample_file):
     """Test that PropertiesWindow displays staged values correctly."""
-    window = PropertiesWindow([sample_file])
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Stage a change via EditManager
     window.edit_manager.stage_change([sample_file], KEY_TITLE, "Staged Title")
@@ -58,7 +61,8 @@ def test_staged_changes_display(qapp, sample_file):
 
 def test_committed_changes_display(qapp, sample_file):
     """Test that PropertiesWindow displays committed values when no staged changes exist."""
-    window = PropertiesWindow([sample_file])
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Get the original committed value
     original_value = sample_file.get_tag_simple(KEY_TITLE)
@@ -68,7 +72,8 @@ def test_committed_changes_display(qapp, sample_file):
 
 def test_simple_tab_edit_stages_changes(qapp, sample_file):
     """Test that editing fields in the simple tab stages changes via EditManager."""
-    window = PropertiesWindow([sample_file])
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Simulate editing a field
     window.main_tab._on_edited(KEY_TITLE, "New Title")
@@ -78,7 +83,8 @@ def test_simple_tab_edit_stages_changes(qapp, sample_file):
 
 def test_button_states_with_staged_changes(qapp, sample_file):
     """Test that button states update correctly based on EditManager state."""
-    window = PropertiesWindow([sample_file])
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Reset the EditManager to ensure clean state
     window.edit_manager.reset_changes()
@@ -100,7 +106,8 @@ def test_button_states_with_staged_changes(qapp, sample_file):
 
 def test_commit_request_handling(qapp, sample_file):
     """Test that PropertiesWindow handles commit requests from EditManager."""
-    window = PropertiesWindow([sample_file])
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Stage some changes
     window.edit_manager.stage_change([sample_file], KEY_TITLE, "New Title")

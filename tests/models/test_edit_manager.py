@@ -1,11 +1,19 @@
 import pytest
 from unittest.mock import Mock, patch
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QEventLoop
 from models.edit_manager import EditManager
 from models.media_file import MediaFile
 from pathlib import Path
 import shutil
 import tempfile
-from util.const import PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC
+from util.const import PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC, KEY_VALUE, KEY_PROVIDER
+from util.logging import log
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    return QApplication.instance() or QApplication([])
 
 
 @pytest.fixture
@@ -250,7 +258,7 @@ class TestEditManager:
         assert len(emitted_data) == 1
         assert emitted_data[0] is False
 
-    def test_commit_changes_clears_staged_changes(self, temp_media_file_factory):
+    def test_commit_changes_clears_staged_changes(self, temp_media_file_factory, qapp):
         """Test that commit_changes clears all staged changes."""
         emitted_data = []
         self.edit_manager.staged_changes_exist.connect(emitted_data.append)
@@ -265,7 +273,12 @@ class TestEditManager:
         assert self.edit_manager.has_staged_changes() is True
 
         # Commit changes
+        loop = QEventLoop()
+        self.edit_manager.commit_finished.connect(loop.quit)
+        self.edit_manager.commit_failed.connect(lambda errors: pytest.fail(f"Commit failed with errors: {errors}"))
+        self.edit_manager.commit_failed.connect(loop.quit)
         self.edit_manager.commit_changes()
+        loop.exec()
 
         # Verify staged changes were cleared
         assert self.edit_manager._staged_changes == {}
@@ -292,33 +305,6 @@ class TestEditManager:
         # Verify signal was emitted (reset_changes always emits signal)
         assert len(emitted_data) == 1
         assert emitted_data[0] is False
-
-    def test_reset_changes_clears_staged_changes(self, temp_media_file_factory):
-        """Test that reset_changes clears all staged changes."""
-        emitted_data = []
-        self.edit_manager.staged_changes_exist.connect(emitted_data.append)
-
-        media_file1 = temp_media_file_factory('sample_dtmf_ansi.mp3')
-        media_file2 = temp_media_file_factory('sample_dtmf_nometa.flac')
-        self.edit_manager.register_media_files([media_file1, media_file2])
-
-        # Stage some changes
-        self.edit_manager.stage_change([media_file1], 'title', 'New Title')
-        self.edit_manager.stage_change([media_file2], 'artist', 'New Artist')
-        assert self.edit_manager.has_staged_changes() is True
-
-        # Reset changes
-        self.edit_manager.reset_changes()
-
-        # Verify staged changes were cleared
-        assert self.edit_manager._staged_changes == {}
-        assert self.edit_manager.has_staged_changes() is False
-
-        # Verify signal was emitted (2 staging calls + 1 reset call)
-        assert len(emitted_data) == 3
-        assert emitted_data[0] is True
-        assert emitted_data[1] is True
-        assert emitted_data[2] is False
 
     def test_reset_changes_no_changes_staged(self):
         """Test reset_changes when no changes are staged."""
