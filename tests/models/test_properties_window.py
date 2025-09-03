@@ -123,7 +123,7 @@ def test_commit_request_handling(qapp, sample_file):
             }
         }
         # Connect the handle_commit function to the commit_requested signal
-        window.edit_manager.commit_requested.connect(lambda data: sample_file.save(data[str(sample_file.file_id)]))
+        window.edit_manager.commit_started.connect(lambda: sample_file.save(commit_data[str(sample_file.file_id)]))
 
         # Commit changes via EditManager (this will emit the commit_requested signal)
         window.edit_manager.commit_changes()

@@ -525,16 +525,18 @@ class TestEditManager:
 
         # Create a list to capture emitted data
         emitted_data = []
-        self.edit_manager.commit_requested.connect(emitted_data.append)
+        self.edit_manager.commit_finished.connect(emitted_data.append)
 
         # Commit changes
+        loop = QEventLoop()
+        self.edit_manager.commit_finished.connect(loop.quit)
+        self.edit_manager.commit_failed.connect(lambda errors: pytest.fail(f"Commit failed with errors: {errors}"))
         self.edit_manager.commit_changes()
+        loop.exec()
 
         # Verify signal was emitted with correct data
         assert len(emitted_data) == 1
-        commit_data = emitted_data[0]
+        saved_file_ids = emitted_data[0]
 
-        assert str(self.dummy_media_file.file_id) in commit_data
-        assert commit_data[str(self.dummy_media_file.file_id)][KEY_TAG_GENERIC]['title'] == 'Test Title'
-        assert commit_data[str(self.dummy_media_file.file_id)][KEY_TAG_INTERNAL]['TIT2'][KEY_VALUE] == 'Internal Title'
-        assert commit_data[str(self.dummy_media_file.file_id)][KEY_TAG_INTERNAL]['TIT2'][KEY_PROVIDER] is mock_provider
+        assert self.dummy_media_file.file_id in saved_file_ids
+        

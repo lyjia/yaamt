@@ -1,5 +1,5 @@
 import argparse
-print("MAIN.PY IS RUNNING")
+
 import sys
 import json
 import traceback
@@ -142,14 +142,14 @@ def main():
         if args.json:
             print(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
         else:
-            traceback.print_exc()
+            traceback.print_exc(file=sys.stderr)
             print(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
         sys.exit(SYS_RETURN_FILE_NOT_FOUND)
     except Exception as e:
         if args.json:
             print(json.dumps({"error": str(e)}, indent=4))
         else:
-            traceback.print_exc()
+            traceback.print_exc(file=sys.stderr)
             print(f"An error occurred: {e}", file=sys.stderr)
         sys.exit(SYS_RETURN_UNKNOWN_FATAL_ERROR)
 
