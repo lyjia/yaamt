@@ -17,7 +17,6 @@ FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "metadata"
 # This list will be used to parameterize the test function.
 test_files = [p for p in FIXTURE_DIR.glob('*') if (p.suffix == '.mp3' or p.suffix == ".flac")]
 
-
 def flatten_dict(d, parent_key='', sep='_'):
     items = []
     for k, v in d.items():
@@ -105,9 +104,7 @@ def test_flags_not_editable(model):
     flags = model.flags(index)
     assert not (flags & Qt.ItemFlag.ItemIsEditable)
 
-@pytest.mark.skipif(IN_GITHUB_RUNNER,
-                    reason="Crashes in github runner with: Fatal Python error: Aborted")
-def test_set_data(model, edit_manager, qapp):
+def test_set_data(model, edit_manager):
     """Test that setData() stages a change with the EditManager."""
     media_file = MediaFile(test_files[0])
     model._data = [MetadataTableModel.get_metadata_from_media_file(media_file)]
