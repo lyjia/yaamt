@@ -1,5 +1,6 @@
 import os
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtGui import QFont
 from models.settings import ColumnSettings
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
@@ -36,53 +37,72 @@ class MetadataTableModel(QAbstractTableModel):
             return None
 
         row_data = self._data[index.row()]
+        file_id = row_data.get(KEY_FILE_ID)
+        column = self._columns[index.column()]
 
         if role == KEY_IS_MEDIA:
             return row_data.get(KEY_IS_MEDIA) is True
 
-        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole or role == Qt.ItemDataRole.EditRole:
-            column = self._columns[index.column()]
+        # Helper to get staged value, assuming generic tags for columns handled by this model
+        staged_value = None
+        if file_id and column.id:
+            staged_value = self.edit_manager.get_staged_value(file_id, column.id)
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            if staged_value is not None:
+                return staged_value
 
             if column.id == COL_MAIN_FILENAME:
                 return os.path.basename(row_data.get(KEY_FILE_PATH, ""))
 
             elif column.id == COL_MAIN_SIZE:
                 fsize = row_data.get(KEY_FILE_SIZE, 0)
-
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return human_readable_size( fsize )
-                else:
-                    return fsize
+                return human_readable_size(fsize)
 
             elif column.id == COL_MAIN_TYPE:
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return row_data.get(KEY_FILE_TYPE_HUMAN)
-                else:
-                    return row_data.get(KEY_FILE_TYPE)
+                return row_data.get(KEY_FILE_TYPE_HUMAN)
 
             elif column.id == COL_MAIN_DATE_MODIFIED:
                 fmtime = row_data.get(KEY_FILE_MTIME)
-
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return human_readable_timestamp( fmtime )
-                else:
-                    return fmtime
+                return human_readable_timestamp(fmtime)
 
             elif column.id == "date_created":
                 fctime = row_data.get(KEY_FILE_CTIME)
-
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return human_readable_timestamp( fctime )
-                else:
-                    return fctime
+                return human_readable_timestamp(fctime)
 
             # elif header == "Last Accessed":
             #     fatime = row_data.get(KEY_FILE_ATIME)
-            #
-            #     if role == Qt.ItemDataRole.DisplayRole:
-            #         return human_readable_timestamp( fatime )
-            #     else:
-            #         return fatime
+            #     return human_readable_timestamp(fatime)
+
+            else:
+                return row_data.get(column.id, "")
+        
+        elif role == Qt.ItemDataRole.FontRole:
+            if staged_value is not None:
+                font = QFont()
+                font.setBold(True)
+                return font
+
+        elif role == Qt.ItemDataRole.UserRole or role == Qt.ItemDataRole.EditRole:
+            # For EditRole, return the current value from row_data, which should be consistent
+            # with staged changes due to setData's behavior.
+            if column.id == COL_MAIN_FILENAME:
+                return os.path.basename(row_data.get(KEY_FILE_PATH, ""))
+
+            elif column.id == COL_MAIN_SIZE:
+                return row_data.get(KEY_FILE_SIZE, 0)
+
+            elif column.id == COL_MAIN_TYPE:
+                return row_data.get(KEY_FILE_TYPE)
+
+            elif column.id == COL_MAIN_DATE_MODIFIED:
+                return row_data.get(KEY_FILE_MTIME)
+
+            elif column.id == "date_created":
+                return row_data.get(KEY_FILE_CTIME)
+
+            # elif header == "Last Accessed":
+            #     return row_data.get(KEY_FILE_ATIME)
 
             else:
                 return row_data.get(column.id, "")
