@@ -1,12 +1,13 @@
 
 import json
+
 import pytest
+
 from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
 from util.const import (
-    PROJECT_ROOT, KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_CTIME,
-    KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
-    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_IS_MEDIA, KEY_FILE_ID, KEY_TAG_GENERIC
+    PROJECT_ROOT, KEY_FILE_TYPE_HUMAN, KEY_TITLE, KEY_ARTIST,
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_IS_MEDIA, KEY_TAG_GENERIC
 )
 
 # Define the directory containing the test fixtures.
@@ -75,7 +76,7 @@ def test_get_metadata_from_media_file(media_path):
 from PySide6.QtCore import Qt
 from models.settings import ColumnSettings
 from models.edit_manager import EditManager
-from unittest.mock import MagicMock
+
 
 @pytest.fixture
 def columns():
