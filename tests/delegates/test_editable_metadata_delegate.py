@@ -8,8 +8,7 @@ from PySide6.QtCore import QModelIndex, QRect, Qt
 from unittest.mock import MagicMock, PropertyMock
 
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
-
-IN_GITHUB_RUNNER = (os.getenv("GITHUB_ACTIONS") == "true")
+from util.const import IN_GITHUB_RUNNER
 
 
 @pytest.fixture
@@ -28,7 +27,7 @@ def delegate():
 
 @pytest.fixture
 def parent_widget(qapp):
-    from PySide6.QtWidgets import QWidget 
+    from PySide6.QtWidgets import QWidget
     return QWidget()
 
 

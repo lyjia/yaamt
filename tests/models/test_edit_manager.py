@@ -9,6 +9,7 @@ import shutil
 import tempfile
 from util.const import PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC, KEY_VALUE, KEY_PROVIDER
 from util.logging import log
+from util.const import IN_GITHUB_RUNNER
 
 
 @pytest.fixture(scope="session")
@@ -95,7 +96,8 @@ class TestEditManager:
         # Verify no staged changes initially
         assert self.edit_manager.has_staged_changes() is False
         assert self.edit_manager._staged_changes == {}
-        assert self.edit_manager.get_staged_changes_for_file(DummyMediaFile('nonexistent.mp3')) == {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}}
+        assert self.edit_manager.get_staged_changes_for_file(DummyMediaFile('nonexistent.mp3')) == {KEY_TAG_GENERIC: {},
+                                                                                                    KEY_TAG_INTERNAL: {}}
 
     def test_autosave_property_getter(self):
         """Test the autosave property getter."""
@@ -160,7 +162,8 @@ class TestEditManager:
 
         # Verify helper methods work correctly
         assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title') == 'New Title'
-        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title', is_internal_tag=False) == 'New Title'
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title',
+                                                           is_internal_tag=False) == 'New Title'
 
         # Verify has_staged_changes returns True
         assert self.edit_manager.has_staged_changes() is True
@@ -204,7 +207,8 @@ class TestEditManager:
 
         # Verify both changes were staged
         assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_GENERIC]['title'] == 'New Title'
-        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_GENERIC]['artist'] == 'New Artist'
+        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_GENERIC][
+                   'artist'] == 'New Artist'
         assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL] == {}
 
         # Verify signal was emitted for each stage_change call
@@ -258,6 +262,8 @@ class TestEditManager:
         assert len(emitted_data) == 1
         assert emitted_data[0] is False
 
+    @pytest.mark.skipif(IN_GITHUB_RUNNER,
+                        reason="Crashes in github runner with: Fatal Python error: Aborted, test_edit_manager.py, line 16 in qapp")
     def test_commit_changes_clears_staged_changes(self, temp_media_file_factory, qapp):
         """Test that commit_changes clears all staged changes."""
         emitted_data = []
@@ -470,28 +476,34 @@ class TestEditManager:
         # Create a mock provider
         mock_provider = Mock()
 
-        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'New Title', is_internal_tag=True, provider=mock_provider)
+        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'New Title', is_internal_tag=True,
+                                       provider=mock_provider)
 
         # Verify the change was staged correctly
         assert self.dummy_media_file.file_id in self.edit_manager._staged_changes
         assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_GENERIC] == {}
-        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL]['TIT2'][KEY_VALUE] == 'New Title'
-        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL]['TIT2'][KEY_PROVIDER] is mock_provider
+        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL]['TIT2'][
+                   KEY_VALUE] == 'New Title'
+        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL]['TIT2'][
+                   KEY_PROVIDER] is mock_provider
 
     def test_get_staged_value_for_generic_tag(self):
         """Test getting staged value for generic tags."""
         self.edit_manager.stage_change([self.dummy_media_file], 'title', 'Test Title')
 
         assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title') == 'Test Title'
-        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title', is_internal_tag=False) == 'Test Title'
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title',
+                                                           is_internal_tag=False) == 'Test Title'
         assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title', is_internal_tag=True) is None
 
     def test_get_staged_value_for_internal_tag(self):
         """Test getting staged value for internal tags."""
         mock_provider = Mock()
-        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Test Title', is_internal_tag=True, provider=mock_provider)
+        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Test Title', is_internal_tag=True,
+                                       provider=mock_provider)
 
-        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'TIT2', is_internal_tag=True) == 'Test Title'
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'TIT2',
+                                                           is_internal_tag=True) == 'Test Title'
         assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'TIT2', is_internal_tag=False) is None
 
     def test_get_staged_value_nonexistent_file(self):
@@ -503,7 +515,8 @@ class TestEditManager:
         # Stage some changes
         self.edit_manager.stage_change([self.dummy_media_file], 'title', 'Test Title')
         mock_provider = Mock()
-        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Internal Title', is_internal_tag=True, provider=mock_provider)
+        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Internal Title', is_internal_tag=True,
+                                       provider=mock_provider)
 
         changes = self.edit_manager.get_staged_changes_for_file(self.dummy_media_file)
         expected = {
@@ -517,7 +530,8 @@ class TestEditManager:
         # Stage some changes
         self.edit_manager.stage_change([self.dummy_media_file], 'title', 'Test Title')
         mock_provider = Mock()
-        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Internal Title', is_internal_tag=True, provider=mock_provider)
+        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Internal Title', is_internal_tag=True,
+                                       provider=mock_provider)
 
         log.debug(f"dummy_media_file.file_id: {self.dummy_media_file.file_id}")
         log.debug(f"_staged_changes: {self.edit_manager._staged_changes}")
@@ -539,4 +553,3 @@ class TestEditManager:
         saved_file_ids = emitted_data[0]
 
         assert self.dummy_media_file.file_id in saved_file_ids
-        

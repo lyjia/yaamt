@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 KEY_STREAM_INFO = "stream_info"
@@ -142,3 +143,5 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 MAP_INTERNAL_TO_GENERIC = 'i2g'
 MAP_GENERIC_TO_INTERNAL = 'g2i'
+
+IN_GITHUB_RUNNER = (os.getenv("GITHUB_ACTIONS") == "true")
