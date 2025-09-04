@@ -5,11 +5,12 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel
+from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread
 
 import windows
+from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
-from workers.gui.metadata_loader import MetadataLoader
+from workers.gui.load_files_worker import LoadFilesWorker
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
@@ -99,7 +100,11 @@ class MainWindow(QMainWindow):
 
         # Connect to EditManager signals
         self.edit_manager = EditManager()
-        self.edit_manager.commit_successful.connect(self.on_commit_successful)
+        self.edit_manager.commit_started.connect(self.on_commit_started)
+        self.edit_manager.commit_progress.connect(self.update_progress)
+        self.edit_manager.commit_finished.connect(self.on_commit_finished)
+        self.edit_manager.commit_failed.connect(self.on_commit_failed)
+
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
@@ -148,7 +153,7 @@ class MainWindow(QMainWindow):
         self.set_path(path)
         files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
         
-        worker = MetadataLoader(files)
+        worker = LoadFilesWorker(files)
         worker.signals.progress.connect(self.update_progress)
         worker.signals.finished.connect(self.on_worker_finished)
         worker.signals.result.connect(self.on_worker_result)
@@ -260,19 +265,20 @@ class MainWindow(QMainWindow):
         about_window.exec()
 
     def open_properties_window(self):
-        selected_indexes = self.files_view.selectionModel().selectedIndexes()
+        selected_indexes = self.files_view.selectionModel().selectedRows()
         if not selected_indexes:
             return
 
-        first_index = selected_indexes[0]
-        source_index = self.proxy_model.mapToSource(first_index)
-        
-        # Get the dictionary for the selected row
-        row_data = self.file_model._data[source_index.row()]
-        file_path = row_data.get(KEY_FILE_PATH)
+        media_files = []
+        for index in selected_indexes:
+            source_index = self.proxy_model.mapToSource(index)
+            row_data = self.file_model._data[source_index.row()]
+            file_path = row_data.get(KEY_FILE_PATH)
+            if file_path and row_data.get(KEY_IS_MEDIA):
+                media_files.append(MediaFile(file_path, enable_write=True))
 
-        if file_path:
-            self.properties_window = windows.PropertiesWindow(file_path, self)
+        if media_files:
+            self.properties_window = windows.PropertiesWindow(media_files, self.edit_manager, self)
             self.properties_window.show()
 
     def on_column_resized(self, logical_index, old_size, new_size):
@@ -289,24 +295,54 @@ class MainWindow(QMainWindow):
 
     def update_file_actions(self):
         selected_indexes = self.files_view.selectionModel().selectedIndexes()
-        selected_rows = {index.row() for index in selected_indexes}
+        selected_rows = {self.proxy_model.mapToSource(index).row() for index in selected_indexes}
 
         is_media_file = False
-        if len(selected_rows) == 1:
-            first_index = selected_indexes[0]
-            source_index = self.proxy_model.mapToSource(first_index)
-            is_media_file = self.file_model.data(source_index, KEY_IS_MEDIA)
+        if selected_rows:
+            # Check if all selected items are media files
+            all_media = True
+            for row in selected_rows:
+                index = self.file_model.index(row, 0) # Check first column
+                if not self.file_model.data(index, KEY_IS_MEDIA):
+                    all_media = False
+                    break
+            is_media_file = all_media
 
-        self.action_properties.setEnabled(len(selected_rows) == 1 and is_media_file)
+        self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
 
-    def on_commit_successful(self, file_paths):
+    def on_commit_started(self):
+        self.status_label.setText("Saving changes...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.show()
+
+    def on_commit_finished(self, saved_file_ids):
         """
         Slot called when commit is successful. Refreshes the model for the updated files.
 
         Args:
-            file_paths: List of file paths that were successfully updated
+            saved_file_ids: List of file ids that were successfully updated
         """
-        self.file_model.refresh_files(file_paths)
+        self.status_label.setText(f"Saved {len(saved_file_ids)} files.")
+        self.progress_bar.hide()
+
+        if saved_file_ids:
+            self.file_model.refresh_files(saved_file_ids, self.edit_manager)
+
+    def on_commit_failed(self, errors):
+        """
+        Slot called when a commit fails.
+        """
+        self.progress_bar.hide()
+        error_message = "\n".join(errors)
+        self._show_error_message("Error Committing Changes", error_message)
+
+    def _show_error_message(self, title, message):
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setText(title)
+        msg_box.setInformativeText(message)
+        msg_box.setWindowTitle("Error")
+        msg_box.exec()
 
     def _reset_column_settings(self):
         self.file_list_settings = FileListSettings()

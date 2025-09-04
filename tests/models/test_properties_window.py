@@ -4,6 +4,9 @@ import pytest
 from unittest.mock import Mock, patch
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
+from pathlib import Path
+import shutil
+from util.const import PROJECT_ROOT, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
 
 from windows.properties_window import PropertiesWindow
 from models.media_file import MediaFile
@@ -18,28 +21,28 @@ def qapp():
 @pytest.fixture
 def sample_file(tmp_path):
     """Create a temporary audio file for testing."""
-    temp_file = tmp_path / "test.mp3"
-    # Create a minimal MP3 file for testing
-    with open(temp_file, 'wb') as f:
-        # Write minimal MP3 header (this is a simplified version)
-        f.write(b'\xFF\xFB\x00\x00')  # MP3 frame sync
-    return str(temp_file)
+    source_file = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "sample_dtmf_unicode.mp3"
+    temp_file = tmp_path / source_file.name
+    shutil.copy(source_file, temp_file)
+    return MediaFile(str(temp_file), enable_write=True)
 
 def test_properties_window_initialization(qapp, sample_file):
     """Test that PropertiesWindow initializes correctly with EditManager."""
-    window = PropertiesWindow(sample_file)
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Verify EditManager is initialized
     assert hasattr(window, 'edit_manager')
     assert isinstance(window.edit_manager, EditManager)
 
     # Verify MediaFile is initialized
-    assert hasattr(window, 'media_file')
-    assert isinstance(window.media_file, MediaFile)
+    assert hasattr(window, 'media_files')
+    assert isinstance(window.media_files[0], MediaFile)
 
 def test_edit_manager_signal_connection(qapp, sample_file):
     """Test that PropertiesWindow connects to EditManager signals."""
-    window = PropertiesWindow(sample_file)
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Verify signal connection exists
     assert hasattr(window.edit_manager, 'staged_changes_exist')
@@ -47,37 +50,41 @@ def test_edit_manager_signal_connection(qapp, sample_file):
 
 def test_staged_changes_display(qapp, sample_file):
     """Test that PropertiesWindow displays staged values correctly."""
-    window = PropertiesWindow(sample_file)
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Stage a change via EditManager
     window.edit_manager.stage_change([sample_file], KEY_TITLE, "Staged Title")
 
     # Verify the staged value is displayed in the UI
-    assert window._get_display_value(KEY_TITLE) == "Staged Title"
+    assert window.main_tab._get_display_value(KEY_TITLE) == "Staged Title"
 
 def test_committed_changes_display(qapp, sample_file):
     """Test that PropertiesWindow displays committed values when no staged changes exist."""
-    window = PropertiesWindow(sample_file)
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Get the original committed value
-    original_value = window.media_file.get_tag_simple(KEY_TITLE)
+    original_value = sample_file.get_tag_simple(KEY_TITLE)
 
     # Verify the committed value is displayed when no staged changes exist
-    assert window._get_display_value(KEY_TITLE) == original_value
+    assert window.main_tab._get_display_value(KEY_TITLE) == original_value
 
 def test_simple_tab_edit_stages_changes(qapp, sample_file):
     """Test that editing fields in the simple tab stages changes via EditManager."""
-    window = PropertiesWindow(sample_file)
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Simulate editing a field
-    window._on_simple_tab_edited(KEY_TITLE, "New Title")
+    window.main_tab._on_edited(KEY_TITLE, "New Title")
 
     # Verify the change was staged
     assert window.edit_manager.get_staged_value(sample_file, KEY_TITLE) == "New Title"
 
 def test_button_states_with_staged_changes(qapp, sample_file):
     """Test that button states update correctly based on EditManager state."""
-    window = PropertiesWindow(sample_file)
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Reset the EditManager to ensure clean state
     window.edit_manager.reset_changes()
@@ -99,26 +106,27 @@ def test_button_states_with_staged_changes(qapp, sample_file):
 
 def test_commit_request_handling(qapp, sample_file):
     """Test that PropertiesWindow handles commit requests from EditManager."""
-    window = PropertiesWindow(sample_file)
+    edit_manager = EditManager()
+    window = PropertiesWindow([sample_file], edit_manager)
 
     # Stage some changes
     window.edit_manager.stage_change([sample_file], KEY_TITLE, "New Title")
     window.edit_manager.stage_change([sample_file], KEY_ARTIST, "New Artist")
 
     # Mock the save method to avoid actual file I/O
-    with patch.object(window.media_file, 'save') as mock_save:
-        # Simulate commit request - use the window's file_path to ensure exact match
+    with patch.object(sample_file, 'save') as mock_save:
+        # Simulate commit request - use the window's file_id to ensure exact match
         commit_data = {
-            window.file_path: {
-                'generic_tags': {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
-                'internal_tags': {}
+            str(sample_file.file_id): {
+                KEY_TAG_GENERIC: {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
+                KEY_TAG_INTERNAL: {}
             }
         }
-        window.on_commit_requested(commit_data)
+        # Connect the handle_commit function to the commit_requested signal
+        window.edit_manager.commit_started.connect(lambda: sample_file.save(commit_data[str(sample_file.file_id)]))
 
-        # Wait for the worker to complete since save operations are asynchronous
-        if hasattr(window, 'worker'):
-            window.worker.wait()
+        # Commit changes via EditManager (this will emit the commit_requested signal)
+        window.edit_manager.commit_changes()
 
         # Verify save was called with correct changes
-        mock_save.assert_called_once_with(commit_data[window.file_path])
+        mock_save.assert_called_once_with(commit_data[str(sample_file.file_id)])

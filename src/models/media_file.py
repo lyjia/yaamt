@@ -1,10 +1,9 @@
 import os
 
 from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
-    KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
-    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE
+    KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_MEDIA, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_FILE_ID
 from providers.metadata.mutagen_provider import MutagenProvider
-from models.edit_manager import EditManager
 from util.logging import log
 
 
@@ -38,6 +37,7 @@ class MediaFile:
     """
     def __init__(self, file_path: str, enable_write=False):
         self._file_path = os.path.abspath(file_path)
+        self._file_id = hash(self._file_path)
         self._file_name = os.path.basename(file_path)
         self._providers = self._get_providers_for_file()
         self._write_enabled = enable_write
@@ -56,7 +56,7 @@ class MediaFile:
                 KEY_FILE_CTIME: os.path.getctime(file_path),
                 # KEY_FILE_ATIME: os.path.getatime(file_path),
                 KEY_IS_MEDIA: False,
-                KEY_IS_WRITABLE: False
+                KEY_IS_WRITABLE: False,
             }
         }
 
@@ -177,7 +177,7 @@ class MediaFile:
         modified_providers = set()
 
         # Process generic tag changes
-        for tag, value in changes.get('generic_tags', {}).items():
+        for tag, value in changes.get(KEY_TAG_GENERIC, {}).items():
             internal_tag = self._generic_to_internal_map.get(tag, tag)
             if internal_tag in self._tag_writers[KEY_TAGS]:
                 provider = self._tag_writers[KEY_TAGS][internal_tag][0]
@@ -185,21 +185,23 @@ class MediaFile:
                 modified_providers.add(provider)
 
         # Process internal tag changes
-        for tag, tag_data in changes.get('internal_tags', {}).items():
-            provider = tag_data['provider']
-            provider.set_tag(tag, [tag_data['value']])
+        for tag, tag_data in changes.get(KEY_TAG_INTERNAL, {}).items():
+            provider = tag_data[KEY_PROVIDER]
+            provider.set_tag(tag, [tag_data[KEY_VALUE]])
             modified_providers.add(provider)
+            # Update internal metadata after saving
+            self._combined_metadata[KEY_INTERNAL][tag] = tag_data[KEY_VALUE]
 
         for provider in modified_providers:
             provider.save()
 
         # Clear the cache for the tags that were changed
-        for tag in changes.get('generic_tags', {}).keys():
+        for tag in changes.get(KEY_TAG_GENERIC, {}).keys():
             internal_tag = self._generic_to_internal_map.get(tag, tag)
             if internal_tag in self._combined_metadata[KEY_TAGS]:
                 del self._combined_metadata[KEY_TAGS][internal_tag]
 
-        for tag in changes.get('internal_tags', {}).keys():
+        for tag in changes.get(KEY_TAG_INTERNAL, {}).keys():
             if tag in self._combined_metadata[KEY_TAGS]:
                 del self._combined_metadata[KEY_TAGS][tag]
 
@@ -228,7 +230,9 @@ class MediaFile:
                 KEY_PROVIDER: self._tag_provider_lookup[KEY_STREAM_INFO][key][0].__class__.__name__,
             }
 
-        to_ret[KEY_INTERNAL] = self._combined_metadata[KEY_INTERNAL]
+        # Include all internal data that has been set
+        for key, value in self._combined_metadata[KEY_INTERNAL].items():
+            to_ret[KEY_INTERNAL][key] = value
 
         return to_ret
 
@@ -238,6 +242,14 @@ class MediaFile:
     @property
     def metadata(self):
         return self.to_dict()
+
+    @property
+    def file_path(self):
+        return self._file_path
+
+    @property
+    def file_id(self):
+        return self._file_id
 
     def get_internal_tag_name_for_generic(self, generic_tag_name):
         return self._generic_to_internal_map.get(generic_tag_name)

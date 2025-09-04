@@ -8,6 +8,7 @@ KEY_INTERNAL = "internal"
 # INTERNAL keys
 KEY_IS_MEDIA = "ismedia"  # is this file a media file we care about or something else?
 KEY_IS_WRITABLE = "iswritable"
+KEY_FILE_ID = "file_id"
 
 # FILESYSTEM keys
 KEY_FILE_PATH = "fpath"
@@ -132,7 +133,8 @@ AVAILABLE_COLUMNS = { # for right-side file pane
 KEY_PROVIDER = 'provider'
 KEY_ALL_PROVIDERS = 'all_providers'
 KEY_AVAIL_KEYS = 'available_keys'
-
+KEY_TAG_INTERNAL = 'internal_tags'
+KEY_TAG_GENERIC = 'generic_tags'
 KEY_VALUE = 'value'
 KEY_ALL_VALUES = 'all_values'
 

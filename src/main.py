@@ -2,118 +2,194 @@ import argparse
 import sys
 import json
 import traceback
+import os
+import csv
+from models.edit_manager import EditManager
 from models.media_file import MediaFile
 from util.const import ALL_TAGS
-from util.logging import log
+from util.logging import log, configure_logger
 
 SYS_RETURN_UNKNOWN_FATAL_ERROR = 1
 SYS_RETURN_FILE_INVALID = 2
 SYS_RETURN_FILE_NOT_FOUND = 3
+SUPPORTED_FORMATS = ['json', 'table', 'csv']
+SUPPORTED_EXTENSIONS = ['.mp3', '.flac', '.wav']
 
-def main():
+
+def get_files(path, recursive=False):
     """
-    Main function to parse command-line arguments and display audio file metadata.
+    Generates a list of file paths to be processed.
+    If the path is a file, it returns a list containing just that path.
+    If the path is a directory, it scans the directory for supported audio files.
     """
-    parser = argparse.ArgumentParser(description="Read or write metadata from an audio file.")
-    parser.add_argument("file_path", nargs='?', default=None, help="The path to the audio file.")
-    parser.add_argument("--json", action="store_true", help="Output metadata in JSON format.")
-    parser.add_argument("--update-tag", nargs=2, action='append', help="Update a tag. Provide key and value. Can be used multiple times.")
-    parser.add_argument("--update-internal-tag", nargs=2, action='append', help="Update an internal tag. Provide key and value. Can be used multiple times.")
-    # Add shortcut arguments for all tags
-    for tag_name, display_name in ALL_TAGS.items():
-        parser.add_argument(f"--{tag_name}", help=f"Set the {display_name.lower()} of the track.")
+    files = []
+    if os.path.isfile(path):
+        if os.path.splitext(path)[-1].lower() in SUPPORTED_EXTENSIONS:
+            files.append(path)
+    elif os.path.isdir(path):
+        if recursive:
+            for root, _, filenames in os.walk(path):
+                for filename in filenames:
+                    if os.path.splitext(filename)[-1].lower() in SUPPORTED_EXTENSIONS:
+                        files.append(os.path.join(root, filename))
+        else:
+            for filename in os.listdir(path):
+                if os.path.splitext(filename)[-1].lower() in SUPPORTED_EXTENSIONS:
+                    files.append(os.path.join(path, filename))
+    return files
 
-    args = parser.parse_args()
 
-    if not args.file_path:
-        print("For the GUI, run: python src/gui.py")
-        parser.print_help()
-        sys.exit(0)
-
-    try:
-        media_file = MediaFile(args.file_path)
-
-        if not media_file.is_readable():
-            if args.json:
-                print(json.dumps({"error": "File is not readable"}, indent=4))
-            else:
-                print(f"Error: File is not readable: {args.file_path}", file=sys.stderr)
-            sys.exit(SYS_RETURN_FILE_INVALID)
+def print_output(media_files, output_format='table'):
+    """
+    Prints the output in the specified format.
+    """
+    if output_format == 'json':
+        print(json.dumps([mf.to_dict() for mf in media_files], indent=4))
+    elif output_format == 'csv':
+        if not media_files:
+            return
+        writer = csv.writer(sys.stdout)
+        # Get all possible keys from all files
+        all_keys = set()
+        for mf in media_files:
+            all_keys.update(mf.to_dict()['tags'].keys())
+            all_keys.update(mf.to_dict()['stream_info'].keys())
+            all_keys.update(mf.to_dict()['internal'].keys())
         
-        write_ops = []
-        if args.update_tag:
-            for key, value in args.update_tag:
-                media_file.set_tag(key, value)
-                write_ops.append(key)
+        header = ['file_path'] + sorted(list(all_keys))
+        writer.writerow(header)
 
-        # Process shortcut tag arguments
-        for tag_name in ALL_TAGS:
-            if getattr(args, tag_name, None) is not None:
-                value = getattr(args, tag_name)
-                media_file.set_tag(tag_name, value)
-                write_ops.append(tag_name)
+        for mf in media_files:
+            data = mf.to_dict()
+            row = [mf.file_path]
+            for key in sorted(list(all_keys)):
+                value = (data['tags'].get(key, {}).get('value') or
+                         data['stream_info'].get(key) or
+                         data['internal'].get(key, ''))
+                row.append(value)
+            writer.writerow(row)
 
-        if args.update_internal_tag:
-            for key, value in args.update_internal_tag:
-                media_file.set_tag(key, value, internal=True)
-                write_ops.append(key)
+    else:  # table format
+        for media_file in media_files:
+            print(f"Metadata for: {media_file.file_path}")
 
-        if write_ops:
-            media_file.save()
-            if not args.json:
-                print(f"Successfully updated {', '.join(write_ops)} for {args.file_path}")
-
-        if args.json:
-            print(json.dumps(media_file.to_dict(), indent=4))
-
-        elif not write_ops:
-            print(f"Metadata for: {args.file_path}")
-            
             # Print all available tags
             print("\nTags:")
-            if media_file._tag_provider_lookup['tags']:
-                for key in sorted(media_file._tag_provider_lookup['tags'].keys()):
-                    value = media_file.get_tag_simple(key)
-                    if value:
-                        print(f"  {key}: {value}")
+            tags = media_file.tags()
+            if tags:
+                for key, value in sorted(tags.items()):
+                    print(f"  {key}: {value.get('value')}")
             else:
                 print("  No tags found.")
 
             # Print all available stream info
             print("\nStream Info:")
-            if media_file._tag_provider_lookup['stream_info']:
-                for key in sorted(media_file._tag_provider_lookup['stream_info'].keys()):
-                    value = media_file.get_stream_info_value(key)
-                    if value:
-                        print(f"  {key}: {value}")
+            stream_info = media_file.stream_info()
+            if stream_info:
+                for key, value in sorted(stream_info.items()):
+                    print(f"  {key}: {value}")
             else:
                 print("  No stream info found.")
 
             # Print all internal data
             print("\nInternal Info:")
-            if media_file._combined_metadata['internal']:
-                for key, value in sorted(media_file._combined_metadata['internal'].items()):
-                    if value:
-                        print(f"  {key}: {value}")
+            internal_data = media_file.internal_data()
+            if internal_data:
+                for key, value in sorted(internal_data.items()):
+                    print(f"  {key}: {value}")
             else:
                 print("  No internal info found.")
+            if len(media_files) > 1:
+                print("-" * 20)
 
-    except FileNotFoundError:
-        if args.json:
-            print(json.dumps({"error": f"File not found at '{args.file_path}'"}, indent=4))
-        else:
-            traceback.print_exc()
-            print(f"Error: File not found at '{args.file_path}'", file=sys.stderr)
+
+def main():
+    """
+    Main function to parse command-line arguments and display audio file metadata.
+    """
+    parser = argparse.ArgumentParser(description="Read or write metadata from an audio file or directory.")
+    parser.add_argument("path", help="The path to the audio file or directory.")
+    parser.add_argument("--recursive", action="store_true", help="Scan subdirectories when a directory is provided.")
+    parser.add_argument("--format", choices=SUPPORTED_FORMATS, default='table', help="Output format.")
+    parser.add_argument("--update-tag", nargs=2, action='append', help="Update a tag. Provide key and value. Can be used multiple times.")
+    parser.add_argument("--update-internal-tag", nargs=2, action='append', help="Update an internal tag. Provide key and value. Can be used multiple times.")
+
+    for tag_name, display_name in ALL_TAGS.items():
+        parser.add_argument(f"--{tag_name}", help=f"Set the {display_name.lower()} of the track.")
+
+    args = parser.parse_args()
+
+    if args.format == 'json' or args.format == 'csv':
+        configure_logger(use_formatter=False)
+
+    files = get_files(args.path, args.recursive)
+    if not files:
+        print(f"Error: No supported audio files found at '{args.path}'", file=sys.stderr)
         sys.exit(SYS_RETURN_FILE_NOT_FOUND)
-    except Exception as e:
-        if args.json:
-            print(json.dumps({"error": str(e)}, indent=4))
-        else:
-            traceback.print_exc()
-            print(f"An error occurred: {e}", file=sys.stderr)
-        sys.exit(SYS_RETURN_UNKNOWN_FATAL_ERROR)
+
+    media_files = []
+    for file_path in files:
+        try:
+            media_file = MediaFile(file_path, enable_write=True)
+            if not media_file.is_readable():
+                if args.format == 'json':
+                    print(json.dumps({"error": f"File is not readable: {file_path}"}, indent=4), file=sys.stderr)
+                else:
+                    print(f"Error: File is not readable: {file_path}", file=sys.stderr)
+                continue
+            media_files.append(media_file)
+        except Exception as e:
+            if args.format == 'json':
+                print(json.dumps({"error": f"Failed to process {file_path}: {e}"}, indent=4), file=sys.stderr)
+            else:
+                print(f"Error: Failed to process {file_path}: {e}", file=sys.stderr)
+
+    if not media_files:
+        sys.exit(SYS_RETURN_FILE_INVALID)
+
+    write_ops = []
+    if args.update_tag:
+        for key, value in args.update_tag:
+            write_ops.append({'key': key, 'value': value})
+
+    for tag_name in ALL_TAGS:
+        if getattr(args, tag_name, None) is not None:
+            value = getattr(args, tag_name)
+            write_ops.append({'key': tag_name, 'value': value})
+
+    if args.update_internal_tag:
+        for key, value in args.update_internal_tag:
+            # For internal tags, we need to determine the appropriate provider
+            # For now, we'll assume the first provider in the registered providers list
+            provider = None
+            if media_files and media_files[0]._registered_providers['tags']:
+                provider = media_files[0]._registered_providers['tags'][0]['provider']
+            write_ops.append({'key': key, 'value': value, 'is_internal': True, 'provider': provider})
+
+    if write_ops:
+        edit_manager = EditManager()
+        edit_manager.register_media_files(media_files)
+        for change in write_ops:
+            if change.get('is_internal', False):
+                edit_manager.stage_change(media_files, change['key'], change['value'], True, change['provider'])
+            else:
+                edit_manager.stage_change(media_files, change['key'], change['value'], False)
+        
+        # This is a synchronous operation now
+        saved_files, errors = edit_manager.commit_changes_sync()
+
+        if errors:
+            log.debug(f"Commit failed with errors: {errors}")
+            for error in errors:
+                log.debug(f"  - {error}")
+            sys.exit(1)
+        
+        log.debug(f"Commit successful for files: {saved_files}")
+
+    print_output(media_files, args.format)
 
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
