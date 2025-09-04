@@ -79,6 +79,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
                 source_index = model.mapToSource(index)
                 log.debug(f"Updating source index {source_index} with new value '{new_value}'")
                 source_model.setData(source_index, new_value, role=role)
+                source_model.finished_with_edits()
 
     def updateEditorGeometry(self, editor, option, index):
         """

@@ -156,6 +156,10 @@ class MetadataTableModel(QAbstractTableModel):
 
         return True
 
+    def finished_with_edits(self):
+        log.debug("Finished with edits. Saving changes...")
+        self.edit_manager.commit_changes()
+
     def get_media_file_for_row(self, row):
         """
         Get the MediaFile object for a given row index.

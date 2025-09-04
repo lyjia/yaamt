@@ -146,13 +146,13 @@ class EditManager(QObject):
         """
 
         if not self.autosave and not autosave_override:
-            log.debug("Autosave is disabled, skipping commit.")
+            log.error("Autosave is disabled, save aborted!")
             return
 
         log.debug("Saving changes in a background thread...")
 
         if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.isFinished() and self._commit_thread.isRunning():
-            log.warning("Commit is already in progress.")
+            log.warning("Save is already in progress.")
             return
         
         if not self.has_staged_changes():
