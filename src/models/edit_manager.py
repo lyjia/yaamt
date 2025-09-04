@@ -236,3 +236,6 @@ class EditManager(QObject):
 
     def get_staged_changes(self, file_id: int):
         return self._staged_changes.get(file_id, {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}})
+
+    def get_media_file(self, file_id) -> Optional[MediaFile]:
+        return self._media_files.get(file_id)

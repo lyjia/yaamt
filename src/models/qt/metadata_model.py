@@ -165,7 +165,7 @@ class MetadataTableModel(QAbstractTableModel):
         if file_id:
             # We need to access the EditManager's media files
             # This will be set external to this model when it's created
-            return self.edit_manager._media_files.get(file_id) if self.edit_manager else None
+            return self.edit_manager.get_media_file(file_id) if self.edit_manager else None
 
         return None
 
