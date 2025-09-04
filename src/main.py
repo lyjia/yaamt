@@ -75,30 +75,28 @@ def print_output(media_files, output_format='table'):
 
             # Print all available tags
             print("\nTags:")
-            if media_file._tag_provider_lookup['tags']:
-                for key in sorted(media_file._tag_provider_lookup['tags'].keys()):
-                    value = media_file.get_tag_simple(key)
-                    if value:
-                        print(f"  {key}: {value}")
+            tags = media_file.tags()
+            if tags:
+                for key, value in sorted(tags.items()):
+                    print(f"  {key}: {value.get('value')}")
             else:
                 print("  No tags found.")
 
             # Print all available stream info
             print("\nStream Info:")
-            if media_file._tag_provider_lookup['stream_info']:
-                for key in sorted(media_file._tag_provider_lookup['stream_info'].keys()):
-                    value = media_file.get_stream_info_value(key)
-                    if value:
-                        print(f"  {key}: {value}")
+            stream_info = media_file.stream_info()
+            if stream_info:
+                for key, value in sorted(stream_info.items()):
+                    print(f"  {key}: {value}")
             else:
                 print("  No stream info found.")
 
             # Print all internal data
             print("\nInternal Info:")
-            if media_file._combined_metadata['internal']:
-                for key, value in sorted(media_file._combined_metadata['internal'].items()):
-                    if value:
-                        print(f"  {key}: {value}")
+            internal_data = media_file.internal_data()
+            if internal_data:
+                for key, value in sorted(internal_data.items()):
+                    print(f"  {key}: {value}")
             else:
                 print("  No internal info found.")
             if len(media_files) > 1:
@@ -161,13 +159,21 @@ def main():
 
     if args.update_internal_tag:
         for key, value in args.update_internal_tag:
-            write_ops.append({'key': key, 'value': value, 'is_internal': True})
+            # For internal tags, we need to determine the appropriate provider
+            # For now, we'll assume the first provider in the registered providers list
+            provider = None
+            if media_files and media_files[0]._registered_providers['tags']:
+                provider = media_files[0]._registered_providers['tags'][0]['provider']
+            write_ops.append({'key': key, 'value': value, 'is_internal': True, 'provider': provider})
 
     if write_ops:
         edit_manager = EditManager()
         edit_manager.register_media_files(media_files)
         for change in write_ops:
-            edit_manager.stage_change(media_files, change['key'], change['value'], change.get('is_internal', False))
+            if change.get('is_internal', False):
+                edit_manager.stage_change(media_files, change['key'], change['value'], True, change['provider'])
+            else:
+                edit_manager.stage_change(media_files, change['key'], change['value'], False)
         
         # This is a synchronous operation now
         saved_files, errors = edit_manager.commit_changes_sync()
@@ -179,8 +185,6 @@ def main():
             sys.exit(1)
         
         log.debug(f"Commit successful for files: {saved_files}")
-        for media_file in media_files:
-            media_file.refresh()
 
     print_output(media_files, args.format)
 

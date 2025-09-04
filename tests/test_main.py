@@ -57,8 +57,8 @@ class TestMainCli:
         data = json.loads(captured.out)
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data["tags"]["artist"]["value"] == "Lyjia"
-        assert data["tags"]["album"]["value"] == "pytest"
+        assert data[0]["tags"]["artist"]["value"] == "Lyjia"
+        assert data[0]["tags"]["album"]["value"] == "pytest"
 
     def test_file_not_found(self, mock_argv, capsys):
         """Test handling of file not found errors."""
@@ -130,7 +130,7 @@ class TestMainCli:
         
         captured = capsys.readouterr()
         data = json.loads(captured.out)
-        assert data['internal']['replaygain_track_gain'] == '-1.23 dB'
+        assert data[0]['internal']['replaygain_track_gain'] == '-1.23 dB'
 
     def test_corrupted_file(self, tmp_path, mock_argv, capsys):
         """Test handling of a corrupted file."""

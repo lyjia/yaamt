@@ -91,21 +91,20 @@ class EditManager(QObject):
 
             self.staged_changes_exist.emit(self.has_staged_changes())
 
-    @Slot()
-    def _save_changes(self):
+    def _save_changes_impl(self):
         """
-        Saves staged changes to files. This method is designed to be run in a separate thread.
+        Core save logic that can be used by both synchronous and asynchronous operations.
         """
-        log.debug("Starting background save operation...")
+        log.debug("Starting save operation...")
         saved_file_ids = []
         errors = []
         try:
             with self._write_lock:
                 total_files = len(self._staged_changes)
                 if total_files == 0:
-                    return
+                    return saved_file_ids, errors
 
-                for i, (file_id, changes) in enumerate(self._staged_changes.items()):
+                for file_id, changes in self._staged_changes.items():
                     media_file = self._media_files.get(file_id)
                     if media_file:
                         try:
@@ -115,20 +114,29 @@ class EditManager(QObject):
                         except Exception as e:
                             log.error(f"Error saving file {media_file.file_path}: {e}")
                             errors.append(f"{media_file.file_path}: {e}")
-                    self.commit_progress.emit(i + 1, total_files)
-                
+
                 self._staged_changes.clear()
                 self.staged_changes_exist.emit(False)
 
-            if errors:
-                self.commit_failed.emit(errors)
-            else:
-                self.commit_finished.emit(saved_file_ids)
         except Exception as e:
-            log.error(f"An unexpected error occurred in _save_changes: {e}")
-            self.commit_failed.emit([f"An unexpected error occurred: {e}"])
-        finally:
-            self._commit_thread.quit()
+            log.error(f"An unexpected error occurred in save: {e}")
+            errors.append(f"An unexpected error occurred: {e}")
+
+        return saved_file_ids, errors
+
+    @Slot()
+    def _save_changes(self):
+        """
+        Saves staged changes to files. This method is designed to be run in a separate thread.
+        """
+        saved_file_ids, errors = self._save_changes_impl()
+
+        if errors:
+            self.commit_failed.emit(errors)
+        else:
+            self.commit_finished.emit(saved_file_ids)
+
+        self._commit_thread.quit()
 
     def commit_changes(self):
         """
@@ -153,6 +161,13 @@ class EditManager(QObject):
 
         self.commit_started.emit()
         self._commit_thread.start()
+
+    def commit_changes_sync(self):
+        """
+        Commit all staged changes to the files synchronously.
+        """
+        saved_file_ids, errors = self._save_changes_impl()
+        return saved_file_ids, errors
 
     def reset_changes(self):
         """
