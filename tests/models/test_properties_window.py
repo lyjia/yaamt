@@ -79,7 +79,7 @@ def test_simple_tab_edit_stages_changes(qapp, sample_file):
     window.main_tab._on_edited(KEY_TITLE, "New Title")
 
     # Verify the change was staged
-    assert window.edit_manager.get_staged_value(sample_file, KEY_TITLE) == "New Title"
+    assert window.edit_manager.get_staged_value_for_file(sample_file, KEY_TITLE) == "New Title"
 
 def test_button_states_with_staged_changes(qapp, sample_file):
     """Test that button states update correctly based on EditManager state."""

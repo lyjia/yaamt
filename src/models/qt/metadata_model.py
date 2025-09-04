@@ -15,10 +15,14 @@ from util.logging import log
 
 
 class MetadataTableModel(QAbstractTableModel):
-    def __init__(self, columns: list[ColumnSettings], parent=None):
+    def __init__(self, columns: list[ColumnSettings], edit_manager: EditManager, parent=None):
         super().__init__(parent)
         self._data = []
         self._columns = columns
+        self.edit_manager = edit_manager
+
+        if self.edit_manager is None:
+            raise ValueError("edit_manager cannot be None!")
 
     def rowCount(self, parent=QModelIndex()):
         return len(self._data)
@@ -36,7 +40,7 @@ class MetadataTableModel(QAbstractTableModel):
         if role == KEY_IS_MEDIA:
             return row_data.get(KEY_IS_MEDIA) is True
 
-        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole:
+        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole or role == Qt.ItemDataRole.EditRole:
             column = self._columns[index.column()]
 
             if column.id == COL_MAIN_FILENAME:
@@ -85,12 +89,111 @@ class MetadataTableModel(QAbstractTableModel):
                 
         return None
 
+    def flags(self, index):
+        """
+        Return the item flags for the given index.
+        This determines whether a cell is editable and selectable.
+
+        Args:
+            index: The model index
+
+        Returns:
+            Qt.ItemFlags: The flags for the item
+        """
+        if not index.isValid():
+            return Qt.ItemFlag.NoItemFlags
+
+        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+        # Check if this column is writable
+        column_settings = self._columns[index.column()]
+        if column_settings.is_writable:
+            flags |= Qt.ItemFlag.ItemIsEditable
+
+        return flags
+
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        """
+        Set the data for the item at the given index.
+
+        Args:
+            index: The model index
+            value: The new value to set
+            role: The role for which to set data
+
+        Returns:
+            bool: True if the data was set successfully
+        """
+        if not index.isValid() or role != Qt.ItemDataRole.EditRole:
+            log.error(f"Invalid index or role for setData(): {index.isValid()}, {role}. Save aborted!")
+            return False
+
+        column_settings = self._columns[index.column()]
+        if not column_settings.is_writable:
+            log.error(f"Column {column_settings.id} is not writable! Save aborted!")
+            return False
+
+        row_data = self._data[index.row()]
+        file_path = row_data.get(KEY_FILE_PATH)
+
+        # Get the MediaFile object for this row
+        media_file = MediaFile(file_path, enable_write=True)
+        self.edit_manager.register_media_files([ media_file ])
+
+        if media_file is None:
+            log.error(f"media_file is None for row {index.row()}! Save aborted!")
+            return False
+
+        # Stage the change with the EditManager
+        self.edit_manager.stage_change([media_file], column_settings.id, value)
+
+        # Update the internal data immediately for UI responsiveness
+        row_data[column_settings.id] = value
+        self._data[index.row()] = row_data
+
+        # Emit data changed signal
+        self.dataChanged.emit(index, index, [role])
+
+        return True
+
+    def finished_with_edits(self):
+        log.debug("Finished with edits. Saving changes...")
+        self.edit_manager.commit_changes()
+
+    def get_media_file_for_row(self, row):
+        """
+        Get the MediaFile object for a given row index.
+
+        Args:
+            row: The row index
+
+        Returns:
+            MediaFile or None: The MediaFile object if found
+        """
+        if row < 0 or row >= len(self._data):
+            log.error(f"Invalid row index: {row} (of {len(self._data)})!")
+            return None
+
+        row_data = self._data[row]
+        file_id = row_data.get(KEY_FILE_ID)
+        if file_id:
+            # We need to access the EditManager's media files
+            # This will be set external to this model when it's created
+            return self.edit_manager.get_media_file(file_id)
+        else:
+            log.error(f"Row {row} does not have a file ID!")
+
+        return None
+
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             return self._columns[section].label
         return None
 
-    def set_data(self, data):
+    def get_data_for_row(self, row):
+        return self._data[row]
+
+    def set_entire_data(self, data):
         self.beginResetModel()
         self._data = data
         self.endResetModel()
@@ -152,7 +255,7 @@ class MetadataTableModel(QAbstractTableModel):
         for row_index, row_data in enumerate(self._data):
             file_id = row_data.get(KEY_FILE_ID)
             if file_id in file_ids:
-                media_file = edit_manager._media_files.get(file_id)
+                media_file = edit_manager.get_media_file(file_id)
                 if not media_file:
                     continue
 

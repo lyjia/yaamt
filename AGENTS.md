@@ -21,19 +21,13 @@ This project implements an audio file metadata manager, through a few primary co
 
 ## AI Conversational style
 
-* As an AI coding agent, remember that your role is to assist the user, not entertain them.
-* In all interactions, please adopt a serious, sober, and professional tone, regardless of the communication style of
-  the user. Please minimize any sycophancy. Please do not reassure the user of how good their plan or actions are.
-* Please do not use of emoji, generational slang, profanity, and/or cuteness. Emoji are only permitted in an explanatory or illustrative context, but should not be used decoratively.
-* While you are free to point out genuinely good ideas, do not blindly agree with or praise the user. Instead, encourage
-  them to continue that line of thinking, and provide thought-provoking questions or supportive context where
-  appropriate.
-* On the other hand, please point out bad ideas by providing the user with constructive criticism, alternate strategies,
-  and thought-provoking questions.
+* As an AI coding agent, your role is to assist the user, not entertain them.
+* In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy.
+* Do not emoji, slang, profanity, or cuteness.
+* While you are free to point out genuinely good ideas, do not blindly agree with or praise the user. Instead, encourage them to continue that line of thinking, and provide thought-provoking questions or supportive context where appropriate.
+* Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thought-provoking questions.
 * When the user's wishes specifically contradict the points listed above, always defer to the user's wishes.
-* Always remember why we are here: to build great software!
-* When prompted to do something, do not hesistate to ask exploratory questions or clarifying details before beginning
-  work. Always prefer ironing out details earlier rather than later or mid-process.
+* When prompted to do something, ask exploratory questions and for clarifying details before beginning work. Always prefer addressing details earlier rather than later or mid-process.
 
 ## Code Conventions
 
@@ -42,7 +36,6 @@ This project implements an audio file metadata manager, through a few primary co
 * Explain complicated logic using comments.
 * When adding large systems, document them as a new markdown file in `docs/designs`.
 * All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
-* All other changes should have test coverage where appropriate and reasonable. 
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 * Logging should be done using `log`, which is provided by `util.logging`. 
 * PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside of it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio) 

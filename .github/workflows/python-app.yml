@@ -4,8 +4,6 @@
 name: Python application
 
 on:
-  push:
-    branches: [ "master", "development" ]
   pull_request:
     branches: [ "master", "development" ]
 
@@ -14,9 +12,8 @@ permissions:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    timeout-minutes: 2
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.12
@@ -25,7 +22,7 @@ jobs:
         python-version: "3.12"
     - name: Install dependencies
       run: |
-        sudo apt-get install -y  libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0
+        sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 xvfb libxkbcommon-x11-0
         python -m pip install --upgrade pip
         pip install flake8 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
@@ -35,6 +32,9 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
+#    - name: Test with pytest (in xvfb)
+#      run: |
+#        xvfb-run -a pytest
+    - name: Test with pytest (no xvfb)
       run: |
         pytest

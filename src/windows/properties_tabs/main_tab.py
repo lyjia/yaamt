@@ -78,7 +78,7 @@ class MainTab(QWidget):
         self.edit_manager.stage_change(self.media_files, generic_tag_name, new_value)
 
     def _get_display_value(self, tag_name):
-        staged_value = self.edit_manager.get_staged_value(self.media_files[0], tag_name)
+        staged_value = self.edit_manager.get_staged_value_for_file(self.media_files[0], tag_name)
         if staged_value is not None:
             return staged_value
 

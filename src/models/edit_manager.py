@@ -38,7 +38,7 @@ class EditManager(QObject):
         # Structure: {file_id: {KEY_TAG_GENERIC: {tag: value}, KEY_TAG_INTERNAL: {tag: {KEY_VALUE: value, KEY_PROVIDER: provider}}}}
         self._staged_changes: Dict[str, Dict[str, Dict]] = {}
         self._media_files: Dict[str, MediaFile] = {}
-        self._autosave = False
+        self._autosave = True #always enable for now
         self._commit_thread = None
         self._initialized = True
 
@@ -59,7 +59,7 @@ class EditManager(QObject):
 
     def stage_change(self, media_files: List[MediaFile], tag: str, value: Any, is_internal_tag: bool = False, provider = None):
         """
-        Stage a change for one or more files.
+        Stage a change for one or more files, pending a call to commit_changes().
 
         Args:
             media_files: List of MediaFile objects to apply the change to
@@ -68,6 +68,8 @@ class EditManager(QObject):
             is_internal_tag: Whether the tag is an internal tag name
             provider: The provider instance for internal tags (required if is_internal_tag=True)
         """
+
+        # do not try to call self.commit_changes() in here; that should be handled by the caller.
         with self._write_lock:
             for media_file in media_files:
                 file_id = media_file.file_id
@@ -138,12 +140,20 @@ class EditManager(QObject):
 
         self._commit_thread.quit()
 
-    def commit_changes(self):
+    def commit_changes(self, autosave_override=False):
         """
         Commit all staged changes to the files by running the save operation in a background thread.
         """
-        if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.isFinished() and self._commit_thread.isRunning():
-            log.warning("Commit is already in progress.")
+
+        if not self.autosave and not autosave_override:
+            log.error("Autosave is disabled, save aborted!")
+            return
+
+        log.debug("Saving changes in a background thread...")
+
+        # do not use self._commit_thread.isFinished() here, it will crash as the thread is already deleted!
+        if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.finished and self._commit_thread.isRunning():
+            log.warning("Save is already in progress.")
             return
         
         if not self.has_staged_changes():
@@ -164,7 +174,7 @@ class EditManager(QObject):
 
     def commit_changes_sync(self):
         """
-        Commit all staged changes to the files synchronously.
+        Commit all staged changes to the files synchronously. Used by the CLI to bypass the background thread.
         """
         saved_file_ids, errors = self._save_changes_impl()
         return saved_file_ids, errors
@@ -186,23 +196,26 @@ class EditManager(QObject):
             if file_changes[KEY_TAG_GENERIC] or file_changes[KEY_TAG_INTERNAL]:
                 result = True
                 break
-        log.debug(f"has_staged_changes returning: {result}")
+        # log.debug(f"has_staged_changes returning: {result}")
         return result
 
 
-    def get_staged_value(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
+    def get_staged_value_for_file(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
+        return self.get_staged_value(media_file.file_id, tag, is_internal_tag)
+
+    def get_staged_value(self, file_id: int, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
         """
-        Get the staged value for a specific tag in a file.
+        Get the staged value for a specific tag in a file by file id.
 
         Args:
-            media_file: The MediaFile object to check
+            :param file_id: file id to look for changes in.
             tag: The tag name to look for
             is_internal_tag: Whether the tag is an internal tag name
 
         Returns:
             The staged value if found, None otherwise
+
         """
-        file_id = media_file.file_id
         if file_id not in self._staged_changes:
             return None
 
@@ -217,6 +230,8 @@ class EditManager(QObject):
 
         return None
 
+
+
     def get_staged_changes_for_file(self, media_file: MediaFile) -> Dict[str, Dict]:
         """
         Get all staged changes for a specific file.
@@ -227,4 +242,13 @@ class EditManager(QObject):
         Returns:
             Dictionary with KEY_TAG_GENERIC and KEY_TAG_INTERNAL keys
         """
-        return self._staged_changes.get(media_file.file_id, {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}})
+        return self.get_staged_changes(media_file.file_id)
+
+    def get_staged_changes(self, file_id: int):
+        return self._staged_changes.get(file_id, {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}})
+
+    def get_media_file(self, file_id) -> Optional[MediaFile]:
+        to_ret = self._media_files.get(file_id)
+        if to_ret is None:
+            log.warning(f"Media file with id {file_id} not found.")
+        return to_ret

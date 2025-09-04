@@ -1,12 +1,13 @@
 
 import json
+
 import pytest
+
 from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
 from util.const import (
-    PROJECT_ROOT, KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_CTIME,
-    KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
-    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_IS_MEDIA, KEY_FILE_ID
+    PROJECT_ROOT, KEY_FILE_TYPE_HUMAN, KEY_TITLE, KEY_ARTIST,
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_IS_MEDIA, KEY_TAG_GENERIC, IN_GITHUB_RUNNER
 )
 
 # Define the directory containing the test fixtures.
@@ -15,7 +16,6 @@ FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "metadata"
 # Discover all audio files in the fixture directory.
 # This list will be used to parameterize the test function.
 test_files = [p for p in FIXTURE_DIR.glob('*') if (p.suffix == '.mp3' or p.suffix == ".flac")]
-
 
 def flatten_dict(d, parent_key='', sep='_'):
     items = []
@@ -70,3 +70,65 @@ def test_get_metadata_from_media_file(media_path):
     # Assert that the values for the mapped keys are equal
     for key, value in expected_mapped.items():
         assert actual_dict.get(key) == value, f"Mismatch for key {key}"
+
+
+from PySide6.QtCore import Qt
+from models.settings import ColumnSettings
+from models.edit_manager import EditManager
+
+
+@pytest.fixture
+def columns():
+    return [
+        ColumnSettings(id="title", label="Title", group="tag", width=200, is_visible=True, is_writable=True),
+        ColumnSettings(id="artist", label="Artist", group="tag", width=200, is_visible=True, is_writable=False),
+    ]
+
+@pytest.fixture
+def edit_manager():
+    return EditManager()
+
+@pytest.fixture
+def model(columns, edit_manager):
+    return MetadataTableModel(columns, edit_manager)
+
+def test_flags_editable(model):
+    """Test that flags() returns ItemIsEditable for writable columns."""
+    index = model.createIndex(0, 0)
+    flags = model.flags(index)
+    assert flags & Qt.ItemFlag.ItemIsEditable
+
+def test_flags_not_editable(model):
+    """Test that flags() does not return ItemIsEditable for non-writable columns."""
+    index = model.createIndex(0, 1)
+    flags = model.flags(index)
+    assert not (flags & Qt.ItemFlag.ItemIsEditable)
+
+def test_set_data(model, edit_manager):
+    """Test that setData() stages a change with the EditManager."""
+    media_file = MediaFile(test_files[0])
+    model._data = [MetadataTableModel.get_metadata_from_media_file(media_file)]
+    edit_manager._media_files = {media_file.file_id: media_file}
+
+    index = model.createIndex(0, 0)
+    new_value = "New Title"
+
+    data_changed_emitted = False
+    def on_data_changed(*args, **kwargs):
+        nonlocal data_changed_emitted
+        data_changed_emitted = True
+
+    model.dataChanged.connect(on_data_changed)
+    assert model.setData(index, new_value, role=Qt.ItemDataRole.EditRole)
+    assert data_changed_emitted
+
+    file_id = media_file.file_id
+    assert edit_manager.has_staged_changes()
+    staged_change = edit_manager.get_staged_changes(file_id)
+    assert staged_change[KEY_TAG_GENERIC][KEY_TITLE] == new_value
+    assert model._data[0][KEY_TITLE] == new_value
+
+def test_set_data_not_writable(model):
+    """Test that setData() returns False for non-writable columns."""
+    index = model.createIndex(0, 1)
+    assert not model.setData(index, "New Artist", role=Qt.ItemDataRole.EditRole)

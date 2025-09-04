@@ -120,7 +120,7 @@ class PropertiesWindow(QMainWindow):
 
         msg_box = QMessageBox()
         msg_box.setIcon(QMessageBox.Critical)
-        msg_box.setText("Failed to save changes to the following files:")
+        msg_box.setText("Failed to save changes:")
         msg_box.setInformativeText(error_message)
         msg_box.setWindowTitle("Commit Failed")
         msg_box.setStandardButtons(QMessageBox.Ok)

@@ -13,6 +13,7 @@ from models.qt.metadata_model import MetadataTableModel
 from workers.gui.load_files_worker import LoadFilesWorker
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
+from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
 
 
@@ -83,27 +84,31 @@ class MainWindow(QMainWindow):
             self.directory_tree.hideColumn(i)
         splitter.addWidget(self.directory_tree)
 
-        # Right Pane (File List)
-        self.files_view = QTreeView()
-        self.file_model = MetadataTableModel(self.file_list_settings.columns)
-
-        self.proxy_model = QSortFilterProxyModel()
-        self.proxy_model.setSourceModel(self.file_model)
-        self.proxy_model.setSortRole(Qt.ItemDataRole.UserRole)
-
-        self.files_view.setModel(self.proxy_model)
-        self.files_view.setSortingEnabled(True)
-        self.files_view.header().setContextMenuPolicy(Qt.CustomContextMenu)
-        self.files_view.header().customContextMenuRequested.connect(self.on_header_context_menu)
-        self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
-
         # Connect to EditManager signals
         self.edit_manager = EditManager()
         self.edit_manager.commit_started.connect(self.on_commit_started)
         self.edit_manager.commit_progress.connect(self.update_progress)
         self.edit_manager.commit_finished.connect(self.on_commit_finished)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
+
+        # Right Pane (File List)
+        self.files_view = QTreeView()
+        self.file_model = MetadataTableModel(self.file_list_settings.columns, self.edit_manager)
+
+        self.proxy_model = QSortFilterProxyModel()
+        self.proxy_model.setSourceModel(self.file_model)
+        self.proxy_model.setSortRole(Qt.ItemDataRole.UserRole)
+
+        self.files_view.setModel(self.proxy_model)
+
+        # Set up the editable delegate for edit-in-place functionality
+        self.editable_delegate = EditableMetadataDelegate()
+        self.files_view.setItemDelegate(self.editable_delegate)
+        self.files_view.setSortingEnabled(True)
+        self.files_view.header().setContextMenuPolicy(Qt.CustomContextMenu)
+        self.files_view.header().customContextMenuRequested.connect(self.on_header_context_menu)
+        self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
 
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
@@ -170,7 +175,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.hide()
         self.cancel_button.hide()
         self.status_label.setText("Finished loading.")
-        self.file_model.set_data(self.metadata_results)
+        self.file_model.set_entire_data(self.metadata_results)
 
     def on_worker_result(self, result_data):
         self.metadata_results.append(result_data)
@@ -272,7 +277,7 @@ class MainWindow(QMainWindow):
         media_files = []
         for index in selected_indexes:
             source_index = self.proxy_model.mapToSource(index)
-            row_data = self.file_model._data[source_index.row()]
+            row_data = self.file_model.get_data_for_row( row=source_index.row() )
             file_path = row_data.get(KEY_FILE_PATH)
             if file_path and row_data.get(KEY_IS_MEDIA):
                 media_files.append(MediaFile(file_path, enable_write=True))
@@ -346,7 +351,7 @@ class MainWindow(QMainWindow):
 
     def _reset_column_settings(self):
         self.file_list_settings = FileListSettings()
-        self.file_model = MetadataTableModel(self.file_list_settings.columns)
+        self.file_model = MetadataTableModel(self.file_list_settings.columns, self.edit_manager)
         self.proxy_model.setSourceModel(self.file_model)
         self._apply_column_settings()
         self.setup_view_menu()

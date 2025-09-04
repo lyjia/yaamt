@@ -14,6 +14,7 @@ class ColumnSettings:
     label: str
     width: int
     is_visible: bool
+    is_writable: bool = False
 
 
 def _create_default_columns() -> List[ColumnSettings]:
