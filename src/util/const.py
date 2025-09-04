@@ -116,17 +116,17 @@ GROUP_FILE = "file"
 GROUP_META = "metadata"
 
 AVAILABLE_COLUMNS = { # for right-side file pane
-    COL_MAIN_FILENAME: {"id": COL_MAIN_FILENAME, "group": GROUP_FILE, "label": "Filename", "width": 250, "is_visible": True},
-    COL_MAIN_SIZE: {"id": COL_MAIN_SIZE, "group": GROUP_FILE, "label": "Size", "width": 100, "is_visible": True},
-    COL_MAIN_TYPE: {"id": COL_MAIN_TYPE, "group": GROUP_FILE, "label": "Type", "width": 100, "is_visible": True},
-    COL_MAIN_DATE_MODIFIED: {"id": COL_MAIN_DATE_MODIFIED, "group": GROUP_FILE, "label": "Date Modified", "width": 150, "is_visible": True},
+    COL_MAIN_FILENAME: {"id": COL_MAIN_FILENAME, "group": GROUP_FILE, "label": "Filename", "width": 250, "is_visible": True, "is_writable": False},
+    COL_MAIN_SIZE: {"id": COL_MAIN_SIZE, "group": GROUP_FILE, "label": "Size", "width": 100, "is_visible": True, "is_writable": False},
+    COL_MAIN_TYPE: {"id": COL_MAIN_TYPE, "group": GROUP_FILE, "label": "Type", "width": 100, "is_visible": True, "is_writable": False},
+    COL_MAIN_DATE_MODIFIED: {"id": COL_MAIN_DATE_MODIFIED, "group": GROUP_FILE, "label": "Date Modified", "width": 150, "is_visible": True, "is_writable": False},
 
-    COL_MAIN_TITLE: {"id": COL_MAIN_TITLE, "group": GROUP_META, "label": ALL_TAGS[KEY_TITLE], "width": 200, "is_visible": True},
-    COL_MAIN_ARTIST: {"id": COL_MAIN_ARTIST, "group": GROUP_META, "label": ALL_TAGS[KEY_ARTIST], "width": 150, "is_visible": True},
-    COL_MAIN_ALBUM: {"id": COL_MAIN_ALBUM, "group": GROUP_META, "label": ALL_TAGS[KEY_ALBUM], "width": 150, "is_visible": True},
-    COL_MAIN_GENRE: {"id": COL_MAIN_GENRE, "group": GROUP_META, "label": ALL_TAGS[KEY_GENRE], "width": 100, "is_visible": True},
-    COL_MAIN_BPM: {"id": COL_MAIN_BPM, "group": GROUP_META, "label": ALL_TAGS[KEY_BPM], "width": 50, "is_visible": True},
-    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_MUSICAL_KEY], "width": 50, "is_visible": True}
+    COL_MAIN_TITLE: {"id": COL_MAIN_TITLE, "group": GROUP_META, "label": ALL_TAGS[KEY_TITLE], "width": 200, "is_visible": True, "is_writable": True},
+    COL_MAIN_ARTIST: {"id": COL_MAIN_ARTIST, "group": GROUP_META, "label": ALL_TAGS[KEY_ARTIST], "width": 150, "is_visible": True, "is_writable": True},
+    COL_MAIN_ALBUM: {"id": COL_MAIN_ALBUM, "group": GROUP_META, "label": ALL_TAGS[KEY_ALBUM], "width": 150, "is_visible": True, "is_writable": True},
+    COL_MAIN_GENRE: {"id": COL_MAIN_GENRE, "group": GROUP_META, "label": ALL_TAGS[KEY_GENRE], "width": 100, "is_visible": True, "is_writable": True},
+    COL_MAIN_BPM: {"id": COL_MAIN_BPM, "group": GROUP_META, "label": ALL_TAGS[KEY_BPM], "width": 50, "is_visible": True, "is_writable": True},
+    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_MUSICAL_KEY], "width": 50, "is_visible": True, "is_writable": True}
 }
 #### END column names for file list ####
 

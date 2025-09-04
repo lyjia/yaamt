@@ -70,3 +70,60 @@ def test_get_metadata_from_media_file(media_path):
     # Assert that the values for the mapped keys are equal
     for key, value in expected_mapped.items():
         assert actual_dict.get(key) == value, f"Mismatch for key {key}"
+
+
+from PySide6.QtCore import Qt
+from models.settings import ColumnSettings
+from models.edit_manager import EditManager
+from unittest.mock import MagicMock
+
+@pytest.fixture
+def columns():
+    return [
+        ColumnSettings(id="title", label="Title", is_writable=True),
+        ColumnSettings(id="artist", label="Artist", is_writable=False),
+    ]
+
+@pytest.fixture
+def edit_manager():
+    return EditManager()
+
+@pytest.fixture
+def model(columns, edit_manager):
+    return MetadataTableModel(columns, edit_manager)
+
+def test_flags_editable(model):
+    """Test that flags() returns ItemIsEditable for writable columns."""
+    index = model.createIndex(0, 0)
+    flags = model.flags(index)
+    assert flags & Qt.ItemFlag.ItemIsEditable
+
+def test_flags_not_editable(model):
+    """Test that flags() does not return ItemIsEditable for non-writable columns."""
+    index = model.createIndex(0, 1)
+    flags = model.flags(index)
+    assert not (flags & Qt.ItemFlag.ItemIsEditable)
+
+def test_set_data(model, edit_manager):
+    """Test that setData() stages a change with the EditManager."""
+    media_file = MediaFile(test_files)
+    model._data = [MetadataTableModel.get_metadata_from_media_file(media_file)]
+    edit_manager._media_files = {media_file.file_id: media_file}
+    
+    index = model.createIndex(0, 0)
+    new_value = "New Title"
+    
+    with MagicMock() as mock_signal:
+        model.dataChanged = mock_signal
+        assert model.setData(index, new_value, role=Qt.ItemDataRole.EditRole)
+        mock_signal.emit.assert_called_once()
+
+    assert edit_manager.has_changes()
+    staged_change = edit_manager.get_staged_changes()[media_file.file_id]
+    assert staged_change["changes"]["title"] == new_value
+    assert model._data["title"] == new_value
+
+def test_set_data_not_writable(model):
+    """Test that setData() returns False for non-writable columns."""
+    index = model.createIndex(0, 1)
+    assert not model.setData(index, "New Artist", role=Qt.ItemDataRole.EditRole)
