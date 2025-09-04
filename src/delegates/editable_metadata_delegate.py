@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QStyledItemDelegate, QLineEdit
 from PySide6.QtCore import QModelIndex, Qt
 
 from util.logging import log
+from models.edit_manager import EditManager
 
 
 class EditableMetadataDelegate(QStyledItemDelegate):
@@ -12,6 +13,9 @@ class EditableMetadataDelegate(QStyledItemDelegate):
     This delegate handles double-clicking to activate editing mode, creates QLineEdit
     widgets for text editing, and ensures the text is fully selected for easy replacement.
     """
+    def __init__(self, edit_manager: EditManager, parent=None):
+        super().__init__(parent)
+        self.edit_manager = edit_manager
 
     def createEditor(self, parent, option, index):
         """
@@ -73,8 +77,14 @@ class EditableMetadataDelegate(QStyledItemDelegate):
 
             # Only set data if the value has actually changed
             if new_value != original_value:
-                log.debug(f"Updating index {index} with new value '{new_value}'")
-                model.setData(index, new_value, role=role)
+                source_model = model.sourceModel()
+                source_index = model.mapToSource(index)
+                log.debug(f"Updating source index {source_index} with new value '{new_value}'")
+                source_model.setData(source_index, new_value, role=role)
+
+            # Commit the changes to the file
+            if self.edit_manager.has_staged_changes() and self.edit_manager.autosave:
+                self.edit_manager.commit_changes()
 
     def updateEditorGeometry(self, editor, option, index):
         """

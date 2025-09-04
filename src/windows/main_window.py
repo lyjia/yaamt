@@ -102,7 +102,7 @@ class MainWindow(QMainWindow):
         self.files_view.setModel(self.proxy_model)
 
         # Set up the editable delegate for edit-in-place functionality
-        self.editable_delegate = EditableMetadataDelegate()
+        self.editable_delegate = EditableMetadataDelegate(self.edit_manager)
         self.files_view.setItemDelegate(self.editable_delegate)
         self.files_view.setSortingEnabled(True)
         self.files_view.header().setContextMenuPolicy(Qt.CustomContextMenu)

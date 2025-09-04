@@ -145,10 +145,6 @@ class MetadataTableModel(QAbstractTableModel):
         # Emit data changed signal
         self.dataChanged.emit(index, index, [role])
 
-        # Commit the changes to the file
-        if self.edit_manager.staged_changes_exist() and self.edit_manager.autosave:
-            self.edit_manager.commit_changes()
-
         return True
 
     def get_media_file_for_row(self, row):
