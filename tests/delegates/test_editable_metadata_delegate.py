@@ -10,16 +10,6 @@ from unittest.mock import MagicMock, PropertyMock
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import IN_GITHUB_RUNNER
 
-
-@pytest.fixture
-def qapp():
-    """Create an application instance for the tests."""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
-
-
 @pytest.fixture
 def delegate():
     return EditableMetadataDelegate()
