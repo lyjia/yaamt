@@ -7,7 +7,7 @@ from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
 from util.const import (
     PROJECT_ROOT, KEY_FILE_TYPE_HUMAN, KEY_TITLE, KEY_ARTIST,
-    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_IS_MEDIA, KEY_TAG_GENERIC
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_IS_MEDIA, KEY_TAG_GENERIC, IN_GITHUB_RUNNER
 )
 
 # Define the directory containing the test fixtures.
@@ -105,7 +105,9 @@ def test_flags_not_editable(model):
     flags = model.flags(index)
     assert not (flags & Qt.ItemFlag.ItemIsEditable)
 
-def test_set_data(model, edit_manager):
+@pytest.mark.skipif(IN_GITHUB_RUNNER,
+                    reason="Crashes in github runner with: Fatal Python error: Aborted")
+def test_set_data(model, edit_manager, qapp):
     """Test that setData() stages a change with the EditManager."""
     media_file = MediaFile(test_files[0])
     model._data = [MetadataTableModel.get_metadata_from_media_file(media_file)]
