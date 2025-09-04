@@ -10,9 +10,6 @@ from util.const import PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC, KEY_VALU
 from util.logging import log
 from util.const import IN_GITHUB_RUNNER
 
-print("Starting edit manager tests.")
-
-
 @pytest.fixture
 def temp_media_file_factory():
     """
