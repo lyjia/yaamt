@@ -145,6 +145,7 @@ class MetadataTableModel(QAbstractTableModel):
         # Emit data changed signal
         self.dataChanged.emit(index, index, [role])
 
+
         return True
 
     def get_media_file_for_row(self, row):
@@ -236,7 +237,7 @@ class MetadataTableModel(QAbstractTableModel):
         for row_index, row_data in enumerate(self._data):
             file_id = row_data.get(KEY_FILE_ID)
             if file_id in file_ids:
-                media_file = edit_manager._media_files.get(file_id)
+                media_file = edit_manager.get_media_file(file_id)
                 if not media_file:
                     continue
 

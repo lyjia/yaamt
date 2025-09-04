@@ -98,8 +98,7 @@ class PropertiesWindow(QMainWindow):
         self.spinner.show()
         self.status_label.show()
 
-        if self.edit_manager.has_staged_changes() and self.edit_manager.autosave:
-            self.edit_manager.commit_changes()
+        self.edit_manager.commit_changes()
 
     def on_save_finished(self, file_ids):
         self.close()

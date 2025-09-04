@@ -59,7 +59,7 @@ class EditManager(QObject):
 
     def stage_change(self, media_files: List[MediaFile], tag: str, value: Any, is_internal_tag: bool = False, provider = None):
         """
-        Stage a change for one or more files.
+        Stage a change for one or more files, pending a call to commit_changes().
 
         Args:
             media_files: List of MediaFile objects to apply the change to
@@ -68,6 +68,8 @@ class EditManager(QObject):
             is_internal_tag: Whether the tag is an internal tag name
             provider: The provider instance for internal tags (required if is_internal_tag=True)
         """
+
+        # do not try to call self.commit_changes() in here; that should be handled by the caller.
         with self._write_lock:
             for media_file in media_files:
                 file_id = media_file.file_id
@@ -138,10 +140,17 @@ class EditManager(QObject):
 
         self._commit_thread.quit()
 
-    def commit_changes(self):
+    def commit_changes(self, autosave_override=False):
         """
         Commit all staged changes to the files by running the save operation in a background thread.
         """
+
+        if not self.autosave and not autosave_override:
+            log.debug("Autosave is disabled, skipping commit.")
+            return
+
+        log.debug("Saving changes in a background thread...")
+
         if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.isFinished() and self._commit_thread.isRunning():
             log.warning("Commit is already in progress.")
             return
@@ -164,7 +173,7 @@ class EditManager(QObject):
 
     def commit_changes_sync(self):
         """
-        Commit all staged changes to the files synchronously.
+        Commit all staged changes to the files synchronously. Used by the CLI to bypass the background thread.
         """
         saved_file_ids, errors = self._save_changes_impl()
         return saved_file_ids, errors
