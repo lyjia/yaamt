@@ -159,8 +159,8 @@ class TestEditManager:
         assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL] == {}
 
         # Verify helper methods work correctly
-        assert self.edit_manager.get_staged_value(self.dummy_media_file, 'title') == 'New Title'
-        assert self.edit_manager.get_staged_value(self.dummy_media_file, 'title', is_internal_tag=False) == 'New Title'
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title') == 'New Title'
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title', is_internal_tag=False) == 'New Title'
 
         # Verify has_staged_changes returns True
         assert self.edit_manager.has_staged_changes() is True
@@ -482,21 +482,21 @@ class TestEditManager:
         """Test getting staged value for generic tags."""
         self.edit_manager.stage_change([self.dummy_media_file], 'title', 'Test Title')
 
-        assert self.edit_manager.get_staged_value(self.dummy_media_file, 'title') == 'Test Title'
-        assert self.edit_manager.get_staged_value(self.dummy_media_file, 'title', is_internal_tag=False) == 'Test Title'
-        assert self.edit_manager.get_staged_value(self.dummy_media_file, 'title', is_internal_tag=True) is None
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title') == 'Test Title'
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title', is_internal_tag=False) == 'Test Title'
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title', is_internal_tag=True) is None
 
     def test_get_staged_value_for_internal_tag(self):
         """Test getting staged value for internal tags."""
         mock_provider = Mock()
         self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Test Title', is_internal_tag=True, provider=mock_provider)
 
-        assert self.edit_manager.get_staged_value(self.dummy_media_file, 'TIT2', is_internal_tag=True) == 'Test Title'
-        assert self.edit_manager.get_staged_value(self.dummy_media_file, 'TIT2', is_internal_tag=False) is None
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'TIT2', is_internal_tag=True) == 'Test Title'
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'TIT2', is_internal_tag=False) is None
 
     def test_get_staged_value_nonexistent_file(self):
         """Test getting staged value for nonexistent file returns None."""
-        assert self.edit_manager.get_staged_value(DummyMediaFile('nonexistent.mp3'), 'title') is None
+        assert self.edit_manager.get_staged_value_for_file(DummyMediaFile('nonexistent.mp3'), 'title') is None
 
     def test_get_staged_changes_for_file(self):
         """Test getting all staged changes for a specific file."""

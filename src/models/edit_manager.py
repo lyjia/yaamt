@@ -190,19 +190,22 @@ class EditManager(QObject):
         return result
 
 
-    def get_staged_value(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
+    def get_staged_value_for_file(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
+        return self.get_staged_value(media_file.file_id, tag, is_internal_tag)
+
+    def get_staged_value(self, file_id: int, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
         """
-        Get the staged value for a specific tag in a file.
+        Get the staged value for a specific tag in a file by file id.
 
         Args:
-            media_file: The MediaFile object to check
+            :param file_id: file id to look for changes in.
             tag: The tag name to look for
             is_internal_tag: Whether the tag is an internal tag name
 
         Returns:
             The staged value if found, None otherwise
+
         """
-        file_id = media_file.file_id
         if file_id not in self._staged_changes:
             return None
 
@@ -217,6 +220,8 @@ class EditManager(QObject):
 
         return None
 
+
+
     def get_staged_changes_for_file(self, media_file: MediaFile) -> Dict[str, Dict]:
         """
         Get all staged changes for a specific file.
@@ -227,4 +232,7 @@ class EditManager(QObject):
         Returns:
             Dictionary with KEY_TAG_GENERIC and KEY_TAG_INTERNAL keys
         """
-        return self._staged_changes.get(media_file.file_id, {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}})
+        return self.get_staged_changes(media_file.file_id)
+
+    def get_staged_changes(self, file_id: int):
+        return self._staged_changes.get(file_id, {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}})

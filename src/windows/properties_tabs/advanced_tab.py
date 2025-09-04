@@ -51,7 +51,7 @@ class AdvancedTab(QWidget):
                 value = tag_info.get("value")
                 is_binary = isinstance(value, bytes)
 
-                staged_value = self.edit_manager.get_staged_value(self.media_files[0], tag_name, is_internal_tag=True)
+                staged_value = self.edit_manager.get_staged_value_for_file(self.media_files[0], tag_name, is_internal_tag=True)
                 is_staged = staged_value is not None
 
                 display_value = str(staged_value) if is_staged else self._format_value(value)

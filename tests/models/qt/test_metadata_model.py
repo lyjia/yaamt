@@ -6,7 +6,7 @@ from models.qt.metadata_model import MetadataTableModel
 from util.const import (
     PROJECT_ROOT, KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_CTIME,
     KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
-    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_IS_MEDIA, KEY_FILE_ID
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, KEY_IS_MEDIA, KEY_FILE_ID, KEY_TAG_GENERIC
 )
 
 # Define the directory containing the test fixtures.
@@ -80,8 +80,8 @@ from unittest.mock import MagicMock
 @pytest.fixture
 def columns():
     return [
-        ColumnSettings(id="title", label="Title", is_writable=True),
-        ColumnSettings(id="artist", label="Artist", is_writable=False),
+        ColumnSettings(id="title", label="Title", group="tag", width=200, is_visible=True, is_writable=True),
+        ColumnSettings(id="artist", label="Artist", group="tag", width=200, is_visible=True, is_writable=False),
     ]
 
 @pytest.fixture
@@ -106,22 +106,27 @@ def test_flags_not_editable(model):
 
 def test_set_data(model, edit_manager):
     """Test that setData() stages a change with the EditManager."""
-    media_file = MediaFile(test_files)
+    media_file = MediaFile(test_files[0])
     model._data = [MetadataTableModel.get_metadata_from_media_file(media_file)]
     edit_manager._media_files = {media_file.file_id: media_file}
-    
+
     index = model.createIndex(0, 0)
     new_value = "New Title"
-    
-    with MagicMock() as mock_signal:
-        model.dataChanged = mock_signal
-        assert model.setData(index, new_value, role=Qt.ItemDataRole.EditRole)
-        mock_signal.emit.assert_called_once()
 
-    assert edit_manager.has_changes()
-    staged_change = edit_manager.get_staged_changes()[media_file.file_id]
-    assert staged_change["changes"]["title"] == new_value
-    assert model._data["title"] == new_value
+    data_changed_emitted = False
+    def on_data_changed(*args, **kwargs):
+        nonlocal data_changed_emitted
+        data_changed_emitted = True
+
+    model.dataChanged.connect(on_data_changed)
+    assert model.setData(index, new_value, role=Qt.ItemDataRole.EditRole)
+    assert data_changed_emitted
+
+    file_id = media_file.file_id
+    assert edit_manager.has_staged_changes()
+    staged_change = edit_manager.get_staged_changes(file_id)
+    assert staged_change[KEY_TAG_GENERIC][KEY_TITLE] == new_value
+    assert model._data[0][KEY_TITLE] == new_value
 
 def test_set_data_not_writable(model):
     """Test that setData() returns False for non-writable columns."""
