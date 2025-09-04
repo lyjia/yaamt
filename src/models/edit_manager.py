@@ -247,4 +247,7 @@ class EditManager(QObject):
         return self._staged_changes.get(file_id, {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}})
 
     def get_media_file(self, file_id) -> Optional[MediaFile]:
-        return self._media_files.get(file_id)
+        to_ret = self._media_files.get(file_id)
+        if to_ret is None:
+            log.warning(f"Media file with id {file_id} not found.")
+        return to_ret

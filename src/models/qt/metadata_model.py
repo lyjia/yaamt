@@ -21,6 +21,9 @@ class MetadataTableModel(QAbstractTableModel):
         self._columns = columns
         self.edit_manager = edit_manager
 
+        if self.edit_manager is None:
+            raise ValueError("edit_manager cannot be None!")
+
     def rowCount(self, parent=QModelIndex()):
         return len(self._data)
 
@@ -122,17 +125,23 @@ class MetadataTableModel(QAbstractTableModel):
             bool: True if the data was set successfully
         """
         if not index.isValid() or role != Qt.ItemDataRole.EditRole:
+            log.error(f"Invalid index or role for setData(): {index.isValid()}, {role}. Save aborted!")
             return False
 
         column_settings = self._columns[index.column()]
         if not column_settings.is_writable:
+            log.error(f"Column {column_settings.id} is not writable! Save aborted!")
             return False
 
         row_data = self._data[index.row()]
+        file_path = row_data.get(KEY_FILE_PATH)
 
         # Get the MediaFile object for this row
-        media_file = self.get_media_file_for_row(index.row())
+        media_file = MediaFile(file_path, enable_write=True)
+        self.edit_manager.register_media_files([ media_file ])
+
         if media_file is None:
+            log.error(f"media_file is None for row {index.row()}! Save aborted!")
             return False
 
         # Stage the change with the EditManager
@@ -144,7 +153,6 @@ class MetadataTableModel(QAbstractTableModel):
 
         # Emit data changed signal
         self.dataChanged.emit(index, index, [role])
-
 
         return True
 
@@ -159,6 +167,7 @@ class MetadataTableModel(QAbstractTableModel):
             MediaFile or None: The MediaFile object if found
         """
         if row < 0 or row >= len(self._data):
+            log.error(f"Invalid row index: {row} (of {len(self._data)})!")
             return None
 
         row_data = self._data[row]
@@ -166,7 +175,9 @@ class MetadataTableModel(QAbstractTableModel):
         if file_id:
             # We need to access the EditManager's media files
             # This will be set external to this model when it's created
-            return self.edit_manager.get_media_file(file_id) if self.edit_manager else None
+            return self.edit_manager.get_media_file(file_id)
+        else:
+            log.error(f"Row {row} does not have a file ID!")
 
         return None
 
@@ -175,7 +186,10 @@ class MetadataTableModel(QAbstractTableModel):
             return self._columns[section].label
         return None
 
-    def set_data(self, data):
+    def get_data_for_row(self, row):
+        return self._data[row]
+
+    def set_entire_data(self, data):
         self.beginResetModel()
         self._data = data
         self.endResetModel()

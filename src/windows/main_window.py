@@ -175,7 +175,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.hide()
         self.cancel_button.hide()
         self.status_label.setText("Finished loading.")
-        self.file_model.set_data(self.metadata_results)
+        self.file_model.set_entire_data(self.metadata_results)
 
     def on_worker_result(self, result_data):
         self.metadata_results.append(result_data)
@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
         media_files = []
         for index in selected_indexes:
             source_index = self.proxy_model.mapToSource(index)
-            row_data = self.file_model._data[source_index.row()]
+            row_data = self.file_model.get_data_for_row( row=source_index.row() )
             file_path = row_data.get(KEY_FILE_PATH)
             if file_path and row_data.get(KEY_IS_MEDIA):
                 media_files.append(MediaFile(file_path, enable_write=True))
