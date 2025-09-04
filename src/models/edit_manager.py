@@ -151,7 +151,8 @@ class EditManager(QObject):
 
         log.debug("Saving changes in a background thread...")
 
-        if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.isFinished() and self._commit_thread.isRunning():
+        # do not use self._commit_thread.isFinished() here, it will crash as the thread is already deleted!
+        if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.finished and self._commit_thread.isRunning():
             log.warning("Save is already in progress.")
             return
         
@@ -195,7 +196,7 @@ class EditManager(QObject):
             if file_changes[KEY_TAG_GENERIC] or file_changes[KEY_TAG_INTERNAL]:
                 result = True
                 break
-        log.debug(f"has_staged_changes returning: {result}")
+        # log.debug(f"has_staged_changes returning: {result}")
         return result
 
 
