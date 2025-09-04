@@ -98,7 +98,8 @@ class PropertiesWindow(QMainWindow):
         self.spinner.show()
         self.status_label.show()
 
-        self.edit_manager.commit_changes()
+        if self.edit_manager.has_staged_changes() and self.edit_manager.autosave:
+            self.edit_manager.commit_changes()
 
     def on_save_finished(self, file_ids):
         self.close()
@@ -120,7 +121,7 @@ class PropertiesWindow(QMainWindow):
 
         msg_box = QMessageBox()
         msg_box.setIcon(QMessageBox.Critical)
-        msg_box.setText("Failed to save changes to the following files:")
+        msg_box.setText("Failed to save changes:")
         msg_box.setInformativeText(error_message)
         msg_box.setWindowTitle("Commit Failed")
         msg_box.setStandardButtons(QMessageBox.Ok)

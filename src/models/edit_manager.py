@@ -38,7 +38,7 @@ class EditManager(QObject):
         # Structure: {file_id: {KEY_TAG_GENERIC: {tag: value}, KEY_TAG_INTERNAL: {tag: {KEY_VALUE: value, KEY_PROVIDER: provider}}}}
         self._staged_changes: Dict[str, Dict[str, Dict]] = {}
         self._media_files: Dict[str, MediaFile] = {}
-        self._autosave = False
+        self._autosave = True #always enable for now
         self._commit_thread = None
         self._initialized = True
 

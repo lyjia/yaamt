@@ -37,7 +37,7 @@ class MetadataTableModel(QAbstractTableModel):
         if role == KEY_IS_MEDIA:
             return row_data.get(KEY_IS_MEDIA) is True
 
-        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole:
+        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole or role == Qt.ItemDataRole.EditRole:
             column = self._columns[index.column()]
 
             if column.id == COL_MAIN_FILENAME:
@@ -144,6 +144,10 @@ class MetadataTableModel(QAbstractTableModel):
 
         # Emit data changed signal
         self.dataChanged.emit(index, index, [role])
+
+        # Commit the changes to the file
+        if self.edit_manager.staged_changes_exist() and self.edit_manager.autosave:
+            self.edit_manager.commit_changes()
 
         return True
 

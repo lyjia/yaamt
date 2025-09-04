@@ -2,6 +2,8 @@ import os
 from PySide6.QtWidgets import QStyledItemDelegate, QLineEdit
 from PySide6.QtCore import QModelIndex, Qt
 
+from util.logging import log
+
 
 class EditableMetadataDelegate(QStyledItemDelegate):
     """
@@ -57,11 +59,13 @@ class EditableMetadataDelegate(QStyledItemDelegate):
             model: The model to set data on
             index: The model index being edited
         """
+        role = Qt.ItemDataRole.EditRole
+
         if isinstance(editor, QLineEdit):
             new_value = editor.text().strip()
 
             # Get the original value for comparison
-            original_value = model.data(index, role=0)
+            original_value = model.data(index, role=role)
             if original_value is not None:
                 original_value = str(original_value)
             else:
@@ -69,7 +73,8 @@ class EditableMetadataDelegate(QStyledItemDelegate):
 
             # Only set data if the value has actually changed
             if new_value != original_value:
-                model.setData(index, new_value, role=Qt.ItemDataRole.EditRole)
+                log.debug(f"Updating index {index} with new value '{new_value}'")
+                model.setData(index, new_value, role=role)
 
     def updateEditorGeometry(self, editor, option, index):
         """
