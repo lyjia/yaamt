@@ -7,5 +7,3 @@ project_root = Path(__file__).parent.parent
 
 # Add the src directory to the Python path
 sys.path.insert(0, str(project_root / "src"))
-
-IN_GITHUB_RUNNER = (os.getenv("GITHUB_ACTIONS") == "true")
