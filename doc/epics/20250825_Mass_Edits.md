@@ -9,11 +9,11 @@ The objectives are as follows:
 
 * Add a new feature called "Autosave" to MainWindow. 
   * When autosave is enabled, changes to metadata showin in MainWindow (either through the above feature) are immediately persisted to disk. 
-  * The option to control this should be in the File menu, as a toggle labeled "Autosave".
+  * The option to control this should be in the File menu, as a toggle labeled "Autosave", as well as in MainWindow's toolbar.
   * When autosave is disabled, changes should be staged pending a user pressing "Commit":
     * which is either an entry in File menu called "Commit changes", 
     * or a new toolbar button (shaped as a check mark). 
-  * Additionally, a "Reset changes" button is also available, which clears staged changes and reverts the UI to show the original data. 
+  * Additionally, a "Reset changes" button should also be available, which clears staged changes and reverts the UI to show the original data. 
   * Both Commit and Reset options should only be enabled when Autosave is disabled and there are changes staged.
 
 * Users should be able to select multiple files and edit tags en masse. 
