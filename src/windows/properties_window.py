@@ -91,6 +91,12 @@ class PropertiesWindow(QMainWindow):
         self.update_button_states()
 
     def on_ok_clicked(self):
+        # If autosave or another process has already committed the changes,
+        # there might be nothing left to save. In this case, just close.
+        if not self.edit_manager.has_staged_changes():
+            self.close()
+            return
+
         self.central_widget.setEnabled(False)
 
         self.ok_button.hide()
@@ -98,7 +104,8 @@ class PropertiesWindow(QMainWindow):
         self.spinner.show()
         self.status_label.show()
 
-        self.edit_manager.commit_changes()
+        if not self.edit_manager.commit_changes():
+            self.close()
 
     def on_save_finished(self, file_ids):
         self.close()

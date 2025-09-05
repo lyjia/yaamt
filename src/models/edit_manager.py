@@ -48,8 +48,20 @@ class EditManager(QObject):
 
     @autosave.setter
     def autosave(self, value: bool):
+        # Direct setter no longer emits signal; use set_autosave method for that
+        # This deprecated function should only be used by tests if the signal emission is undesirable
         if self._autosave != value:
             self._autosave = value
+
+    @Slot(bool)
+    def set_autosave(self, enabled: bool):
+        """
+        Sets the autosave state and emits the autosave_changed signal.
+        This is the preferred way to change autosave status to ensure signal emission.
+        """
+        if self._autosave != enabled:
+            self._autosave = enabled
+            log.debug(f"Autosave set to: {enabled}")
             self.autosave_changed.emit(self._autosave)
 
     def register_media_files(self, media_files: List[MediaFile]):
@@ -69,7 +81,7 @@ class EditManager(QObject):
             provider: The provider instance for internal tags (required if is_internal_tag=True)
         """
 
-        # do not try to call self.commit_changes() in here; that should be handled by the caller.
+        # do not try to call self.commit_changes() in here; the caller should handle that.
         with self._write_lock:
             for media_file in media_files:
                 file_id = media_file.file_id
@@ -143,11 +155,15 @@ class EditManager(QObject):
     def commit_changes(self, autosave_override=False):
         """
         Commit all staged changes to the files by running the save operation in a background thread.
+
+        Callers may expect a signal emitted by the commit_finished signal when the operation is complete.
+        In cases where this will never happen (due to autosave being disabled, nothing to save, etc),
+        it will return False to indicate it is done.
         """
 
         if not self.autosave and not autosave_override:
             log.error("Autosave is disabled, save aborted!")
-            return
+            return False
 
         log.debug("Saving changes in a background thread...")
 
@@ -158,7 +174,7 @@ class EditManager(QObject):
         
         if not self.has_staged_changes():
             self.staged_changes_exist.emit(False)
-            return
+            return False
 
         self._commit_thread = QThread()
         worker = QObject()

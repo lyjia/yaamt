@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread
+from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot
 
 import windows
 from models.media_file import MediaFile
@@ -33,9 +33,6 @@ class MainWindow(QMainWindow):
 
         self.file_list_settings = FileListSettings()
         self._logical_column_ids = [c.id for c in FileListSettings().columns]
-
-        # Menus
-        self._create_menus()
 
         # Toolbar
         self.toolbar = QToolBar("Main Toolbar")
@@ -90,6 +87,7 @@ class MainWindow(QMainWindow):
         self.edit_manager.commit_progress.connect(self.update_progress)
         self.edit_manager.commit_finished.connect(self.on_commit_finished)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
+        self.edit_manager.autosave_changed.connect(self.on_autosave_changed)
 
         # Right Pane (File List)
         self.files_view = QTreeView()
@@ -126,7 +124,12 @@ class MainWindow(QMainWindow):
         header.sectionMoved.connect(self.on_column_moved)
         header.sortIndicatorChanged.connect(self.on_sort_indicator_changed)
 
-        self.setup_view_menu()
+
+        # Actions
+        self.create_file_menu_actions()
+
+        # Menus
+        self._create_menus()
 
         # Set initial path
         if path and os.path.isdir(path):
@@ -142,8 +145,34 @@ class MainWindow(QMainWindow):
         self._load_column_settings()
 
     def closeEvent(self, event):
-        self._save_column_settings()
-        super().closeEvent(event)
+        if self.edit_manager.has_staged_changes():
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Do you want to save them before quitting?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                QMessageBox.Save
+            )
+
+            if reply == QMessageBox.Save:
+                # Save changes and then close
+                self.edit_manager.commit_changes(autosave_override=True)
+                # We don't have a direct signal to know when the override save is done,
+                # so we'll assume for now that if commit_changes is called, it will handle its state.
+                # A more robust solution might involve connecting to commit_finished/failed
+                # and then closing, but that adds complexity.
+                # For now, we proceed with closing after initiating the save.
+                self._save_column_settings()
+                super().closeEvent(event)
+            elif reply == QMessageBox.Discard:
+                # Discard changes and close
+                self._save_column_settings()
+                super().closeEvent(event)
+            else: # Cancel
+                event.ignore()
+        else:
+            self._save_column_settings()
+            super().closeEvent(event)
 
     def set_path(self, path):
         self._current_path = path
@@ -241,15 +270,34 @@ class MainWindow(QMainWindow):
                 self.path_textbox.setText(self._current_path)
             return False
 
-    def _create_menus(self):
-        # File Menu
-        file_menu = self.menuBar().addMenu("&File")
+    def create_file_menu_actions(self):
+        """Creates actions for the File menu."""
+        self.action_autosave = QAction("Autosave", self)
+        self.action_autosave.setCheckable(True)
+        self.action_autosave.setChecked(self.edit_manager.autosave) # Initial state from EditManager
+        self.action_autosave.toggled.connect(self.edit_manager.set_autosave)
+
+        self.action_save = QAction("Save Changes", self)
+        self.action_save.setEnabled(not self.edit_manager.autosave) # Enabled if autosave is off
+        self.action_save.triggered.connect(lambda: self.edit_manager.commit_changes(autosave_override=True))
+
+        self.action_reset = QAction("Reset Changes", self)
+        self.action_reset.setEnabled(not self.edit_manager.autosave) # Enabled if autosave is off
+        self.action_reset.triggered.connect(self.edit_manager.reset_changes)
 
         self.action_properties = QAction("Properties...", self)
         self.action_properties.setEnabled(False)
         self.action_properties.triggered.connect(self.open_properties_window)
-        file_menu.addAction(self.action_properties)
 
+    def _create_menus(self):
+        # File Menu
+        file_menu = self.menuBar().addMenu("&File")
+
+        file_menu.addAction(self.action_autosave)
+        file_menu.addAction(self.action_save)
+        file_menu.addAction(self.action_reset)
+        file_menu.addSeparator()
+        file_menu.addAction(self.action_properties)
         file_menu.addSeparator()
 
         quit_action = QAction("&Quit", self)
@@ -258,6 +306,7 @@ class MainWindow(QMainWindow):
 
         # View Menu
         self.view_menu = self.menuBar().addMenu("&View")
+        self.setup_view_menu()
 
         # Help Menu
         help_menu = self.menuBar().addMenu("&Help")
@@ -314,6 +363,25 @@ class MainWindow(QMainWindow):
             is_media_file = all_media
 
         self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
+        # Save and Reset actions are enabled/disabled by on_autosave_changed
+        # but they also require staged changes to be meaningful.
+        # We can further refine their state here if needed, e.g., disable if no staged changes.
+        # For now, they are enabled/disabled solely by the autosave state.
+        # if not self.edit_manager.autosave:
+        #     self.action_save.setEnabled(self.edit_manager.has_staged_changes())
+        #     self.action_reset.setEnabled(self.edit_manager.has_staged_changes())
+
+    @Slot(bool)
+    def on_autosave_changed(self, enabled: bool):
+        """
+        Handles the autosave_changed signal from EditManager.
+        Enables or disables the Save and Reset actions based on the autosave state.
+        """
+        self.action_save.setEnabled(not enabled)
+        self.action_reset.setEnabled(not enabled)
+        # Also update the checked state of the autosave action itself in case it was changed programmatically
+        if self.action_autosave.isChecked() != enabled:
+            self.action_autosave.setChecked(enabled)
 
     def on_commit_started(self):
         self.status_label.setText("Saving changes...")

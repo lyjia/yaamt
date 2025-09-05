@@ -8,13 +8,20 @@ The objectives are as follows:
   * Note that this feature should only be available where the writer for the selected tag defines it as write-enabled. 
 
 * Add a new feature called "Autosave" to MainWindow. 
-  * When autosave is enabled, changes to metadata showin in MainWindow (either through the above feature) are immediately persisted to disk. 
-  * The option to control this should be in the File menu, as a toggle labeled "Autosave".
-  * When autosave is disabled, changes should be staged pending a user pressing "Commit":
-    * which is either an entry in File menu called "Commit changes", 
-    * or a new toolbar button (shaped as a check mark). 
-  * Additionally, a "Reset changes" button is also available, which clears staged changes and reverts the UI to show the original data. 
-  * Both Commit and Reset options should only be enabled when Autosave is disabled and there are changes staged.
+  * The option to control this should be in the File menu, as a toggle labeled "Autosave", as well as a toggle in MainWindow's toolbar.
+    * A "Commit Changes" action should be available from both the File menu and the toolbar
+    * A "Reset changes" button should also be available, in the same spots as above, which clears staged changes and reverts the UI to show the original data. 
+    * Both Commit and Reset options should only be enabled when Autosave is disabled and there are changes staged. Otherwise they should be disabled.
+  * When autosave is enabled, 
+    * changes to metadata in MainWindow, made with edit-in-place are immediately persisted to disk. 
+    * changes to metadata in PropertiesWindow are persisted to disk only when the user hits "OK"
+  * When autosave is disabled,
+    * changes to metadata in MainWindow, made with edit-in-place are staged, and the values of tags with staged changes are shown in bold. 
+    * changes to metadata in PropertiesWindow are staged when the user hits "OK", and those staged changes should appear as specified above in MainWindow (namely, bolded).
+    * staged changes should only be written to disk when the user hits "Save".
+  * If a save fails for some reason, changes that could not be persisted should continue to be staged. This can result in a "Save" action where some staged tags in some files are persisted to disk, while others are not.
+  * If the user tries to quit the application and autosave is disabled, pop up a confirmation box confirming that they want to save before quitting (yes/no/cancel)
+    * If the user hits "yes" this should be the same as hitting "Save". If that save fails do not exit the application and follow the save failure workflow above.
 
 * Users should be able to select multiple files and edit tags en masse. 
   * This should be able to occur both in the file pane of MainWindow, or in PropertiesWindow: 
