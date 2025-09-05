@@ -2,7 +2,7 @@ import os
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
-    QLineEdit, QSizePolicy, QFileDialog
+    QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot
@@ -103,10 +103,12 @@ class MainWindow(QMainWindow):
         self.editable_delegate = EditableMetadataDelegate()
         self.files_view.setItemDelegate(self.editable_delegate)
         self.files_view.setSortingEnabled(True)
+        self.files_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.files_view.header().setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.header().customContextMenuRequested.connect(self.on_header_context_menu)
         self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
+        self.files_view.doubleClicked.connect(self.on_files_view_double_clicked)
 
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
@@ -318,8 +320,12 @@ class MainWindow(QMainWindow):
         about_window = windows.AboutWindow(self)
         about_window.exec()
 
-    def open_properties_window(self):
-        selected_indexes = self.files_view.selectionModel().selectedRows()
+    def open_properties_window(self, selected_rows_data=None):
+        if selected_rows_data is None:
+            selected_indexes = self.files_view.selectionModel().selectedRows()
+        else:
+            selected_indexes = selected_rows_data
+
         if not selected_indexes:
             return
 
@@ -334,6 +340,12 @@ class MainWindow(QMainWindow):
         if media_files:
             self.properties_window = windows.PropertiesWindow(media_files, self.edit_manager, self)
             self.properties_window.show()
+
+    def on_files_view_double_clicked(self, index):
+        selected_indexes = self.files_view.selectionModel().selectedRows()
+        if len(selected_indexes) > 1:
+            self.open_properties_window(selected_indexes)
+        # If a single row is selected, the default in-place editing will occur.
 
     def on_column_resized(self, logical_index, old_size, new_size):
         # This is now handled by _save_column_settings, which reads the visual layout
