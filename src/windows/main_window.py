@@ -10,6 +10,7 @@ from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread
 import windows
 from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
+from util.logging import log
 from workers.gui.load_files_worker import LoadFilesWorker
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
@@ -20,6 +21,7 @@ from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
 class MainWindow(QMainWindow):
     def __init__(self, path=None):
         super().__init__()
+        self.properties_window = None
         self.setWindowTitle("YAAMT")
         self.resize(1024, 768)
         self.setMinimumSize(640, 480)
@@ -321,6 +323,7 @@ class MainWindow(QMainWindow):
         about_window.exec()
 
     def open_properties_window(self, selected_rows_data=None):
+        log.debug(f"open_properties_window: {selected_rows_data}")
         if selected_rows_data is None:
             selected_indexes = self.files_view.selectionModel().selectedRows()
         else:
