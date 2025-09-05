@@ -155,11 +155,15 @@ class EditManager(QObject):
     def commit_changes(self, autosave_override=False):
         """
         Commit all staged changes to the files by running the save operation in a background thread.
+
+        Callers may expect a signal emitted by the commit_finished signal when the operation is complete.
+        In cases where this will never happen (due to autosave being disabled, nothing to save, etc),
+        it will return False to indicate it is done.
         """
 
         if not self.autosave and not autosave_override:
             log.error("Autosave is disabled, save aborted!")
-            return
+            return False
 
         log.debug("Saving changes in a background thread...")
 
@@ -170,7 +174,7 @@ class EditManager(QObject):
         
         if not self.has_staged_changes():
             self.staged_changes_exist.emit(False)
-            return
+            return False
 
         self._commit_thread = QThread()
         worker = QObject()
