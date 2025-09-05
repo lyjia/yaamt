@@ -111,7 +111,9 @@ class MainTab(QWidget):
             values.add(val)
 
         if len(values) == 1:
-            return values.pop() if values.pop() is not None else ""
+            popped = values.pop()
+            return popped if popped is not None else ""
+
         return None # Indicates multiple values
 
     def _clear_placeholder_on_focus(self, event, line_edit):
