@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QFormLayout, QLineEdit, QGroupBox
-from PySide6.QtCore import QEvent
+from PySide6.QtCore import QEvent, Signal
 from models.edit_manager import EditManager
 from util.const import (
     KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE,
@@ -8,6 +8,8 @@ from util.const import (
 )
 
 class MainTab(QWidget):
+    return_pressed = Signal()
+
     def __init__(self, media_files, edit_manager, parent=None):
         super().__init__(parent)
         self.media_files = media_files
@@ -75,22 +77,39 @@ class MainTab(QWidget):
 
         self.refresh()
 
-        # Connect signals
-        self.title_edit.editingFinished.connect(lambda: self._on_edited(KEY_TITLE, self.title_edit.text()))
-        self.artist_edit.editingFinished.connect(lambda: self._on_edited(KEY_ARTIST, self.artist_edit.text()))
-        self.album_edit.editingFinished.connect(lambda: self._on_edited(KEY_ALBUM, self.album_edit.text()))
-        self.album_artist_edit.editingFinished.connect(lambda: self._on_edited(KEY_ALBUM_ARTIST, self.album_artist_edit.text()))
-        self.date_edit.editingFinished.connect(lambda: self._on_edited(KEY_DATE, self.date_edit.text()))
-        self.genre_edit.editingFinished.connect(lambda: self._on_edited(KEY_GENRE, self.genre_edit.text()))
-        self.comment_edit.editingFinished.connect(lambda: self._on_edited(KEY_COMMENT, self.comment_edit.text()))
-        self.composer_edit.editingFinished.connect(lambda: self._on_edited(KEY_COMPOSER, self.composer_edit.text()))
-        self.track_num_edit.editingFinished.connect(lambda: self._on_edited(KEY_TRACK_NUMBER, self.track_num_edit.text()))
-        self.disc_num_edit.editingFinished.connect(lambda: self._on_edited(KEY_DISC_NUMBER, self.disc_num_edit.text()))
-        self.bpm_edit.editingFinished.connect(lambda: self._on_edited(KEY_BPM, self.bpm_edit.text()))
-        self.key_edit.editingFinished.connect(lambda: self._on_edited(KEY_MUSICAL_KEY, self.key_edit.text()))
+        # Connect signals for text changes
+        self.title_edit.textChanged.connect(lambda text: self._on_edited(KEY_TITLE, text))
+        self.artist_edit.textChanged.connect(lambda text: self._on_edited(KEY_ARTIST, text))
+        self.album_edit.textChanged.connect(lambda text: self._on_edited(KEY_ALBUM, text))
+        self.album_artist_edit.textChanged.connect(lambda text: self._on_edited(KEY_ALBUM_ARTIST, text))
+        self.date_edit.textChanged.connect(lambda text: self._on_edited(KEY_DATE, text))
+        self.genre_edit.textChanged.connect(lambda text: self._on_edited(KEY_GENRE, text))
+        self.comment_edit.textChanged.connect(lambda text: self._on_edited(KEY_COMMENT, text))
+        self.composer_edit.textChanged.connect(lambda text: self._on_edited(KEY_COMPOSER, text))
+        self.track_num_edit.textChanged.connect(lambda text: self._on_edited(KEY_TRACK_NUMBER, text))
+        self.disc_num_edit.textChanged.connect(lambda text: self._on_edited(KEY_DISC_NUMBER, text))
+        self.bpm_edit.textChanged.connect(lambda text: self._on_edited(KEY_BPM, text))
+        self.key_edit.textChanged.connect(lambda text: self._on_edited(KEY_MUSICAL_KEY, text))
+
+        # Connect returnPressed signals
+        self.title_edit.returnPressed.connect(self._on_return_pressed)
+        self.artist_edit.returnPressed.connect(self._on_return_pressed)
+        self.album_edit.returnPressed.connect(self._on_return_pressed)
+        self.album_artist_edit.returnPressed.connect(self._on_return_pressed)
+        self.date_edit.returnPressed.connect(self._on_return_pressed)
+        self.genre_edit.returnPressed.connect(self._on_return_pressed)
+        self.comment_edit.returnPressed.connect(self._on_return_pressed)
+        self.composer_edit.returnPressed.connect(self._on_return_pressed)
+        self.track_num_edit.returnPressed.connect(self._on_return_pressed)
+        self.disc_num_edit.returnPressed.connect(self._on_return_pressed)
+        self.bpm_edit.returnPressed.connect(self._on_return_pressed)
+        self.key_edit.returnPressed.connect(self._on_return_pressed)
 
     def _on_edited(self, generic_tag_name, new_value):
         self.edit_manager.stage_change(self.media_files, generic_tag_name, new_value)
+
+    def _on_return_pressed(self):
+        self.return_pressed.emit()
 
     def _get_display_value(self, tag_name):
         if not self.media_files:

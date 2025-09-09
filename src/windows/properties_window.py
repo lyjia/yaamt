@@ -49,6 +49,9 @@ class PropertiesWindow(QMainWindow):
         self.tab_widget.addTab(self.main_tab, "Main")
         self.tab_widget.addTab(self.artwork_tab, "Artwork")
 
+        # Connect MainTab's return_pressed signal
+        self.main_tab.return_pressed.connect(self.on_ok_clicked)
+
         if len(self.media_files) == 1:
             self.details_tab = DetailsTab(self.media_files)
             self.advanced_tab = AdvancedTab(self.media_files, self.edit_manager)
@@ -79,6 +82,7 @@ class PropertiesWindow(QMainWindow):
         self.close_button = QPushButton("Close")
         self.ok_button = QPushButton("OK")
         self.ok_button.setEnabled(False)
+        self.ok_button.setDefault(True)
 
         self.ok_button.clicked.connect(self.on_ok_clicked)
         self.close_button.clicked.connect(self.close)
