@@ -10,10 +10,34 @@ from util.logging import log
 
 class EditManager(QObject):
     """
-    A singleton class to manage metadata edits across the application.
+    Manages operations related to staging, committing, and managing changes for media files.
 
-    Handles the distinction between generic tags (user-facing) and internal tags (provider-specific),
-    ensuring proper mapping and provider context for all metadata operations.
+    This class is a singleton. Passing instantiated objects to other classes will always return the same instance.
+
+    Provides functionality to stage changes, manage autosave, and perform both synchronous and asynchronous
+    commits for changes. This class ensures thread safety for operations and emits signals to notify about
+    important events such as change staging, commit progress, and completions.
+
+    Signals:
+        - staged_changes_exist: Indicates if there are staged changes, parameter is a boolean.
+        - autosave_changed: Indicates a change in autosave state, parameter is a boolean.
+        - commit_started: Emitted when a commit process starts.
+        - commit_progress: Emitted during the commit process. Parameters are current progress and total progress.
+        - commit_finished: Emitted upon successful commit, parameter is a list of file IDs.
+        - commit_failed: Emitted upon failed commit, parameter is a list of errors.
+
+    :ivar staged_changes_exist: Signal emitted when staged changes exist or no longer exist.
+    :type staged_changes_exist: Signal
+    :ivar autosave_changed: Signal emitted when autosave state changes.
+    :type autosave_changed: Signal
+    :ivar commit_started: Signal emitted when a commit is initiated.
+    :type commit_started: Signal
+    :ivar commit_progress: Signal emitted to report progress during the commit process.
+    :type commit_progress: Signal
+    :ivar commit_finished: Signal emitted upon successful commit completion, includes list of saved file IDs.
+    :type commit_finished: Signal
+    :ivar commit_failed: Signal emitted upon commit failure, includes list of errors.
+    :type commit_failed: Signal
     """
     staged_changes_exist = Signal(bool)
     autosave_changed = Signal(bool)
