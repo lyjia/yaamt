@@ -2,7 +2,7 @@ import os
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
-    QLineEdit, QSizePolicy, QFileDialog
+    QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot
@@ -15,6 +15,7 @@ from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
+from util.logging import log # Added import
 
 
 class MainWindow(QMainWindow):
@@ -103,10 +104,12 @@ class MainWindow(QMainWindow):
         self.editable_delegate = EditableMetadataDelegate()
         self.files_view.setItemDelegate(self.editable_delegate)
         self.files_view.setSortingEnabled(True)
+        self.files_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.files_view.header().setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.header().customContextMenuRequested.connect(self.on_header_context_menu)
         self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
+        self.files_view.doubleClicked.connect(self.on_files_view_double_clicked)
 
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
@@ -320,7 +323,10 @@ class MainWindow(QMainWindow):
 
     def open_properties_window(self):
         selected_indexes = self.files_view.selectionModel().selectedRows()
+        log.debug(f"selectedIndexes from selectionModel: {selected_indexes} (type: {type(selected_indexes)})")
+
         if not selected_indexes:
+            log.debug("No selected indexes, returning.")
             return
 
         media_files = []
@@ -334,6 +340,18 @@ class MainWindow(QMainWindow):
         if media_files:
             self.properties_window = windows.PropertiesWindow(media_files, self.edit_manager, self)
             self.properties_window.show()
+
+    def on_files_view_double_clicked(self, index):
+        log.debug(f"on_files_view_double_clicked called with index: {index}")
+        selected_indexes = self.files_view.selectionModel().selectedRows()
+        log.debug(f"Double-click: selected_indexes from selectionModel: {selected_indexes} (type: {type(selected_indexes)})")
+        if len(selected_indexes) > 1:
+            # this may not ever get called because the UI doesnt let you double-click multiple selected files
+            log.debug("Multiple files selected, calling open_properties_window.")
+            self.open_properties_window()
+        else:
+            log.debug("Single or no file selected by double-click, PropertiesWindow will not be opened by this handler.")
+        # If a single row is selected, the default in-place editing will occur.
 
     def on_column_resized(self, logical_index, old_size, new_size):
         # This is now handled by _save_column_settings, which reads the visual layout

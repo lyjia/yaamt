@@ -24,13 +24,14 @@ The objectives are as follows:
     * If the user hits "yes" this should be the same as hitting "Save". If that save fails do not exit the application and follow the save failure workflow above.
 
 * Users should be able to select multiple files and edit tags en masse. 
-  * This should be able to occur both in the file pane of MainWindow, or in PropertiesWindow: 
-    * For MainWindow, the selected files should remain highlighted after the edit-in-place textbox appears and continue to be highlighted after editing is complete. The workflow for this should be otherwise identical to single-file edit-in-place, which each column edited highlighted if Autosave is disabled. 
-    * For PropertiesWindow, there are two possibilities, based on whether values for a given tag differ between all files:
-      * If they differ, text boxes should display "<< multiple values >>" slightly grayed-out. 
-        * If the user wants to edit that tag in all files and clicks the textbox, then the textbox becomes blank and wait for input, then stage that change for all selected files; 
-      * If they are all the same, it should display that value for editing.
-        * Behavior here should have the same workflow as editing a single file.
+  * This should be able to be performed from both the file pane of MainWindow, or in PropertiesWindow: 
+    * In PropertiesWindow, there are two possibilities, based on whether values for a given tag differ between all files:
+      * If tags differ between files for a given field, text boxes should display "<< multiple values >>" slightly grayed-out. 
+        * If the user wants to edit that tag in all files and clicks the textbox, then the textbox becomes blank and accepts input, then stages that change on all selected files; 
+      * If tags are all the same for a given field, it should display that value for editing.
+        * Behavior here should feel identical to editing a single file.
+    * In MainWindow, if multiple files are selected, the user can open PropertiesWindow either through the usual menu actions, *OR* double-clicking on the File pane in MainWindow. Note that this replaces the 'edit-in-place' functionality in that cirumstance.
+    
 
 * Build the foundations for a new feature called "analyzers": 
   * which are specialized modules that read the media file's data stream and produce some sort of metadata output. 

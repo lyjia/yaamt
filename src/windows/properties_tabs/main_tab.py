@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import QWidget, QFormLayout, QLineEdit, QGroupBox
+from PySide6.QtCore import QEvent
 from models.edit_manager import EditManager
 from util.const import (
     KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE,
@@ -58,6 +59,20 @@ class MainTab(QWidget):
         
         layout.addRow(replaygain_group)
 
+        # Connect focus events for clearing placeholders
+        self.title_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.title_edit)
+        self.artist_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.artist_edit)
+        self.album_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.album_edit)
+        self.album_artist_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.album_artist_edit)
+        self.date_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.date_edit)
+        self.genre_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.genre_edit)
+        self.comment_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.comment_edit)
+        self.composer_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.composer_edit)
+        self.track_num_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.track_num_edit)
+        self.disc_num_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.disc_num_edit)
+        self.bpm_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.bpm_edit)
+        self.key_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.key_edit)
+
         self.refresh()
 
         # Connect signals
@@ -78,25 +93,45 @@ class MainTab(QWidget):
         self.edit_manager.stage_change(self.media_files, generic_tag_name, new_value)
 
     def _get_display_value(self, tag_name):
+        if not self.media_files:
+            return ""
+
+        # Check for staged changes first. If any file has a staged change, that takes precedence.
+        # For simplicity, we'll check the first file. A more complex scenario might involve
+        # checking if all staged changes are the same.
         staged_value = self.edit_manager.get_staged_value_for_file(self.media_files[0], tag_name)
         if staged_value is not None:
+            # If a value is staged for the first file, we assume it's representative for all in this context.
+            # The edit manager handles applying it to all.
             return staged_value
 
-        values = {mf.get_tag_simple(tag_name) for mf in self.media_files}
+        values = set()
+        for mf in self.media_files:
+            val = mf.get_tag_simple(tag_name)
+            values.add(val)
+
         if len(values) == 1:
-            return values.pop()
-        return "<< multiple values >>"
+            popped = values.pop()
+            return popped if popped is not None else ""
+
+        return None # Indicates multiple values
+
+    def _clear_placeholder_on_focus(self, event, line_edit):
+        if line_edit.placeholderText() == "<< multiple values >>":
+            line_edit.setPlaceholderText("")
+            line_edit.setStyleSheet("")
+        QLineEdit.focusInEvent(line_edit, event)
 
     def _populate_field(self, line_edit, tag_name):
         value = self._get_display_value(tag_name)
-        if value == "<< multiple values >>":
-            line_edit.setText(value)
+        if value is None: # Multiple values
+            line_edit.setText("")
+            line_edit.setPlaceholderText("<< multiple values >>")
             line_edit.setStyleSheet("color: gray;")
-            line_edit.setPlaceholderText("Enter a new value for all files")
-        else:
-            line_edit.setText(str(value or ''))
-            line_edit.setStyleSheet("")
+        else: # Single value or empty
+            line_edit.setText(str(value))
             line_edit.setPlaceholderText("")
+            line_edit.setStyleSheet("")
 
     def refresh(self):
         self._populate_field(self.title_edit, KEY_TITLE)
