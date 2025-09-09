@@ -220,7 +220,7 @@ class MutagenProvider(MetadataProviderBase):
         return self._write_enabled
 
     def save(self):
-        log.debug(f"Saving file: {self._file_path}")
+        # log.debug(f"Saving file: {self._file_path}")
         if self._write_enabled and self._audio:
             try:
                 self._audio.save(self._file_path)

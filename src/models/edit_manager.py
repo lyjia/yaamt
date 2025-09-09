@@ -146,7 +146,7 @@ class EditManager(QObject):
                     media_file = self._media_files.get(file_id)
                     if media_file:
                         try:
-                            log.debug(f"Saving changes for {media_file.file_path}")
+                            # log.debug(f"Saving changes for {media_file.file_path}")
                             media_file.save(changes)
                             saved_file_ids.append(file_id)
                         except Exception as e:
