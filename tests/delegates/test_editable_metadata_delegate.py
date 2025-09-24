@@ -60,6 +60,8 @@ def test_set_editor_data(delegate, model, index, qapp):
 def test_set_model_data(delegate, model, index, qapp):
     """Test that setModelData updates the model's data."""
     log.info("Running test_set_model_data")
+    model.mapToSource.return_value = index
+    model.sourceModel.return_value = model
     editor = QLineEdit()
     editor.setText("new_value")
     delegate.setModelData(editor, model, index)

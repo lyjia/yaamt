@@ -1,4 +1,6 @@
 pyside6==6.9.1
 mutagen==1.47.0
+miniaudio
+pyaudio
 pytest==8.4.1
 pytest-cov==4.1.0
