@@ -13,11 +13,6 @@ from models.media_file import MediaFile
 from models.edit_manager import EditManager
 from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM
 
-# Create QApplication instance for Qt widgets
-@pytest.fixture(scope="session")
-def qapp():
-    return QApplication.instance() or QApplication([])
-
 @pytest.fixture
 def sample_file(tmp_path):
     """Create a temporary audio file for testing."""
