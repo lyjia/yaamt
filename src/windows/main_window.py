@@ -87,8 +87,8 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(central_widget)
 
         splitter = QSplitter(self)
-        main_layout.addWidget(splitter)
-        main_layout.addWidget(self.playback_panel)
+        main_layout.addWidget(splitter, 1)
+        main_layout.addWidget(self.playback_panel, 0)
 
         # Left Pane (Directory Tree)
         self.directory_tree = QTreeView()
@@ -176,6 +176,8 @@ class MainWindow(QMainWindow):
         self.playback_worker.position_changed.connect(self.playback_panel.update_playback_position)
         self.playback_worker.playback_finished.connect(self.on_playback_finished)
         self.playback_worker.playback_stopped.connect(self.on_playback_stopped)
+        self.playback_worker.playback_paused.connect(self.on_playback_paused)
+        self.playback_worker.playback_resumed.connect(self.on_playback_resumed)
         self.playback_worker.error_occurred.connect(self.on_playback_error)
 
         # Connect the signal to start playback in the worker thread
@@ -598,6 +600,20 @@ class MainWindow(QMainWindow):
         self.playback_panel.update_ui('playing', filename, duration)
         self.playback_panel.show()
         self.action_show_playback_panel.setChecked(True)
+
+    @Slot(str, float)
+    def on_playback_resumed(self, filename: str, duration: float):
+        """
+        Handles the playback_resumed signal from PlaybackWorker.
+        """
+        self.playback_panel.update_ui('playing', filename, duration)
+
+    @Slot(str, float)
+    def on_playback_paused(self, filename: str, duration: float):
+        """
+        Handles the playback_paused signal from PlaybackWorker.
+        """
+        self.playback_panel.update_ui('paused', filename, duration)
 
     @Slot()
     def on_playback_finished(self):

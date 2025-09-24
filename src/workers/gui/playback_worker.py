@@ -18,6 +18,8 @@ class PlaybackWorker(QObject):
     position_changed = Signal(float)       # current position in seconds
     playback_finished = Signal()
     playback_stopped = Signal()
+    playback_paused = Signal(str, float)
+    playback_resumed = Signal(str, float)
     error_occurred = Signal(str)
 
     def __init__(self):
@@ -113,6 +115,7 @@ class PlaybackWorker(QObject):
             self.timer.stop()
             if self.output_stream:
                 self.output_stream.stop_stream()
+            self.playback_paused.emit(self.current_file, self.duration)
 
     @Slot()
     def resume(self):
@@ -124,6 +127,7 @@ class PlaybackWorker(QObject):
             if self.output_stream:
                 self.output_stream.start_stream()
             self.timer.start()
+            self.playback_resumed.emit(self.current_file, self.duration)
 
     @Slot()
     def stop(self):

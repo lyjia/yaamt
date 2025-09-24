@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal, Slot, Qt
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider, QGridLayout
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider, QGridLayout, QSizePolicy
 
 
 class PlaybackPanel(QWidget):
@@ -14,6 +14,7 @@ class PlaybackPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         
         # UI Elements
         self.play_button = QPushButton("Play")
@@ -40,30 +41,27 @@ class PlaybackPanel(QWidget):
         """
         Set up the layout and appearance of the playback panel.
         """
-        # Main layout
-        main_layout = QHBoxLayout(self)
-        
-        # Left layout for buttons
+        grid_layout = QGridLayout(self)
+
+        # Buttons (column 0, spanning two rows)
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.play_button)
         button_layout.addWidget(self.pause_button)
         button_layout.addWidget(self.stop_button)
-        
-        # Right layout for filename and slider
-        right_layout = QVBoxLayout()
-        right_layout.addWidget(self.filename_label)
-        
-        # Bottom layout for slider and time label
+        button_layout.addStretch()
+        grid_layout.addLayout(button_layout, 0, 0, 2, 1, Qt.AlignmentFlag.AlignTop)  # row, col, rowspan, colspan
+
+        # Filename label (row 0, column 1)
+        grid_layout.addWidget(self.filename_label, 0, 1)
+
+        # Slider and time label (row 1, column 1)
         slider_layout = QHBoxLayout()
         slider_layout.addWidget(self.playback_slider)
         slider_layout.addWidget(self.time_label)
-        
-        right_layout.addLayout(slider_layout)
-        
-        # Add layouts to main layout
-        main_layout.addLayout(button_layout)
-        main_layout.addLayout(right_layout)
-        
+        grid_layout.addLayout(slider_layout, 1, 1)
+
+        grid_layout.setColumnStretch(1, 1)  # Make the second column expand
+
         # Set initial states
         self.playback_slider.setOrientation(Qt.Orientation.Horizontal)  # Horizontal
         self.playback_slider.setRange(0, 0)  # Disabled until a file is loaded
