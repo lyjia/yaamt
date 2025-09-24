@@ -561,3 +561,5 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# cx_freeze build folder
+build/*
