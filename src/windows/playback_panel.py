@@ -1,4 +1,4 @@
-from PySide6.QtCore import Signal, Slot
+from PySide6.QtCore import Signal, Slot, Qt
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider
 
 
@@ -61,7 +61,7 @@ class PlaybackPanel(QWidget):
         main_layout.addLayout(right_layout)
         
         # Set initial states
-        self.playback_slider.setOrientation(1)  # Horizontal
+        self.playback_slider.setOrientation(Qt.Orientation.Horizontal)  # Horizontal
         self.playback_slider.setRange(0, 0)  # Disabled until a file is loaded
         self.pause_button.setEnabled(False)  # Disabled initially
     
