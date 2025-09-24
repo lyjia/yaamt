@@ -520,6 +520,7 @@ class TestEditManager:
         }
         assert changes == expected
 
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner with: Fatal Python error: Aborted, test_edit_manager.py, line 16 in qapp")
     def test_commit_changes_emits_signal_with_provider_context(self):
         """Test that commit_changes emits signal with provider context."""
         # Stage some changes
