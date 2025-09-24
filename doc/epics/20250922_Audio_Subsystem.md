@@ -41,3 +41,23 @@ The following example uses PyAudio to pass audio frames to the sound device. Thi
     stream.close()
     p.terminate()
 ```
+
+## The audio frontend
+
+The main window of the GUI app should have a simple way of playing back a selected audio file using the audio backend described above.
+
+The UI for this feature should exist as a panel that appears in the main window, below the file/dir selectors but above the status bar. It should contain the following controls:
+* A play button, which loads the selected audio file and starts playback or resumes paused playback
+* A pause button, which pauses playback (leaving the playback cursor in-place)
+* A stop button, which stops playback and unloads the audio file. Naturally the playback cursor will be reset.
+* A label describing the filename of the file loaded for playback
+* A playback cursor, manifesting as a slider, which shows the position of the playback cursor and allows the user to drag it to set the playback cursor to be somewhere else. When the user drags the slider handle to a new spot, the playback cursor is set to that point in the loaded audio file. It should update real-time as the file is played, with the handle updating periodically (once every 200ms) as playback progresses.
+* A label with the playback cursor's location in H:MM:SS form, then a slash, then the length of the audio file in H:MM:SS form. The cursor label should update real time (once per second).
+
+This should be laid out sensibly over two rows, with the buttons occupying both rows on the left. The right top row should have the filename labels and the bottom row should have the playback cursor and time labels
+
+Playback needs to occur in a separate thread, and the playback thread needs to immediately obey commands issued by the user from the buttons.
+
+The playback pane should be toggleable, but always visible if playback is running.
+
+A user can initiate playback through a new "Play this file" menu entry, which should appear above the "Properties" menu entry in the right-click menu and the File menu. 
