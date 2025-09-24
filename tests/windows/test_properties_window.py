@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from pathlib import Path
 import shutil
-from util.const import PROJECT_ROOT, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
+from util.const import PROJECT_ROOT, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, IN_GITHUB_RUNNER
 
 from windows.properties_window import PropertiesWindow
 from models.media_file import MediaFile
@@ -21,6 +21,7 @@ def sample_file(tmp_path):
     shutil.copy(source_file, temp_file)
     return MediaFile(str(temp_file), enable_write=True)
 
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_properties_window_initialization(qapp, sample_file):
     """Test that PropertiesWindow initializes correctly with EditManager."""
     edit_manager = EditManager()
@@ -34,6 +35,7 @@ def test_properties_window_initialization(qapp, sample_file):
     assert hasattr(window, 'media_files')
     assert isinstance(window.media_files[0], MediaFile)
 
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_edit_manager_signal_connection(qapp, sample_file):
     """Test that PropertiesWindow connects to EditManager signals."""
     edit_manager = EditManager()
@@ -43,6 +45,7 @@ def test_edit_manager_signal_connection(qapp, sample_file):
     assert hasattr(window.edit_manager, 'staged_changes_exist')
     # The signal should be connected during initialization
 
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_staged_changes_display(qapp, sample_file):
     """Test that PropertiesWindow displays staged values correctly."""
     edit_manager = EditManager()
@@ -54,6 +57,7 @@ def test_staged_changes_display(qapp, sample_file):
     # Verify the staged value is displayed in the UI
     assert window.main_tab._get_display_value(KEY_TITLE) == "Staged Title"
 
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_committed_changes_display(qapp, sample_file):
     """Test that PropertiesWindow displays committed values when no staged changes exist."""
     edit_manager = EditManager()
@@ -65,6 +69,7 @@ def test_committed_changes_display(qapp, sample_file):
     # Verify the committed value is displayed when no staged changes exist
     assert window.main_tab._get_display_value(KEY_TITLE) == original_value
 
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_simple_tab_edit_stages_changes(qapp, sample_file):
     """Test that editing fields in the simple tab stages changes via EditManager."""
     edit_manager = EditManager()
@@ -76,6 +81,7 @@ def test_simple_tab_edit_stages_changes(qapp, sample_file):
     # Verify the change was staged
     assert window.edit_manager.get_staged_value_for_file(sample_file, KEY_TITLE) == "New Title"
 
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_button_states_with_staged_changes(qapp, sample_file):
     """Test that button states update correctly based on EditManager state."""
     edit_manager = EditManager()
@@ -99,6 +105,7 @@ def test_button_states_with_staged_changes(qapp, sample_file):
     assert window.ok_button.isEnabled()
     assert window.close_button.text() == "Cancel"
 
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_commit_request_handling(qapp, sample_file):
     """Test that PropertiesWindow handles commit requests from EditManager."""
     edit_manager = EditManager()
