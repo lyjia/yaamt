@@ -169,3 +169,156 @@ audio_stream.close()
 
 *   **Additional Format Support**: New `AbstractAudioStream` implementations can be created for other libraries (e.g., `audioread` for formats not covered by `miniaudio`).
 *   **Error Handling**: Implement robust error handling for file-not-found, corrupted files, or unsupported formats.
+
+## 7. Audio Frontend Specification
+
+This section details the design for the GUI components that will control audio playback.
+
+Excellent. The todo list has been created. Now, I will provide a detailed breakdown of each step in the plan. This will serve as the specification for the implementation phase.
+
+### Component Interaction Diagram
+
+To clarify how the new components will interact, here is a Mermaid diagram:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant MainWindow as Main Window (GUI)
+    participant PlaybackPanel as Playback Panel (UI)
+    participant PlaybackWorker as Playback Worker (Thread)
+    participant AudioStreamProvider as Audio Backend
+
+    User->>MainWindow: Right-clicks file -> "Play this file"
+    MainWindow->>PlaybackPanel: show()
+    MainWindow->>PlaybackWorker: start_playback(filepath)
+    PlaybackWorker->>AudioStreamProvider: get_stream(filepath)
+    AudioStreamProvider-->>PlaybackWorker: returns AbstractAudioStream
+    PlaybackWorker-->>PlaybackPanel: update_ui(state='playing', duration=...)
+
+    loop Playback Loop
+        PlaybackWorker->>PlaybackWorker: read audio chunk
+        PlaybackWorker->>PlaybackWorker: write to audio device
+        PlaybackWorker-->>PlaybackPanel: update_cursor(position=...)
+    end
+
+    User->>PlaybackPanel: Clicks Pause Button
+    PlaybackPanel->>PlaybackWorker: pause()
+    PlaybackWorker-->>PlaybackPanel: update_ui(state='paused')
+
+    User->>PlaybackPanel: Clicks Stop Button
+    PlaybackPanel->>PlaybackWorker: stop()
+    PlaybackWorker-->>PlaybackPanel: update_ui(state='stopped')
+    PlaybackPanel->>PlaybackPanel: hide()
+
+```
+
+---
+
+### 1. Design and Create the Playback Panel UI
+
+*   **Objective:** Create a new Qt Widget (`PlaybackPanel`) that contains all the UI controls for audio playback.
+*   **File:** `src/windows/playback_panel.py` (new file)
+*   **Class:** `PlaybackPanel(QWidget)`
+*   **UI Elements:**
+    *   `play_button`: `QPushButton` with "Play" icon/text.
+    *   `pause_button`: `QPushButton` with "Pause" icon/text.
+    *   `stop_button`: `QPushButton` with "Stop" icon/text.
+    *   `filename_label`: `QLabel` to display the name of the currently loaded file.
+    *   `playback_slider`: `QSlider` to show and control the playback position.
+    *   `time_label`: `QLabel` to display current time / total duration (e.g., "0:15 / 3:45").
+*   **Layout:**
+    *   Use `QHBoxLayout` and `QVBoxLayout` to arrange the widgets as described in the epic:
+        *   A main `QHBoxLayout`.
+        *   A `QVBoxLayout` on the left for the buttons (`play_button`, `pause_button`, `stop_button`).
+        *   A `QVBoxLayout` on the right.
+            *   Top: `filename_label`.
+            *   Bottom: A `QHBoxLayout` containing the `playback_slider` and `time_label`.
+*   **Signals:** The panel will emit signals when buttons are clicked or the slider is moved by the user.
+    *   `play_requested = Signal()`
+    *   `pause_requested = Signal()`
+    *   `stop_requested = Signal()`
+    *   `seek_requested = Signal(int)` (emits frame position)
+*   **Slots:** The panel will have public methods (slots) to update its state from the outside.
+    *   `update_ui(state: str, filename: str, duration: float)`
+    *   `update_playback_position(position: float)`
+
+### 2. Implement the Playback Worker Thread
+
+*   **Objective:** Create a `QObject` that runs in a separate `QThread` to handle audio playback without blocking the GUI.
+*   **File:** `src/workers/gui/playback_worker.py` (new file)
+*   **Class:** `PlaybackWorker(QObject)`
+*   **Core Logic:**
+    *   It will use the `AudioStreamProvider` to get an `AbstractAudioStream` for a given file.
+    *   It will use `pyaudio` or a similar library to open an audio output stream.
+    *   The main work will be done in a `run()` method (or a method called by it) which will contain a loop that:
+        1.  Reads a chunk of data from the `AbstractAudioStream`.
+        2.  Writes the chunk to the `pyaudio` stream.
+        3.  Calculates the current playback position.
+        4.  Emits a signal with the new position.
+        5.  Checks for state changes (e.g., pause/stop requests).
+*   **State Management:** The worker will manage `PLAYING`, `PAUSED`, and `STOPPED` states.
+*   **Signals:**
+    *   `playback_started = Signal(str, float)` (filename, duration in seconds)
+    *   `position_changed = Signal(float)` (current position in seconds)
+    *   `playback_finished = Signal()`
+    *   `playback_stopped = Signal()`
+    *   `error_occurred = Signal(str)`
+*   **Slots:**
+    *   `start_playback(filepath: str)`
+    *   `pause()`
+    *   `resume()`
+    *   `stop()`
+    *   `seek(position_seconds: float)`
+
+### 3. Integrate Panel and Worker into the Main Window
+
+*   **Objective:** Add the `PlaybackPanel` and `PlaybackWorker` to the `MainWindow`.
+*   **File:** `src/windows/main_window.py` (modification)
+*   **Changes:**
+    *   In `MainWindow.__init__`:
+        *   Instantiate the `PlaybackPanel` and add it to the main layout (initially hidden).
+        *   Instantiate the `PlaybackWorker`.
+        *   Create a `QThread`, move the worker to it, and start the thread.
+    *   **Connect Signals and Slots:**
+        *   Connect `PlaybackPanel` request signals (e.g., `play_requested`) to the `PlaybackWorker`'s action slots (e.g., `resume`).
+        *   Connect `PlaybackWorker` update signals (e.g., `position_changed`) to the `PlaybackPanel`'s update slots (e.g., `update_playback_position`).
+        *   Connect the main window's need to start playback to the `PlaybackWorker.start_playback` slot.
+
+### 4. Add Menu Actions for Playback Control
+
+*   **Objective:** Allow users to start playback from the context menu and the main "File" menu.
+*   **File:** `src/windows/main_window.py` (modification)
+*   **Changes:**
+    *   **Context Menu:** In the method that creates the context menu for the file view, add a "Play this file" `QAction`.
+    *   **File Menu:** Add a "Play this file" `QAction` to the "File" menu.
+    *   **View Menu:** Add a toggleable `QAction` "Show Playback Panel" to the "View" menu. This action will control the visibility of the `PlaybackPanel`.
+    *   Connect the `triggered` signal of these actions to a new method in `MainWindow`, like `on_play_file_requested()`. This method will get the selected file path and call `playback_worker.start_playback(filepath)`.
+
+### 5. Implement State Management and UI Updates
+
+*   **Objective:** Ensure the UI correctly reflects the playback state (playing, paused, stopped).
+*   **Files:** `src/windows/main_window.py`, `src/windows/playback_panel.py`
+*   **Logic:**
+    *   The `PlaybackPanel` will show/hide the Play/Pause buttons based on the current state.
+    *   The `MainWindow` will ensure the `PlaybackPanel` is visible whenever playback is active (`PLAYING` or `PAUSED`).
+    *   The "Show Playback Panel" menu item in the "View" menu should be checked if the panel is visible.
+    *   The `playback_slider` will be disabled when no file is loaded. Its maximum value will be set based on the file's duration.
+
+### 6. Write Unit Tests for the Playback Worker
+
+*   **Objective:** Ensure the `PlaybackWorker` logic is correct and robust.
+*   **File:** `tests/workers/gui/test_playback_worker.py` (new file)
+*   **Test Cases:**
+    *   Test that `start_playback` correctly opens a stream and emits `playback_started`.
+    *   Test that `pause()` and `resume()` correctly change the worker's state.
+    *   Test that `stop()` stops playback and cleans up resources.
+    *   Test that `seek()` correctly changes the playback position.
+    *   Test that `position_changed` is emitted periodically during playback.
+    *   Test that `playback_finished` is emitted when the track ends.
+    *   (Optional) Mock the audio backend and output device to test the worker in isolation.
+
+---
+
+This detailed plan covers all the requirements from the epic and provides a clear path for implementation.
+
+Are you satisfied with this plan? If so, I can prepare to switch to a different mode to begin implementation.

@@ -58,6 +58,6 @@ This should be laid out sensibly over two rows, with the buttons occupying both 
 
 Playback needs to occur in a separate thread, and the playback thread needs to immediately obey commands issued by the user from the buttons.
 
-The playback pane should be toggleable, but always visible if playback is running.
+The playback pane should be toggleable, but always visible if playback is running. It's visibility can be manually controlled through a toggle in the "View" menu. Naturally the toggle status of this should update as the pane is made visible or invisible.
 
 A user can initiate playback through a new "Play this file" menu entry, which should appear above the "Properties" menu entry in the right-click menu and the File menu. 
