@@ -14,10 +14,10 @@ EXPECTED_NCHANNELS = 2
 EXPECTED_SAMPLE_WIDTH = 16 // 8  # bits_per_sample from JSON is 16
 
 
-class TestAudioStreamProvider:
+class TestAudioStreamBase:
     def test_get_stream_returns_miniaudio_stream_instance(self):
         """
-        Verify that AudioStreamProvider.get_stream() returns a valid MiniaudioStream instance.
+        Verify that AudioStreamBase.get_stream() returns a valid MiniaudioStream instance.
         """
         stream = AudioStreamFactory.get_stream(AUDIO_FILE_PATH)
         assert isinstance(stream, MiniaudioStream)
