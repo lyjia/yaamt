@@ -145,3 +145,5 @@ MAP_INTERNAL_TO_GENERIC = 'i2g'
 MAP_GENERIC_TO_INTERNAL = 'g2i'
 
 IN_GITHUB_RUNNER = (os.getenv("GITHUB_ACTIONS") == "true")
+
+VERSION_STRING = None # VERSION_STRING is updated dynamically by the build system; leave this with set to None
