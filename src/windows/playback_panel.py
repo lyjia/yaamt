@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal, Slot, Qt
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider, QGridLayout
 
 
 class PlaybackPanel(QWidget):
@@ -10,7 +10,7 @@ class PlaybackPanel(QWidget):
     play_requested = Signal()
     pause_requested = Signal()
     stop_requested = Signal()
-    seek_requested = Signal(int)  # Emits frame position
+    seek_requested = Signal(float)  # Emits position in seconds
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -30,7 +30,11 @@ class PlaybackPanel(QWidget):
         self.play_button.clicked.connect(self.play_requested.emit)
         self.pause_button.clicked.connect(self.pause_requested.emit)
         self.stop_button.clicked.connect(self.stop_requested.emit)
-        self.playback_slider.sliderMoved.connect(self.seek_requested.emit)
+        self.playback_slider.sliderReleased.connect(self.on_slider_released)
+
+    def on_slider_released(self):
+        """Handle the slider being released after dragging."""
+        self.seek_requested.emit(self.playback_slider.value())
     
     def _setup_ui(self):
         """
@@ -40,7 +44,7 @@ class PlaybackPanel(QWidget):
         main_layout = QHBoxLayout(self)
         
         # Left layout for buttons
-        button_layout = QVBoxLayout()
+        button_layout = QHBoxLayout()
         button_layout.addWidget(self.play_button)
         button_layout.addWidget(self.pause_button)
         button_layout.addWidget(self.stop_button)
