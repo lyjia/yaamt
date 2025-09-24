@@ -4,6 +4,8 @@
 name: Python application
 
 on:
+  commit:
+    branches: [ "master", "development" ]
   pull_request:
     branches: [ "master", "development" ]
 
@@ -13,7 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 2
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.12
