@@ -1,4 +1,4 @@
-# Audio Metadata Tool
+# YAAMT - Yet Another Audio Metadata Tool
 
 A powerful and flexible tool for managing audio file metadata, designed for DJs, music producers, and audiophiles.
 
