@@ -2,7 +2,7 @@ import os
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
-    QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView
+    QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot
@@ -11,6 +11,8 @@ import windows
 from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.load_files_worker import LoadFilesWorker
+from workers.gui.playback_worker import PlaybackWorker
+from windows.playback_panel import PlaybackPanel
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
@@ -31,6 +33,14 @@ class MainWindow(QMainWindow):
         self._current_path = ""
         self.metadata_results = []
         self.column_menu = QMenu("Columns", self)
+
+        # Playback components
+        self.playback_panel = PlaybackPanel()
+        self.playback_panel.hide() # Hidden by default
+        self.playback_worker = PlaybackWorker()
+        self.playback_thread = QThread()
+        self.playback_worker.moveToThread(self.playback_thread)
+        self.playback_thread.start()
 
         self.file_list_settings = FileListSettings()
         self._logical_column_ids = [c.id for c in FileListSettings().columns]
@@ -68,8 +78,13 @@ class MainWindow(QMainWindow):
         self.status_bar.addPermanentWidget(self.cancel_button)
 
         # Central Widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+
         splitter = QSplitter(self)
-        self.setCentralWidget(splitter)
+        main_layout.addWidget(splitter)
+        main_layout.addWidget(self.playback_panel)
 
         # Left Pane (Directory Tree)
         self.directory_tree = QTreeView()
@@ -147,6 +162,18 @@ class MainWindow(QMainWindow):
         self.update_file_actions()
         self._load_column_settings()
 
+        # Connect playback signals and slots
+        self.playback_panel.play_requested.connect(self.playback_worker.resume)
+        self.playback_panel.pause_requested.connect(self.playback_worker.pause)
+        self.playback_panel.stop_requested.connect(self.playback_worker.stop)
+        self.playback_panel.seek_requested.connect(self.playback_worker.seek)
+
+        self.playback_worker.playback_started.connect(self.on_playback_started)
+        self.playback_worker.position_changed.connect(self.playback_panel.update_playback_position)
+        self.playback_worker.playback_finished.connect(self.on_playback_finished)
+        self.playback_worker.playback_stopped.connect(self.on_playback_stopped)
+        self.playback_worker.error_occurred.connect(self.on_playback_error)
+
     def closeEvent(self, event):
         if self.edit_manager.has_staged_changes():
             reply = QMessageBox.question(
@@ -217,6 +244,7 @@ class MainWindow(QMainWindow):
 
     def on_files_view_customContextMenuRequested(self, pos):
         menu = QMenu()
+        menu.addAction(self.action_play_file)
         menu.addAction(self.action_properties)
         menu.exec_(self.files_view.mapToGlobal(pos))
 
@@ -292,6 +320,16 @@ class MainWindow(QMainWindow):
         self.action_properties.setEnabled(False)
         self.action_properties.triggered.connect(self.open_properties_window)
 
+        # Playback actions
+        self.action_play_file = QAction("Play this file", self)
+        self.action_play_file.setEnabled(False)
+        self.action_play_file.triggered.connect(self.on_play_file_requested)
+
+        self.action_show_playback_panel = QAction("Show Playback Panel", self)
+        self.action_show_playback_panel.setCheckable(True)
+        self.action_show_playback_panel.setChecked(self.playback_panel.isVisible())
+        self.action_show_playback_panel.triggered.connect(self.on_show_playback_panel_requested)
+
     def _create_menus(self):
         # File Menu
         file_menu = self.menuBar().addMenu("&File")
@@ -301,6 +339,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_reset)
         file_menu.addSeparator()
         file_menu.addAction(self.action_properties)
+        file_menu.addAction(self.action_play_file)
         file_menu.addSeparator()
 
         quit_action = QAction("&Quit", self)
@@ -310,6 +349,8 @@ class MainWindow(QMainWindow):
         # View Menu
         self.view_menu = self.menuBar().addMenu("&View")
         self.setup_view_menu()
+        self.view_menu.addSeparator()
+        self.view_menu.addAction(self.action_show_playback_panel)
 
         # Help Menu
         help_menu = self.menuBar().addMenu("&Help")
@@ -381,6 +422,7 @@ class MainWindow(QMainWindow):
             is_media_file = all_media
 
         self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
+        self.action_play_file.setEnabled(len(selected_rows) == 1 and is_media_file)
         # Save and Reset actions are enabled/disabled by on_autosave_changed
         # but they also require staged changes to be meaningful.
         # We can further refine their state here if needed, e.g., disable if no staged changes.
@@ -539,3 +581,65 @@ class MainWindow(QMainWindow):
         settings.setValue("sort_order", self.file_list_settings.sort_order)
 
         settings.endGroup()
+
+    @Slot(str, float)
+    def on_playback_started(self, filename: str, duration: float):
+        """
+        Handles the playback_started signal from PlaybackWorker.
+        Shows the playback panel and ensures the "Show Playback Panel" menu action is checked.
+        """
+        self.playback_panel.show()
+        self.action_show_playback_panel.setChecked(True)
+
+    @Slot()
+    def on_playback_finished(self):
+        """
+        Handles the playback_finished signal from PlaybackWorker.
+        Hides the playback panel and unchecks the "Show Playback Panel" menu action.
+        """
+        self.playback_panel.hide()
+        self.action_show_playback_panel.setChecked(False)
+        self.playback_panel.update_ui('stopped') # Ensure panel UI is also reset
+
+    @Slot()
+    def on_playback_stopped(self):
+        """
+        Handles the playback_stopped signal from PlaybackWorker.
+        Hides the playback panel and unchecks the "Show Playback Panel" menu action.
+        """
+        self.playback_panel.hide()
+        self.action_show_playback_panel.setChecked(False)
+        self.playback_panel.update_ui('stopped') # Ensure panel UI is also reset
+
+    @Slot(str)
+    def on_playback_error(self, error_message: str):
+        """
+        Handles the error_occurred signal from PlaybackWorker.
+        """
+        log.error(f"Playback error: {error_message}")
+        self.playback_panel.update_ui('stopped')
+        self._show_error_message("Playback Error", error_message)
+
+    @Slot()
+    def on_play_file_requested(self):
+        """
+        Handles the play_file_requested signal from menu actions.
+        Starts playback of the selected file.
+        """
+        selected_indexes = self.files_view.selectionModel().selectedRows()
+        if len(selected_indexes) == 1:
+            source_index = self.proxy_model.mapToSource(selected_indexes[0])
+            row_data = self.file_model.get_data_for_row(row=source_index.row())
+            file_path = row_data.get(KEY_FILE_PATH)
+            if file_path and row_data.get(KEY_IS_MEDIA):
+                self.playback_panel.show()
+                self.playback_worker.start_playback(file_path)
+
+    @Slot(bool)
+    def on_show_playback_panel_requested(self, checked: bool):
+        """
+        Handles the show_playback_panel_requested signal from the View menu.
+        Toggles the visibility of the playback panel.
+        """
+        self.playback_panel.setVisible(checked)
+        self.action_show_playback_panel.setChecked(checked)
