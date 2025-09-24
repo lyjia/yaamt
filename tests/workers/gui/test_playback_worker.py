@@ -269,11 +269,11 @@ class TestPlaybackWorker:
         playback_worker.error_occurred.connect(error_spy)
         playback_worker.playback_stopped.connect(stopped_spy)
 
-        # Start playback, which will trigger the exception in the thread
-        with patch('threading.Thread') as mock_thread:
-            instance = mock_thread.return_value
-            instance.start.side_effect = playback_worker._playback_loop
-            playback_worker.start_playback("test.mp3")
+        # Start playback
+        playback_worker.start_playback("test.mp3")
+
+        # Manually trigger the playback loop to simulate the timer
+        playback_worker._playback_loop()
 
         # Verify error and stopped signals were emitted
         error_spy.assert_called_once()
