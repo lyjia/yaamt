@@ -1,4 +1,5 @@
 import pytest
+import pyaudio
 from unittest.mock import MagicMock, patch, PropertyMock
 
 from PySide6.QtCore import QObject, Signal
