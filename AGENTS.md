@@ -38,7 +38,7 @@ This project implements an audio file metadata manager, through a few primary co
 * All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 * Logging should be done using `log`, which is provided by `util.logging`. 
-* PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside of it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio) 
+* PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside of it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
 
 ## AI-specific instructions
 
@@ -100,6 +100,7 @@ Follow these best practices when developing the PySide6 application.
 A unit test suite (using pytest) can be found in `tests` in the project root.
 
 * DO NOT write to the test fixtures in `tests/fixtures`. Instead, copy the original file to a temporary location and perform your tests on that.
+* Be extremely cautious about making edits to the program itself when fixing test failures. There is a lot of functionality in the GUI that is not easily tested, and you may break something outside the scope of your visibility.
 
 #### Notes
 

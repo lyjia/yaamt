@@ -1,6 +1,5 @@
 import pytest
 import pyaudio
-import threading
 from unittest.mock import MagicMock, patch, PropertyMock
 from workers.gui.playback_worker import PlaybackWorker, PLAYING, PAUSED, STOPPED
 from providers.audio.base import AudioStreamBase

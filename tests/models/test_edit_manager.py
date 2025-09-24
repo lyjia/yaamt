@@ -84,7 +84,7 @@ class TestEditManager:
     def test_initial_state(self):
         """Test the initial state of the EditManager."""
         # Verify initial autosave state
-        assert self.edit_manager.autosave is False
+        assert self.edit_manager.autosave is True
 
         # Verify no staged changes initially
         assert self.edit_manager.has_staged_changes() is False
@@ -94,15 +94,16 @@ class TestEditManager:
 
     def test_autosave_property_getter(self):
         """Test the autosave property getter."""
-        assert self.edit_manager.autosave is False
+        assert self.edit_manager.autosave is True
 
     def test_autosave_property_setter_changes_value(self):
         """Test that setting autosave property changes the internal value."""
+        self.edit_manager._autosave = False
         emitted_data = []
         self.edit_manager.autosave_changed.connect(emitted_data.append)
 
         # Set autosave to True
-        self.edit_manager.autosave = True
+        self.edit_manager.set_autosave(True)
         assert self.edit_manager.autosave is True
 
         # Verify signal was emitted
@@ -125,19 +126,20 @@ class TestEditManager:
 
     def test_autosave_property_setter_signal_emission(self):
         """Test that autosave_changed signal is emitted when value changes."""
+        self.edit_manager._autosave = False
         emitted_data = []
         self.edit_manager.autosave_changed.connect(emitted_data.append)
 
         # Test True -> False -> True transitions
-        self.edit_manager.autosave = True
+        self.edit_manager.set_autosave(True)
         assert len(emitted_data) == 1
         assert emitted_data[0] is True
 
-        self.edit_manager.autosave = False
+        self.edit_manager.set_autosave(False)
         assert len(emitted_data) == 2
         assert emitted_data[1] is False
 
-        self.edit_manager.autosave = True
+        self.edit_manager.set_autosave(True)
         assert len(emitted_data) == 3
         assert emitted_data[2] is True
 
@@ -343,13 +345,14 @@ class TestEditManager:
 
     def test_signal_emissions_independence(self):
         """Test that different signals are emitted independently."""
+        self.edit_manager._autosave = False
         autosave_emitted_data = []
         self.edit_manager.autosave_changed.connect(autosave_emitted_data.append)
         changes_emitted_data = []
         self.edit_manager.staged_changes_exist.connect(changes_emitted_data.append)
 
         # Change autosave - should only emit autosave_changed
-        self.edit_manager.autosave = True
+        self.edit_manager.set_autosave(True)
         assert len(autosave_emitted_data) == 1
         assert len(changes_emitted_data) == 0
 
@@ -359,7 +362,7 @@ class TestEditManager:
         assert len(changes_emitted_data) == 1
 
         # Change autosave again - should only emit autosave_changed
-        self.edit_manager.autosave = False
+        self.edit_manager.set_autosave(False)
         assert len(autosave_emitted_data) == 2
         assert len(changes_emitted_data) == 1
 
