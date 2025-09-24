@@ -6,7 +6,7 @@ import os
 import csv
 from models.edit_manager import EditManager
 from models.media_file import MediaFile
-from util.const import ALL_TAGS
+from util.const import ALL_TAGS, KEY_STREAM_INFO, KEY_TAGS, KEY_VALUE, KEY_INTERNAL
 from util.logging import log, configure_logger
 
 SYS_RETURN_UNKNOWN_FATAL_ERROR = 1
@@ -75,25 +75,26 @@ def print_output(media_files, output_format='table'):
 
             # Print all available tags
             print("\nTags:")
-            tags = media_file.tags()
+            metadata = media_file.to_dict()
+            tags = metadata.get(KEY_TAGS, {})
             if tags:
                 for key, value in sorted(tags.items()):
-                    print(f"  {key}: {value.get('value')}")
+                    print(f"  {key}: {value.get(KEY_VALUE)}")
             else:
                 print("  No tags found.")
 
             # Print all available stream info
             print("\nStream Info:")
-            stream_info = media_file.stream_info()
+            stream_info = metadata.get(KEY_STREAM_INFO, {})
             if stream_info:
                 for key, value in sorted(stream_info.items()):
-                    print(f"  {key}: {value}")
+                    print(f"  {key}: {value.get(KEY_VALUE)}")
             else:
                 print("  No stream info found.")
 
             # Print all internal data
             print("\nInternal Info:")
-            internal_data = media_file.internal_data()
+            internal_data = metadata.get(KEY_INTERNAL, {})
             if internal_data:
                 for key, value in sorted(internal_data.items()):
                     print(f"  {key}: {value}")
