@@ -1,5 +1,5 @@
 import pyaudio
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
 from providers.audio.provider import AudioStreamProvider
 from util.logging import log
@@ -28,6 +28,11 @@ class PlaybackWorker(QObject):
         self.output_stream = None
         self.current_file = None
         self.duration = 0.0
+        self.total_frames_read = 0
+        self.chunk_size = 1024
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._playback_loop)
 
     @Slot(str)
     def start_playback(self, filepath: str):
@@ -38,20 +43,15 @@ class PlaybackWorker(QObject):
             filepath: Path to the audio file to play.
         """
         try:
-            # Stop any current playback
             if self.state != STOPPED:
                 self.stop()
             
             self.current_file = filepath
             log.info(f"Starting playback of {filepath}")
             
-            # Get audio stream from provider
             self.audio_stream = AudioStreamProvider.get_stream(filepath)
-            
-            # Initialize PyAudio
             self.pyaudio = pyaudio.PyAudio()
             
-            # Open output stream
             self.output_stream = self.pyaudio.open(
                 format=self.pyaudio.get_format_from_width(self.audio_stream.sample_width),
                 channels=self.audio_stream.nchannels,
@@ -59,18 +59,16 @@ class PlaybackWorker(QObject):
                 output=True
             )
             
-            # Calculate duration (approximate)
-            # This is a rough estimate since we don't have the exact duration without reading the entire file
-            self.duration = 0.0  # Will be updated as we play
+            self.duration = self.audio_stream.duration
+            self.total_frames_read = 0
+
+            # Dynamically set timer interval
+            chunk_duration_ms = (self.chunk_size / self.audio_stream.samplerate) * 1000
+            self.timer.setInterval(chunk_duration_ms / 2)  # Update at twice the speed of chunk playback
             
-            # Set state to playing
             self.state = PLAYING
-            
-            # Emit signal that playback has started
             self.playback_started.emit(filepath, self.duration)
-            
-            # Start the playback loop
-            self._playback_loop()
+            self.timer.start()
             
         except Exception as e:
             log.error(f"Error starting playback: {str(e)}")
@@ -80,30 +78,26 @@ class PlaybackWorker(QObject):
     def _playback_loop(self):
         """
         The main playback loop that reads from the audio stream and writes to the output device.
+        This is called by the QTimer.
         """
-        chunk_size = 1024
-        total_frames_read = 0
-        
+        if self.state != PLAYING:
+            return
+
         try:
-            while self.state == PLAYING:
-                # Read a chunk of data
-                data = self.audio_stream.read(chunk_size)
-                
-                if not data:
-                    # End of file
-                    self.playback_finished.emit()
-                    self.stop()
-                    break
-                
-                # Write to output stream
-                self.output_stream.write(data)
-                
-                # Update position
-                frames_read = len(data) / (self.audio_stream.sample_width * self.audio_stream.nchannels)
-                total_frames_read += frames_read
-                current_position = total_frames_read / self.audio_stream.samplerate
-                self.position_changed.emit(current_position)
-                
+            data = self.audio_stream.read(self.chunk_size)
+            
+            if not data:
+                self.playback_finished.emit()
+                self.stop()
+                return
+            
+            self.output_stream.write(data)
+            
+            frames_read = len(data) / (self.audio_stream.sample_width * self.audio_stream.nchannels)
+            self.total_frames_read += frames_read
+            current_position = self.total_frames_read / self.audio_stream.samplerate
+            self.position_changed.emit(current_position)
+            
         except Exception as e:
             log.error(f"Error during playback: {str(e)}")
             self.error_occurred.emit(f"Error during playback: {str(e)}")
@@ -116,6 +110,7 @@ class PlaybackWorker(QObject):
         """
         if self.state == PLAYING:
             self.state = PAUSED
+            self.timer.stop()
             if self.output_stream:
                 self.output_stream.stop_stream()
 
@@ -128,7 +123,7 @@ class PlaybackWorker(QObject):
             self.state = PLAYING
             if self.output_stream:
                 self.output_stream.start_stream()
-            self._playback_loop()
+            self.timer.start()
 
     @Slot()
     def stop(self):
@@ -137,6 +132,7 @@ class PlaybackWorker(QObject):
         """
         if self.state != STOPPED:
             self.state = STOPPED
+            self.timer.stop()
             self.playback_stopped.emit()
             self.cleanup()
 
@@ -150,9 +146,9 @@ class PlaybackWorker(QObject):
         """
         if self.audio_stream:
             try:
-                # Convert seconds to frames
                 frame_offset = int(position_seconds * self.audio_stream.samplerate)
                 self.audio_stream.seek(frame_offset)
+                self.total_frames_read = frame_offset
                 self.position_changed.emit(position_seconds)
             except Exception as e:
                 log.error(f"Error seeking: {str(e)}")

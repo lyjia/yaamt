@@ -102,6 +102,15 @@ class MiniaudioStream(AbstractAudioStream):
             raise ValueError("Stream is closed.")
         return self.info.sample_width
 
+    @property
+    def duration(self) -> float:
+        """
+        The total duration of the audio file in seconds.
+        """
+        if self._is_closed:
+            raise ValueError("Stream is closed.")
+        return self.info.num_frames / self.info.sample_rate
+
     def __enter__(self):
         """Enter the runtime context related to this object."""
         return self

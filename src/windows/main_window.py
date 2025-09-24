@@ -5,7 +5,9 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot
+from PySide6.QtCore import (
+    QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot, Signal
+)
 
 import windows
 from models.media_file import MediaFile
@@ -21,6 +23,8 @@ from util.logging import log # Added import
 
 
 class MainWindow(QMainWindow):
+    start_playback_signal = Signal(str)
+
     def __init__(self, path=None):
         super().__init__()
         self.setWindowTitle("YAAMT")
@@ -173,6 +177,9 @@ class MainWindow(QMainWindow):
         self.playback_worker.playback_finished.connect(self.on_playback_finished)
         self.playback_worker.playback_stopped.connect(self.on_playback_stopped)
         self.playback_worker.error_occurred.connect(self.on_playback_error)
+
+        # Connect the signal to start playback in the worker thread
+        self.start_playback_signal.connect(self.playback_worker.start_playback)
 
     def closeEvent(self, event):
         if self.edit_manager.has_staged_changes():
@@ -588,6 +595,7 @@ class MainWindow(QMainWindow):
         Handles the playback_started signal from PlaybackWorker.
         Shows the playback panel and ensures the "Show Playback Panel" menu action is checked.
         """
+        self.playback_panel.update_ui('playing', filename, duration)
         self.playback_panel.show()
         self.action_show_playback_panel.setChecked(True)
 
@@ -595,21 +603,17 @@ class MainWindow(QMainWindow):
     def on_playback_finished(self):
         """
         Handles the playback_finished signal from PlaybackWorker.
-        Hides the playback panel and unchecks the "Show Playback Panel" menu action.
+        Updates the playback panel to the stopped state.
         """
-        self.playback_panel.hide()
-        self.action_show_playback_panel.setChecked(False)
-        self.playback_panel.update_ui('stopped') # Ensure panel UI is also reset
+        self.playback_panel.update_ui('stopped')
 
     @Slot()
     def on_playback_stopped(self):
         """
         Handles the playback_stopped signal from PlaybackWorker.
-        Hides the playback panel and unchecks the "Show Playback Panel" menu action.
+        Updates the playback panel to the stopped state.
         """
-        self.playback_panel.hide()
-        self.action_show_playback_panel.setChecked(False)
-        self.playback_panel.update_ui('stopped') # Ensure panel UI is also reset
+        self.playback_panel.update_ui('stopped')
 
     @Slot(str)
     def on_playback_error(self, error_message: str):
@@ -633,7 +637,7 @@ class MainWindow(QMainWindow):
             file_path = row_data.get(KEY_FILE_PATH)
             if file_path and row_data.get(KEY_IS_MEDIA):
                 self.playback_panel.show()
-                self.playback_worker.start_playback(file_path)
+                self.start_playback_signal.emit(file_path)
 
     @Slot(bool)
     def on_show_playback_panel_requested(self, checked: bool):

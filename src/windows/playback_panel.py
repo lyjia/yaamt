@@ -104,18 +104,17 @@ class PlaybackPanel(QWidget):
         # Update time display
         self._update_time_display(position if position > 0 else 0.0, duration)
     
-    @Slot(float, float)
-    def update_playback_position(self, position: float, duration: float = 0.0):
+    @Slot(float)
+    def update_playback_position(self, position: float):
         """
         Update the playback position slider and time display.
         
         Args:
             position: Current playback position in seconds
-            duration: Total duration of the audio in seconds
         """
         if not self.playback_slider.isSliderDown():  # Only update if user is not dragging
             self.playback_slider.setValue(int(position))
-        self._update_time_display(position, duration)
+        self._update_time_display(position, self.playback_slider.maximum())
     
     def _update_time_display(self, position: float, duration: float):
         """
