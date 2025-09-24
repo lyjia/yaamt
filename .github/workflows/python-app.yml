@@ -22,6 +22,11 @@ x-steps:
     run: |
       sudo apt update
       sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 xvfb libxkbcommon-x11-0 portaudio19-dev
+  - &install_mac_deps
+    name: Install MacOS system dependencies
+    if: runner.os == 'Mac'
+    run: |
+      brew install portaudio
   - &install_pip_base
     name: Install base Python dependencies
     run: |
@@ -98,7 +103,9 @@ jobs:
         prerelease: false
 
     - <<: *install_ubuntu_deps
+    - <<: *install_mac_deps
     - <<: *install_pip_base
+
     - name: Install build dependencies
       run: |
         pip install cx_freeze
