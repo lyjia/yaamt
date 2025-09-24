@@ -1,1 +1,1 @@
-Refer to AGENTS.md for your guidelines.
+Refer to `AGENTS.md` for your guidelines.
