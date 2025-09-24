@@ -5,16 +5,17 @@ from unittest.mock import MagicMock, patch, PropertyMock
 from PySide6.QtCore import QObject, Signal
 
 from workers.gui.playback_worker import PlaybackWorker, PLAYING, PAUSED, STOPPED
-from providers.audio.base import AbstractAudioStream
+from providers.audio.base import AudioStreamBase
 
 
-class MockAudioStream(AbstractAudioStream):
+class MockAudioStream(AudioStreamBase):
     """Mock implementation of AbstractAudioStream for testing."""
     def __init__(self, filepath: str, samplerate=44100, nchannels=2, sample_width=2, duration_seconds=10.0):
         self.filepath = filepath
         self._samplerate = samplerate
         self._nchannels = nchannels
         self._sample_width = sample_width
+        self._duration_seconds = duration_seconds
         self._duration_frames = int(duration_seconds * samplerate)
         self._current_frame = 0
         self.closed = False
@@ -55,6 +56,10 @@ class MockAudioStream(AbstractAudioStream):
     @property
     def current_position_seconds(self) -> float:
         return self._current_frame / self._samplerate
+
+    @property
+    def duration_seconds(self) -> float:
+        return self._duration_seconds
 
 
 @pytest.fixture

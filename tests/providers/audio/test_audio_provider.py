@@ -1,6 +1,6 @@
 import pytest
 import os
-from providers.audio.provider import AudioStreamProvider
+from providers.audio.factory import AudioStreamFactory
 from providers.audio.miniaudio_stream import MiniaudioStream
 from util.const import PROJECT_ROOT
 
@@ -19,7 +19,7 @@ class TestAudioStreamProvider:
         """
         Verify that AudioStreamProvider.get_stream() returns a valid MiniaudioStream instance.
         """
-        stream = AudioStreamProvider.get_stream(AUDIO_FILE_PATH)
+        stream = AudioStreamFactory.get_stream(AUDIO_FILE_PATH)
         assert isinstance(stream, MiniaudioStream)
         stream.close()
 
@@ -28,7 +28,7 @@ class TestAudioStreamProvider:
         Verify that the samplerate, nchannels, and sample_width properties
         of the MiniaudioStream object return the correct values for a known audio file.
         """
-        with AudioStreamProvider.get_stream(AUDIO_FILE_PATH) as stream:
+        with AudioStreamFactory.get_stream(AUDIO_FILE_PATH) as stream:
             assert stream.samplerate == EXPECTED_SAMPLERATE
             assert stream.nchannels == EXPECTED_NCHANNELS
             assert stream.sample_width == EXPECTED_SAMPLE_WIDTH
@@ -37,7 +37,7 @@ class TestAudioStreamProvider:
         """
         Verify that the read() method returns a non-empty bytes object.
         """
-        with AudioStreamProvider.get_stream(AUDIO_FILE_PATH) as stream:
+        with AudioStreamFactory.get_stream(AUDIO_FILE_PATH) as stream:
             data = stream.read(1024)  # n_frames is not used anymore, but kept for compatibility
             assert isinstance(data, bytes)
             assert len(data) > 0
@@ -48,7 +48,7 @@ class TestAudioStreamProvider:
         This is tested by seeking to a position, reading some data, and then
         seeking back to the beginning and reading again, comparing the data.
         """
-        with AudioStreamProvider.get_stream(AUDIO_FILE_PATH) as stream:
+        with AudioStreamFactory.get_stream(AUDIO_FILE_PATH) as stream:
             # Read initial data
             initial_data = stream.read(512)
             assert len(initial_data) > 0
@@ -75,7 +75,7 @@ class TestAudioStreamProvider:
         Verify reading after seeking beyond the end of the file.
         miniaudio's seek should clamp to the end, and subsequent reads should return empty bytes.
         """
-        with AudioStreamProvider.get_stream(AUDIO_FILE_PATH) as stream:
+        with AudioStreamFactory.get_stream(AUDIO_FILE_PATH) as stream:
             # Seek to a very large frame number (effectively beyond the end)
             stream.seek(10**6)
             data = stream.read(512) # Try to read some data
@@ -85,7 +85,7 @@ class TestAudioStreamProvider:
         """
         Verify that accessing properties or methods of a closed stream raises ValueError.
         """
-        stream = AudioStreamProvider.get_stream(AUDIO_FILE_PATH)
+        stream = AudioStreamFactory.get_stream(AUDIO_FILE_PATH)
         stream.close()
 
         with pytest.raises(ValueError, match="Stream is closed."):

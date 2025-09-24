@@ -1,7 +1,7 @@
 import pyaudio
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
-from providers.audio.provider import AudioStreamProvider
+from providers.audio.factory import AudioStreamFactory
 from util.logging import log
 
 # Playback states
@@ -51,7 +51,7 @@ class PlaybackWorker(QObject):
             self.current_file = filepath
             log.info(f"Starting playback of {filepath}")
             
-            self.audio_stream = AudioStreamProvider.get_stream(filepath)
+            self.audio_stream = AudioStreamFactory.get_stream(filepath)
             self.pyaudio = pyaudio.PyAudio()
             
             self.output_stream = self.pyaudio.open(
@@ -61,7 +61,7 @@ class PlaybackWorker(QObject):
                 output=True
             )
             
-            self.duration = self.audio_stream.duration
+            self.duration = self.audio_stream.duration_seconds
             self.total_frames_read = 0
 
             # Dynamically set timer interval

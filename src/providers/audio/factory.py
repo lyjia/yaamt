@@ -1,16 +1,16 @@
 """
 Factory for providing audio stream instances.
 """
-from .base import AbstractAudioStream
+from .base import AudioStreamBase
 from .miniaudio_stream import MiniaudioStream
 
 
-class AudioStreamProvider:
+class AudioStreamFactory:
     """
     A factory class for creating audio stream instances.
     """
     @staticmethod
-    def get_stream(filepath: str) -> AbstractAudioStream:
+    def get_stream(filepath: str) -> AudioStreamBase:
         """
         Creates and returns an audio stream for the given file path.
 

@@ -6,10 +6,10 @@ to read and seek within audio files.
 """
 
 import miniaudio
-from .base import AbstractAudioStream
+from .base import AudioStreamBase
 
 
-class MiniaudioStream(AbstractAudioStream):
+class MiniaudioStream(AudioStreamBase):
     """
     Concrete implementation of AbstractAudioStream using the miniaudio library.
 
@@ -103,13 +103,13 @@ class MiniaudioStream(AbstractAudioStream):
         return self.info.sample_width
 
     @property
-    def duration(self) -> float:
+    def duration_seconds(self) -> float:
         """
         The total duration of the audio file in seconds.
         """
         if self._is_closed:
             raise ValueError("Stream is closed.")
-        return self.info.num_frames / self.info.sample_rate
+        return float(self.info.num_frames) / self.info.sample_rate
 
     def __enter__(self):
         """Enter the runtime context related to this object."""

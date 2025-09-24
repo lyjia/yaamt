@@ -9,7 +9,7 @@ underlying format.
 from abc import ABC, abstractmethod
 
 
-class AbstractAudioStream(ABC):
+class AudioStreamBase(ABC):
     """
     Abstract base class for audio streams.
 
@@ -18,6 +18,9 @@ class AbstractAudioStream(ABC):
     stream, and closing the stream, as well as properties for accessing
     audio format information.
     """
+
+    def __init__(self):
+        self.duration = None
 
     @abstractmethod
     def read(self, n_frames: int) -> bytes:
@@ -86,5 +89,13 @@ class AbstractAudioStream(ABC):
 
         Returns:
             An integer representing the sample width in bytes.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def duration_seconds(self) -> float:
+        """
+        The total duration of the audio file in seconds.
         """
         pass
