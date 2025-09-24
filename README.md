@@ -117,6 +117,8 @@ This project is licensed under the MIT License. (Note: A `LICENSE` file has not 
 
 ## Building from Source
 
+This application uses cx_freeze to package binaries and installers for supported platforms. Build artifacts will be output to `build/`. 
+
 To build the application from source, you can use the following commands:
 
 ```bash
