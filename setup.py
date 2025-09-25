@@ -25,7 +25,7 @@ def get_version_from_git():
             # Clean up the hash but preserve the dirty flag
             dirty_flag = "-dirty" if "dirty" in version else ""
             clean_hash = re.sub(r'[^a-zA-Z0-9]', '', version.replace("-dirty", ""))
-            version = f"0.0.1+{clean_hash}{dirty_flag}"
+            version = f"0.0.0+{clean_hash}{dirty_flag}"
         # If it starts with 'v', remove it to make it a valid version
         elif version.startswith('v'):
             version = version[1:]
@@ -112,7 +112,8 @@ try:
             ("resources", "resources"),
             ("src", "src")
         ],
-        "optimize": 2
+        "optimize": 2,
+        "include_msvcr": True
     }
 
     # GUI applications require a different base on Windows
