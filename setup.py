@@ -99,8 +99,7 @@ try:
             "PySide6.QtGui",
             "PySide6.QtWidgets",
             "mutagen",
-            "pytest",
-            "urllib"
+            "pytest"
         ],
         "excludes": [
             "tkinter",
