@@ -8,6 +8,7 @@ from models.edit_manager import EditManager
 from models.media_file import MediaFile
 from util.const import ALL_TAGS, KEY_STREAM_INFO, KEY_TAGS, KEY_VALUE, KEY_INTERNAL
 from util.logging import log, configure_logger
+from util.version import get_version
 
 SYS_RETURN_UNKNOWN_FATAL_ERROR = 1
 SYS_RETURN_FILE_INVALID = 2
@@ -109,16 +110,26 @@ def main():
     Main function to parse command-line arguments and display audio file metadata.
     """
     parser = argparse.ArgumentParser(description="Read or write metadata from an audio file or directory.")
-    parser.add_argument("path", help="The path to the audio file or directory.")
+    parser.add_argument("path", nargs='?', help="The path to the audio file or directory.")
     parser.add_argument("--recursive", action="store_true", help="Scan subdirectories when a directory is provided.")
     parser.add_argument("--format", choices=SUPPORTED_FORMATS, default='table', help="Output format.")
     parser.add_argument("--update-tag", nargs=2, action='append', help="Update a tag. Provide key and value. Can be used multiple times.")
     parser.add_argument("--update-internal-tag", nargs=2, action='append', help="Update an internal tag. Provide key and value. Can be used multiple times.")
+    parser.add_argument("--version", action="store_true", help="Print the version number and exit.")
 
     for tag_name, display_name in ALL_TAGS.items():
         parser.add_argument(f"--{tag_name}", help=f"Set the {display_name.lower()} of the track.")
 
     args = parser.parse_args()
+
+    # Handle version argument
+    if args.version:
+        print(get_version())
+        sys.exit(0)
+
+    # Check if path is provided when not using version
+    if not args.path:
+        parser.error("path is required when not using --version")
 
     if args.format == 'json' or args.format == 'csv':
         configure_logger(use_formatter=False)

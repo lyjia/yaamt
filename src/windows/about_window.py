@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout
+from util.version import get_version
 
 
 class AboutWindow(QDialog):
@@ -15,10 +16,11 @@ class AboutWindow(QDialog):
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Text
+        version = get_version()
         text_label = QLabel(
-            """
+            f"""
             <p>A simple tool for editing audio metadata.</p>
-            <p>Version 0.1</p>
+            <p>Version: {version}</p>
             """
         )
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

@@ -4,3 +4,4 @@ miniaudio
 pyaudio
 pytest==8.4.1
 pytest-cov==4.1.0
+cx_Freeze

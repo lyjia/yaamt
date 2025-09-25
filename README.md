@@ -1,4 +1,7 @@
-# Audio Metadata Tool
+# YAAMT - Yet Another Audio Metadata Tool
+
+<img src="doc/YAAMT_logo.png" alt="YAAMT Logo">
+
 
 A powerful and flexible tool for managing audio file metadata, designed for DJs, music producers, and audiophiles.
 
@@ -111,3 +114,29 @@ Please make sure to update tests as appropriate.
 ## License
 
 This project is licensed under the MIT License. (Note: A `LICENSE` file has not yet been created).
+
+## Building from Source
+
+This application uses cx_freeze to package binaries and installers for supported platforms. Build artifacts will be output to `build/`. 
+
+To build the application from source, you can use the following commands:
+
+```bash
+python setup.py build
+```
+This command builds the application executables for your current platform.
+
+```bash
+python setup.py bdist_msi
+```
+This command creates a Windows installer (.msi) package for distribution on Windows systems.
+
+```bash
+python setup.py bdist_mac
+```
+This command creates a macOS application bundle (.app) for distribution on macOS systems.
+
+```bash
+python setup.py bdist_deb
+```
+This command creates a Debian package (.deb) for distribution on Debian-based Linux systems.

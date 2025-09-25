@@ -1,0 +1,24 @@
+name: 'Setup Dependencies'
+description: 'Installs system and Python dependencies for the project'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Ubuntu system dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt update
+        sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 xvfb libxkbcommon-x11-0 portaudio19-dev
+
+    - name: Install MacOS system dependencies
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        brew install portaudio
+
+    - name: Install base Python dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
