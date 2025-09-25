@@ -88,9 +88,9 @@ try:
     }
 
     # GUI applications require a different base on Windows
-    base = None
+    gui_base = "gui"
     if sys.platform == "win32":
-        base = "Win32GUI"
+        gui_base = "Win32GUI"
 
     # Define executables
     executables = [
@@ -102,7 +102,7 @@ try:
         ),
         Executable(
             "src/gui.py",
-            base=base,
+            base=gui_base,
             target_name="yaamt-gui",
             icon="resources/icons/app_icon.png"
         )
