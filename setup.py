@@ -77,7 +77,8 @@ try:
             "unittest",
             "email",
             "xml",
-            "xmlrpc"
+            "xmlrpc",
+            "PySide6.QtSql" #responsible for  error: [Errno 2] No such file or directory: '/usr/local/opt/libiodbc/lib/libiodbc.2.dylib' on macos builds
         ],
         "include_files": [
             ("resources", "resources"),
