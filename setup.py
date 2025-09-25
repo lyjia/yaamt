@@ -93,6 +93,7 @@ try:
             "json",
             "pathlib",
             "logging",
+            "cffi",
             "PySide6",
             "PySide6.QtCore",
             "PySide6.QtGui",
@@ -105,7 +106,6 @@ try:
             "tkinter",
             "unittest",
             "email",
-            "http",
             "xml",
             "xmlrpc"
         ],
