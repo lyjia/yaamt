@@ -113,10 +113,10 @@ jobs:
         fi
 
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          ARCHIVE_NAME="mp3-tag-rebuilder-$VERSION_NAME-${{ matrix.os }}-${{ matrix.arch }}.zip"
+          ARCHIVE_NAME="yaamt-$VERSION_NAME-${{ matrix.os }}-${{ matrix.arch }}.zip"
           echo "ASSET_CONTENT_TYPE=application/zip" >> $GITHUB_OUTPUT
         else
-          ARCHIVE_NAME="mp3-tag-rebuilder-$VERSION_NAME-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+          ARCHIVE_NAME="yaamt-$VERSION_NAME-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
           echo "ASSET_CONTENT_TYPE=application/gzip" >> $GITHUB_OUTPUT
         fi
         echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
