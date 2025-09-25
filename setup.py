@@ -153,6 +153,13 @@ try:
                          " - Batch editing of metadata\n"
                          " - Support for multiple audio formats\n"
                          " - GUI and command-line interfaces"
+        },
+
+        # macOS disk image configuration
+        bdist_dmg_options={
+            "volume_label": "YAAMT",
+            "applications_shortcut": True,
+            "bundle_name": "YAAMT"
         }
     )
 

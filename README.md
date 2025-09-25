@@ -121,21 +121,26 @@ This application uses cx_freeze to package binaries and installers for supported
 
 To build the application from source, you can use the following commands:
 
+### All Platforms (basic binary build)
+
 ```bash
 python setup.py build
 ```
 This command builds the application executables for your current platform.
 
+### Windows
 ```bash
 python setup.py bdist_msi
 ```
 This command creates a Windows installer (.msi) package for distribution on Windows systems.
 
+### MacOS
 ```bash
-python setup.py bdist_mac
+python setup.py bdist_dmg
 ```
-This command creates a macOS application bundle (.app) for distribution on macOS systems.
+This command creates a macOS disk image (.dmg) for distribution on macOS systems.
 
+### Linux (Debian & Derivatives)
 ```bash
 python setup.py bdist_deb
 ```
