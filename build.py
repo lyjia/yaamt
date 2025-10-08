@@ -238,7 +238,7 @@ class Archiver:
     def __init__(self, config: BuildConfig):
         self.config = config
 
-    def create_archive(self, version_name=None):
+    def create_archive(self, version_name=None, platform_override=None, arch_override=None):
         """Create an archive of the build artifacts"""
         # Determine build directory
         if self.config.get_build_tool() == "nuitka":
@@ -253,11 +253,15 @@ class Archiver:
         if not version_name:
             version_name = "local"
 
+        # Use overrides for platform/arch in archive name if provided (useful for CI)
+        platform_name = platform_override or self.config.platform
+        arch_name = arch_override or self.config.arch
+
         if self.config.platform == "windows":
-            archive_name = f"yaamt-{version_name}-{self.config.platform}-{self.config.arch}.zip"
+            archive_name = f"yaamt-{version_name}-{platform_name}-{arch_name}.zip"
             self._create_zip(build_dir, archive_name)
         else:
-            archive_name = f"yaamt-{version_name}-{self.config.platform}-{self.config.arch}.tar.gz"
+            archive_name = f"yaamt-{version_name}-{platform_name}-{arch_name}.tar.gz"
             self._create_tarball(build_dir, archive_name)
 
         print(f"\nArchive created: {archive_name}")
@@ -293,13 +297,13 @@ def main():
     parser.add_argument(
         "--platform",
         choices=["windows", "linux", "macos"],
-        help="Override platform detection"
+        help="Override platform detection (default: auto-detect current platform)"
     )
 
     parser.add_argument(
         "--arch",
         choices=["x64", "arm64"],
-        help="Override architecture detection"
+        help="Override architecture detection (default: auto-detect current architecture)"
     )
 
     parser.add_argument(
@@ -323,6 +327,16 @@ def main():
     parser.add_argument(
         "--version-name",
         help="Version name for archive (default: local)"
+    )
+
+    parser.add_argument(
+        "--archive-platform",
+        help="Platform name to use in archive filename (overrides detected platform)"
+    )
+
+    parser.add_argument(
+        "--archive-arch",
+        help="Architecture name to use in archive filename (overrides detected arch)"
     )
 
     args = parser.parse_args()
@@ -360,7 +374,11 @@ def main():
         # Create archive if requested
         if args.archive:
             archiver = Archiver(config)
-            archiver.create_archive(args.version_name)
+            archiver.create_archive(
+                version_name=args.version_name,
+                platform_override=args.archive_platform,
+                arch_override=args.archive_arch
+            )
 
     except Exception as e:
         print(f"\n✗ Build failed: {e}", file=sys.stderr)

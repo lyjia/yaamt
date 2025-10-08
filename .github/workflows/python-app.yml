@@ -85,61 +85,14 @@ jobs:
 
     - uses: ./.github/actions/setup-deps
 
-    - name: Install build dependencies
+    - name: Install build-specific dependencies
       run: |
         pip install cx_freeze nuitka ordered-set zstandard
 
-    - name: Install Nuitka system dependencies (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        choco install ccache
-
-    - name: Install Nuitka system dependencies (macOS)
-      if: startsWith(matrix.os, 'macos')
-      run: |
-        brew install ccache
-
-    - name: Install Nuitka system dependencies (Linux)
-      if: startsWith(matrix.os, 'ubuntu')
-      run: |
-        sudo apt-get install -y ccache patchelf
-
-    - name: Build with Nuitka (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        mkdir -p build/nuitka-dist
-        python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone src/main.py --output-dir=build/nuitka-dist
-        python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
-
-    - name: Build with Nuitka (Linux)
-      if: startsWith(matrix.os, 'ubuntu')
-      run: |
-        mkdir -p build/nuitka-dist
-        nuitka --standalone --onefile src/main.py --output-dir=build/nuitka-dist
-        nuitka --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
-
-    - name: Build with cx_Freeze (macOS only, Nuitka not working yet)
-      if: startsWith(matrix.os, 'macos')
-      run: python setup.py build
-
-    - name: Determine Build Path and Archive Name
-      id: build_info
+    - name: Determine version name for archive
+      id: version_info
       shell: bash
       run: |
-        # For Nuitka builds (Windows/Linux), use nuitka-dist directory
-        # For cx_freeze builds (macOS), use exe.* directory
-        if [[ "${{ matrix.os }}" == "macos-latest" ]] || [[ "${{ matrix.os }}" == "macos-14" ]]; then
-          BUILD_DIR=$(find build -maxdepth 1 -type d -name 'exe.*' -print -quit)
-        else
-          BUILD_DIR="build/nuitka-dist"
-        fi
-
-        if [[ -z "$BUILD_DIR" ]] || [[ ! -d "$BUILD_DIR" ]]; then
-          echo "Build directory not found!"
-          exit 1
-        fi
-        echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_OUTPUT
-
         ref_name="${{ github.ref_name }}"
         ref_name_sanitized="${ref_name//\//-}"
 
@@ -148,34 +101,30 @@ jobs:
         else
           VERSION_NAME="$ref_name_sanitized-${{ github.sha }}"
         fi
+        echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
 
+    - name: Build and archive with build.py script
+      run: python build.py --skip-deps --archive --version-name ${{ steps.version_info.outputs.VERSION_NAME }} --archive-platform ${{ matrix.os }} --archive-arch ${{ matrix.arch }}
+
+    - name: Determine archive name and content type
+      id: archive_info
+      shell: bash
+      run: |
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          ARCHIVE_NAME="yaamt-$VERSION_NAME-${{ matrix.os }}-${{ matrix.arch }}.zip"
+          ARCHIVE_NAME="yaamt-${{ steps.version_info.outputs.VERSION_NAME }}-${{ matrix.os }}-${{ matrix.arch }}.zip"
           echo "ASSET_CONTENT_TYPE=application/zip" >> $GITHUB_OUTPUT
         else
-          ARCHIVE_NAME="yaamt-$VERSION_NAME-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+          ARCHIVE_NAME="yaamt-${{ steps.version_info.outputs.VERSION_NAME }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
           echo "ASSET_CONTENT_TYPE=application/gzip" >> $GITHUB_OUTPUT
         fi
         echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
-
-    - name: Archive Build Artifacts (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: powershell
-      run: |
-        cd ${{ steps.build_info.outputs.BUILD_DIR }}
-        Compress-Archive -Path * -DestinationPath ${{ github.workspace }}/${{ steps.build_info.outputs.ARCHIVE_NAME }}
-
-    - name: Archive Build Artifacts (Linux/macOS)
-      if: matrix.os != 'windows-latest'
-      shell: bash
-      run: tar czf ${{ steps.build_info.outputs.ARCHIVE_NAME }} -C ${{ steps.build_info.outputs.BUILD_DIR }} .
 
     - name: Upload Build Artifact
       if: ${{ !startsWith(github.ref, 'refs/tags/') }}
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.build_info.outputs.ARCHIVE_NAME }}
-        path: ${{ steps.build_info.outputs.ARCHIVE_NAME }}
+        name: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
+        path: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
 
     - name: Upload Release Asset
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -184,9 +133,9 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./${{ steps.build_info.outputs.ARCHIVE_NAME }}
-        asset_name: ${{ steps.build_info.outputs.ARCHIVE_NAME }}
-        asset_content_type: ${{ steps.build_info.outputs.ASSET_CONTENT_TYPE }}
+        asset_path: ./${{ steps.archive_info.outputs.ARCHIVE_NAME }}
+        asset_name: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
+        asset_content_type: ${{ steps.archive_info.outputs.ASSET_CONTENT_TYPE }}
 
     # TODO: Installer builds are currently disabled during Nuitka transition
     # Windows MSI installers need alternative solution (not supported by Nuitka)
