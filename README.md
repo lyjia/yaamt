@@ -141,6 +141,12 @@ python setup.py bdist_dmg
 ```
 This command creates a macOS disk image (.dmg) for distribution on macOS systems.
 
+UPDATED FOR NUITKA:
+```
+nuitka --standalone --onefile src/main.py
+nuitka --standalone --onefile --enable-plugin=pyside6 src/gui.py **broken**
+```
+
 ### Linux (Debian & Derivatives)
 ```bash
 python setup.py bdist_deb
