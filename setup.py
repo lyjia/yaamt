@@ -98,7 +98,7 @@ try:
         Executable(
             "src/gui.py",
             base=gui_base,
-            target_name="yaamt-gui",
+            target_name="YAAMT",
             icon="resources/icons/app_icon.png"
         ),
         Executable(
@@ -136,7 +136,7 @@ try:
                 "CFBundleVersion": version,
                 "CFBundleShortVersionString": version,
                 "NSHighResolutionCapable": True,
-                "CFBundleExecutable": "yaamt-gui"
+                "CFBundleExecutable": "YAAMT"
             }
         },
 
