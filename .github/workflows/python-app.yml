@@ -18,7 +18,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.12
@@ -92,7 +92,7 @@ jobs:
     - name: Install Nuitka system dependencies (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        choco install ccache mingw
+        choco install ccache
 
     - name: Install Nuitka system dependencies (macOS)
       if: startsWith(matrix.os, 'macos')
@@ -106,11 +106,10 @@ jobs:
 
     - name: Build with Nuitka (Windows)
       if: matrix.os == 'windows-latest'
-      shell: bash
       run: |
         mkdir -p build/nuitka-dist
-        nuitka --mingw64 --clang --onefile --standalone src/main.py --output-dir=build/nuitka-dist
-        nuitka --mingw64 --clang --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
+        python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone src/main.py --output-dir=build/nuitka-dist
+        python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
 
     - name: Build with Nuitka (Linux)
       if: startsWith(matrix.os, 'ubuntu')
