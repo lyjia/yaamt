@@ -2,7 +2,6 @@
 
 <img src="doc/YAAMT_logo.png" alt="YAAMT Logo">
 
-
 A powerful and flexible tool for managing audio file metadata, designed for DJs, music producers, and audiophiles.
 
 ## Description
@@ -110,7 +109,7 @@ Contributions are welcome! If you'd like to contribute, please follow these step
 
 Please make sure to update tests as appropriate.
 
-**Failure to follow these steps may result in your pull request being rejected!** 
+**Failure to follow these steps may result in your pull request being rejected!**
 
 ## License
 
@@ -118,7 +117,7 @@ This project is licensed under the MIT License. (Note: A `LICENSE` file has not 
 
 ## Building from Source
 
-This application uses cx_freeze to package binaries and installers for supported platforms. Build artifacts will be output to `build/`. 
+This application uses cx_freeze to package binaries and installers for supported platforms. Build artifacts will be output to `build/`.
 
 To build the application from source, you can use the following commands:
 
@@ -134,6 +133,11 @@ This command builds the application executables for your current platform.
 python setup.py bdist_msi
 ```
 This command creates a Windows installer (.msi) package for distribution on Windows systems.
+
+UPDATED FOR NUITKA:
+```
+nuitka --clang --onefile --standalone --plugin-enable=pyside6 .\src\gui.py
+```
 
 ### MacOS
 ```bash
@@ -152,3 +156,9 @@ nuitka --standalone --onefile --enable-plugin=pyside6 src/gui.py **broken**
 python setup.py bdist_deb
 ```
 This command creates a Debian package (.deb) for distribution on Debian-based Linux systems.
+
+UPDATE FOR NUITKA:
+```
+nuitka --standalone --onefile src/main.py
+nuitka --onefile --standalone --plugin-enable=pyside6 src/gui.py
+```
