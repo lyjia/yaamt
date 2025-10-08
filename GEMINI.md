@@ -1,1 +1,1 @@
-Please read and follow instructions in `AGENTS.md`.
+Please read and follow instructions in @AGENTS.md
