@@ -564,3 +564,7 @@ Temporary Items
 # cx_freeze build folder
 build/*
 VERSION
+
+# python venv
+.venv/*
+venv/*

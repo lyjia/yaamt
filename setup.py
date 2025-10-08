@@ -96,15 +96,15 @@ try:
     # Define executables
     executables = [
         Executable(
-            "src/main.py",
-            base=None,
-            target_name="yaamt",
-            icon="resources/icons/app_icon.png"
-        ),
-        Executable(
             "src/gui.py",
             base=gui_base,
             target_name="yaamt-gui",
+            icon="resources/icons/app_icon.png"
+        ),
+        Executable(
+            "src/main.py",
+            base=None,
+            target_name="yaamt",
             icon="resources/icons/app_icon.png"
         )
     ]
@@ -135,7 +135,8 @@ try:
                 "CFBundleDisplayName": "YAAMT - Yet Another Audio Metadata Tool",
                 "CFBundleVersion": version,
                 "CFBundleShortVersionString": version,
-                "NSHighResolutionCapable": True
+                "NSHighResolutionCapable": True,
+                "CFBundleExecutable": "yaamt-gui"
             }
         },
 
