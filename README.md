@@ -117,49 +117,82 @@ This project is licensed under the MIT License. (Note: A `LICENSE` file has not 
 
 ## Building from Source
 
-This application uses cx_freeze to package binaries and installers for supported platforms. Build artifacts will be output to `build/`.
+This application uses Nuitka (for Windows and Linux) or cx_Freeze (for macOS) to package binaries for supported platforms. Build artifacts will be output to `build/`.
 
-To build the application from source, you can use the following commands:
+### Quick Build (Recommended)
 
-### All Platforms (basic binary build)
+To build the application for your current platform, use the `build.py` script:
 
 ```bash
+python build.py
+```
+
+This will automatically:
+- Detect your platform (Windows, Linux, or macOS)
+- Detect your architecture (x64 or arm64)
+- Install required system dependencies
+- Install required Python dependencies
+- Build the application using the appropriate build tool
+
+#### Build Script Options
+
+```bash
+python build.py --help                    # Show all options
+python build.py --skip-deps               # Skip dependency installation
+python build.py --archive                 # Create an archive of build artifacts
+python build.py --version-name v1.0.0     # Specify version name for archive
+python build.py --output-dir dist         # Specify custom output directory
+python build.py --platform linux          # Override platform detection
+python build.py --arch arm64              # Override architecture detection
+```
+
+#### Platform-Specific Build Details
+
+**Windows:**
+- Uses Nuitka with MinGW64
+- Produces standalone executables: `main.exe` and `gui.exe`
+- Build output: `build/nuitka-dist/`
+
+**Linux:**
+- Uses Nuitka
+- Produces standalone executables: `main.bin` and `gui.bin`
+- Build output: `build/nuitka-dist/`
+
+**macOS:**
+- Uses cx_Freeze (Nuitka support pending)
+- Produces executables: `yaamt` and `yaamt-gui`
+- Build output: `build/exe.*/`
+
+### Manual Build (Advanced)
+
+If you prefer to build manually or need more control:
+
+#### Windows
+```bash
+pip install nuitka ordered-set zstandard
+choco install ccache  # Optional but recommended
+python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone src/main.py --output-dir=build/nuitka-dist
+python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
+```
+
+#### Linux
+```bash
+pip install nuitka ordered-set zstandard
+sudo apt-get install -y ccache patchelf
+nuitka --standalone --onefile src/main.py --output-dir=build/nuitka-dist
+nuitka --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
+```
+
+#### macOS
+```bash
+pip install cx_freeze
+brew install ccache portaudio
 python setup.py build
 ```
-This command builds the application executables for your current platform.
 
-### Windows
-```bash
-python setup.py bdist_msi
-```
-This command creates a Windows installer (.msi) package for distribution on Windows systems.
+### Creating Installers
 
-UPDATED FOR NUITKA:
-```
-nuitka --mingw64 --clang --onefile --standalone  .\src\main.py
-nuitka --mingw64 --clang --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports .\src\gui.py # note- `--windows-icon-from-ico=resources/icons/app-icon-gui.png` seems to break the build
-```
-
-### MacOS
-```bash
-python setup.py bdist_dmg
-```
-This command creates a macOS disk image (.dmg) for distribution on macOS systems.
-
-UPDATED FOR NUITKA:
-```
-nuitka --macos-create-app-bundle --macos-app-icon=resources/icons/app-icon-cmd.png --standalone --onefile src/main.py
-nuitka --macos-create-app-bundle --macos-app-icon=resources/icons/app-icon-gui.png --standalone --onefile --enable-plugin=pyside6 --include-module=cffi --follow-imports src/gui.py **broken** 
-```
-
-### Linux (Debian & Derivatives)
-```bash
-python setup.py bdist_deb
-```
-This command creates a Debian package (.deb) for distribution on Debian-based Linux systems.
-
-UPDATE FOR NUITKA:
-```
-nuitka --standalone --onefile src/main.py
-nuitka --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py
-```
+Installer builds are currently disabled during the Nuitka transition. The following installer types will be re-enabled in a future release:
+- Windows: MSI installers
+- macOS: DMG disk images
+- Linux: DEB packages
