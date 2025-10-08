@@ -136,8 +136,9 @@ This command creates a Windows installer (.msi) package for distribution on Wind
 
 UPDATED FOR NUITKA:
 ```
-nuitka --mingw64 --onefile --clang --standalone  .\src\main.py
-nuitka --mingw64 --onefile --clang --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports .\src\gui.py```
+nuitka --mingw64 --clang --onefile --standalone  .\src\main.py
+nuitka --mingw64 --clang --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports .\src\gui.py # note- `--windows-icon-from-ico=resources/icons/app-icon-gui.png` seems to break the build
+```
 
 ### MacOS
 ```bash
