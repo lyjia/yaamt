@@ -37,6 +37,7 @@ The tool is built with Python, using PySide6 for the GUI and the `mutagen` libra
 
 3.  **Install dependencies:**
     ```bash
+    sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 xvfb libxkbcommon-x11-0 portaudio19-dev alien
     pip install -r requirements.txt
     ```
 
