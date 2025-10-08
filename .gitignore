@@ -572,4 +572,5 @@ venv/*
 # nuitka build folders
 *.dist
 *.build
+*.onefile-build
 *.exe
