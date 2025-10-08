@@ -568,3 +568,8 @@ VERSION
 # python venv
 .venv/*
 venv/*
+
+# nuitka build folders
+*.dist
+*.build
+*.exe
