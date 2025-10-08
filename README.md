@@ -136,7 +136,7 @@ This command creates a Windows installer (.msi) package for distribution on Wind
 
 UPDATED FOR NUITKA:
 ```
-nuitka --clang --onefile --standalone --plugin-enable=pyside6 .\src\gui.py
+nuitka --clang --onefile --standalone --windows-icon-from-ico=resources/icons/app-icon-cmd.png --plugin-enable=pyside6 .\src\gui.py
 ```
 
 ### MacOS
@@ -147,8 +147,8 @@ This command creates a macOS disk image (.dmg) for distribution on macOS systems
 
 UPDATED FOR NUITKA:
 ```
-nuitka --standalone --onefile src/main.py
-nuitka --standalone --onefile --enable-plugin=pyside6 src/gui.py **broken**
+nuitka --macos-create-app-bundle --macos-app-icon=resources/icons/app-icon-cmd.png --standalone --onefile src/main.py
+nuitka --macos-create-app-bundle --macos-app-icon=resources/icons/app-icon-gui.png --standalone --onefile --enable-plugin=pyside6 src/gui.py **broken**
 ```
 
 ### Linux (Debian & Derivatives)
