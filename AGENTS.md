@@ -46,7 +46,8 @@ This project implements an audio file metadata manager, through a few primary co
 * Read a file's audio stream data using the object instance returns from `providers.audio.AudioStreamFactory`
 * Read a file's metadata using the interface provided by the `MediaFile` instance for that file.
 * Write a file's metadata using the interface provided by the `MediaFile` instance for that file.
-* MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible. 
+* MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible.
+* Do not pass around references media files as file path strings. Your code should accept a `MediaFile` instance instead.
 
 ## AI-specific instructions
 
