@@ -27,7 +27,7 @@ from workers.analyzer_dispatcher import AnalyzerDispatcher
 
 
 class MainWindow(QMainWindow):
-    start_playback_signal = Signal(str)
+    start_playback_signal = Signal(object)  # Emits MediaFile instance
 
     def __init__(self, path=None):
         super().__init__()
@@ -789,8 +789,9 @@ class MainWindow(QMainWindow):
             row_data = self.file_model.get_data_for_row(row=source_index.row())
             file_path = row_data.get(KEY_FILE_PATH)
             if file_path and row_data.get(KEY_IS_MEDIA):
+                media_file = MediaFile(file_path)
                 self.playback_panel.show()
-                self.start_playback_signal.emit(file_path)
+                self.start_playback_signal.emit(media_file)
 
     @Slot(bool)
     def on_show_playback_panel_requested(self, checked: bool):
