@@ -114,6 +114,7 @@ A unit test suite (using pytest) can be found in `tests` in the project root.
 
 * DO NOT WRITE TO THE TEST FIXTURES in `tests/fixtures`. Instead, copy the original file to a temporary location and perform your tests on that. THIS IS VERY IMPORTANT!
 * Be extremely cautious about making edits to the program itself when fixing test failures. There is a lot of functionality in the GUI that is not easily tested, and you may break something outside the scope of your visibility.
+* Tests requiring a QApplication object cannot be run in a Github runner and must be skipped in that case. To do so, `from util.const import IN_GITHUB_RUNNER` in your tests' header and add the `@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")` decorator to your test. These tests still need to pass locally.
 
 #### Notes
 

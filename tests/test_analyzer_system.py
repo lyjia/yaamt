@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 from pathlib import Path
 
+from util.const import IN_GITHUB_RUNNER
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
 from providers.analysis import (
     ANALYZER_REGISTRY,
