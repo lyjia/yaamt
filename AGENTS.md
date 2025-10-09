@@ -28,6 +28,7 @@ This project implements an audio file metadata manager, through a few primary co
 * Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thought-provoking questions.
 * When the user's wishes specifically contradict the points listed above, always defer to the user's wishes.
 * When prompted to do something, ask exploratory questions and for clarifying details before beginning work. Always prefer addressing details earlier rather than later or mid-process.
+* If asked to do something that relies on an assumption that is not true, explain why and ask for clarification.
 
 ## Code Conventions
 
@@ -45,12 +46,13 @@ This project implements an audio file metadata manager, through a few primary co
 * Read a file's audio stream data using the object instance returns from `providers.audio.AudioStreamFactory`
 * Read a file's metadata using the interface provided by the `MediaFile` instance for that file.
 * Write a file's metadata using the interface provided by the `MediaFile` instance for that file.
-* MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible.
+* MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible. 
 
 ## AI-specific instructions
 
 * Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation through a websearch of the Context7 MCP that is provided to you.
-* Break large edits up into smaller, bite-size chunks. Large diffs sometimes fail.
+* Break large edits up into smaller, bite-size chunks.
+* At the end of a task, ask to create a git commit if you are able to do so.
 
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
@@ -106,7 +108,7 @@ Follow these best practices when developing the PySide6 application.
 
 A unit test suite (using pytest) can be found in `tests` in the project root.
 
-* DO NOT write to the test fixtures in `tests/fixtures`. Instead, copy the original file to a temporary location and perform your tests on that.
+* DO NOT WRITE TO THE TEST FIXTURES in `tests/fixtures`. Instead, copy the original file to a temporary location and perform your tests on that. THIS IS VERY IMPORTANT!
 * Be extremely cautious about making edits to the program itself when fixing test failures. There is a lot of functionality in the GUI that is not easily tested, and you may break something outside the scope of your visibility.
 
 #### Notes
