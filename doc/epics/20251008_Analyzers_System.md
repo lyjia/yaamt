@@ -6,8 +6,8 @@ The workflow for using an analyzer is as follows:
 
 1. Right-click an audio file or group of audio files.
 2. In the context menu is a submenu called "Analyze".
-3. Pick the kind of analyzer you want to use: analyzers can be run to determine MusicBrainz ID, ReplayGain values, song key, BPM, and more.
-4. (Optional) A dialog box pops up to let you configure the analyzer. (See `AnalyzerSetupDialog`)
+3. Pick the category of analyzer you want to use: analyzers can be run to determine MusicBrainz ID, ReplayGain values, song key, BPM, and more.
+4. A dialog box pops up to let you select the specific analyzer and configure it. (See `AnalyzerSetupDialog`)
 5. The analyzer runs and the results are saved to relevant meta tags in the selected file(s).
 
 Metadata changes obey autosave settings. Analyzers stage their results to the MediaFile object just as if the user had manually entered the data. If autosave is enabled, each file is saved immediately after its analysis completes. If autosave is disabled, the user must manually save changes when ready.
@@ -23,8 +23,10 @@ Metadata changes obey autosave settings. Analyzers stage their results to the Me
 
 ## AnalyzerSetupDialog
 
-* Allows the user to confirm which analyzer to run through a categorized menu. (Categories are modules in the `providers.analysis` package)
-* Presents the user with a panel of options specific to that analyzer.
+* Shows available analyzers for the selected category (Categories are modules in the `providers.analysis` package)
+* Allows the user to select which specific analyzer to run
+* Presents the user with a panel of options specific to that analyzer
+* Pre-selects the user's preferred analyzer for that category
 
 ## AnalyzerProgressDialog
 
