@@ -574,3 +574,4 @@ venv/*
 *.build
 *.onefile-build
 *.exe
+build/

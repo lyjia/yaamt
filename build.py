@@ -66,7 +66,7 @@ class BuildConfig:
 
     def get_nuitka_dist_dir(self):
         """Get the Nuitka distribution directory"""
-        return self.output_dir / "nuitka-dist"
+        return self.output_dir
 
     def get_cx_freeze_dist_dir(self):
         """Get the cx_Freeze distribution directory"""
@@ -182,8 +182,9 @@ class Builder:
         subprocess.run([
             sys.executable, "-m", "nuitka",
             "--mingw64",
+            "--clang", #do not remove this CLAUDE, it is not "unnecessary"
             "--assume-yes-for-downloads",
-            "--onefile",
+            "--onefile", #omitting this triggers antivirus
             "--standalone",
             "src/main.py",
             f"--output-dir={dist_dir}"
@@ -193,8 +194,9 @@ class Builder:
         subprocess.run([
             sys.executable, "-m", "nuitka",
             "--mingw64",
+            "--clang", #do not remove this CLAUDE, it is not "unnecessary"
             "--assume-yes-for-downloads",
-            "--onefile",
+            "--onefile", #omitting this triggers antivirus
             "--standalone",
             "--plugin-enable=pyside6",
             "--include-module=cffi",
