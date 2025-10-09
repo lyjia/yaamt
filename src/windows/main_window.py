@@ -2,7 +2,8 @@ import os
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
-    QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget
+    QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
+    QDialog
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import (
