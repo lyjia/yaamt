@@ -18,7 +18,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.12
@@ -42,111 +42,162 @@ jobs:
       run: |
         pytest
 
-  build:
-    needs: test
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: x64
-          - os: ubuntu-latest
-            arch: arm64
-          - os: windows-latest
-            arch: x64
-          - os: macos-latest # x64 runner
-            arch: x64
-          - os: macos-14 # arm64 runner for Apple Silicon
-            arch: arm64
-    runs-on: ${{ matrix.os }}
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Set up QEMU
-      if: matrix.arch == 'arm64' && startsWith(matrix.os, 'ubuntu')
-      uses: docker/setup-qemu-action@v3
-
-    - name: Create Release
-      id: create_release
-      if: ${{ startsWith(github.ref, 'refs/tags/') }}
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ github.ref_name }}
-        draft: false
-        prerelease: false
-
-    - uses: ./.github/actions/setup-deps
-
-    - name: Install build dependencies
-      run: |
-        pip install cx_freeze
-
-    - name: Build with cx_Freeze
-      run: python setup.py build
-
-    - name: Determine Build Path and Archive Name
-      id: build_info
-      shell: bash
-      run: |
-        BUILD_DIR=$(find build -maxdepth 1 -type d -name 'exe.*' -print -quit)
-        if [[ -z "$BUILD_DIR" ]]; then
-          echo "Build directory not found!"
-          exit 1
-        fi
-        echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_OUTPUT
-
-        ref_name="${{ github.ref_name }}"
-        ref_name_sanitized="${ref_name//\//-}"
-
-        if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-          VERSION_NAME="$ref_name_sanitized"
-        else
-          VERSION_NAME="$ref_name_sanitized-${{ github.sha }}"
-        fi
-
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          ARCHIVE_NAME="mp3-tag-rebuilder-$VERSION_NAME-${{ matrix.os }}-${{ matrix.arch }}.zip"
-          echo "ASSET_CONTENT_TYPE=application/zip" >> $GITHUB_OUTPUT
-        else
-          ARCHIVE_NAME="mp3-tag-rebuilder-$VERSION_NAME-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
-          echo "ASSET_CONTENT_TYPE=application/gzip" >> $GITHUB_OUTPUT
-        fi
-        echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
-
-    - name: Archive Build Artifacts (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: powershell
-      run: |
-        cd ${{ steps.build_info.outputs.BUILD_DIR }}
-        Compress-Archive -Path * -DestinationPath ${{ github.workspace }}/${{ steps.build_info.outputs.ARCHIVE_NAME }}
-
-    - name: Archive Build Artifacts (Linux/macOS)
-      if: matrix.os != 'windows-latest'
-      shell: bash
-      run: tar czf ${{ steps.build_info.outputs.ARCHIVE_NAME }} -C ${{ steps.build_info.outputs.BUILD_DIR }} .
-
-    - name: Upload Build Artifact
-      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ steps.build_info.outputs.ARCHIVE_NAME }}
-        path: ${{ steps.build_info.outputs.ARCHIVE_NAME }}
-
-    - name: Upload Release Asset
-      if: ${{ startsWith(github.ref, 'refs/tags/') }}
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./${{ steps.build_info.outputs.ARCHIVE_NAME }}
-        asset_name: ${{ steps.build_info.outputs.ARCHIVE_NAME }}
-        asset_content_type: ${{ steps.build_info.outputs.ASSET_CONTENT_TYPE }}
+  # DISABLED: Build job temporarily disabled to conserve GitHub Actions minutes
+  # To re-enable, uncomment this entire build job section
+  #build:
+  #  needs: test
+  #  strategy:
+  #    matrix:
+  #      include:
+  #        - os: ubuntu-latest
+  #          arch: x64
+  #        - os: ubuntu-latest
+  #          arch: arm64
+  #        - os: windows-latest
+  #          arch: x64
+  #        - os: macos-latest # x64 runner
+  #          arch: x64
+  #        - os: macos-14 # arm64 runner for Apple Silicon
+  #          arch: arm64
+  #  runs-on: ${{ matrix.os }}
+  #
+  #  steps:
+  #  - uses: actions/checkout@v4
+  #
+  #  - name: Set up Python ${{ matrix.python-version }}
+  #    uses: actions/setup-python@v5
+  #    with:
+  #      python-version: '3.12'
+  #
+  #  - name: Set up QEMU
+  #    if: matrix.arch == 'arm64' && startsWith(matrix.os, 'ubuntu')
+  #    uses: docker/setup-qemu-action@v3
+  #
+  #  - name: Create Release
+  #    id: create_release
+  #    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+  #    uses: actions/create-release@v1
+  #    env:
+  #      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #    with:
+  #      tag_name: ${{ github.ref_name }}
+  #      release_name: Release ${{ github.ref_name }}
+  #      draft: false
+  #      prerelease: false
+  #
+  #  - uses: ./.github/actions/setup-deps
+  #
+  #  - name: Install build-specific dependencies
+  #    run: |
+  #      pip install cx_freeze nuitka ordered-set zstandard
+  #
+  #  - name: Determine version name for archive
+  #    id: version_info
+  #    shell: bash
+  #    run: |
+  #      ref_name="${{ github.ref_name }}"
+  #      ref_name_sanitized="${ref_name//\//-}"
+  #
+  #      if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+  #        VERSION_NAME="$ref_name_sanitized"
+  #      else
+  #        VERSION_NAME="$ref_name_sanitized-${{ github.sha }}"
+  #      fi
+  #      echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
+  #
+  #  - name: Build and archive with build.py script
+  #    run: python build.py --skip-deps --archive --version-name ${{ steps.version_info.outputs.VERSION_NAME }} --archive-platform ${{ matrix.os }} --archive-arch ${{ matrix.arch }}
+  #
+  #  - name: Determine archive name and content type
+  #    id: archive_info
+  #    shell: bash
+  #    run: |
+  #      if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+  #        ARCHIVE_NAME="yaamt-${{ steps.version_info.outputs.VERSION_NAME }}-${{ matrix.os }}-${{ matrix.arch }}.zip"
+  #        echo "ASSET_CONTENT_TYPE=application/zip" >> $GITHUB_OUTPUT
+  #      else
+  #        ARCHIVE_NAME="yaamt-${{ steps.version_info.outputs.VERSION_NAME }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+  #        echo "ASSET_CONTENT_TYPE=application/gzip" >> $GITHUB_OUTPUT
+  #      fi
+  #      echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
+  #
+  #      # Display archive size for monitoring
+  #      if [[ -f "$ARCHIVE_NAME" ]]; then
+  #        ARCHIVE_SIZE=$(du -h "$ARCHIVE_NAME" | cut -f1)
+  #        echo "Archive created: $ARCHIVE_NAME (size: $ARCHIVE_SIZE)"
+  #      fi
+  #
+  #  - name: Upload Build Artifact
+  #    if: ${{ !startsWith(github.ref, 'refs/tags/') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/development') }}
+  #    uses: actions/upload-artifact@v4
+  #    with:
+  #      name: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
+  #      path: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
+  #      retention-days: 2
+  #      compression-level: 9
+  #
+  #  - name: Upload Release Asset
+  #    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+  #    uses: actions/upload-release-asset@v1
+  #    env:
+  #      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #    with:
+  #      upload_url: ${{ steps.create_release.outputs.upload_url }}
+  #      asset_path: ./${{ steps.archive_info.outputs.ARCHIVE_NAME }}
+  #      asset_name: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
+  #      asset_content_type: ${{ steps.archive_info.outputs.ASSET_CONTENT_TYPE }}
+  #
+  #  # TODO: Installer builds are currently disabled during Nuitka transition
+  #  # Windows MSI installers need alternative solution (not supported by Nuitka)
+  #  # Linux .deb packages can be assembled manually with a custom script
+  #  # macOS .dmg creation pending Nuitka compatibility fixes
+  #  #
+  #  # - name: Build Installer
+  #  #   shell: bash
+  #  #   run: |
+  #  #     if [[ "${{ runner.os }}" == "Windows" ]]; then
+  #  #       python setup.py bdist_msi
+  #  #     elif [[ "${{ runner.os }}" == "macOS" ]]; then
+  #  #       python setup.py bdist_dmg
+  #  #     elif [[ "${{ runner.os }}" == "Linux" ]]; then
+  #  #       python setup.py bdist_deb
+  #  #     fi
+  #  #
+  #  # - name: Determine Installer Info
+  #  #   id: installer_info
+  #  #   shell: bash
+  #  #   run: |
+  #  #     INSTALLER_PATH=$(find dist -type f -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -print -quit)
+  #  #     if [[ -z "$INSTALLER_PATH" ]]; then
+  #  #       echo "Installer not found!"
+  #  #       exit 1
+  #  #     fi
+  #  #     echo "INSTALLER_PATH=$INSTALLER_PATH" >> $GITHUB_OUTPUT
+  #  #     INSTALLER_NAME=$(basename "$INSTALLER_PATH")
+  #  #     echo "INSTALLER_NAME=$INSTALLER_NAME" >> $GITHUB_OUTPUT
+  #  #
+  #  #     if [[ "${{ runner.os }}" == "Windows" ]]; then
+  #  #       echo "ASSET_CONTENT_TYPE=application/x-msi" >> $GITHUB_OUTPUT
+  #  #     elif [[ "${{ runner.os }}" == "macOS" ]]; then
+  #  #       echo "ASSET_CONTENT_TYPE=application/x-apple-diskimage" >> $GITHUB_OUTPUT
+  #  #     elif [[ "${{ runner.os }}" == "Linux" ]]; then
+  #  #       echo "ASSET_CONTENT_TYPE=application/vnd.debian.binary-package" >> $GITHUB_OUTPUT
+  #  #     fi
+  #  #
+  #  # - name: Upload Build Artifact (Installer)
+  #  #   if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  #  #   uses: actions/upload-artifact@v4
+  #  #   with:
+  #  #     name: ${{ steps.installer_info.outputs.INSTALLER_NAME }}
+  #  #     path: ${{ steps.installer_info.outputs.INSTALLER_PATH }}
+  #  #
+  #  # - name: Upload Release Asset (Installer)
+  #  #   if: ${{ startsWith(github.ref, 'refs/tags/') }}
+  #  #   uses: actions/upload-release-asset@v1
+  #  #   env:
+  #  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #  #   with:
+  #  #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+  #  #     asset_path: ${{ steps.installer_info.outputs.INSTALLER_PATH }}
+  #  #     asset_name: ${{ steps.installer_info.outputs.INSTALLER_NAME }}
+  #  #     asset_content_type: ${{ steps.installer_info.outputs.ASSET_CONTENT_TYPE }}

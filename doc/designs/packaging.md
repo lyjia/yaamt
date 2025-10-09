@@ -7,7 +7,7 @@ This document outlines the design for packaging and distributing the audio-metad
 - Generate standalone application binaries for both the CLI (`src/main.py`) and GUI (`src/gui.py`).
 - Create platform-specific installers:
     - `.msi` for Windows
-    - `.app` for macOS
+    - `.dmg` for macOS
     - `.deb` for Debian-based Linux distributions
 - Implement dynamic versioning based on Git tags and revision hashes.
 - Display the application version in the CLI and the GUI's "About" window.
@@ -47,8 +47,8 @@ The `setup.py` file will contain configurations for different distribution forma
 - **Windows (`.msi`)**:
     - The `bdist_msi` command will be used.
     - Options will be set to define the installer's metadata (e.g., `upgrade_code`, `product_name`).
-- **macOS (`.app`)**:
-    - The `bdist_mac` command will be used to create a standard `.app` bundle.
+- **macOS (`.dmg`)**:
+    - The `bdist_dmg` command will be used to create a standard `.dmg` disk image.
     - An `Info.plist` file will be referenced to define application metadata, including the icon.
 - **Debian (`.deb`)**:
     - The `bdist_deb` command will be used.
@@ -67,7 +67,7 @@ The following commands will be used to build the application and packages:
 
 - **Build executables**: `python setup.py build`
 - **Create Windows installer**: `python setup.py bdist_msi`
-- **Create macOS app bundle**: `python setup.py bdist_mac`
+- **Create macOS disk image**: `python setup.py bdist_dmg`
 - **Create Debian package**: `python setup.py bdist_deb`
 
 A comprehensive build script (e.g., `build.sh` or `build.bat`) could be created later to automate these steps.
@@ -84,5 +84,5 @@ graph TD
     E --> G[GUI: yaamt-gui];
     D --> H{Create Packages};
     H --> I[Windows: .msi];
-    H --> J[macOS: .app];
+    H --> J[macOS: .dmg];
     H --> K[Linux: .deb];

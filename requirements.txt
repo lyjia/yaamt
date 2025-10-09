@@ -5,3 +5,7 @@ pyaudio
 pytest==8.4.1
 pytest-cov==4.1.0
 cx_Freeze
+
+# nuitka
+nuitka==2.7.16
+imageio==2.37.0
