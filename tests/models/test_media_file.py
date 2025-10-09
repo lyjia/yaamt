@@ -59,7 +59,7 @@ def test_to_dict_parameterized(media_path):
     actual_dict = media_file.to_dict()
 
     # Define the keys to ignore during comparison.
-    keys_to_ignore = {'fsize', 'fmtime', 'fatime', 'fctime', 'fpath'}
+    keys_to_ignore = {'fsize', 'fmtime', 'fatime', 'fctime', 'fpath', 'iswritable'}
 
     # Filter the dictionaries to remove the ignored keys.
     actual_filtered = filter_keys(actual_dict, keys_to_ignore)

@@ -106,6 +106,16 @@
                 "MutagenProvider"
             ]
         },
+        "comment": {
+            "value": "Hello world!",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "Hello world!"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "compilation": {
             "value": null,
             "provider": "MutagenProvider",
@@ -296,6 +306,6 @@
         "fmtime": 1753305163.3934214,
         "fctime": 1755406704.170587,
         "ismedia": true,
-        "iswritable": false
+        "iswritable": true
     }
 }

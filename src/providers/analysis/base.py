@@ -85,18 +85,17 @@ class AnalyzerBase(ABC):
         self._cancelled = False
 
     @abstractmethod
-    def analyze(self, audio_stream) -> AnalyzerResult:
+    def analyze(self) -> AnalyzerResult:
         """
         Perform analysis on the audio file.
 
         This method should be implemented by all analyzer subclasses to perform
         their specific analysis. Implementations should:
+        - Get audio stream via self.media_file.get_audio_stream() if needed
         - Check for cancellation periodically via self.is_cancelled
         - Return AnalyzerResult with appropriate success/error/skip status
         - Handle exceptions internally and return AnalyzerResult with error
-
-        Args:
-            audio_stream: AudioStreamBase instance for reading audio data
+        - Close audio stream in a finally block if opened
 
         Returns:
             AnalyzerResult containing success status and data/error

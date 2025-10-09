@@ -31,12 +31,9 @@ class StubBPMAnalyzer(AnalyzerBase):
     category = "bpm"
     version = "0.1.0"
 
-    def analyze(self, audio_stream: AudioStreamBase) -> AnalyzerResult:
+    def analyze(self) -> AnalyzerResult:
         """
         Perform stub analysis.
-
-        Args:
-            audio_stream: Audio stream (unused in stub)
 
         Returns:
             AnalyzerResult with a fixed BPM value

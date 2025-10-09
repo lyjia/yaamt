@@ -41,12 +41,9 @@ class PeakMeterAnalyzer(AnalyzerBase):
     # Marker used to identify our result in the comments field
     RESULT_MARKER = "Peak:"
 
-    def analyze(self, audio_stream: AudioStreamBase) -> AnalyzerResult:
+    def analyze(self) -> AnalyzerResult:
         """
         Perform peak loudness analysis.
-
-        Args:
-            audio_stream: Audio stream for reading audio data
 
         Returns:
             AnalyzerResult with peak level in dBFS
@@ -68,9 +65,15 @@ class PeakMeterAnalyzer(AnalyzerBase):
                     error="Peak level already measured"
                 )
 
-            # Perform the analysis
+            # Get audio stream from MediaFile
             log.debug(f"Starting peak analysis for {self.media_file.file_path}")
-            peak_dbfs = self._measure_peak(audio_stream)
+            audio_stream = self.media_file.get_audio_stream()
+
+            try:
+                peak_dbfs = self._measure_peak(audio_stream)
+            finally:
+                # Always close the audio stream
+                audio_stream.close()
 
             # Format result and update comments
             result_str = f"{self.RESULT_MARKER} {peak_dbfs:.2f} dBFS"

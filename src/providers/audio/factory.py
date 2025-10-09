@@ -16,6 +16,8 @@ class AudioStreamFactory:
 
         Currently, this method always returns a MiniaudioStream instance.
 
+        NOTE! This method is intended to be called only by MediaFile. In most cases you should use MediaFile.get_audio_stream() instead.
+
         Args:
             filepath: The path to the audio file.
 

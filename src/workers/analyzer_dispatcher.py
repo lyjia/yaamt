@@ -73,14 +73,9 @@ class AnalyzerWorker(QRunnable):
 
             log.debug(f"Starting analysis: {analyzer.name} on {self.task.media_file.file_path}")
 
-            # Get audio stream for the file
-            # Note: The design mentions AudioStreamFactory, but it doesn't exist yet.
-            # For now, analyzers will need to create their own streams or we'll
-            # pass None and let them handle it.
-            audio_stream = None
-
             # Execute the analysis
-            result = analyzer.analyze(audio_stream)
+            # Analyzers get audio stream from media_file.get_audio_stream() if needed
+            result = analyzer.analyze()
             self.task.result = result
 
             log.debug(f"Analysis complete: {analyzer.name} on {self.task.media_file.file_path} - "

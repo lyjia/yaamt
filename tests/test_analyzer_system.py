@@ -66,7 +66,7 @@ class TestAnalyzerBase:
             name = "Test Analyzer"
             category = "test"
 
-            def analyze(self, audio_stream):
+            def analyze(self):
                 return AnalyzerResult(success=True)
 
         analyzer = TestAnalyzer(mock_media_file, options)
@@ -80,7 +80,7 @@ class TestAnalyzerBase:
         mock_media_file = Mock()
 
         class TestAnalyzer(AnalyzerBase):
-            def analyze(self, audio_stream):
+            def analyze(self):
                 return AnalyzerResult(success=True)
 
         analyzer = TestAnalyzer(mock_media_file)
@@ -94,7 +94,7 @@ class TestAnalyzerBase:
         mock_media_file = Mock()
 
         class TestAnalyzer(AnalyzerBase):
-            def analyze(self, audio_stream):
+            def analyze(self):
                 return AnalyzerResult(success=True)
 
         is_valid, reason = TestAnalyzer.validate_file(mock_media_file)
@@ -104,7 +104,7 @@ class TestAnalyzerBase:
     def test_get_settings_widget_default(self):
         """Test default settings widget (returns None)."""
         class TestAnalyzer(AnalyzerBase):
-            def analyze(self, audio_stream):
+            def analyze(self):
                 return AnalyzerResult(success=True)
 
         widget = TestAnalyzer.get_settings_widget()
@@ -163,7 +163,7 @@ class TestStubBPMAnalyzer:
     def test_analyze_success(self, mock_media_file):
         """Test successful analysis."""
         analyzer = StubBPMAnalyzer(mock_media_file)
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
 
         assert result.success is True
         assert result.skipped is False
@@ -174,7 +174,7 @@ class TestStubBPMAnalyzer:
         """Test that analyzer skips when BPM exists and overwrite is False."""
         mock_media_file.get_tag_simple.return_value = '128'
         analyzer = StubBPMAnalyzer(mock_media_file, {'overwrite_existing': False})
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
 
         assert result.success is True
         assert result.skipped is True
@@ -184,7 +184,7 @@ class TestStubBPMAnalyzer:
         """Test that analyzer overwrites when overwrite option is True."""
         mock_media_file.get_tag_simple.return_value = '128'
         analyzer = StubBPMAnalyzer(mock_media_file, {'overwrite_existing': True})
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
 
         assert result.success is True
         assert result.skipped is False
@@ -194,7 +194,7 @@ class TestStubBPMAnalyzer:
         """Test that cancellation is respected."""
         analyzer = StubBPMAnalyzer(mock_media_file)
         analyzer.cancel()
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
 
         assert result.success is False
         assert "cancelled" in result.error.lower()
@@ -202,21 +202,21 @@ class TestStubBPMAnalyzer:
     def test_decimal_places_zero(self, mock_media_file):
         """Test BPM with 0 decimal places (default)."""
         analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': 0})
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
 
         assert result.data['bpm'] == '120'
 
     def test_decimal_places_one(self, mock_media_file):
         """Test BPM with 1 decimal place."""
         analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': 1})
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
 
         assert result.data['bpm'] == '120.0'
 
     def test_decimal_places_two(self, mock_media_file):
         """Test BPM with 2 decimal places."""
         analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': 2})
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
 
         assert result.data['bpm'] == '120.00'
 
@@ -224,12 +224,12 @@ class TestStubBPMAnalyzer:
         """Test that decimal places are clamped to 0-2 range."""
         # Test value too high
         analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': 5})
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
         assert result.data['bpm'] == '120.00'  # Should clamp to 2
 
         # Test negative value
         analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': -1})
-        result = analyzer.analyze(None)
+        result = analyzer.analyze()
         assert result.data['bpm'] == '120'  # Should clamp to 0
 
     def test_get_settings_widget(self):
