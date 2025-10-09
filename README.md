@@ -121,24 +121,40 @@ This application uses Nuitka (for Windows and Linux) or cx_Freeze (for macOS) to
 
 ### Quick Build (Recommended)
 
-To build the application for your current platform, use the `build.py` script:
+The `build.py` script provides a streamlined build process for your current platform.
+
+#### First-time Setup
+
+Install dependencies before your first build:
+
+```bash
+python build.py --install-deps
+```
+
+This will:
+- Detect your platform (Windows, Linux, or macOS)
+- Detect your architecture (x64 or arm64)
+- Install required system dependencies
+- Install required Python dependencies (including build tools)
+
+#### Building
+
+Once dependencies are installed, build the application:
 
 ```bash
 python build.py
 ```
 
-This will automatically:
-- Detect your platform (Windows, Linux, or macOS)
-- Detect your architecture (x64 or arm64)
-- Install required system dependencies
-- Install required Python dependencies
-- Build the application using the appropriate build tool
+This will:
+- Detect your platform and architecture
+- Build the application using the appropriate build tool (Nuitka or cx_Freeze)
+- Output binaries to the `build/` directory
 
 #### Build Script Options
 
 ```bash
 python build.py --help                    # Show all options
-python build.py --skip-deps               # Skip dependency installation
+python build.py --install-deps            # Install dependencies and exit (no build)
 python build.py --archive                 # Create an archive of build artifacts
 python build.py --version-name v1.0.0     # Specify version name for archive
 python build.py --output-dir dist         # Specify custom output directory

@@ -106,7 +106,7 @@ jobs:
   #      echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
   #
   #  - name: Build and archive with build.py script
-  #    run: python build.py --skip-deps --archive --version-name ${{ steps.version_info.outputs.VERSION_NAME }} --archive-platform ${{ matrix.os }} --archive-arch ${{ matrix.arch }}
+  #    run: python build.py --archive --version-name ${{ steps.version_info.outputs.VERSION_NAME }} --archive-platform ${{ matrix.os }} --archive-arch ${{ matrix.arch }}
   #
   #  - name: Determine archive name and content type
   #    id: archive_info

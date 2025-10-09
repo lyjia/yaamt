@@ -321,9 +321,9 @@ def main():
     )
 
     parser.add_argument(
-        "--skip-deps",
+        "--install-deps",
         action="store_true",
-        help="Skip dependency installation"
+        help="Install system and Python dependencies, then exit without building"
     )
 
     parser.add_argument(
@@ -359,13 +359,13 @@ def main():
         print(f"Output directory: {config.output_dir}")
         print()
 
-        # Install dependencies
-        if not args.skip_deps:
+        # Install dependencies if requested
+        if args.install_deps:
             installer = DependencyInstaller(config)
             installer.install_system_deps()
             installer.install_python_deps()
-        else:
-            print("Skipping dependency installation...")
+            print("\n✓ Dependencies installed successfully!")
+            return
 
         # Build
         builder = Builder(config)
