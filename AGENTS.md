@@ -53,7 +53,10 @@ This project implements an audio file metadata manager, through a few primary co
 
 * Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation through a websearch of the Context7 MCP that is provided to you.
 * Break large edits up into smaller, bite-size chunks.
-* At the end of a task, ask to create a git commit if you are able to do so.
+* At the end of a task:
+  * Run the test suite to make sure that you did not break anything.
+  * If all tests pass, ask to create a git commit if you are able to do so.
+  * It is OK to leaves tests broken if your current changes are part of a larger task, but you need to make sure that all tests pass and changes have test coverage before the large task can be considered done.
 
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
