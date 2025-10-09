@@ -2,7 +2,8 @@ import os
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
-    QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget
+    QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
+    QDialog
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import (
@@ -15,15 +16,18 @@ from models.qt.metadata_model import MetadataTableModel
 from workers.gui.load_files_worker import LoadFilesWorker
 from workers.gui.playback_worker import PlaybackWorker
 from windows.playback_panel import PlaybackPanel
+from windows.analyzer import AnalyzerSetupDialog, AnalyzerProgressDialog, AnalyzerSummaryDialog
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
-from util.logging import log # Added import
+from util.logging import log
+from providers.analysis import get_all_categories
+from workers.analyzer_dispatcher import AnalyzerDispatcher
 
 
 class MainWindow(QMainWindow):
-    start_playback_signal = Signal(str)
+    start_playback_signal = Signal(object)  # Emits MediaFile instance
 
     def __init__(self, path=None):
         super().__init__()
@@ -255,6 +259,12 @@ class MainWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(self.action_play_file)
         menu.addAction(self.action_properties)
+        menu.addSeparator()
+
+        # Add Analyze submenu
+        analyze_menu = self._build_analyze_menu()
+        menu.addMenu(analyze_menu)
+
         menu.exec_(self.files_view.mapToGlobal(pos))
 
     def toggle_column(self, index, checked):
@@ -347,6 +357,12 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_save)
         file_menu.addAction(self.action_reset)
         file_menu.addSeparator()
+
+        # Add Analyze submenu
+        analyze_menu = self._build_analyze_menu()
+        file_menu.addMenu(analyze_menu)
+        file_menu.addSeparator()
+
         file_menu.addAction(self.action_properties)
         file_menu.addAction(self.action_play_file)
         file_menu.addSeparator()
@@ -370,6 +386,127 @@ class MainWindow(QMainWindow):
     def _show_about_dialog(self):
         about_window = windows.AboutWindow(self)
         about_window.exec()
+
+    def _build_analyze_menu(self):
+        """
+        Build the Analyze submenu with categories.
+
+        Returns:
+            QMenu with analyzer categories
+        """
+        analyze_menu = QMenu("&Analyze", self)
+
+        # Get all analyzer categories
+        categories = get_all_categories()
+
+        if not categories:
+            # No analyzers available
+            no_analyzers_action = QAction("No analyzers available", self)
+            no_analyzers_action.setEnabled(False)
+            analyze_menu.addAction(no_analyzers_action)
+        else:
+            # Create menu item for each category
+            for category in categories:
+                # Capitalize category name for display
+                display_name = category.upper()
+                action = QAction(display_name, self)
+                action.setData(category)
+                action.triggered.connect(lambda checked, cat=category: self._on_analyze_category_selected(cat))
+                analyze_menu.addAction(action)
+
+        return analyze_menu
+
+    def _on_analyze_category_selected(self, category: str):
+        """
+        Handle analyzer category selection from menu.
+
+        Args:
+            category: The selected analyzer category (e.g., 'bpm', 'key')
+        """
+        # Get selected media files
+        selected_indexes = self.files_view.selectionModel().selectedRows()
+        if not selected_indexes:
+            log.debug("No files selected for analysis")
+            return
+
+        media_files = []
+        for index in selected_indexes:
+            source_index = self.proxy_model.mapToSource(index)
+            row_data = self.file_model.get_data_for_row(row=source_index.row())
+            file_path = row_data.get(KEY_FILE_PATH)
+            if file_path and row_data.get(KEY_IS_MEDIA):
+                media_files.append(MediaFile(file_path, enable_write=True))
+
+        if not media_files:
+            log.debug("No valid media files selected for analysis")
+            return
+
+        log.info(f"Starting {category} analysis for {len(media_files)} files")
+
+        # Show setup dialog
+        setup_dialog = AnalyzerSetupDialog(category, media_files, self)
+        if setup_dialog.exec() != QDialog.DialogCode.Accepted:
+            log.debug("Analysis cancelled by user in setup dialog")
+            return
+
+        # Get selected analyzer and options
+        analyzer_class = setup_dialog.get_analyzer_class()
+        options = setup_dialog.get_options()
+
+        if not analyzer_class:
+            log.error("No analyzer class selected")
+            return
+
+        # Enqueue tasks to dispatcher
+        dispatcher = AnalyzerDispatcher()
+        dispatcher.reset()  # Clear any previous state
+        dispatcher.enqueue(analyzer_class, media_files, options)
+
+        # Show progress dialog
+        progress_dialog = AnalyzerProgressDialog(self)
+
+        # Start analysis
+        dispatcher.start()
+
+        # Show progress dialog (modal)
+        result = progress_dialog.exec()
+
+        # Show summary dialog after completion
+        if result == QDialog.DialogCode.Accepted:
+            summary_dialog = AnalyzerSummaryDialog(self)
+            summary_dialog.select_files_requested.connect(self._on_select_analyzer_files)
+            summary_dialog.exec()
+
+            # Refresh the file list to show updated metadata
+            # Get the file IDs that were analyzed
+            file_ids = [mf.file_id for mf in media_files]
+            self.file_model.refresh_files(file_ids, self.edit_manager)
+
+    @Slot(list)
+    def _on_select_analyzer_files(self, file_paths: list):
+        """
+        Select files in the file list view.
+
+        Args:
+            file_paths: List of file paths to select
+        """
+        # Clear current selection
+        self.files_view.clearSelection()
+
+        # Select files matching the paths
+        for row in range(self.file_model.rowCount()):
+            row_data = self.file_model.get_data_for_row(row=row)
+            if row_data.get(KEY_FILE_PATH) in file_paths:
+                # Map source index to proxy index and select
+                source_index = self.file_model.index(row, 0)
+                proxy_index = self.proxy_model.mapFromSource(source_index)
+                self.files_view.selectionModel().select(
+                    proxy_index,
+                    self.files_view.selectionModel().SelectionFlag.Select |
+                    self.files_view.selectionModel().SelectionFlag.Rows
+                )
+
+        log.info(f"Selected {len(file_paths)} files for retry")
 
     def open_properties_window(self):
         selected_indexes = self.files_view.selectionModel().selectedRows()
@@ -652,8 +789,9 @@ class MainWindow(QMainWindow):
             row_data = self.file_model.get_data_for_row(row=source_index.row())
             file_path = row_data.get(KEY_FILE_PATH)
             if file_path and row_data.get(KEY_IS_MEDIA):
+                media_file = MediaFile(file_path)
                 self.playback_panel.show()
-                self.start_playback_signal.emit(file_path)
+                self.start_playback_signal.emit(media_file)
 
     @Slot(bool)
     def on_show_playback_panel_requested(self, checked: bool):

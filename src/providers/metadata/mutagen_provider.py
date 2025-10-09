@@ -10,7 +10,7 @@ from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, K
     KEY_LYRICIST, KEY_LENGTH as KEY_LENGTH_TAG, KEY_MEDIA, KEY_MOOD, KEY_GROUPING, KEY_TITLE, KEY_VERSION, KEY_ARTIST, \
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
     KEY_ALBUM_ARTIST_SORT, KEY_ALBUM_SORT, KEY_COMPOSER_SORT, KEY_ARTIST_SORT, KEY_TITLE_SORT, KEY_ISRC, \
-    KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE
+    KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE, KEY_COMMENT
 from util.exceptions import SomethingsReallyFuckedUpException, InvalidFileError
 from util.logging import log
 from .base import MetadataProviderBase
@@ -50,6 +50,33 @@ from .base import MetadataProviderBase
 # }.items():
 
 EasyID3.RegisterTextKey(KEY_MUSICAL_KEY, 'TKEY')
+
+# Register comment field with proper COMM frame handling
+def comment_get(id3, key):
+    """Get comment from COMM frame(s) with empty description."""
+    from mutagen.id3 import COMM
+    for frame in id3.values():
+        if isinstance(frame, COMM) and frame.desc == '':
+            # Return the first COMM frame with empty description
+            return list(frame.text) if frame.text else []
+    return []
+
+def comment_set(id3, key, value):
+    """Set comment in COMM frame with empty description."""
+    from mutagen.id3 import COMM, Encoding
+    # Remove all existing COMM frames with empty description
+    id3.delall('COMM:')
+    # Add new COMM frame if value is provided
+    if value:
+        text_value = value[0] if isinstance(value, list) else str(value)
+        if text_value:  # Only add if not empty
+            id3.add(COMM(encoding=Encoding.UTF8, lang='eng', desc='', text=text_value))
+
+def comment_delete(id3, key):
+    """Delete COMM frame with empty description."""
+    id3.delall('COMM:')
+
+EasyID3.RegisterKey(KEY_COMMENT, comment_get, comment_set, comment_delete)
 MUT_EASY_TAG_NAMES = ['album',
                       'bpm',
                       'compilation',
@@ -81,6 +108,7 @@ MUT_EASY_TAG_NAMES = ['album',
                       'language',
                       # added manually, above
                       KEY_MUSICAL_KEY,
+                      KEY_COMMENT,
                       # doesnt appear in above comment for some reason?
                       'genre'] #TODO: figure out why
 
@@ -117,6 +145,7 @@ MUTAGEN_TO_GENERIC_MAP = {
     # 'discsubtitle': KEY_DISC_SUBTITLE, # No generic key for this yet
     'language': KEY_LANGUAGE,
     KEY_MUSICAL_KEY: KEY_MUSICAL_KEY,
+    KEY_COMMENT: KEY_COMMENT,
     'genre': KEY_GENRE,
 }
 
@@ -124,6 +153,9 @@ MUTAGEN_TO_GENERIC_MAP = {
 class MutagenProvider(MetadataProviderBase):
     """
     A concrete implementation of MetadataProvider that uses the mutagen library.
+
+    WARNING:
+    MutagenProvider uses mutagen's 'easy' mode to abstract tag names across metadata formats. Always favor augmenting easy mode (i.e. with `EasyID3.RegisterKey`) over trying to load a file's metadata using mutagen's 'raw' mode.
     """
 
     def __init__(self, file_path: str):

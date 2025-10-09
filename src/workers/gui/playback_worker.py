@@ -1,7 +1,7 @@
 import pyaudio
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
-from providers.audio.factory import AudioStreamFactory
+from models.media_file import MediaFile
 from util.logging import log
 
 # Playback states
@@ -36,22 +36,22 @@ class PlaybackWorker(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._playback_loop)
 
-    @Slot(str)
-    def start_playback(self, filepath: str):
+    @Slot(object)
+    def start_playback(self, media_file: MediaFile):
         """
         Start playback of the specified audio file.
-        
+
         Args:
-            filepath: Path to the audio file to play.
+            media_file: MediaFile instance to play.
         """
         try:
             if self.state != STOPPED:
                 self.stop()
-            
-            self.current_file = filepath
-            log.info(f"Starting playback of {filepath}")
-            
-            self.audio_stream = AudioStreamFactory.get_stream(filepath)
+
+            self.current_file = media_file.file_path
+            log.info(f"Starting playback of {media_file.file_path}")
+
+            self.audio_stream = media_file.get_audio_stream()
             self.pyaudio = pyaudio.PyAudio()
             
             self.output_stream = self.pyaudio.open(
@@ -69,7 +69,7 @@ class PlaybackWorker(QObject):
             self.timer.setInterval(chunk_duration_ms / 2)  # Update at twice the speed of chunk playback
             
             self.state = PLAYING
-            self.playback_started.emit(filepath, self.duration)
+            self.playback_started.emit(self.current_file, self.duration)
             self.timer.start()
             
         except Exception as e:

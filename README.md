@@ -22,23 +22,7 @@ The tool is built with Python, using PySide6 for the GUI and the `mutagen` libra
 
 ## Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/audio-metadata-tool.git
-    cd audio-metadata-tool
-    ```
-
-2.  **Create and activate a virtual environment:**
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
-    ```
-
-3.  **Install dependencies:**
-    ```bash
-    sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 xvfb libxkbcommon-x11-0 portaudio19-dev alien
-    pip install -r requirements.txt
-    ```
+No installation is required. Simply download the binaries from the latest release at [releases page](https://github.com/lyjia/audio-metadata-tool/releases).
 
 ## Usage
 
@@ -97,31 +81,53 @@ python src/main.py --help
 
 ## Contributing
 
+### Development Setup
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/audio-metadata-tool.git
+    cd audio-metadata-tool
+    ```
+
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
+    ```
+
+3.  **Install dependencies:**
+    Automatic dependency installation depends on the following package managers:
+* Windows: [Chocolatey](https://chocolatey.org/)
+* Linux (Debian derivatives only): [apt](https://linuxize.com/post/how-to-install-packages-on-ubuntu-20-04/)
+* macOS: [Homebrew](https://brew.sh/)
+
+```bash
+   python build.py --install-deps
+   pip install -r requirements.txt
+```
+
+### Contributor Instructions
+
 Contributions are welcome! If you'd like to contribute, please follow these steps:
 
 1. Fork the repository.
-2. Checkout the `development` branch. (`git checkout development`)
-3. Create a new branch (`git checkout -b feature/your-feature-name`) from `development` branch.
-4. Make your changes.
-5. Commit your changes (`git commit -m 'Add some feature'`).
-6. Push to the branch (`git push origin feature/your-feature-name`).
-7. Open a pull request. *ALL PULL REQUESTS MUST BE BASED FROM DEVELOPMENT BRANCH!* Do NOT base them from `master`!
+1. Checkout the `development` branch. (`git checkout development`)
+1. Read AGENTS.md for guidelines on code style and convention. Please adhere to existing architecture. This is **VERY IMPORTANT!!!**
+1. Create a new branch (`git checkout -b feature/your-feature-name`) from `development` branch.
+1. Make your changes. Do not forget to follow code conventions, and make sure you update documentation and the test suite as needed.
+1. Commit your changes (`git commit -m 'Add some feature'`).
+1. Push to the branch (`git push origin feature/your-feature-name`).
+1. Open a pull request. 
+    1. *ALL PULL REQUESTS MUST BE BASED FROM DEVELOPMENT BRANCH!* Do NOT base them from `master`!
+    1. All tests must pass!
 
-Please make sure to update tests as appropriate.
+**If a pull request does not meet the above requirements, it will be kicked back to you or closed.**
 
-**Failure to follow these steps may result in your pull request being rejected!**
+Also, this is a side project for me, so I may not be able to respond to pull requests immediately. Your patience is appreciated.
 
-## License
-
-This project is licensed under the MIT License. (Note: A `LICENSE` file has not yet been created).
-
-## Building from Source
+### Building Binaries from Source
 
 This application uses Nuitka (for Windows and Linux) or cx_Freeze (for macOS) to package binaries for supported platforms. Build artifacts will be output to `build/`.
-
-### Quick Build (Recommended)
-
-The `build.py` script provides a streamlined build process for your current platform.
 
 #### First-time Setup
 
@@ -179,36 +185,15 @@ python build.py --arch arm64              # Override architecture detection
 - Produces executables: `yaamt` and `yaamt-gui`
 - Build output: `build/exe.*/`
 
-### Manual Build (Advanced)
-
-If you prefer to build manually or need more control:
-
-#### Windows
-```bash
-pip install nuitka ordered-set zstandard
-choco install ccache  # Optional but recommended
-python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone src/main.py --output-dir=build/nuitka-dist
-python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
-```
-
-#### Linux
-```bash
-pip install nuitka ordered-set zstandard
-sudo apt-get install -y ccache patchelf
-nuitka --standalone --onefile src/main.py --output-dir=build/nuitka-dist
-nuitka --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
-```
-
-#### macOS
-```bash
-pip install cx_freeze
-brew install ccache portaudio
-python setup.py build
-```
-
 ### Creating Installers
 
 Installer builds are currently disabled during the Nuitka transition. The following installer types will be re-enabled in a future release:
 - Windows: MSI installers
 - macOS: DMG disk images
 - Linux: DEB packages
+
+## License
+
+This project is licensed to you under the terms of the GNU General Public License version 3. Please see `LICENSE.md` for more information.
+
+All original content is copyright 2025 by Lyjia. All rights reserved.

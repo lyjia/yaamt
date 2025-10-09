@@ -1,4 +1,3 @@
-import logging
 import os
 import subprocess
 import sys
@@ -17,11 +16,11 @@ def main():
 
     # Verify that the main.py script exists before proceeding.
     if not os.path.exists(main_py_path):
-        logging.debug(f"Error: main.py not found at expected path: {main_py_path}", file=sys.stderr)
+        print(f"Error: main.py not found at expected path: {main_py_path}", file=sys.stderr)
         sys.exit(1)
 
-    logging.debug(f"Using main script: {main_py_path}")
-    logging.debug(f"Processing audio files in: {script_dir}")
+    print(f"Using main script: {main_py_path}")
+    print(f"Processing audio files in: {script_dir}")
 
     # Define the audio file extensions to look for.
     audio_extensions = ['.mp3', '.flac', '.wav', '.ogg']
@@ -34,36 +33,49 @@ def main():
             audio_file_path = os.path.join(script_dir, filename)
             json_output_path = audio_file_path + '.json'
 
-            logging.debug(f"  -> Generating {os.path.basename(json_output_path)}...")
+            print(f"  -> Generating {os.path.basename(json_output_path)}...")
 
             # Prepare the command to be executed.
             command = [
                 sys.executable,       # Use the same python interpreter running this script.
                 main_py_path,
                 audio_file_path,
-                '--json'
+                '--format', 'json'
             ]
 
             try:
-                # Execute the command and redirect the standard output to the .json file.
+                # Execute the command and capture the JSON output
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    check=True,
+                    text=True,
+                    encoding='utf-8'
+                )
+
+                # Parse the JSON output (main.py outputs a list with one element per file)
+                import json
+                output_list = json.loads(result.stdout)
+
+                # Extract the first (and only) element if it's a list with one item
+                if isinstance(output_list, list) and len(output_list) == 1:
+                    output_dict = output_list[0]
+                else:
+                    output_dict = output_list
+
+                # Write the dict to the JSON file
                 with open(json_output_path, 'w', encoding='utf-8') as json_file:
-                    subprocess.run(
-                        command,
-                        stdout=json_file,
-                        stderr=subprocess.PIPE,
-                        check=True,         # Raise an exception if the command returns a non-zero exit code.
-                        text=True,
-                        encoding='utf-8'
-                    )
+                    json.dump(output_dict, json_file, indent=4, ensure_ascii=False)
+
             except subprocess.CalledProcessError as e:
                 # Report any errors that occur during the execution of the command.
-                logging.debug(f"Error processing {filename}:", file=sys.stderr)
-                logging.debug(f"  Command: {' '.join(command)}", file=sys.stderr)
-                logging.debug(f"  Stderr: {e.stderr}", file=sys.stderr)
+                print(f"Error processing {filename}:", file=sys.stderr)
+                print(f"  Command: {' '.join(command)}", file=sys.stderr)
+                print(f"  Stderr: {e.stderr}", file=sys.stderr)
             except Exception as e:
-                logging.debug(f"An unexpected error occurred for {filename}: {e}", file=sys.stderr)
+                print(f"An unexpected error occurred for {filename}: {e}", file=sys.stderr)
 
-    logging.debug("JSON fixture update complete.")
+    print("JSON fixture update complete.")
 
 if __name__ == "__main__":
     main()
