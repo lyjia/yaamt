@@ -24,6 +24,15 @@ import argparse
 import shutil
 from pathlib import Path
 
+DEBIAN_LINUX_DEPS = ["ccache", "patchelf", "alien", "libegl1", "libxkbcommon-x11-0",
+                     "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-randr0",
+                     "libxcb-render-util0", "libxcb-xinerama0", "libxcb-xfixes0", "xvfb",
+                     "portaudio19-dev", "rpm"]
+
+MACOS_HOMEBREW_DEPS = ["portaudio", "ccache"]
+
+WINDOWS_CHOCO_DEPS = ["ccache"]
+
 
 class BuildConfig:
     """Configuration for building YAAMT"""
@@ -98,7 +107,8 @@ class DependencyInstaller:
         """Install Windows system dependencies"""
         print("Installing ccache via choco...")
         try:
-            subprocess.run(["choco", "install", "ccache", "-y"], check=True)
+            for dep in WINDOWS_CHOCO_DEPS:
+                subprocess.run(["choco", "install", dep, "-y"], check=True)
         except FileNotFoundError:
             print("Warning: choco not found. Please install Chocolatey or install ccache manually.")
         except subprocess.CalledProcessError as e:
@@ -107,12 +117,7 @@ class DependencyInstaller:
     def _install_linux_deps(self):
         """Install Linux system dependencies"""
         print("Installing Linux dependencies...")
-        deps = [
-            "ccache", "patchelf", "alien", "libegl1", "libxkbcommon-x11-0",
-            "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-randr0",
-            "libxcb-render-util0", "libxcb-xinerama0", "libxcb-xfixes0", "xvfb",
-            "portaudio19-dev", "rpm"
-        ]
+        deps = DEBIAN_LINUX_DEPS
 
         try:
             subprocess.run(["sudo", "apt-get", "update"], check=True)
@@ -123,7 +128,7 @@ class DependencyInstaller:
     def _install_macos_deps(self):
         """Install macOS system dependencies"""
         print("Installing macOS dependencies...")
-        deps = ["portaudio", "ccache"]
+        deps = MACOS_HOMEBREW_DEPS
 
         try:
             for dep in deps:
