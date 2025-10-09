@@ -7,7 +7,7 @@ This codebase is a Python project. It uses:
 * `PySide6` for its graphical user interface (GUI), 
 * `mutagen` for handling audio metadata, 
 * `pytest` for testing,
-* `cx_freeze` for packaging the application into standalone executables.
+* `cx_freeze` or `nuitka` for packaging the application into standalone executables.
 
 This document is to follow the AGENTS.md spec at https://ampcode.com/AGENT.md
 
@@ -31,7 +31,7 @@ This project implements an audio file metadata manager, through a few primary co
 
 ## Code Conventions
 
-* Refer to the design spec in `docs/DESIGN.md`
+* Refer to the design specs in @docs/DESIGN.md and @docs/designs/ 
 * Keep your commits small; focus on a single change.
 * Explain complicated logic using comments.
 * When adding large systems, document them as a new markdown file in `docs/designs`.
@@ -39,6 +39,13 @@ This project implements an audio file metadata manager, through a few primary co
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 * Logging should be done using `log`, which is provided by `util.logging`. 
 * PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside of it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
+
+## YAAMT Design Conventions
+
+* Read a file's audio stream data using the object instance returns from `providers.audio.AudioStreamFactory`
+* Read a file's metadata using the interface provided by the `MediaFile` instance for that file.
+* Write a file's metadata using the interface provided by the `MediaFile` instance for that file.
+* MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible.
 
 ## AI-specific instructions
 
