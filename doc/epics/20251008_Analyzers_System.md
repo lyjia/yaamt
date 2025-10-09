@@ -10,7 +10,7 @@ The workflow for using an analyzer is as follows:
 4. (Optional) A dialog box pops up to let you configure the analyzer. (See `AnalyzerSetupDialog`)
 5. The analyzer runs and the results are saved to relevant meta tags in the selected file(s).
 
-Metadata changes obey autosave settings. However, if autosave is enabled, we should consider batching changes to minimize disk thrash.
+Metadata changes obey autosave settings. Analyzers stage their results to the MediaFile object just as if the user had manually entered the data. If autosave is enabled, each file is saved immediately after its analysis completes. If autosave is disabled, the user must manually save changes when ready.
 
 # Analyzer workflow
 
@@ -18,8 +18,6 @@ Metadata changes obey autosave settings. However, if autosave is enabled, we sho
 * Each analyzer has a single task: determine a single piece of data for a single file. Multiple files are enqueued and executed separately.
 * Analyzers are run in the order they are added to the queue.
 * While an analyzer is running, the user is shown a modal window that shows the progress of the analyzer. (See `AnalyzerProgressDialog`)
-* While an analyzer is running, autosave is disabled. When the analysis queue is empty because it finished, autosave is re-enabled if it was previously enabled. 
-  * If the user cancels, autosave was previously enabled, and the user chooses to keep existing analysis data, then autosave is re-enabled.
 * When the queue is cleared, the user is presented with a summary dialog box reporting results of the analysis run. (See `AnalyzerSummaryDialog`)
 * Analyzers obey user preferences if needed. For example: the user may want all key codes to be saved in Camelot notation.
 
@@ -32,7 +30,7 @@ Metadata changes obey autosave settings. However, if autosave is enabled, we sho
 
 * has a progress bar depicting total progress and a label showing the current file(s) being analyzed
 * displays the name of the analyzer that is running.
-* has a cancel button that can be used to cancel the analyzer and clear the queue. The user should be asked if he would like to keep existing analysis data or purge it.
+* has a cancel button that can be used to cancel the analyzer and clear the queue. The user should be asked if they would like to keep existing analysis data or purge it.
 
 ## AnalyzerSummaryDialog
 
