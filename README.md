@@ -125,13 +125,9 @@ Contributions are welcome! If you'd like to contribute, please follow these step
 
 Also, this is a side project for me, so I may not be able to respond to pull requests immediately. Your patience is appreciated.
 
-## Building from Source
+### Building Binaries from Source
 
 This application uses Nuitka (for Windows and Linux) or cx_Freeze (for macOS) to package binaries for supported platforms. Build artifacts will be output to `build/`.
-
-### Quick Build (Recommended)
-
-The `build.py` script provides a streamlined build process for your current platform.
 
 #### First-time Setup
 
@@ -189,33 +185,6 @@ python build.py --arch arm64              # Override architecture detection
 - Produces executables: `yaamt` and `yaamt-gui`
 - Build output: `build/exe.*/`
 
-### Manual Build (Advanced)
-
-If you prefer to build manually or need more control:
-
-#### Windows
-```bash
-pip install nuitka ordered-set zstandard
-choco install ccache  # Optional but recommended
-python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone src/main.py --output-dir=build/nuitka-dist
-python -m nuitka --mingw64 --assume-yes-for-downloads --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
-```
-
-#### Linux
-```bash
-pip install nuitka ordered-set zstandard
-sudo apt-get install -y ccache patchelf
-nuitka --standalone --onefile src/main.py --output-dir=build/nuitka-dist
-nuitka --onefile --standalone --plugin-enable=pyside6 --include-module=cffi --follow-imports src/gui.py --output-dir=build/nuitka-dist
-```
-
-#### macOS
-```bash
-pip install cx_freeze
-brew install ccache portaudio
-python setup.py build
-```
-
 ### Creating Installers
 
 Installer builds are currently disabled during the Nuitka transition. The following installer types will be re-enabled in a future release:
@@ -225,4 +194,6 @@ Installer builds are currently disabled during the Nuitka transition. The follow
 
 ## License
 
-This project is licensed under the MIT License. (Note: A `LICENSE` file has not yet been created).
+This project is licensed to you under the terms of the GNU General Public License version 3. Please see `LICENSE.md` for more information.
+
+All original content is copyright 2025 by Lyjia. All rights reserved.
