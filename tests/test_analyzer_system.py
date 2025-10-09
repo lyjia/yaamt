@@ -233,7 +233,8 @@ class TestStubBPMAnalyzer:
         result = analyzer.analyze()
         assert result.data['bpm'] == '120'  # Should clamp to 0
 
-    def test_get_settings_widget(self):
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
+    def test_get_settings_widget(self, qapp):
         """Test that settings widget is returned."""
         widget = StubBPMAnalyzer.get_settings_widget()
         assert widget is not None
