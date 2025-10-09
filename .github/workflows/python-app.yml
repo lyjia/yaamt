@@ -119,13 +119,20 @@ jobs:
         fi
         echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
 
+        # Display archive size for monitoring
+        if [[ -f "$ARCHIVE_NAME" ]]; then
+          ARCHIVE_SIZE=$(du -h "$ARCHIVE_NAME" | cut -f1)
+          echo "Archive created: $ARCHIVE_NAME (size: $ARCHIVE_SIZE)"
+        fi
+
     - name: Upload Build Artifact
-      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      if: ${{ !startsWith(github.ref, 'refs/tags/') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/development') }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
         path: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
-        retention-days: 5
+        retention-days: 2
+        compression-level: 9
 
     - name: Upload Release Asset
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
