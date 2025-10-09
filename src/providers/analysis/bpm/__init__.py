@@ -1,0 +1,1 @@
+"""BPM analysis module."""
