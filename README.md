@@ -22,29 +22,8 @@ The tool is built with Python, using PySide6 for the GUI and the `mutagen` libra
 
 ## Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/audio-metadata-tool.git
-    cd audio-metadata-tool
-    ```
+No installation is required. Simply download the binaries from the latest release at [releases page](https://github.com/lyjia/audio-metadata-tool/releases).
 
-2.  **Create and activate a virtual environment:**
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
-    ```
-
-3.  **Install dependencies:**
-    Automatic dependency installation depends on the following package managers:
-   * Windows: [Chocolatey](https://chocolatey.org/)
-   * Linux (Debian derivatives only): [apt](https://linuxize.com/post/how-to-install-packages-on-ubuntu-20-04/)
-   * macOS: [Homebrew](https://brew.sh/)
-
-```bash
-   python build.py --install-deps
-   pip install -r requirements.txt
-```
- 
 ## Usage
 
 ### GUI Mode
@@ -102,23 +81,49 @@ python src/main.py --help
 
 ## Contributing
 
+### Development Setup
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/audio-metadata-tool.git
+    cd audio-metadata-tool
+    ```
+
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
+    ```
+
+3.  **Install dependencies:**
+    Automatic dependency installation depends on the following package managers:
+* Windows: [Chocolatey](https://chocolatey.org/)
+* Linux (Debian derivatives only): [apt](https://linuxize.com/post/how-to-install-packages-on-ubuntu-20-04/)
+* macOS: [Homebrew](https://brew.sh/)
+
+```bash
+   python build.py --install-deps
+   pip install -r requirements.txt
+```
+
+### Contributor Instructions
+
 Contributions are welcome! If you'd like to contribute, please follow these steps:
 
 1. Fork the repository.
-2. Checkout the `development` branch. (`git checkout development`)
-3. Create a new branch (`git checkout -b feature/your-feature-name`) from `development` branch.
-4. Make your changes.
-5. Commit your changes (`git commit -m 'Add some feature'`).
-6. Push to the branch (`git push origin feature/your-feature-name`).
-7. Open a pull request. *ALL PULL REQUESTS MUST BE BASED FROM DEVELOPMENT BRANCH!* Do NOT base them from `master`!
+1. Checkout the `development` branch. (`git checkout development`)
+1. Read AGENTS.md for guidelines on code style and convention. Please adhere to existing architecture. This is **VERY IMPORTANT!!!**
+1. Create a new branch (`git checkout -b feature/your-feature-name`) from `development` branch.
+1. Make your changes. Do not forget to follow code conventions, and make sure you update documentation and the test suite as needed.
+1. Commit your changes (`git commit -m 'Add some feature'`).
+1. Push to the branch (`git push origin feature/your-feature-name`).
+1. Open a pull request. 
+    1. *ALL PULL REQUESTS MUST BE BASED FROM DEVELOPMENT BRANCH!* Do NOT base them from `master`!
+    1. All tests must pass!
 
-Please make sure to update tests as appropriate.
+**If a pull request does not meet the above requirements, it will be kicked back to you or closed.**
 
-**Failure to follow these steps may result in your pull request being rejected!**
-
-## License
-
-This project is licensed under the MIT License. (Note: A `LICENSE` file has not yet been created).
+Also, this is a side project for me, so I may not be able to respond to pull requests immediately. Your patience is appreciated.
 
 ## Building from Source
 
@@ -217,3 +222,7 @@ Installer builds are currently disabled during the Nuitka transition. The follow
 - Windows: MSI installers
 - macOS: DMG disk images
 - Linux: DEB packages
+
+## License
+
+This project is licensed under the MIT License. (Note: A `LICENSE` file has not yet been created).
