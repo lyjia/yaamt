@@ -8,10 +8,8 @@ from util.logging import log
 """
 Provider Registry
 
-Providers relying on a discovery system should register themselves here using the register_* functions.
+Providers relying on this discovery system should register themselves here using the register_* functions. (See `discover_providers()`)
 
-This was previously a fancy ai-generated auto-discovery system that used reflection to discover analyzers,
-but this approach was not compatible with Nuitka's compilation process, so I've replaced it with something simpler.
 """
 
 class ProviderType(Enum):
@@ -62,6 +60,16 @@ def get_analyzer_by_name(name: str) -> Type[AnalyzerBase] | None:
     return None
 
 def register_provider(provider_type: ProviderType, provider_category: AnalyzerCategory, klass: Type[AnalyzerBase] ):
+    """
+    Registers a provider class to the provider registry under a specified type
+    and category. If the class is already registered, a warning is logged and registration is skipped.
+
+    :param provider_type: The type of the provider to register.
+    :param provider_category: The category of the provider to register.
+    :param klass: The class to be registered. Must be a subclass of
+        `AnalyzerBase`.
+    :return: None
+    """
     gotten = PROVIDER_REGISTRY[provider_type].get(provider_category, [])
     if klass not in gotten:
         PROVIDER_REGISTRY[provider_type][provider_category] = gotten + [klass]
@@ -70,9 +78,27 @@ def register_provider(provider_type: ProviderType, provider_category: AnalyzerCa
         log.warn(f"{klass} Already registered, skipping!")
 
 def register_analyzer(category: AnalyzerCategory, klass: Type[AnalyzerBase]):
+    """
+    Registers an Analyzer module to the Providers registry, under the given AnalyzerCategory.
+
+    :param category: The category under which the analyzer should be registered.
+    :param klass: The class of the analyzer to be registered.
+    :return: None
+    """
     register_provider(ProviderType.ANALYZER, category, klass)
 
 def discover_providers():
+    """
+    Automatically discovers and loads provider modules.
+
+    This function:
+    1. Scans through all subpackages in the `providers` package.
+    2. For certain provider types (`analysis`), it will look for discoverable submodules.
+
+    The imported modules will self-register with the provider registry.
+
+    :return: None
+    """
     scan_package = importlib.import_module(__package__)
     scan_path = scan_package.__path__
 
@@ -86,6 +112,6 @@ def discover_providers():
 
                 if "base" not in provider_category_module.__name__:
                     for mod in pkgutil.iter_modules(provider_category_module.__path__):
-                        analyzer_module = importlib.import_module(provider_category_module.__name__ + "." + mod.name)
+                        importlib.import_module(provider_category_module.__name__ + "." + mod.name)
 
 discover_providers()
