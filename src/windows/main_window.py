@@ -822,9 +822,29 @@ class MainWindow(QMainWindow):
     def _apply_preference_changes(self):
         """Apply preference changes that take effect immediately."""
         # Apply UI skin
+        from PySide6.QtWidgets import QApplication, QStyleFactory
         ui_skin = settings.value("General/UiSkin", "")
+
         if ui_skin:
-            from PySide6.QtWidgets import QApplication, QStyleFactory
+            # User selected a specific style
             style = QStyleFactory.create(ui_skin)
+            if style:
+                QApplication.setStyle(style)
+        else:
+            # User selected "System Default" - reset to platform default
+            # Get the platform's default style name
+            platform_style = QApplication.style().objectName()
+            # On Windows this is typically "windows11" or "windowsvista"
+            # We need to get the actual system default, not the current style
+            # The best approach is to use the platform-appropriate default
+            import sys
+            if sys.platform == "win32":
+                default_style = "windowsvista"  # Windows default
+            elif sys.platform == "darwin":
+                default_style = "macos"  # macOS default
+            else:
+                default_style = "fusion"  # Linux/other default
+
+            style = QStyleFactory.create(default_style)
             if style:
                 QApplication.setStyle(style)
