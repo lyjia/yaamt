@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from providers.analysis.base import AnalyzerBase
-from providers import get_analyzers_by_category
+from providers import get_analyzers_by_category, AnalyzerCategory
 from models.settings import settings
 from models.media_file import MediaFile
 from util.logging import log
@@ -31,7 +31,7 @@ class AnalyzerSetupDialog(QDialog):
     - File count to be analyzed
     """
 
-    def __init__(self, category: str, media_files: List[MediaFile], parent=None):
+    def __init__(self, category: AnalyzerCategory, media_files: List[MediaFile], parent=None):
         """
         Initialize the analyzer setup dialog.
 
@@ -46,7 +46,7 @@ class AnalyzerSetupDialog(QDialog):
         self.selected_analyzer: Optional[Type[AnalyzerBase]] = None
         self.analyzer_options: Dict[str, Any] = {}
 
-        self.setWindowTitle(f"Configure {category.upper()} Analysis")
+        self.setWindowTitle(f"Configure {category.value} Analysis")
         self.setMinimumWidth(450)
         self.setModal(True)
 

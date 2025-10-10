@@ -22,7 +22,7 @@ from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
 from util.logging import log
-from providers import get_all_categories
+from providers import get_all_categories, ProviderType
 from workers.analyzer_dispatcher import AnalyzerDispatcher
 
 
@@ -397,7 +397,7 @@ class MainWindow(QMainWindow):
         analyze_menu = QMenu("&Analyze", self)
 
         # Get all analyzer categories
-        categories = get_all_categories()
+        categories = get_all_categories(ProviderType.ANALYZER)
 
         if not categories:
             # No analyzers available
@@ -408,7 +408,7 @@ class MainWindow(QMainWindow):
             # Create menu item for each category
             for category in categories:
                 # Capitalize category name for display
-                display_name = category.upper()
+                display_name = category.value
                 action = QAction(display_name, self)
                 action.setData(category)
                 action.triggered.connect(lambda checked, cat=category: self._on_analyze_category_selected(cat))
