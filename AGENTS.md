@@ -30,6 +30,13 @@ This project implements an audio file metadata manager, through a few primary co
 * When prompted to do something, ask exploratory questions and for clarifying details before beginning work. Always prefer addressing details earlier rather than later or mid-process.
 * If asked to do something that relies on an assumption that is not true, explain why and ask for clarification.
 
+## Design Document Conventions
+
+* Refer to the design specs in @docs/DESIGN.md and @docs/designs/ 
+* Keep these documents concise and to-the-point. These documents may be passed to an AI agent and it is important not to blow out their context window.
+* Do not include Python code -- all requirements must be articulated in plain english, a diagram, or SHORT pseudocode. Favor plain english or a diagram.
+* Mention the epic that this design document came from just below the title.
+
 ## Code Conventions
 
 * Refer to the design specs in @docs/DESIGN.md and @docs/designs/ 
@@ -40,7 +47,7 @@ This project implements an audio file metadata manager, through a few primary co
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 * Logging should be done using `log`, which is provided by `util.logging`. 
 * PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside of it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
-* Use type hints for all functions and methods. Use `typing.Any` for any type that cannot be inferred.
+* Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred.
 
 ## YAAMT Design Conventions
 

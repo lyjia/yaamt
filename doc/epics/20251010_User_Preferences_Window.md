@@ -7,7 +7,7 @@ The window should have two three main sections:
 * An area for the preferences pane, with widgets for each preference (and optionally tabs)
 * A button bar at the button with "Save" and "Cancel" buttons.
 
-The window should support up to three levels of categorization:
+The window should support up to two levels of categorization:
 * A category sidebar/navigation pane, where each category has a name and an icon. (The top level)
 * (Optional) The preferences pane should be able to have a tab widget for each subcategory. (the mid level)
 
@@ -22,6 +22,7 @@ Right now, we need to store the following preferences:
   * Preferred audio device for playback (with a dropdown of supported audio devices)
   * Preferred UI skin
 * Metadata category:
+  * Preferred analyzers for each analyzer category (e.g. BPM, Key, etc) 
   * BPM detection range (e.g. 80-200)
   * Number of decimal places for BPM saved by analyzers (0-2)
   * Preferred musical key notation format:
