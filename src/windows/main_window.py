@@ -22,7 +22,7 @@ from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
 from util.logging import log
-from providers.analysis import get_all_categories
+from providers import get_all_categories
 from workers.analyzer_dispatcher import AnalyzerDispatcher
 
 

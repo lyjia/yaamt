@@ -9,8 +9,9 @@ all channels. The result is reported in dBFS (decibels relative to full scale).
 import struct
 from typing import Optional
 
-from providers.analysis.base import AnalyzerBase, AnalyzerResult
-from providers.audio.base import AudioStreamBase
+from providers.audio import AudioStreamBase
+from providers.analysis import AnalyzerCategory, AnalyzerBase, AnalyzerResult
+from providers import register_analyzer
 from util.const import KEY_COMMENT
 from util.logging import log
 
@@ -295,3 +296,5 @@ class PeakMeterAnalyzer(AnalyzerBase):
             return (False, "File is not readable")
 
         return (True, None)
+
+register_analyzer(AnalyzerCategory.LOUDNESS, PeakMeterAnalyzer)

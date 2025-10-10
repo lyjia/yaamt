@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from providers.analysis.base import AnalyzerBase
-from providers.analysis import get_analyzers_by_category
+from providers import get_analyzers_by_category
 from models.settings import settings
 from models.media_file import MediaFile
 from util.logging import log

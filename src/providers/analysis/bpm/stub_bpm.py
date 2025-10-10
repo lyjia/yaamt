@@ -10,8 +10,8 @@ from typing import Optional
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSpinBox, QFormLayout
 
-from providers.analysis.base import AnalyzerBase, AnalyzerResult
-from providers.audio.base import AudioStreamBase
+from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
+from providers import register_analyzer
 from util.logging import log
 
 
@@ -104,3 +104,5 @@ class StubBPMAnalyzer(AnalyzerBase):
 
         widget.setLayout(layout)
         return widget
+
+register_analyzer(AnalyzerCategory.BPM, StubBPMAnalyzer)

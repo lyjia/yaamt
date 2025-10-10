@@ -206,6 +206,7 @@ class Builder:
             "--plugin-enable=pyside6",
             "--include-module=cffi",
             "--follow-imports",
+            "--windows-console-mode=attach",
             "src/gui.py",
             f"--output-dir={dist_dir}"
         ], check=True)

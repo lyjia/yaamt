@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from enum import Enum
 
 KEY_STREAM_INFO = "stream_info"
 KEY_TAGS = "tags"
@@ -146,4 +147,6 @@ MAP_GENERIC_TO_INTERNAL = 'g2i'
 
 IN_GITHUB_RUNNER = (os.getenv("GITHUB_ACTIONS") == "true")
 
-VERSION_STRING = None # VERSION_STRING is updated dynamically by the build system; leave this with set to None
+MOD_TYPE_ANALYZER = "Analyzer"
+
+VERSION_STRING = None # VERSION_STRING is updated dynamically by the build system; leave this set to None

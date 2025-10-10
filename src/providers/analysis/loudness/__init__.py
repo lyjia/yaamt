@@ -3,3 +3,4 @@ Loudness analysis module.
 
 This module contains analyzers for measuring audio loudness and dynamics.
 """
+from .peak_meter import PeakMeterAnalyzer

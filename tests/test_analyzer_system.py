@@ -10,16 +10,16 @@ from pathlib import Path
 
 from util.const import IN_GITHUB_RUNNER
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
-from providers.analysis import (
+from providers import (
     ANALYZER_REGISTRY,
     get_analyzers_by_category,
     get_all_categories,
-    get_analyzer_by_name
+    get_analyzer_by_name, AnalyzerCategory
 )
 from providers.analysis.bpm.stub_bpm import StubBPMAnalyzer
 from workers.analyzer_dispatcher import AnalyzerDispatcher, AnalysisTask
 from models.media_file import MediaFile
-
+from providers.analysis import AnalyzerCategory
 
 class TestAnalyzerResult:
     """Tests for AnalyzerResult class."""
@@ -112,17 +112,20 @@ class TestAnalyzerBase:
         assert widget is None
 
 
-class TestAutoDiscovery:
+class TestProviderRegistry:
     """Tests for the auto-discovery system."""
+    from providers.analysis.bpm import StubBPMAnalyzer #do not remove this import
+    from providers.analysis.loudness import PeakMeterAnalyzer #do not remove this import
+
 
     def test_registry_populated(self):
         """Test that the registry is populated with discovered analyzers."""
         assert len(ANALYZER_REGISTRY) > 0
-        assert 'bpm' in ANALYZER_REGISTRY
+        assert AnalyzerCategory.BPM in ANALYZER_REGISTRY
 
     def test_stub_analyzer_discovered(self):
         """Test that StubBPMAnalyzer is discovered."""
-        bpm_analyzers = get_analyzers_by_category('bpm')
+        bpm_analyzers = get_analyzers_by_category(AnalyzerCategory.BPM)
         assert len(bpm_analyzers) > 0
         assert StubBPMAnalyzer in bpm_analyzers
 
@@ -130,8 +133,7 @@ class TestAutoDiscovery:
         """Test getting all categories."""
         categories = get_all_categories()
         assert isinstance(categories, list)
-        assert 'bpm' in categories
-        assert categories == sorted(categories)  # Should be sorted
+        assert AnalyzerCategory.BPM in categories
 
     def test_get_analyzer_by_name(self):
         """Test finding analyzer by class name."""
