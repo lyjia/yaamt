@@ -31,6 +31,23 @@ class FileListSettings:
 
 
 @dataclass
+class GeneralSettings:
+    """
+    Stores general application settings.
+
+    Attributes:
+        startup_directory_mode: How to determine startup directory ("last" or "preferred")
+        preferred_directory: Directory path when using "preferred" mode
+        preferred_audio_device: Audio device ID (empty string = system default)
+        ui_skin: UI style name (empty string = system default)
+    """
+    startup_directory_mode: str = "last"
+    preferred_directory: str = ""
+    preferred_audio_device: str = ""
+    ui_skin: str = ""
+
+
+@dataclass
 class AnalyzerSettings:
     """
     Stores analyzer preferences.
@@ -51,6 +68,7 @@ class AnalyzerSettings:
 class Settings:
     """Stores the main application settings."""
     file_list: FileListSettings = field(default_factory=FileListSettings)
+    general: GeneralSettings = field(default_factory=GeneralSettings)
     analyzers: AnalyzerSettings = field(default_factory=AnalyzerSettings)
 
 

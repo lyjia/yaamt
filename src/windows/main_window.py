@@ -367,6 +367,13 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_play_file)
         file_menu.addSeparator()
 
+        # Preferences action
+        preferences_action = QAction("Preferences", self)
+        preferences_action.setShortcut("Ctrl+,")
+        preferences_action.triggered.connect(self._show_preferences)
+        file_menu.addAction(preferences_action)
+        file_menu.addSeparator()
+
         quit_action = QAction("&Quit", self)
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
@@ -801,3 +808,23 @@ class MainWindow(QMainWindow):
         """
         self.playback_panel.setVisible(checked)
         self.action_show_playback_panel.setChecked(checked)
+
+    def _show_preferences(self):
+        """Show the preferences window."""
+        from windows.preferences_window import PreferencesWindow
+        from PySide6.QtWidgets import QApplication, QStyleFactory
+
+        dialog = PreferencesWindow(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Apply preference changes
+            self._apply_preference_changes()
+
+    def _apply_preference_changes(self):
+        """Apply preference changes that take effect immediately."""
+        # Apply UI skin
+        ui_skin = settings.value("General/UiSkin", "")
+        if ui_skin:
+            from PySide6.QtWidgets import QApplication, QStyleFactory
+            style = QStyleFactory.create(ui_skin)
+            if style:
+                QApplication.setStyle(style)
