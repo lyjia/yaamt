@@ -33,16 +33,18 @@ This project implements an audio file metadata manager, through a few primary co
 ## Design Document Conventions
 
 * Refer to the design specs in @docs/DESIGN.md and @docs/designs/ 
-* Keep these documents concise and to-the-point. These documents may be passed to an AI agent and it is important not to blow out their context window.
-* Do not include Python code -- all requirements must be articulated in plain english, a diagram, or SHORT pseudocode. Favor plain english or a diagram.
+* Keep these documents concise and to-the-point. These documents may be passed to an AI agent, and it is important not to blow out their context window.
+* Do not include Python code. All requirements must be articulated in plain English, a diagram, or SHORT pseudocode. Favor plain English or a diagram.
 * Mention the epic that this design document came from just below the title.
+* If details agreed-upon while writing the design document contradict the corresponding epic, update the epic with those details.
+* The epic and the design document should be kept in sync.
 
 ## Code Conventions
 
 * Refer to the design specs in @docs/DESIGN.md and @docs/designs/ 
 * Keep your commits small; focus on a single change.
 * Explain complicated logic using comments.
-* When adding large systems, document them as a new markdown file in `docs/designs`.
+* When adding large systems, document them as a new markdown file in `docs/designs` if they are not already there.
 * All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 * Logging should be done using `log`, which is provided by `util.logging`. 
@@ -55,11 +57,11 @@ This project implements an audio file metadata manager, through a few primary co
 * Read a file's metadata using the interface provided by the `MediaFile` instance for that file. (`.get_tags()`.) Do not use the underlying tagging library directly.
 * Write a file's metadata using the interface provided by the `MediaFile` instance for that file. (`.set_tags()`.) Do not use the underlying tagging library directly.
 * MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible.
-* Do not pass around references media files as file path strings. Your code should accept a `MediaFile` instance instead.
+* Do not pass around references to files as filepath strings. Your code should accept a `MediaFile` instance instead.
 
 ## AI-specific instructions
 
-* Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation through a websearch of the Context7 MCP that is provided to you.
+* Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation through a websearch or the Context7 MCP that is provided to you.
 * Break large edits up into smaller, bite-size chunks.
 * At the end of a task:
   * Run the test suite to make sure that you did not break anything.
@@ -115,6 +117,7 @@ Follow these best practices when developing the PySide6 application.
 *   **Model-View-Controller (MVC):** For complex applications, structure the code following the MVC pattern.
 *   **Threading:** To prevent the GUI from becoming unresponsive during long-running tasks, execute them in separate threads (`QThread`). **This is critical for file I/O operations.**
 *   **Signals and Slots:** Use Qt's signals and slots mechanism for communication between components.
+*   **User Preferences:** Store user preferences using QSettings via model in `settings.py`
 
 ### Testing
 

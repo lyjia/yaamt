@@ -9,14 +9,15 @@ The User Preferences Window provides a centralized interface for users to config
 1. **Window Type**: Modal dialog that blocks interaction with main window
 2. **Category Levels**: Two-level structure (sidebar categories + optional tabs within panes)
 3. **Validation**: Real-time validation on field change with visual feedback (red background + error message)
-4. **Save Strategy**: "Save" and "Cancel" buttons; validation errors prevent saving
-5. **Dirty State**: No confirmation on Cancel with unsaved changes
-6. **Settings Storage**: Uses existing QSettings via new `GeneralSettings` dataclass and existing `AnalyzerSettings.category_options`
-7. **Category Architecture**: Plugin-style pane registration for extensibility
-8. **Icons**: Qt built-in icons with support for custom icons
-9. **Window Geometry**: Default 800x600, minimum 600x400, centered on screen (not persisted)
-10. **Keyboard Shortcuts**: Esc for Cancel, Ctrl+S (Cmd+S on Mac) for Save
-11. **Mac Menu**: macOS automatically handles Preferences menu placement
+4. **Save Strategy**: "Save", "Cancel", and "Reset to Default..." buttons; validation errors prevent saving
+5. **Reset Behavior**: "Reset to Default..." button shows confirmation dialog before clearing all settings
+6. **Dirty State**: No confirmation on Cancel with unsaved changes
+7. **Settings Storage**: Uses existing QSettings via new `GeneralSettings` dataclass and existing `AnalyzerSettings.category_options`
+8. **Category Architecture**: Plugin-style pane registration for extensibility
+9. **Icons**: Qt built-in icons with support for custom icons
+10. **Window Geometry**: Default 800x600, minimum 600x400, centered on screen (not persisted)
+11. **Keyboard Shortcuts**: Esc for Cancel, Ctrl+S (Cmd+S on Mac) for Save
+12. **Mac Menu**: macOS automatically handles Preferences menu placement
 
 ## Architecture
 
@@ -38,7 +39,7 @@ The User Preferences Window provides a centralized interface for users to config
 │  │              │                                       │    │
 │  └──────────────┴──────────────────────────────────────┘    │
 │                                                              │
-│                          [Cancel]  [Save]                    │
+│  [Reset to Default...]          [Cancel]  [Save]            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -86,10 +87,11 @@ If all valid:
 - Display QStackedWidget for pane area
 - Populate sidebar with pane names and icons
 - Switch displayed pane when sidebar selection changes
-- Implement "Cancel" and "Save" buttons
+- Implement "Reset to Default...", "Cancel", and "Save" buttons
 - On initialization: load all panes from settings
 - On Save: validate all panes, show error dialog if any invalid, save all if valid, then close
 - On Cancel: close without saving
+- On Reset: show confirmation dialog, if confirmed clear all settings and reload panes with defaults
 - Setup keyboard shortcuts: Esc for Cancel, QKeySequence.Save for Save
 
 **Pane Registration**:
@@ -115,6 +117,7 @@ If all valid:
 - `load_from_settings() -> None`: Read from QSettings and populate all widgets
 - `save_to_settings() -> None`: Write widget values to QSettings
 - `validate() -> Tuple[bool, str]`: Return (is_valid, error_message). Empty string if valid.
+- `load_defaults() -> None`: Set all widgets to their default values (without writing to QSettings)
 
 **Optional Methods**:
 - `has_changes() -> bool`: Return True if settings differ from saved values (future enhancement)
@@ -488,6 +491,17 @@ Analyzers read from QSettings:
 2. Window closes immediately without saving
 3. No confirmation dialog (per requirements)
 
+### Resetting to Defaults
+
+1. User clicks **Reset to Default...** button
+2. Confirmation dialog appears: "Reset all preferences to default values? This cannot be undone."
+3. If user clicks "Cancel": dialog closes, no changes made
+4. If user clicks "Reset":
+   - Clear all preference-related QSettings keys (both General/* and Analyzers/*)
+   - Call `load_defaults()` on all panes to populate widgets with default values
+   - Window remains open, allowing user to review defaults before saving
+   - User must still click "Save" to persist the defaults (or "Cancel" to revert to previous settings)
+
 ## Validation Details
 
 ### BPM Range Validation
@@ -620,6 +634,22 @@ test_bpm_range_validation():
 - Fix error, retry save
 - Verify success
 
+**Test Reset to Defaults**:
+- Open PreferencesWindow
+- Modify some settings
+- Click "Reset to Default..."
+- Verify confirmation dialog appears
+- Click "Cancel" on confirmation
+- Verify no changes to widgets
+- Click "Reset to Default..." again
+- Click "Reset" on confirmation
+- Verify all widgets show default values
+- Verify QSettings still has old values (not saved yet)
+- Click "Save"
+- Verify QSettings has default values
+- Reopen window
+- Verify all widgets still show defaults
+
 ### Qt Widget Tests
 
 **Important**: All tests requiring QApplication must use skipif decorator:
@@ -649,7 +679,7 @@ tests/
 ## Open Questions / Future Enhancements
 
 1. **Settings Import/Export**: Should users be able to export/import preferences as a file?
-2. **Settings Reset**: Should there be a "Reset to Defaults" button per category or globally?
+2. **Per-Category Reset**: Should there also be a per-category reset button in addition to global reset?
 3. **Search/Filter**: For many preferences, should there be a search box to filter settings?
 4. **Tabs in Panes**: No current categories use tabs, but architecture supports it - when needed, add QTabWidget to pane layout
 5. **Audio Device Hot-Plug**: Should preferences detect when devices are added/removed while window is open?
