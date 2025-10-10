@@ -89,29 +89,42 @@ def register_analyzer(category: AnalyzerCategory, klass: Type[AnalyzerBase]):
 
 def discover_providers():
     """
-    Automatically discovers and loads provider modules.
-
-    This function:
-    1. Scans through all subpackages in the `providers` package.
-    2. For certain provider types (`analysis`), it will look for discoverable submodules.
+    Loads provider modules from the static manifest.
 
     The imported modules will self-register with the provider registry.
 
     :return: None
     """
-    scan_package = importlib.import_module(__package__)
-    scan_path = scan_package.__path__
+    # Import the static manifest (works in both compiled executables and development)
+    from providers.analysis import _manifest
+    log.debug("Loaded providers from static manifest")
 
-    for typ in pkgutil.iter_modules(scan_path): # providers.<provider type>
-        provider_type_module = importlib.import_module(scan_package.__name__ + "." + typ.name)
 
-        if typ.name == "analysis":
-            for cat in pkgutil.iter_modules(provider_type_module.__path__): # providers.analysis.<analysis category>
-                # discover analysis providers
-                provider_category_module = importlib.import_module(provider_type_module.__name__ + "." + cat.name)
-
-                if "base" not in provider_category_module.__name__:
-                    for mod in pkgutil.iter_modules(provider_category_module.__path__):
-                        importlib.import_module(provider_category_module.__name__ + "." + mod.name)
+# def _discover_providers_dynamic():
+#     """
+#     Dynamically discovers providers using pkgutil (development mode only).
+#
+#     This method does NOT work in compiled executables (Nuitka, PyInstaller, etc.)
+#     as it relies on filesystem access to discover modules.
+#
+#     NOTE: This function is no longer used. All provider modules must be explicitly
+#     listed in the static manifest at providers/analysis/_manifest.py
+#
+#     :return: None
+#     """
+#     scan_package = importlib.import_module(__package__)
+#     scan_path = scan_package.__path__
+#
+#     for typ in pkgutil.iter_modules(scan_path): # providers.<provider type>
+#         provider_type_module = importlib.import_module(scan_package.__name__ + "." + typ.name)
+#
+#         if typ.name == "analysis":
+#             for cat in pkgutil.iter_modules(provider_type_module.__path__): # providers.analysis.<analysis category>
+#                 # discover analysis providers
+#                 provider_category_module = importlib.import_module(provider_type_module.__name__ + "." + cat.name)
+#
+#                 if "base" not in provider_category_module.__name__:
+#                     for mod in pkgutil.iter_modules(provider_category_module.__path__):
+#                         importlib.import_module(provider_category_module.__name__ + "." + mod.name)
 
 discover_providers()

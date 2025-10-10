@@ -11,15 +11,16 @@ from pathlib import Path
 from util.const import IN_GITHUB_RUNNER
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
 from providers import (
-    ANALYZER_REGISTRY,
+    PROVIDER_REGISTRY,
+    ProviderType,
     get_analyzers_by_category,
     get_all_categories,
-    get_analyzer_by_name, AnalyzerCategory
+    get_analyzer_by_name
 )
+from providers.analysis import AnalyzerCategory
 from providers.analysis.bpm.stub_bpm import StubBPMAnalyzer
 from workers.analyzer_dispatcher import AnalyzerDispatcher, AnalysisTask
 from models.media_file import MediaFile
-from providers.analysis import AnalyzerCategory
 
 class TestAnalyzerResult:
     """Tests for AnalyzerResult class."""
@@ -120,8 +121,8 @@ class TestProviderRegistry:
 
     def test_registry_populated(self):
         """Test that the registry is populated with discovered analyzers."""
-        assert len(ANALYZER_REGISTRY) > 0
-        assert AnalyzerCategory.BPM in ANALYZER_REGISTRY
+        assert len(PROVIDER_REGISTRY[ProviderType.ANALYZER]) > 0
+        assert AnalyzerCategory.BPM in PROVIDER_REGISTRY[ProviderType.ANALYZER]
 
     def test_stub_analyzer_discovered(self):
         """Test that StubBPMAnalyzer is discovered."""
@@ -131,7 +132,7 @@ class TestProviderRegistry:
 
     def test_get_all_categories(self):
         """Test getting all categories."""
-        categories = get_all_categories()
+        categories = get_all_categories(ProviderType.ANALYZER)
         assert isinstance(categories, list)
         assert AnalyzerCategory.BPM in categories
 
