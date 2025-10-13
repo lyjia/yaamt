@@ -367,6 +367,13 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_play_file)
         file_menu.addSeparator()
 
+        # Preferences action
+        preferences_action = QAction("Preferences", self)
+        preferences_action.setShortcut("Ctrl+,")
+        preferences_action.triggered.connect(self._show_preferences)
+        file_menu.addAction(preferences_action)
+        file_menu.addSeparator()
+
         quit_action = QAction("&Quit", self)
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
@@ -801,3 +808,43 @@ class MainWindow(QMainWindow):
         """
         self.playback_panel.setVisible(checked)
         self.action_show_playback_panel.setChecked(checked)
+
+    def _show_preferences(self):
+        """Show the preferences window."""
+        from windows.preferences_window import PreferencesWindow
+        from PySide6.QtWidgets import QApplication, QStyleFactory
+
+        dialog = PreferencesWindow(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Apply preference changes
+            self._apply_preference_changes()
+
+    def _apply_preference_changes(self):
+        """Apply preference changes that take effect immediately."""
+        # Apply UI skin
+        from PySide6.QtWidgets import QApplication, QStyleFactory
+        ui_skin = settings.value("General/UiSkin", "")
+
+        if ui_skin:
+            # User selected a specific style
+            style = QStyleFactory.create(ui_skin)
+            if style:
+                QApplication.setStyle(style)
+        else:
+            # User selected "System Default" - reset to platform default
+            # Get the platform's default style name
+            platform_style = QApplication.style().objectName()
+            # On Windows this is typically "windows11" or "windowsvista"
+            # We need to get the actual system default, not the current style
+            # The best approach is to use the platform-appropriate default
+            import sys
+            if sys.platform == "win32":
+                default_style = "windowsvista"  # Windows default
+            elif sys.platform == "darwin":
+                default_style = "macos"  # macOS default
+            else:
+                default_style = "fusion"  # Linux/other default
+
+            style = QStyleFactory.create(default_style)
+            if style:
+                QApplication.setStyle(style)
