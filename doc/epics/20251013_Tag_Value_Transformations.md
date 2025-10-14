@@ -16,7 +16,8 @@ Currently, each analyzer is responsible for formatting its output values accordi
 Centralize all tag value transformation logic in MediaFile, creating a pipeline that processes tag values before they are written to files. This system should:
 
 - Apply transformations based on user preferences from QSettings
-- Work consistently for all data sources (analyzers, user edits, imports)
+- Work consistently for analyzer outputs and user edits (NOT imported data)
+- Provide bypass mechanism for cases where transformations should be skipped
 - Be extensible for new transformation types
 - Use a registry pattern similar to the analyzer system
 
@@ -45,21 +46,28 @@ Centralize all tag value transformation logic in MediaFile, creating a pipeline 
 
 1. **Single Responsibility**: Transformers handle one specific type of transformation
 2. **Generic Tag Focus**: Transformations operate on generic tag names (not internal tags)
-3. **Preferences Integration**: Read configuration from QSettings
-4. **Order Control**: Transformations must apply in a predictable order
-5. **Error Handling**: Invalid inputs should be handled gracefully
-6. **Type Flexibility**: Accept various input types (int, float, string) and normalize
-7. **Transparency**: Users should understand what transformations are being applied
-8. **Performance**: Transformations must be efficient (called frequently)
+3. **Explicit Tag Declaration**: Each transformer declares which tags it applies to (no wildcard support)
+4. **Preferences Integration**: Read configuration from QSettings
+5. **Order Control**: Transformations must apply in a predictable order
+6. **Bypass Support**: Provide mechanism to skip transformations when needed
+7. **User Control**: Allow users to disable automatic formatting of manual edits
+8. **Scope Limitation**: Only transform analyzer outputs and user edits (never imported data)
+9. **Error Handling**: Invalid inputs should be handled gracefully
+10. **Type Flexibility**: Accept various input types (int, float, string) and normalize
+11. **Transparency**: Users should understand what transformations are being applied
+12. **Performance**: Transformations must be efficient (called frequently)
 
 ## Success Criteria
 
 - [ ] Analyzers can return raw values without formatting concerns
 - [ ] User preferences control all tag value formatting consistently
 - [ ] StubBPMAnalyzer updated to use transformation system
-- [ ] All tag writes (analyzer, user edit, import) go through transformations
+- [ ] Analyzer outputs and user edits go through transformations (imports do not)
+- [ ] bypass_transformations parameter allows skipping transformations
+- [ ] Metadata/AutoFormatManualEdits preference controls manual edit formatting
+- [ ] Each transformer explicitly declares which tags it applies to
 - [ ] New transformations can be added without modifying MediaFile.save()
-- [ ] Test coverage for all standard transformers
+- [ ] Test coverage for all standard transformers and bypass behavior
 - [ ] Documentation explains how to add new transformers
 
 ## Out of Scope
@@ -72,10 +80,14 @@ Centralize all tag value transformation logic in MediaFile, creating a pipeline 
 ## Technical Considerations
 
 - Transformation order matters (trim spaces before other operations)
-- Some transformations are universal (trim), others tag-specific (BPM format)
+- Each transformer declares applicable tags explicitly (no wildcard/"universal" support)
+- Transformers can apply to single tag or multiple tags
 - Need to handle missing preferences gracefully (sensible defaults)
+- Bypass mechanism needed at MediaFile.save() level
+- User preference for auto-formatting manual edits
 - Performance: minimize QSettings reads (cache preferences?)
 - Thread safety: transformations may be called from worker threads
+- Imported data (read from files) must never be transformed
 
 ## Dependencies
 
