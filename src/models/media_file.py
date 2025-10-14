@@ -167,25 +167,55 @@ class MediaFile:
     def get_internal_data(self, key):
         return self._combined_metadata[KEY_INTERNAL].get(key)
 
-    def save(self, changes=None):
+    def save(self, changes=None, bypass_transformations=False):
+        """
+        Save changes to the media file.
+
+        Args:
+            changes: Dictionary of changes with KEY_TAG_GENERIC and KEY_TAG_INTERNAL keys
+            bypass_transformations: If True, skip transformation pipeline entirely
+
+        Raises:
+            PermissionError: If write is not enabled for this file
+            ValueError: If transformation fails for any tag
+        """
         if not self._write_enabled:
             raise PermissionError("Write is not enabled for this file.")
 
         if changes is None:
             return
 
+        # Apply transformations to generic tags if not bypassed
+        transformed_changes = changes.copy()
+        if not bypass_transformations and KEY_TAG_GENERIC in changes:
+            from providers.metadata.tag_transformers import apply_transformations
+            from models.settings import settings as app_settings
+
+            transformed_generic_tags = {}
+            for tag, value in changes[KEY_TAG_GENERIC].items():
+                try:
+                    log.debug(f"Transforming tag '{tag}': {repr(value)}")
+                    transformed_value = apply_transformations(tag, value, app_settings)
+                    transformed_generic_tags[tag] = transformed_value
+                    log.debug(f"Transformed result: {repr(transformed_value)}")
+                except ValueError as e:
+                    log.error(f"Transformation failed for tag '{tag}': {e}")
+                    raise ValueError(f"Failed to transform tag '{tag}': {e}")
+
+            transformed_changes[KEY_TAG_GENERIC] = transformed_generic_tags
+
         modified_providers = set()
 
-        # Process generic tag changes
-        for tag, value in changes.get(KEY_TAG_GENERIC, {}).items():
+        # Process generic tag changes (potentially transformed)
+        for tag, value in transformed_changes.get(KEY_TAG_GENERIC, {}).items():
             internal_tag = self._generic_to_internal_map.get(tag, tag)
             if internal_tag in self._tag_writers[KEY_TAGS]:
                 provider = self._tag_writers[KEY_TAGS][internal_tag][0]
                 provider.set_tag(internal_tag, [value])
                 modified_providers.add(provider)
 
-        # Process internal tag changes
-        for tag, tag_data in changes.get(KEY_TAG_INTERNAL, {}).items():
+        # Process internal tag changes (never transformed)
+        for tag, tag_data in transformed_changes.get(KEY_TAG_INTERNAL, {}).items():
             provider = tag_data[KEY_PROVIDER]
             provider.set_tag(tag, [tag_data[KEY_VALUE]])
             modified_providers.add(provider)
@@ -196,12 +226,12 @@ class MediaFile:
             provider.save()
 
         # Clear the cache for the tags that were changed
-        for tag in changes.get(KEY_TAG_GENERIC, {}).keys():
+        for tag in transformed_changes.get(KEY_TAG_GENERIC, {}).keys():
             internal_tag = self._generic_to_internal_map.get(tag, tag)
             if internal_tag in self._combined_metadata[KEY_TAGS]:
                 del self._combined_metadata[KEY_TAGS][internal_tag]
 
-        for tag in changes.get(KEY_TAG_INTERNAL, {}).keys():
+        for tag in transformed_changes.get(KEY_TAG_INTERNAL, {}).keys():
             if tag in self._combined_metadata[KEY_TAGS]:
                 del self._combined_metadata[KEY_TAGS][tag]
 

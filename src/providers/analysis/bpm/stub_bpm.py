@@ -57,21 +57,13 @@ class StubBPMAnalyzer(AnalyzerBase):
                     error="BPM already set"
                 )
 
-            # Get decimal places option (0-2, default 0)
-            decimal_places = self.options.get('decimal_places', 0)
-            decimal_places = max(0, min(2, decimal_places))  # Clamp to 0-2
-
             # Return a fixed BPM value with specified decimal places
-            bpm_value = 120.0
-            if decimal_places == 0:
-                bpm_str = str(int(bpm_value))
-            else:
-                bpm_str = f"{bpm_value:.{decimal_places}f}"
+            bpm_value = 120.25
 
-            log.debug(f"Stub analyzer returning BPM={bpm_str} for {self.media_file.file_path}")
+            log.debug(f"Stub analyzer returning BPM={bpm_value} for {self.media_file.file_path}")
             return AnalyzerResult(
                 success=True,
-                data={'bpm': bpm_str}
+                data={'bpm': bpm_value}
             )
 
         except Exception as e:

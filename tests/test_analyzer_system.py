@@ -172,7 +172,7 @@ class TestStubBPMAnalyzer:
         assert result.success is True
         assert result.skipped is False
         assert 'bpm' in result.data
-        assert result.data['bpm'] == '120'
+        assert result.data['bpm'] == 120.25
 
     def test_analyze_skip_existing(self, mock_media_file):
         """Test that analyzer skips when BPM exists and overwrite is False."""
@@ -192,7 +192,7 @@ class TestStubBPMAnalyzer:
 
         assert result.success is True
         assert result.skipped is False
-        assert result.data['bpm'] == '120'
+        assert result.data['bpm'] == 120.25
 
     def test_analyze_cancellation(self, mock_media_file):
         """Test that cancellation is respected."""
@@ -202,39 +202,6 @@ class TestStubBPMAnalyzer:
 
         assert result.success is False
         assert "cancelled" in result.error.lower()
-
-    def test_decimal_places_zero(self, mock_media_file):
-        """Test BPM with 0 decimal places (default)."""
-        analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': 0})
-        result = analyzer.analyze()
-
-        assert result.data['bpm'] == '120'
-
-    def test_decimal_places_one(self, mock_media_file):
-        """Test BPM with 1 decimal place."""
-        analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': 1})
-        result = analyzer.analyze()
-
-        assert result.data['bpm'] == '120.0'
-
-    def test_decimal_places_two(self, mock_media_file):
-        """Test BPM with 2 decimal places."""
-        analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': 2})
-        result = analyzer.analyze()
-
-        assert result.data['bpm'] == '120.00'
-
-    def test_decimal_places_clamped(self, mock_media_file):
-        """Test that decimal places are clamped to 0-2 range."""
-        # Test value too high
-        analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': 5})
-        result = analyzer.analyze()
-        assert result.data['bpm'] == '120.00'  # Should clamp to 2
-
-        # Test negative value
-        analyzer = StubBPMAnalyzer(mock_media_file, {'decimal_places': -1})
-        result = analyzer.analyze()
-        assert result.data['bpm'] == '120'  # Should clamp to 0
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
     def test_get_settings_widget(self, qapp):

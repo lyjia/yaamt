@@ -19,16 +19,21 @@ This project implements an audio file metadata manager, through a few primary co
 * A command-line Python entrypoint that uses MediaFile to interact with, analyze, and edit metadata on media files requested by the user. It should support operating on both a single file or a directory of files. (Entrypoint is `src/main.py`)
 * A GUI that implements a file+directory browser. This component also uses MediaFile to both display metadata to the user (as configurable columns in the file browser), and to interact with, analyze, and edit metadata on behalf of the user. (Entrypoint is `src/gui.py`)
 
-## AI Conversational style
+## AI-specific Instructions
 
-* As an AI coding agent, your role is to assist the user, not entertain them.
-* In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy.
-* Do not emoji, slang, profanity, or cuteness.
+* In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
 * While you are free to point out genuinely good ideas, do not blindly agree with or praise the user. Instead, encourage them to continue that line of thinking, and provide thought-provoking questions or supportive context where appropriate.
 * Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thought-provoking questions.
 * When the user's wishes specifically contradict the points listed above, always defer to the user's wishes.
 * When prompted to do something, ask exploratory questions and for clarifying details before beginning work. Always prefer addressing details earlier rather than later or mid-process.
 * If asked to do something that relies on an assumption that is not true, explain why and ask for clarification.
+* Always use context7 when code generation is needed, or for setup or configuration steps, or library/API documentation. This means you should automatically use the Context7 MCP tools to resolve library id and get library docs without me having to explicitly ask.
+* Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation.
+* Break large edits up into smaller, bite-size chunks.
+* At the end of a task:
+    * Run the test suite to make sure that you did not break anything (if applicable).
+    * If all tests pass, ask to create a git commit if you are able to do so.
+    * It is OK to leaves tests broken if your current changes are part of a larger task, but you need to make sure that all tests pass and changes have test coverage before the large task can be considered done.
 
 ## Design Document Conventions
 
@@ -41,15 +46,16 @@ This project implements an audio file metadata manager, through a few primary co
 
 ## Code Conventions
 
-* Refer to the design specs in @docs/DESIGN.md and @docs/designs/ 
+* Refer to the design specs in @doc/DESIGN.md and @doc/designs/ 
 * Keep your commits small; focus on a single change.
 * Explain complicated logic using comments.
-* When adding large systems, document them as a new markdown file in `docs/designs` if they are not already there.
+* When adding large systems, document them as a new markdown file in @docs/designs if they are not already there.
 * All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
-* Logging should be done using `log`, which is provided by `util.logging`. 
-* PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside of it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
+* Logging should be done using `log`, which is provided by @src/util/logging.py. 
+* PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
 * Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred.
+* Libraries brought in must be able to be compiled into a standalone executable using `nuitka`.
 
 ## YAAMT Design Conventions
 
@@ -58,15 +64,6 @@ This project implements an audio file metadata manager, through a few primary co
 * Write a file's metadata using the interface provided by the `MediaFile` instance for that file. (`.set_tags()`.) Do not use the underlying tagging library directly.
 * MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible.
 * Do not pass around references to files as filepath strings. Your code should accept a `MediaFile` instance instead.
-
-## AI-specific instructions
-
-* Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation through a websearch or the Context7 MCP that is provided to you.
-* Break large edits up into smaller, bite-size chunks.
-* At the end of a task:
-  * Run the test suite to make sure that you did not break anything.
-  * If all tests pass, ask to create a git commit if you are able to do so.
-  * It is OK to leaves tests broken if your current changes are part of a larger task, but you need to make sure that all tests pass and changes have test coverage before the large task can be considered done.
 
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
