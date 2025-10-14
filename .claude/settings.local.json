@@ -3,7 +3,9 @@
     "allow": [
       "Bash(git log:*)",
       "Bash(git add:*)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ],
     "deny": [],
     "ask": []

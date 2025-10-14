@@ -19,7 +19,7 @@ This project implements an audio file metadata manager, through a few primary co
 * A command-line Python entrypoint that uses MediaFile to interact with, analyze, and edit metadata on media files requested by the user. It should support operating on both a single file or a directory of files. (Entrypoint is `src/main.py`)
 * A GUI that implements a file+directory browser. This component also uses MediaFile to both display metadata to the user (as configurable columns in the file browser), and to interact with, analyze, and edit metadata on behalf of the user. (Entrypoint is `src/gui.py`)
 
-## AI Conversational style
+## AI-specific Considerations
 
 * As an AI coding agent, your role is to assist the user, not entertain them.
 * In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy.
@@ -29,6 +29,7 @@ This project implements an audio file metadata manager, through a few primary co
 * When the user's wishes specifically contradict the points listed above, always defer to the user's wishes.
 * When prompted to do something, ask exploratory questions and for clarifying details before beginning work. Always prefer addressing details earlier rather than later or mid-process.
 * If asked to do something that relies on an assumption that is not true, explain why and ask for clarification.
+* Always use context7 when code generation is needed, or for setup or configuration steps, or library/API documentation. This means you should automatically use the Context7 MCP tools to resolve library id and get library docs without me having to explicitly ask.
 
 ## Design Document Conventions
 
@@ -50,6 +51,7 @@ This project implements an audio file metadata manager, through a few primary co
 * Logging should be done using `log`, which is provided by `util.logging`. 
 * PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside of it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
 * Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred.
+* Libraries brought in must be able to be compiled into a standalone executable using `nuitka`.
 
 ## YAAMT Design Conventions
 
