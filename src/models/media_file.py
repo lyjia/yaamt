@@ -287,9 +287,14 @@ class MediaFile:
     def get_generic_tag_name_for_internal(self, internal_tag_name):
         return self._internal_to_generic_map.get(internal_tag_name)
 
-    def get_audio_stream(self):
+    def get_audio_stream(self, format_descriptor=None):
         """
         Get an audio stream for reading audio data from this file.
+
+        Args:
+            format_descriptor: Optional AudioFormatDescriptor specifying the
+                desired audio format. If None, returns stream in native format.
+                If provided, returns stream adapted to match requested format.
 
         Returns:
             AudioStreamBase instance for reading audio data
@@ -298,7 +303,7 @@ class MediaFile:
             Exception if audio stream cannot be created
         """
         from providers.audio.factory import AudioStreamFactory
-        return AudioStreamFactory.get_stream(self._file_path)
+        return AudioStreamFactory.get_stream(self._file_path, format_descriptor)
 
     def _get_providers_for_file(self):
         """
