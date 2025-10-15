@@ -317,6 +317,24 @@ An analyzer (e.g., aubio BPM analyzer) that requires mono audio:
 4. Process audio in chunks by repeatedly calling read()
 5. Stream automatically handles conversion from stereo to mono if needed
 
+```
+# In aubio_bpm.py
+from providers.audio.format_descriptor import AudioFormatDescriptor
+
+def analyze(self) -> AnalyzerResult:
+    # Request mono audio at native sample rate
+    format_desc = AudioFormatDescriptor(channels=1)
+
+    with self.media_file.get_audio_stream(format_desc) as stream:
+        # stream is guaranteed to be mono
+        # Process audio...
+        while True:
+            audio_bytes = stream.read(hop_size)
+            if not audio_bytes:
+                break
+            # Convert to numpy, feed to aubio...
+```
+
 ### Example 2: Playback System with Hardware Limits
 
 A playback system with hardware constraints (e.g., max 48kHz, 16-bit, stereo):
@@ -326,6 +344,23 @@ A playback system with hardware constraints (e.g., max 48kHz, 16-bit, stereo):
 4. Feed audio data directly to hardware output device
 5. Stream automatically handles any necessary resampling, channel mixing, and bit depth conversion
 
+```
+# In playback system
+from providers.audio.format_descriptor import AudioFormatDescriptor
+
+# Hardware supports max 48kHz, 16-bit, stereo
+hw_format = AudioFormatDescriptor(
+    sample_rate=48000,
+    channels=2,
+    sample_width=2,
+    sample_format='int'
+)
+
+stream = media_file.get_audio_stream(hw_format)
+# stream is adapted to hardware capabilities
+# Feed to audio output device...
+```
+
 ### Example 3: Native Format (No Adaptation)
 
 A waveform display that accepts any format:
@@ -333,6 +368,12 @@ A waveform display that accepts any format:
 2. Receive stream in native format with no overhead
 3. Use stream's properties to determine actual format
 4. Render waveform according to native format characteristics
+
+```
+# Waveform display accepts any format
+stream = media_file.get_audio_stream()  # No format_descriptor
+# stream is native format, no overhead
+```
 
 ## Performance Considerations
 
