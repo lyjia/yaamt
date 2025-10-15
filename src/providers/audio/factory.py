@@ -44,20 +44,42 @@ class AudioStreamFactory:
         if format_descriptor is None:
             return base_stream
 
-        # Phase 1: No adapters implemented yet, just return base stream
-        # In Phase 2 and 3, we'll build the adapter chain here based on
-        # the difference between native format and requested format
+        # Build adapter chain based on format differences
+        # Order matters: resample first, then channel mix, then bit depth convert
         stream = base_stream
 
-        # TODO: Add adapter chain building logic in Phase 3:
-        # if format_descriptor.sample_rate differs from base_stream.samplerate:
-        #     stream = ResamplingAdapter(stream, format_descriptor.sample_rate)
-        #
-        # if format_descriptor.channels differs from base_stream.nchannels:
-        #     stream = ChannelMixingAdapter(stream, format_descriptor.channels)
-        #
-        # if format_descriptor.sample_width differs from base_stream.sample_width:
-        #     stream = BitDepthAdapter(stream, format_descriptor.sample_width,
-        #                              format_descriptor.sample_format)
+        # 1. Sample rate conversion (if needed)
+        if (format_descriptor.sample_rate is not None and
+                format_descriptor.sample_rate != base_stream.samplerate):
+            from .adapters.resampling_adapter import ResamplingAdapter
+            stream = ResamplingAdapter(stream, format_descriptor.sample_rate)
+
+        # 2. Channel mixing (if needed)
+        if (format_descriptor.channels is not None and
+                format_descriptor.channels != base_stream.nchannels):
+            from .adapters.channel_mixing_adapter import ChannelMixingAdapter
+            stream = ChannelMixingAdapter(stream, format_descriptor.channels)
+
+        # 3. Bit depth conversion (if needed)
+        # Infer source format from sample width (same logic as BitDepthAdapter)
+        source_format = 'int' if base_stream.sample_width in (1, 2, 3) else 'float'
+
+        # Determine target format (default to source format if not specified)
+        target_format = format_descriptor.sample_format if format_descriptor.sample_format is not None else source_format
+
+        # Check if bit depth or format conversion needed
+        needs_bit_depth_conversion = False
+        if format_descriptor.sample_width is not None:
+            if format_descriptor.sample_width != stream.sample_width:
+                needs_bit_depth_conversion = True
+        if format_descriptor.sample_format is not None:
+            if format_descriptor.sample_format != source_format:
+                needs_bit_depth_conversion = True
+
+        if needs_bit_depth_conversion:
+            from .adapters.bit_depth_adapter import BitDepthAdapter
+            # Use the current stream's sample width/format if descriptor doesn't specify
+            target_width = format_descriptor.sample_width if format_descriptor.sample_width is not None else stream.sample_width
+            stream = BitDepthAdapter(stream, target_width, target_format)
 
         return stream
