@@ -38,11 +38,11 @@ class MockAudioStream(AudioStreamBase):
         self._closed = True
 
     @property
-    def samplerate(self) -> int:
+    def sample_rate(self) -> int:
         return self._sample_rate
 
     @property
-    def nchannels(self) -> int:
+    def channels_qty(self) -> int:
         return self._channels
 
     @property
@@ -92,26 +92,26 @@ class TestAdapterBaseCreation:
         adapter = SimplePassThroughAdapter(source)
 
         # Should expose source properties
-        assert adapter.samplerate == 48000
-        assert adapter.nchannels == 1
+        assert adapter.sample_rate == 48000
+        assert adapter.channels_qty == 1
 
 
 class TestAdapterBaseProperties:
     """Test adapter properties delegate to source by default."""
 
     def test_samplerate_property(self):
-        """Test that samplerate delegates to source."""
+        """Test that sample_rate delegates to source."""
         source = MockAudioStream(sample_rate=96000)
         adapter = SimplePassThroughAdapter(source)
 
-        assert adapter.samplerate == 96000
+        assert adapter.sample_rate == 96000
 
     def test_nchannels_property(self):
-        """Test that nchannels delegates to source."""
+        """Test that channels_qty delegates to source."""
         source = MockAudioStream(channels=1)
         adapter = SimplePassThroughAdapter(source)
 
-        assert adapter.nchannels == 1
+        assert adapter.channels_qty == 1
 
     def test_sample_width_property(self):
         """Test that sample_width delegates to source."""
@@ -281,7 +281,7 @@ class TestAdapterBaseChaining:
         adapter2 = SimplePassThroughAdapter(adapter1)
 
         # Should delegate through the chain
-        assert adapter2.samplerate == 44100
+        assert adapter2.sample_rate == 44100
 
         # Reading should work through the chain
         data = adapter2.read(512)
@@ -307,8 +307,8 @@ class TestAdapterBaseChaining:
         adapter3 = SimplePassThroughAdapter(adapter2)
 
         # Properties should delegate through entire chain
-        assert adapter3.samplerate == 48000
-        assert adapter3.nchannels == 1
+        assert adapter3.sample_rate == 48000
+        assert adapter3.channels_qty == 1
         assert adapter3.sample_width == 4
 
         # Read should work through entire chain

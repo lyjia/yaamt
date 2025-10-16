@@ -13,27 +13,27 @@ from models.settings import settings
 def mock_audio_stream():
     """Fixture to create a mock AudioStreamBase instance."""
     mock_stream = MagicMock(spec=AudioStreamBase)
-    mock_stream.samplerate = 44100
-    mock_stream.nchannels = 2
+    mock_stream.sample_rate = 44100
+    mock_stream.channels_qty = 2
     mock_stream.sample_width = 2
     mock_stream.duration_seconds = 10.0
-    
+
     # Mock the read method to simulate audio data
     mock_stream.read.return_value = b'\x00' * 1024
-    
+
     # Keep track of the current position
     mock_stream.current_frame = 0
-    
+
     def seek_side_effect(frame_offset):
         mock_stream.current_frame = frame_offset
-    
+
     mock_stream.seek.side_effect = seek_side_effect
-    
+
     def current_position_seconds_side_effect():
-        return mock_stream.current_frame / mock_stream.samplerate
+        return mock_stream.current_frame / mock_stream.sample_rate
 
     type(mock_stream).current_position_seconds = PropertyMock(side_effect=current_position_seconds_side_effect)
-    
+
     return mock_stream
 
 
@@ -106,8 +106,8 @@ class TestPlaybackWorker:
         mock_pyaudio['pyaudio_instance_mock'].open.assert_called_once()
         args, kwargs = mock_pyaudio['pyaudio_instance_mock'].open.call_args
         assert kwargs['format'] == mock_pyaudio['pyaudio_instance_mock'].get_format_from_width(mock_audio_stream.sample_width)
-        assert kwargs['channels'] == mock_audio_stream.nchannels
-        assert kwargs['rate'] == mock_audio_stream.samplerate
+        assert kwargs['channels'] == mock_audio_stream.channels_qty
+        assert kwargs['rate'] == mock_audio_stream.sample_rate
         assert kwargs['output'] is True
 
         # Verify state is PLAYING
@@ -219,9 +219,9 @@ class TestPlaybackWorker:
         # Seek to a specific position
         seek_position = 5.0  # 5 seconds
         playback_worker.seek(seek_position)
-        
+
         # Verify audio stream seek was called with correct frame offset
-        expected_frame_offset = int(seek_position * mock_audio_stream.samplerate)
+        expected_frame_offset = int(seek_position * mock_audio_stream.sample_rate)
         mock_audio_stream.seek.assert_called_once_with(expected_frame_offset)
         
         # Verify position_changed signal was emitted

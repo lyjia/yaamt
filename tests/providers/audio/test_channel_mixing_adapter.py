@@ -52,11 +52,11 @@ class MockAudioStream(AudioStreamBase):
         self._closed = True
 
     @property
-    def samplerate(self) -> int:
+    def sample_rate(self) -> int:
         return self._sample_rate
 
     @property
-    def nchannels(self) -> int:
+    def channels_qty(self) -> int:
         return self._channels
 
     @property
@@ -76,7 +76,7 @@ class TestChannelMixingAdapterCreation:
         source = MockAudioStream(channels=2)
         adapter = ChannelMixingAdapter(source, target_channels=1)
 
-        assert adapter.nchannels == 1
+        assert adapter.channels_qty == 1
         assert adapter._target_channels == 1
 
     def test_create_mono_to_stereo_adapter(self):
@@ -84,7 +84,7 @@ class TestChannelMixingAdapterCreation:
         source = MockAudioStream(channels=1)
         adapter = ChannelMixingAdapter(source, target_channels=2)
 
-        assert adapter.nchannels == 2
+        assert adapter.channels_qty == 2
         assert adapter._target_channels == 2
 
     def test_invalid_target_channels(self):
@@ -113,11 +113,11 @@ class TestChannelMixingAdapterProperties:
     """Test adapter properties."""
 
     def test_nchannels_returns_target(self):
-        """Test that nchannels returns the target channel count."""
+        """Test that channels_qty returns the target channel count."""
         source = MockAudioStream(channels=2)
         adapter = ChannelMixingAdapter(source, target_channels=1)
 
-        assert adapter.nchannels == 1
+        assert adapter.channels_qty == 1
 
     def test_other_properties_delegate_to_source(self):
         """Test that other properties delegate to source."""
@@ -129,7 +129,7 @@ class TestChannelMixingAdapterProperties:
         )
         adapter = ChannelMixingAdapter(source, target_channels=1)
 
-        assert adapter.samplerate == 48000
+        assert adapter.sample_rate == 48000
         assert adapter.sample_width == 4
         assert adapter.duration_seconds == 123.45
 

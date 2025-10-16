@@ -54,11 +54,11 @@ class MockAudioStream(AudioStreamBase):
         self._closed = True
 
     @property
-    def samplerate(self) -> int:
+    def sample_rate(self) -> int:
         return self._sample_rate
 
     @property
-    def nchannels(self) -> int:
+    def channels_qty(self) -> int:
         return self._channels
 
     @property
@@ -78,7 +78,7 @@ class TestResamplingAdapterCreation:
         source = MockAudioStream(sample_rate=44100)
         adapter = ResamplingAdapter(source, target_sample_rate=22050)
 
-        assert adapter.samplerate == 22050
+        assert adapter.sample_rate == 22050
         assert adapter._target_sample_rate == 22050
 
     def test_create_upsample_adapter(self):
@@ -86,7 +86,7 @@ class TestResamplingAdapterCreation:
         source = MockAudioStream(sample_rate=22050)
         adapter = ResamplingAdapter(source, target_sample_rate=44100)
 
-        assert adapter.samplerate == 44100
+        assert adapter.sample_rate == 44100
         assert adapter._target_sample_rate == 44100
 
     def test_create_non_rational_ratio(self):
@@ -94,7 +94,7 @@ class TestResamplingAdapterCreation:
         source = MockAudioStream(sample_rate=44100)
         adapter = ResamplingAdapter(source, target_sample_rate=48000)
 
-        assert adapter.samplerate == 48000
+        assert adapter.sample_rate == 48000
 
     def test_invalid_target_sample_rate(self):
         """Test that invalid sample rates raise an error."""
@@ -125,11 +125,11 @@ class TestResamplingAdapterProperties:
     """Test adapter properties."""
 
     def test_samplerate_returns_target(self):
-        """Test that samplerate returns the target rate."""
+        """Test that sample_rate returns the target rate."""
         source = MockAudioStream(sample_rate=44100)
         adapter = ResamplingAdapter(source, target_sample_rate=22050)
 
-        assert adapter.samplerate == 22050
+        assert adapter.sample_rate == 22050
 
     def test_other_properties_delegate_to_source(self):
         """Test that other properties delegate to source."""
@@ -141,7 +141,7 @@ class TestResamplingAdapterProperties:
         )
         adapter = ResamplingAdapter(source, target_sample_rate=22050)
 
-        assert adapter.nchannels == 2
+        assert adapter.channels_qty == 2
         assert adapter.sample_width == 2
         assert adapter.duration_seconds == 123.45
 

@@ -45,6 +45,7 @@ class AnalyzerSetupDialog(QDialog):
         self.media_files = media_files
         self.selected_analyzer: Optional[Type[AnalyzerBase]] = None
         self.analyzer_options: Dict[str, Any] = {}
+        self.current_settings_widget: Optional[QWidget] = None  # Track current widget
 
         self.setWindowTitle(f"Configure {category.value} Analysis")
         self.setMinimumWidth(450)
@@ -154,16 +155,18 @@ class AnalyzerSetupDialog(QDialog):
         # Update description
         self.description_label.setText(analyzer_class.description or "No description available.")
 
-        # Clear previous settings widget
-        while self.settings_layout.count():
-            child = self.settings_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        # Clear previous settings widget IMMEDIATELY to prevent findChildren from finding old widgets
+        if self.current_settings_widget:
+            self.settings_layout.removeWidget(self.current_settings_widget)
+            self.current_settings_widget.setParent(None)  # Immediately remove from parent
+            self.current_settings_widget.deleteLater()  # Schedule for deletion
+            self.current_settings_widget = None
 
         # Add analyzer-specific settings widget if available
         settings_widget = analyzer_class.get_settings_widget()
         if settings_widget:
             self.settings_layout.addWidget(settings_widget)
+            self.current_settings_widget = settings_widget  # Track it
             self.settings_group.setVisible(True)
         else:
             self.settings_group.setVisible(False)
@@ -180,10 +183,8 @@ class AnalyzerSetupDialog(QDialog):
         }
 
         # Extract analyzer-specific options from settings widget
-        if self.settings_group.isVisible():
-            settings_widget = self.settings_layout.itemAt(0).widget()
-            if settings_widget:
-                self._extract_settings_from_widget(settings_widget)
+        if self.current_settings_widget:
+            self._extract_settings_from_widget(self.current_settings_widget)
 
         # Save preferences
         self._save_preferences()
@@ -195,7 +196,7 @@ class AnalyzerSetupDialog(QDialog):
         """
         Extract settings from the analyzer's settings widget.
 
-        This method looks for QSpinBox, QCheckBox, and other common widgets
+        This method looks for QSpinBox, QCheckBox, QComboBox, and other common widgets
         with objectName set, and adds their values to analyzer_options.
 
         Args:
@@ -212,6 +213,18 @@ class AnalyzerSetupDialog(QDialog):
             name = checkbox.objectName()
             if name:
                 self.analyzer_options[name] = checkbox.isChecked()
+
+        # Find all QComboBox widgets
+        for combo_box in widget.findChildren(QComboBox):
+            name = combo_box.objectName()
+            if name:
+                # Try to get user data first (if set with addItem(text, userData))
+                current_data = combo_box.currentData()
+                if current_data is not None:
+                    self.analyzer_options[name] = current_data
+                else:
+                    # Fall back to current text
+                    self.analyzer_options[name] = combo_box.currentText()
 
         # Can be extended for other widget types as needed
 

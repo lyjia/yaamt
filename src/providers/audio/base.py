@@ -59,7 +59,7 @@ class AudioStreamBase(ABC):
 
     @property
     @abstractmethod
-    def samplerate(self) -> int:
+    def sample_rate(self) -> int:
         """
         The sample rate of the audio stream in Hz (samples per second).
 
@@ -70,7 +70,7 @@ class AudioStreamBase(ABC):
 
     @property
     @abstractmethod
-    def nchannels(self) -> int:
+    def channels_qty(self) -> int:
         """
         The number of audio channels (e.g., 1 for mono, 2 for stereo).
 

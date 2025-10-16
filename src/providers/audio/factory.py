@@ -50,13 +50,13 @@ class AudioStreamFactory:
 
         # 1. Sample rate conversion (if needed)
         if (format_descriptor.sample_rate is not None and
-                format_descriptor.sample_rate != base_stream.samplerate):
+                format_descriptor.sample_rate != stream.sample_rate):
             from .adapters.resampling_adapter import ResamplingAdapter
             stream = ResamplingAdapter(stream, format_descriptor.sample_rate)
 
         # 2. Channel mixing (if needed)
         if (format_descriptor.channels is not None and
-                format_descriptor.channels != base_stream.nchannels):
+                format_descriptor.channels != stream.channels_qty):
             from .adapters.channel_mixing_adapter import ChannelMixingAdapter
             stream = ChannelMixingAdapter(stream, format_descriptor.channels)
 
