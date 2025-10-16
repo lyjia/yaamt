@@ -533,10 +533,10 @@ When building an adapter chain, if any adapter construction fails:
 
 ### Phase 4: Consumer Updates
 
-1. Update aubio BPM analyzer to use format adaptation
-2. Remove manual conversion code from analyzer
-3. Update other analyzers as needed
-4. Update playback system (if exists)
+1. Remove manual conversion code from analyzers
+2. Update audio playback system
+3. Add Debug menu to MainWindow with option to set audio playback sample rate, bit depth, and channels
+4. Add unit tests for updated code
 
 ### Phase 5: Documentation & Polish
 
@@ -564,7 +564,6 @@ When building an adapter chain, if any adapter construction fails:
 
 1. **Vectorized Operations**: Optimize NumPy operations
 2. **Chunk Size Tuning**: Optimize buffer sizes for cache efficiency
-3. **Multi-threading**: Parallel adaptation for multi-file batches
 
 ## References
 

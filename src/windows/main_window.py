@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
     QDialog
 )
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtCore import (
     QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot, Signal
 )
@@ -384,11 +384,172 @@ class MainWindow(QMainWindow):
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.action_show_playback_panel)
 
+        # Debug Menu
+        debug_menu = self.menuBar().addMenu("&Debug")
+        self._create_debug_menu(debug_menu)
+
         # Help Menu
         help_menu = self.menuBar().addMenu("&Help")
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about_dialog)
         help_menu.addAction(about_action)
+
+    def _create_debug_menu(self, debug_menu: QMenu):
+        """
+        Create the Debug menu with audio format adaptation settings.
+
+        Args:
+            debug_menu: The QMenu to populate with debug actions
+        """
+        # Enable/disable format adaptation
+        self.debug_enable_adaptation = QAction("Enable Playback Format Adaptation", self)
+        self.debug_enable_adaptation.setCheckable(True)
+        self.debug_enable_adaptation.setChecked(
+            settings.value("Debug/PlaybackFormatAdaptationEnabled", False, type=bool)
+        )
+        self.debug_enable_adaptation.toggled.connect(self._on_debug_adaptation_toggled)
+        debug_menu.addAction(self.debug_enable_adaptation)
+        debug_menu.addSeparator()
+
+        # Sample Rate submenu
+        sample_rate_menu = QMenu("Sample Rate", self)
+        self.debug_sample_rate_group = QActionGroup(self)
+        self.debug_sample_rate_group.setExclusive(True)
+
+        sample_rates = [
+            ("Native (no conversion)", 0),
+            ("22050 Hz", 22050),
+            ("44100 Hz", 44100),
+            ("48000 Hz", 48000),
+            ("96000 Hz", 96000),
+        ]
+
+        current_sample_rate = settings.value("Debug/PlaybackSampleRate", 0, type=int)
+        for label, value in sample_rates:
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setData(value)
+            if value == current_sample_rate:
+                action.setChecked(True)
+            action.triggered.connect(lambda checked, v=value: self._on_debug_sample_rate_changed(v))
+            self.debug_sample_rate_group.addAction(action)
+            sample_rate_menu.addAction(action)
+
+        debug_menu.addMenu(sample_rate_menu)
+        self.debug_sample_rate_menu = sample_rate_menu
+
+        # Channels submenu
+        channels_menu = QMenu("Channels", self)
+        self.debug_channels_group = QActionGroup(self)
+        self.debug_channels_group.setExclusive(True)
+
+        channels_options = [
+            ("Native (no conversion)", 0),
+            ("Mono (1 channel)", 1),
+            ("Stereo (2 channels)", 2),
+        ]
+
+        current_channels = settings.value("Debug/PlaybackChannels", 0, type=int)
+        for label, value in channels_options:
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setData(value)
+            if value == current_channels:
+                action.setChecked(True)
+            action.triggered.connect(lambda checked, v=value: self._on_debug_channels_changed(v))
+            self.debug_channels_group.addAction(action)
+            channels_menu.addAction(action)
+
+        debug_menu.addMenu(channels_menu)
+        self.debug_channels_menu = channels_menu
+
+        # Bit Depth submenu
+        bit_depth_menu = QMenu("Bit Depth", self)
+        self.debug_bit_depth_group = QActionGroup(self)
+        self.debug_bit_depth_group.setExclusive(True)
+
+        bit_depth_options = [
+            ("Native (no conversion)", 0),
+            ("16-bit (2 bytes)", 2),
+            ("24-bit (3 bytes)", 3),
+            ("32-bit (4 bytes)", 4),
+        ]
+
+        current_bit_depth = settings.value("Debug/PlaybackSampleWidth", 0, type=int)
+        for label, value in bit_depth_options:
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setData(value)
+            if value == current_bit_depth:
+                action.setChecked(True)
+            action.triggered.connect(lambda checked, v=value: self._on_debug_bit_depth_changed(v))
+            self.debug_bit_depth_group.addAction(action)
+            bit_depth_menu.addAction(action)
+
+        debug_menu.addMenu(bit_depth_menu)
+        self.debug_bit_depth_menu = bit_depth_menu
+
+        # Sample Format submenu
+        sample_format_menu = QMenu("Sample Format", self)
+        self.debug_sample_format_group = QActionGroup(self)
+        self.debug_sample_format_group.setExclusive(True)
+
+        sample_format_options = [
+            ("Native (no conversion)", ""),
+            ("Integer", "int"),
+            ("Float", "float"),
+        ]
+
+        current_sample_format = settings.value("Debug/PlaybackSampleFormat", "", type=str)
+        for label, value in sample_format_options:
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setData(value)
+            if value == current_sample_format:
+                action.setChecked(True)
+            action.triggered.connect(lambda checked, v=value: self._on_debug_sample_format_changed(v))
+            self.debug_sample_format_group.addAction(action)
+            sample_format_menu.addAction(action)
+
+        debug_menu.addMenu(sample_format_menu)
+        self.debug_sample_format_menu = sample_format_menu
+
+        # Update submenu enabled state based on adaptation toggle
+        self._update_debug_menu_state()
+
+    def _on_debug_adaptation_toggled(self, enabled: bool):
+        """Handle toggling of format adaptation."""
+        settings.setValue("Debug/PlaybackFormatAdaptationEnabled", enabled)
+        self._update_debug_menu_state()
+        log.info(f"Playback format adaptation {'enabled' if enabled else 'disabled'}")
+
+    def _on_debug_sample_rate_changed(self, value: int):
+        """Handle sample rate selection."""
+        settings.setValue("Debug/PlaybackSampleRate", value)
+        log.info(f"Debug playback sample rate set to: {value if value else 'Native'}")
+
+    def _on_debug_channels_changed(self, value: int):
+        """Handle channels selection."""
+        settings.setValue("Debug/PlaybackChannels", value)
+        log.info(f"Debug playback channels set to: {value if value else 'Native'}")
+
+    def _on_debug_bit_depth_changed(self, value: int):
+        """Handle bit depth selection."""
+        settings.setValue("Debug/PlaybackSampleWidth", value)
+        log.info(f"Debug playback bit depth set to: {value if value else 'Native'} bytes")
+
+    def _on_debug_sample_format_changed(self, value: str):
+        """Handle sample format selection."""
+        settings.setValue("Debug/PlaybackSampleFormat", value)
+        log.info(f"Debug playback sample format set to: {value if value else 'Native'}")
+
+    def _update_debug_menu_state(self):
+        """Enable or disable debug submenus based on adaptation toggle."""
+        enabled = self.debug_enable_adaptation.isChecked()
+        self.debug_sample_rate_menu.setEnabled(enabled)
+        self.debug_channels_menu.setEnabled(enabled)
+        self.debug_bit_depth_menu.setEnabled(enabled)
+        self.debug_sample_format_menu.setEnabled(enabled)
 
     def _show_about_dialog(self):
         about_window = windows.AboutWindow(self)

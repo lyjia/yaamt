@@ -5,7 +5,9 @@ from unittest.mock import MagicMock, patch, PropertyMock
 from util.const import IN_GITHUB_RUNNER
 from workers.gui.playback_worker import PlaybackWorker, PLAYING, PAUSED, STOPPED
 from providers.audio.base import AudioStreamBase
+from providers.audio.format_descriptor import AudioFormatDescriptor
 from models.media_file import MediaFile
+from models.settings import settings
 
 @pytest.fixture
 def mock_audio_stream():
@@ -330,16 +332,92 @@ class TestPlaybackWorker:
         # Start and then stop playback
         playback_worker.start_playback(mock_media_file)
         playback_worker.stop()
-        
+
         # Reset mocks
         mock_pyaudio['output_stream_mock'].reset_mock()
-        
+
         # Call resume
         with patch.object(playback_worker, '_playback_loop'):
             playback_worker.resume()
-        
+
         # Verify state is still STOPPED
         assert playback_worker.state == STOPPED
-        
+
         # Verify no resume action was performed
         mock_pyaudio['output_stream_mock'].start_stream.assert_not_called()
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_format_adaptation_disabled(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+        """Test that format adaptation is disabled by default."""
+        # Ensure format adaptation is disabled in settings
+        settings.setValue("Debug/PlaybackFormatAdaptationEnabled", False)
+
+        # Start playback
+        playback_worker.start_playback(mock_media_file)
+
+        # Verify get_audio_stream was called with None (no format descriptor)
+        mock_media_file.get_audio_stream.assert_called_once_with(None)
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_format_adaptation_enabled_with_settings(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+        """Test that format adaptation uses settings when enabled."""
+        # Enable format adaptation with specific settings
+        settings.setValue("Debug/PlaybackFormatAdaptationEnabled", True)
+        settings.setValue("Debug/PlaybackSampleRate", 48000)
+        settings.setValue("Debug/PlaybackChannels", 2)
+        settings.setValue("Debug/PlaybackSampleWidth", 2)
+        settings.setValue("Debug/PlaybackSampleFormat", "int")
+
+        # Start playback
+        playback_worker.start_playback(mock_media_file)
+
+        # Verify get_audio_stream was called with a format descriptor
+        mock_media_file.get_audio_stream.assert_called_once()
+        format_desc = mock_media_file.get_audio_stream.call_args[0][0]
+
+        assert format_desc is not None
+        assert isinstance(format_desc, AudioFormatDescriptor)
+        assert format_desc.sample_rate == 48000
+        assert format_desc.channels == 2
+        assert format_desc.sample_width == 2
+        assert format_desc.sample_format == "int"
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_format_adaptation_partial_settings(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+        """Test that format adaptation handles partial settings (some native, some custom)."""
+        # Enable format adaptation with only some settings
+        settings.setValue("Debug/PlaybackFormatAdaptationEnabled", True)
+        settings.setValue("Debug/PlaybackSampleRate", 44100)
+        settings.setValue("Debug/PlaybackChannels", 0)  # Native
+        settings.setValue("Debug/PlaybackSampleWidth", 0)  # Native
+        settings.setValue("Debug/PlaybackSampleFormat", "")  # Native
+
+        # Start playback
+        playback_worker.start_playback(mock_media_file)
+
+        # Verify get_audio_stream was called with a format descriptor
+        mock_media_file.get_audio_stream.assert_called_once()
+        format_desc = mock_media_file.get_audio_stream.call_args[0][0]
+
+        assert format_desc is not None
+        assert isinstance(format_desc, AudioFormatDescriptor)
+        assert format_desc.sample_rate == 44100
+        assert format_desc.channels is None  # Native
+        assert format_desc.sample_width is None  # Native
+        assert format_desc.sample_format is None  # Native
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_format_adaptation_all_native(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+        """Test that format adaptation with all native settings returns None."""
+        # Enable format adaptation but set all to native
+        settings.setValue("Debug/PlaybackFormatAdaptationEnabled", True)
+        settings.setValue("Debug/PlaybackSampleRate", 0)
+        settings.setValue("Debug/PlaybackChannels", 0)
+        settings.setValue("Debug/PlaybackSampleWidth", 0)
+        settings.setValue("Debug/PlaybackSampleFormat", "")
+
+        # Start playback
+        playback_worker.start_playback(mock_media_file)
+
+        # Verify get_audio_stream was called with None (all native = no adaptation needed)
+        mock_media_file.get_audio_stream.assert_called_once_with(None)
