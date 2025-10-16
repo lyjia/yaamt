@@ -1,0 +1,6 @@
+[submodule "references/RapidEvolution2"]
+	path = references/RapidEvolution2
+	url = https://github.com/djqualia/RapidEvolution2
+[submodule "references/RapidEvolution3"]
+	path = references/RapidEvolution3
+	url = https://github.com/djqualia/RapidEvolution3

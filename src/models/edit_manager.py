@@ -88,9 +88,16 @@ class EditManager(QObject):
             log.debug(f"Autosave set to: {enabled}")
             self.autosave_changed.emit(self._autosave)
 
-    def register_media_files(self, media_files: List[MediaFile]):
+    def register_media_files(self, media_files: List[MediaFile], force_replace: bool = False):
+        """
+        Register MediaFile instances with the EditManager.
+
+        Args:
+            media_files: List of MediaFile objects to register
+            force_replace: If True, replace existing instances even if already registered
+        """
         for media_file in media_files:
-            if media_file.file_id not in self._media_files:
+            if force_replace or media_file.file_id not in self._media_files:
                 self._media_files[media_file.file_id] = media_file
 
     def stage_change(self, media_files: List[MediaFile], tag: str, value: Any, is_internal_tag: bool = False, provider = None):
@@ -226,6 +233,19 @@ class EditManager(QObject):
         with self._write_lock:
             self._staged_changes.clear()
             self.staged_changes_exist.emit(False)
+
+    def clear_staged_changes_for_files(self, file_ids: List[str]):
+        """
+        Clear staged changes for specific files.
+
+        Args:
+            file_ids: List of file IDs to clear staged changes for
+        """
+        with self._write_lock:
+            for file_id in file_ids:
+                if file_id in self._staged_changes:
+                    del self._staged_changes[file_id]
+            self.staged_changes_exist.emit(self.has_staged_changes())
 
     def has_staged_changes(self) -> bool:
         """

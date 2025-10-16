@@ -48,14 +48,14 @@ class ChannelMixingAdapter(AdapterBase):
                 f"target_channels must be 1 or 2, got {target_channels}"
             )
 
-        if source.nchannels not in (1, 2):
+        if source.channels_qty not in (1, 2):
             raise ValueError(
-                f"Source must have 1 or 2 channels, got {source.nchannels}"
+                f"Source must have 1 or 2 channels, got {source.channels_qty}"
             )
 
-        if source.nchannels == target_channels:
+        if source.channels_qty == target_channels:
             raise ValueError(
-                f"Source channels ({source.nchannels}) matches target channels "
+                f"Source channels ({source.channels_qty}) matches target channels "
                 f"({target_channels}). No adaptation needed."
             )
 
@@ -136,7 +136,7 @@ class ChannelMixingAdapter(AdapterBase):
                 audio_array[i] = val
 
         # Reshape to (n_frames, n_channels)
-        audio_array = audio_array.reshape(-1, self._source.nchannels)
+        audio_array = audio_array.reshape(-1, self._source.channels_qty)
 
         # Apply channel conversion
         if self._target_channels == 1:
@@ -185,7 +185,7 @@ class ChannelMixingAdapter(AdapterBase):
         self._source.seek(frame_offset)
 
     @property
-    def nchannels(self) -> int:
+    def channels_qty(self) -> int:
         """
         Get the number of channels in the adapted stream.
 

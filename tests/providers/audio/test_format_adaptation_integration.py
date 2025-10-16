@@ -36,8 +36,8 @@ class TestMediaFileIntegration:
         with media_file.get_audio_stream() as stream:
             # Should return stream in native format
             assert stream is not None
-            assert stream.samplerate > 0
-            assert stream.nchannels > 0
+            assert stream.sample_rate > 0
+            assert stream.channels_qty > 0
             assert stream.sample_width > 0
             assert stream.duration_seconds > 0
 
@@ -58,14 +58,14 @@ class TestMediaFileIntegration:
 
         with media_file.get_audio_stream(format_desc) as stream:
             # Stream should match requested format
-            assert stream.samplerate == 22050
-            assert stream.nchannels == 1
+            assert stream.sample_rate == 22050
+            assert stream.channels_qty == 1
 
             # Should be able to read audio data
             data = stream.read(1024)
             assert len(data) > 0
             # Verify byte count is a multiple of frame size
-            frame_size = stream.nchannels * stream.sample_width
+            frame_size = stream.channels_qty * stream.sample_width
             assert len(data) % frame_size == 0
 
     def test_get_audio_stream_flac_file(self):
@@ -80,8 +80,8 @@ class TestMediaFileIntegration:
         )
 
         with media_file.get_audio_stream(format_desc) as stream:
-            assert stream.samplerate == 48000
-            assert stream.nchannels == 2
+            assert stream.sample_rate == 48000
+            assert stream.channels_qty == 2
 
             # Should be able to read and seek
             data1 = stream.read(512)
@@ -99,15 +99,15 @@ class TestMediaFileIntegration:
 
         # Get native format first to compare
         with media_file.get_audio_stream() as native_stream:
-            native_rate = native_stream.samplerate
-            native_channels = native_stream.nchannels
+            native_rate = native_stream.sample_rate
+            native_channels = native_stream.channels_qty
 
         # Request only mono, accept native sample rate
         format_desc = AudioFormatDescriptor(channels=1)
 
         with media_file.get_audio_stream(format_desc) as stream:
-            assert stream.nchannels == 1  # Adapted
-            assert stream.samplerate == native_rate  # Native
+            assert stream.channels_qty == 1  # Adapted
+            assert stream.sample_rate == native_rate  # Native
 
             data = stream.read(1024)
             assert len(data) == 1024 * 1 * stream.sample_width
@@ -127,7 +127,7 @@ class TestAudioStreamFactoryIntegration:
 
         # Should be wrapped with ResamplingAdapter
         assert isinstance(stream, ResamplingAdapter)
-        assert stream.samplerate == 22050
+        assert stream.sample_rate == 22050
 
         stream.close()
 
@@ -137,7 +137,7 @@ class TestAudioStreamFactoryIntegration:
 
         # Get native channels
         with AudioStreamFactory.get_stream(test_file) as native_stream:
-            native_channels = native_stream.nchannels
+            native_channels = native_stream.channels_qty
 
         # Request different channels
         target_channels = 1 if native_channels == 2 else 2
@@ -147,7 +147,7 @@ class TestAudioStreamFactoryIntegration:
 
         # Should be wrapped with ChannelMixingAdapter
         assert isinstance(stream, ChannelMixingAdapter)
-        assert stream.nchannels == target_channels
+        assert stream.channels_qty == target_channels
 
         stream.close()
 
@@ -165,11 +165,11 @@ class TestAudioStreamFactoryIntegration:
 
         # Outer adapter should be channel mixing (last in chain)
         assert isinstance(stream, ChannelMixingAdapter)
-        assert stream.nchannels == 1
+        assert stream.channels_qty == 1
 
         # Inner adapter should be resampling
         assert isinstance(stream._source, ResamplingAdapter)
-        assert stream._source.samplerate == 22050
+        assert stream._source.sample_rate == 22050
 
         stream.close()
 
@@ -179,8 +179,8 @@ class TestAudioStreamFactoryIntegration:
 
         # Get native format
         with AudioStreamFactory.get_stream(test_file) as native_stream:
-            native_rate = native_stream.samplerate
-            native_channels = native_stream.nchannels
+            native_rate = native_stream.sample_rate
+            native_channels = native_stream.channels_qty
 
         # Request same format
         format_desc = AudioFormatDescriptor(
@@ -236,12 +236,12 @@ class TestFullPipelineIntegration:
 
             # Verify data is consistent with format
             total_samples = len(all_data) // stream.sample_width
-            total_frames = total_samples // stream.nchannels
+            total_frames = total_samples // stream.channels_qty
 
             # Duration should match
-            expected_frames = int(stream.duration_seconds * stream.samplerate)
+            expected_frames = int(stream.duration_seconds * stream.sample_rate)
             # Allow for some rounding error
-            assert abs(total_frames - expected_frames) < stream.samplerate * 0.1
+            assert abs(total_frames - expected_frames) < stream.sample_rate * 0.1
 
     def test_full_pipeline_seek_and_read(self):
         """Test seeking and reading with format adaptation."""
@@ -258,7 +258,7 @@ class TestFullPipelineIntegration:
             assert len(data1) > 0
 
             # Seek to middle
-            mid_frame = int(stream.duration_seconds * stream.samplerate / 2)
+            mid_frame = int(stream.duration_seconds * stream.sample_rate / 2)
             stream.seek(mid_frame)
             data2 = stream.read(1024)
             assert len(data2) > 0
@@ -280,8 +280,8 @@ class TestFullPipelineIntegration:
         # Get native format first
         with AudioStreamFactory.get_stream(test_file) as native_stream:
             native_data = native_stream.read(4096)
-            native_rate = native_stream.samplerate
-            native_channels = native_stream.nchannels
+            native_rate = native_stream.sample_rate
+            native_channels = native_stream.channels_qty
             native_width = native_stream.sample_width
 
         # Request heavily adapted format
@@ -294,8 +294,8 @@ class TestFullPipelineIntegration:
             adapted_data = adapted_stream.read(4096)
 
             # Verify format changed
-            assert adapted_stream.samplerate == 22050
-            assert adapted_stream.nchannels != native_channels
+            assert adapted_stream.sample_rate == 22050
+            assert adapted_stream.channels_qty != native_channels
 
             # Both should have data
             assert len(native_data) > 0
@@ -358,13 +358,13 @@ class TestMultipleFileFormats:
         )
 
         with AudioStreamFactory.get_stream(test_file, format_desc) as stream:
-            assert stream.samplerate == 22050
-            assert stream.nchannels == 1
+            assert stream.sample_rate == 22050
+            assert stream.channels_qty == 1
 
             data = stream.read(2048)
             assert len(data) > 0
             # Verify byte count is a multiple of frame size
-            frame_size = stream.nchannels * stream.sample_width
+            frame_size = stream.channels_qty * stream.sample_width
             assert len(data) % frame_size == 0
 
     def test_flac_format_adaptation(self):
@@ -377,13 +377,13 @@ class TestMultipleFileFormats:
         )
 
         with AudioStreamFactory.get_stream(test_file, format_desc) as stream:
-            assert stream.samplerate == 48000
-            assert stream.nchannels == 2
+            assert stream.sample_rate == 48000
+            assert stream.channels_qty == 2
 
             data = stream.read(2048)
             assert len(data) > 0
             # Verify byte count is a multiple of frame size
-            frame_size = stream.nchannels * stream.sample_width
+            frame_size = stream.channels_qty * stream.sample_width
             assert len(data) % frame_size == 0
 
 
@@ -433,13 +433,13 @@ class TestPerformanceCharacteristics:
                 data = stream.read(4096)
                 if not data:
                     break
-                frames = len(data) // (stream.nchannels * stream.sample_width)
+                frames = len(data) // (stream.channels_qty * stream.sample_width)
                 total_frames += frames
 
             elapsed_time = time.time() - start_time
 
             # Calculate audio duration
-            audio_duration = total_frames / stream.samplerate
+            audio_duration = total_frames / stream.sample_rate
 
             # Processing should be faster than realtime
             # Allow for some overhead but should be at least 2x realtime

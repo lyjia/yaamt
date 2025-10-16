@@ -59,9 +59,9 @@ class ResamplingAdapter(AdapterBase):
                 f"target_sample_rate must be positive, got {target_sample_rate}"
             )
 
-        if source.samplerate == target_sample_rate:
+        if source.sample_rate == target_sample_rate:
             raise ValueError(
-                f"Source sample rate ({source.samplerate}) matches target "
+                f"Source sample rate ({source.sample_rate}) matches target "
                 f"sample rate ({target_sample_rate}). No adaptation needed."
             )
 
@@ -71,7 +71,7 @@ class ResamplingAdapter(AdapterBase):
         # Calculate up/down factors for resample_poly
         # Use GCD to simplify the ratio
         self._up_factor, self._down_factor = self._calculate_resample_factors(
-            source.samplerate, target_sample_rate
+            source.sample_rate, target_sample_rate
         )
 
         # Internal buffer for handling filter edge effects
@@ -201,7 +201,7 @@ class ResamplingAdapter(AdapterBase):
             return audio_array
 
         # Reshape to (n_frames, n_channels) if multi-channel
-        n_channels = self._source.nchannels
+        n_channels = self._source.channels_qty
         if n_channels > 1:
             n_frames = len(audio_array) // n_channels
             audio_array = audio_array.reshape(n_frames, n_channels)
@@ -254,7 +254,7 @@ class ResamplingAdapter(AdapterBase):
         # to produce the requested number of output frames
         # Formula: source_frames = output_frames * source_rate / target_rate
         source_frames_needed = int(
-            np.ceil(n_frames * self._source.samplerate / self._target_sample_rate)
+            np.ceil(n_frames * self._source.sample_rate / self._target_sample_rate)
         )
 
         # Add some extra frames for filter overlap (helps with edge effects)
@@ -267,7 +267,7 @@ class ResamplingAdapter(AdapterBase):
         if not source_data:
             # If we have buffered data, return what we can
             if len(self._buffer) > 0:
-                n_channels = self._source.nchannels
+                n_channels = self._source.channels_qty
                 output_samples = min(n_frames * n_channels, len(self._buffer))
                 output_array = self._buffer[:output_samples]
                 self._buffer = self._buffer[output_samples:]
@@ -286,7 +286,7 @@ class ResamplingAdapter(AdapterBase):
         resampled_array = self._resample_audio(source_array)
 
         # Extract the requested number of samples
-        n_channels = self._source.nchannels
+        n_channels = self._source.channels_qty
         output_samples = n_frames * n_channels
 
         if len(resampled_array) >= output_samples:
@@ -319,7 +319,7 @@ class ResamplingAdapter(AdapterBase):
         # Calculate corresponding source frame position
         # Formula: source_frame = output_frame * source_rate / target_rate
         source_frame = int(
-            frame_offset * self._source.samplerate / self._target_sample_rate
+            frame_offset * self._source.sample_rate / self._target_sample_rate
         )
 
         # Seek source stream
@@ -329,7 +329,7 @@ class ResamplingAdapter(AdapterBase):
         self._buffer = np.array([], dtype=self._get_numpy_dtype())
 
     @property
-    def samplerate(self) -> int:
+    def sample_rate(self) -> int:
         """
         Get the sample rate of the adapted stream.
 

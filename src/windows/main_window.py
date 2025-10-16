@@ -648,6 +648,14 @@ class MainWindow(QMainWindow):
             # Refresh the file list to show updated metadata
             # Get the file IDs that were analyzed
             file_ids = [mf.file_id for mf in media_files]
+
+            # Clear any staged changes for these files (analyzer results are authoritative)
+            self.edit_manager.clear_staged_changes_for_files(file_ids)
+
+            # Force-replace MediaFile instances to ensure fresh data is used
+            self.edit_manager.register_media_files(media_files, force_replace=True)
+
+            # Refresh the display
             self.file_model.refresh_files(file_ids, self.edit_manager)
 
     @Slot(list)

@@ -11,6 +11,7 @@ When adding a new analyzer, add its import to this file.
 
 # BPM analyzers
 from providers.analysis.bpm import stub_bpm
+from providers.analysis.bpm import aubio_bpm
 
 # Key analyzers
 # (none yet)

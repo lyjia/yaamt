@@ -55,11 +55,11 @@ class MockAudioStream(AudioStreamBase):
         self._closed = True
 
     @property
-    def samplerate(self) -> int:
+    def sample_rate(self) -> int:
         return self._sample_rate
 
     @property
-    def nchannels(self) -> int:
+    def channels_qty(self) -> int:
         return self._channels
 
     @property
@@ -146,8 +146,8 @@ class TestBitDepthAdapterProperties:
         )
         adapter = BitDepthAdapter(source, target_sample_width=4, target_sample_format='float')
 
-        assert adapter.samplerate == 48000
-        assert adapter.nchannels == 2
+        assert adapter.sample_rate == 48000
+        assert adapter.channels_qty == 2
         assert adapter.duration_seconds == 123.45
 
 

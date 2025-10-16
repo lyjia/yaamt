@@ -157,7 +157,7 @@ class PeakMeterAnalyzer(AnalyzerBase):
         import math
 
         sample_width = audio_stream.sample_width
-        nchannels = audio_stream.nchannels
+        nchannels = audio_stream.channels_qty
 
         # Determine the format string for struct.unpack based on sample width
         if sample_width == 1:

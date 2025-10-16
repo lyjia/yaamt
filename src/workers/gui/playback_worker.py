@@ -104,8 +104,8 @@ class PlaybackWorker(QObject):
 
             self.output_stream = self.pyaudio.open(
                 format=self.pyaudio.get_format_from_width(self.audio_stream.sample_width),
-                channels=self.audio_stream.nchannels,
-                rate=self.audio_stream.samplerate,
+                channels=self.audio_stream.channels_qty,
+                rate=self.audio_stream.sample_rate,
                 output=True
             )
 
@@ -113,7 +113,7 @@ class PlaybackWorker(QObject):
             self.total_frames_read = 0
 
             # Dynamically set timer interval
-            chunk_duration_ms = (self.chunk_size / self.audio_stream.samplerate) * 1000
+            chunk_duration_ms = (self.chunk_size / self.audio_stream.sample_rate) * 1000
             self.timer.setInterval(chunk_duration_ms / 2)  # Update at twice the speed of chunk playback
 
             self.state = PLAYING
@@ -142,10 +142,10 @@ class PlaybackWorker(QObject):
                 return
             
             self.output_stream.write(data)
-            
-            frames_read = len(data) / (self.audio_stream.sample_width * self.audio_stream.nchannels)
+
+            frames_read = len(data) / (self.audio_stream.sample_width * self.audio_stream.channels_qty)
             self.total_frames_read += frames_read
-            current_position = self.total_frames_read / self.audio_stream.samplerate
+            current_position = self.total_frames_read / self.audio_stream.sample_rate
             self.position_changed.emit(current_position)
             
         except Exception as e:
@@ -198,7 +198,7 @@ class PlaybackWorker(QObject):
         """
         if self.audio_stream:
             try:
-                frame_offset = int(position_seconds * self.audio_stream.samplerate)
+                frame_offset = int(position_seconds * self.audio_stream.sample_rate)
                 self.audio_stream.seek(frame_offset)
                 self.total_frames_read = frame_offset
                 self.position_changed.emit(position_seconds)

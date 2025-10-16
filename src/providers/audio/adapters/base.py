@@ -90,7 +90,7 @@ class AdapterBase(AudioStreamBase):
             self._source.close()
 
     @property
-    def samplerate(self) -> int:
+    def sample_rate(self) -> int:
         """
         Get the sample rate of the adapted stream.
 
@@ -100,10 +100,10 @@ class AdapterBase(AudioStreamBase):
         Returns:
             Sample rate in Hz
         """
-        return self._source.samplerate
+        return self._source.sample_rate
 
     @property
-    def nchannels(self) -> int:
+    def channels_qty(self) -> int:
         """
         Get the number of channels in the adapted stream.
 
@@ -113,7 +113,7 @@ class AdapterBase(AudioStreamBase):
         Returns:
             Number of channels
         """
-        return self._source.nchannels
+        return self._source.channels_qty
 
     @property
     def sample_width(self) -> int:

@@ -25,12 +25,12 @@ class TestAudioStreamBase:
 
     def test_miniaudio_stream_properties(self):
         """
-        Verify that the samplerate, nchannels, and sample_width properties
+        Verify that the sample_rate, channels_qty, and sample_width properties
         of the MiniaudioStream object return the correct values for a known audio file.
         """
         with AudioStreamFactory.get_stream(AUDIO_FILE_PATH) as stream:
-            assert stream.samplerate == EXPECTED_SAMPLERATE
-            assert stream.nchannels == EXPECTED_NCHANNELS
+            assert stream.sample_rate == EXPECTED_SAMPLERATE
+            assert stream.channels_qty == EXPECTED_NCHANNELS
             assert stream.sample_width == EXPECTED_SAMPLE_WIDTH
 
     def test_miniaudio_stream_read(self):
@@ -89,9 +89,9 @@ class TestAudioStreamBase:
         stream.close()
 
         with pytest.raises(ValueError, match="Stream is closed."):
-            _ = stream.samplerate
+            _ = stream.sample_rate
         with pytest.raises(ValueError, match="Stream is closed."):
-            _ = stream.nchannels
+            _ = stream.channels_qty
         with pytest.raises(ValueError, match="Stream is closed."):
             _ = stream.sample_width
         with pytest.raises(ValueError, match="Stream is closed."):

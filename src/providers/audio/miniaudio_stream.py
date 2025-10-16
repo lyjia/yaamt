@@ -29,6 +29,7 @@ class MiniaudioStream(AudioStreamBase):
         self.info = miniaudio.get_file_info(file_path)
         self.stream_generator = miniaudio.stream_file(self.file_path)
         self._is_closed = False
+        self._buffer = bytearray()  # Buffer for handling variable frame requests
 
     def read(self, n_frames: int) -> bytes:
         """
@@ -43,10 +44,40 @@ class MiniaudioStream(AudioStreamBase):
         """
         if self._is_closed:
             raise ValueError("Stream is closed.")
-        
+
         try:
-            return next(self.stream_generator).tobytes()
+            bytes_per_frame = self.info.nchannels * self.info.sample_width
+            bytes_needed = n_frames * bytes_per_frame
+
+            # Use buffered data first
+            while len(self._buffer) < bytes_needed:
+                # Need more data - request from generator
+                if not hasattr(self, '_generator_primed'):
+                    # Prime generator on first call
+                    chunk = self.stream_generator.send(None)
+                    self._generator_primed = True
+                else:
+                    # Request specific number of frames
+                    chunk = self.stream_generator.send(n_frames)
+
+                if chunk is None or len(chunk) == 0:
+                    break
+                self._buffer.extend(chunk.tobytes())
+
+            # Return requested amount from buffer
+            if len(self._buffer) == 0:
+                return b""
+
+            result = bytes(self._buffer[:bytes_needed])
+            self._buffer = self._buffer[bytes_needed:]
+            return result
+
         except StopIteration:
+            # End of stream - return any remaining buffered data
+            if len(self._buffer) > 0:
+                result = bytes(self._buffer)
+                self._buffer.clear()
+                return result
             return b""
 
     def seek(self, frame_offset: int) -> None:
@@ -61,6 +92,10 @@ class MiniaudioStream(AudioStreamBase):
             raise ValueError("Stream is closed.")
 
         self.stream_generator = miniaudio.stream_file(self.file_path, seek_frame=frame_offset)
+        # Reset the generator priming flag and buffer since we have a new generator
+        if hasattr(self, '_generator_primed'):
+            delattr(self, '_generator_primed')
+        self._buffer.clear()
 
 
     def close(self) -> None:
@@ -76,7 +111,7 @@ class MiniaudioStream(AudioStreamBase):
             self._is_closed = True
 
     @property
-    def samplerate(self) -> int:
+    def sample_rate(self) -> int:
         """
         The sample rate of the audio stream in Hz (samples per second).
         """
@@ -85,12 +120,13 @@ class MiniaudioStream(AudioStreamBase):
         return self.info.sample_rate
 
     @property
-    def nchannels(self) -> int:
+    def channels_qty(self) -> int:
         """
         The number of audio channels (e.g., 1 for mono, 2 for stereo).
         """
         if self._is_closed:
             raise ValueError("Stream is closed.")
+        # Note: info.nchannels is from miniaudio library (we don't control that naming)
         return self.info.nchannels
 
     @property

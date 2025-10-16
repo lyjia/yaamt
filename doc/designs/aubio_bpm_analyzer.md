@@ -6,14 +6,20 @@
 
 This design specifies the implementation of a real BPM analyzer using the `aubio` library. The analyzer will follow the established analyzer system patterns and provide configurable BPM detection with streaming audio support.
 
+**Key Design Principle**: This analyzer delegates format conversion and value formatting to centralized systems:
+- **Audio Format Adaptation** (`doc/designs/audio_format_adaptation.md`): Handles all audio format conversion (stereo→mono)
+- **Tag Transformations** (`doc/designs/tag_transformations.md`): Handles all value formatting (BPM decimal places)
+
+The analyzer's responsibility is limited to: reading adapted audio streams, detecting beats using aubio, and returning raw numeric BPM values.
+
 ## Goals
 
 1. Implement a functional BPM analyzer using `aubio.tempo` for beat detection
 2. Follow the existing analyzer system design pattern (StubBPMAnalyzer as reference)
 3. Stream audio data without loading entire files into memory
 4. Expose aubio's configurable parameters for future tuning
-5. Return raw BPM values (float) - formatting handled by tag transformation system
-6. Request mono audio format via audio format adaptation system
+5. Return raw BPM values (float) - formatting handled by Tag Transformations system
+6. Request mono audio format via Audio Format Adaptation system
 
 ## Component Details
 
@@ -35,16 +41,39 @@ This design specifies the implementation of a real BPM analyzer using the `aubio
 
 ### Core Functionality
 
+#### Responsibility Division
+
+This analyzer is designed to work with two centralized systems that handle format conversion and value formatting:
+
+**Audio Format Adaptation System** (`doc/designs/audio_format_adaptation.md`):
+- ✅ Handles all audio format conversion (stereo→mono, resampling, bit depth)
+- ✅ Provides adapted audio streams via AudioFormatDescriptor
+- ✅ Analyzer requests mono audio, receives mono audio automatically
+
+**Tag Transformations System** (`doc/designs/tag_transformations.md`):
+- ✅ Handles all BPM value formatting (decimal places, rounding)
+- ✅ Reads user preferences for formatting
+- ✅ Applies formatting during MediaFile.save()
+
+**Analyzer Responsibilities** (this component):
+- ✅ Request mono audio stream using AudioFormatDescriptor
+- ✅ Process adapted audio stream with aubio.tempo
+- ✅ Detect beats and calculate raw BPM value
+- ✅ Return raw float BPM (e.g., 173.94) in AnalyzerResult
+- ❌ Does NOT convert stereo to mono (Audio Format Adaptation handles this)
+- ❌ Does NOT format BPM values (Tag Transformations handles this)
+- ❌ Does NOT read formatting preferences (Tag Transformations handles this)
+
 #### Algorithm Overview
 
 The analyzer will use aubio's tempo detection approach:
 
 1. Create an `aubio.tempo` object with configurable parameters
-2. Stream audio chunks from the MediaFile's audio stream
+2. Stream audio chunks from the MediaFile's adapted audio stream (mono, via AudioFormatDescriptor)
 3. Feed audio chunks to the tempo detector
 4. Collect detected beat timestamps
 5. Calculate BPM from beat intervals using median of differences
-6. Return BPM as string for metadata storage
+6. Return raw BPM as float (Tag Transformations system handles formatting to string)
 
 #### Audio Streaming Integration
 
@@ -55,10 +84,10 @@ The analyzer will use aubio's tempo detection approach:
 - Close the audio stream in a `finally` block to ensure cleanup
 
 **Audio Format Requirements**:
-- Request mono audio via AudioFormatDescriptor
+- Request mono audio via AudioFormatDescriptor(channels=1)
 - Accept native sample rate (aubio adapts to any sample rate)
-- Convert bytes from audio stream to numpy float32 arrays
-- No manual channel mixing needed (format adapter handles it)
+- Convert bytes from audio stream to numpy float32 arrays for aubio processing
+- Audio stream will already be mono (Audio Format Adaptation system handles conversion)
 
 #### Configurable Parameters
 
@@ -150,28 +179,18 @@ All aubio parameters must be exposed as configurable options, even if not initia
 
 **Analysis Errors** (return failed result):
 - aubio library not available
-- Audio format incompatible
 - No beats detected in audio
 - Corrupted audio data causing exceptions
 
+**Note**: Audio format conversion errors are handled by the Audio Format Adaptation system and will be raised as exceptions when calling `get_audio_stream()`. The analyzer does not need to handle format compatibility.
+
 **Exception Pattern**:
-```
-try:
-    # validation checks (return skipped if needed)
-    # open audio stream
-    # perform analysis
-    # check for cancellation
-    # return success result
-except ImportError as e:
-    # aubio not available
-    return AnalyzerResult(success=False, error="aubio library not available")
-except Exception as e:
-    # unexpected errors
-    log.error(...)
-    return AnalyzerResult(success=False, error=str(e))
-finally:
-    # close audio stream if opened
-```
+
+Main analysis wrapped in try/except/finally:
+- **Try block**: Validation checks, open audio stream, perform analysis, check for cancellation, return success result
+- **Except ImportError**: Return failed result with "aubio library not available" message
+- **Except Exception**: Log error, return failed result with error message
+- **Finally block**: Close audio stream if opened (ensures cleanup even on error)
 
 ### Settings Widget
 
@@ -203,12 +222,8 @@ The `get_settings_widget()` method should return a QWidget with controls for:
 ### Registration
 
 **Manifest Update**:
-Add import to `src/providers/analysis/_manifest.py`:
-```
-# BPM analyzers
-from providers.analysis.bpm import stub_bpm
-from providers.analysis.bpm import aubio_bpm  # Add this line
-```
+
+Add import line to `src/providers/analysis/_manifest.py` in the BPM analyzers section: `from providers.analysis.bpm import aubio_bpm`
 
 This ensures the analyzer is discovered by the analyzer system during startup.
 
@@ -219,94 +234,81 @@ This ensures the analyzer is discovered by the analyzer system during startup.
 - Options dict containing configuration parameters
 
 ### Processing
-1. Analyzer creates AudioFormatDescriptor(channels=1) for mono
-2. MediaFile.get_audio_stream(format_descriptor) → adapted mono stream
-3. Read adapted stream → raw audio bytes (already mono)
-4. Raw bytes → numpy float32 arrays
-5. Float arrays → aubio.tempo detector
-6. Beat timestamps → BPM calculation (median of intervals)
-7. Return raw float BPM value
+1. **Analyzer**: Creates AudioFormatDescriptor(channels=1) to request mono audio
+2. **Audio Format Adaptation System**: MediaFile.get_audio_stream(format_descriptor) returns adapted mono stream (ChannelMixingAdapter if source is stereo)
+3. **Analyzer**: Reads adapted stream → raw audio bytes (already mono, no manual conversion needed)
+4. **Analyzer**: Converts raw bytes → numpy float32 arrays for aubio
+5. **Analyzer**: Feeds float arrays → aubio.tempo detector
+6. **Analyzer**: Collects beat timestamps → calculates BPM (median of intervals)
+7. **Analyzer**: Returns raw float BPM value (e.g., 173.94)
 
 ### Output
 - AnalyzerResult with:
-  - `success=True` and `data={'bpm': 173.94}` on success (raw float)
+  - `success=True` and `data={'bpm': 173.94}` on success (raw float, NOT formatted string)
   - `success=True, skipped=True` with reason if skipped
   - `success=False` with error message if failed
 
-### Integration
-- Raw BPM value passed to MediaFile.save() with generic tag `'bpm'`
-- Tag Transformations system applies BPMFormatter during save
-- BPMFormatter reads decimal_places preference and formats value
-- Final formatted string written to file by metadata provider
+### Integration with Tag Transformations
+- **Analyzer**: Returns raw BPM value (float) in AnalyzerResult
+- **MediaFile.save()**: Receives generic tag `'bpm'` with raw float value
+- **Tag Transformations System**: Applies BPMFormatter transformer during save
+- **BPMFormatter**: Reads decimal_places preference from QSettings
+- **BPMFormatter**: Formats float to string (e.g., 173.94 → "174" with 0 decimals)
+- **Metadata Provider**: Writes final formatted string to file
 
 ## Implementation Notes
 
 ### aubio Python API Usage
 
-**Import**:
-```
-import aubio
-import numpy as np
-from providers.audio.format_descriptor import AudioFormatDescriptor
-```
+**Required Imports**:
+- aubio library for tempo detection
+- numpy for array processing
+- AudioFormatDescriptor from providers.audio.format_descriptor
 
 **Request Mono Audio Stream**:
-```
-# Request mono audio (format adapter handles stereo→mono conversion)
-format_desc = AudioFormatDescriptor(channels=1)
-audio_stream = self.media_file.get_audio_stream(format_desc)
-```
+
+1. Create AudioFormatDescriptor with channels=1
+2. Call MediaFile.get_audio_stream(format_descriptor)
+3. Audio Format Adaptation system handles stereo→mono conversion automatically
+4. Analyzer receives mono stream regardless of source file's channel count
 
 **Tempo Object Creation**:
-```
-tempo = aubio.tempo(method, win_s, hop_s, samplerate)
-```
 
-**Processing Loop Pattern** (simplified - no manual channel mixing):
-```
-while True:
-    audio_bytes = audio_stream.read(hop_size)
-    if not audio_bytes:
-        break
+Create aubio.tempo object with parameters: method, window_size, hop_size, sample_rate
 
-    # Convert bytes to float32 numpy array
-    # Audio is already mono from format adapter
-    samples = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
+**Processing Loop Pattern**:
 
-    # Normalize to [-1.0, 1.0] range
-    samples = samples / 32768.0
+Audio Format Adaptation system guarantees mono audio - analyzer does NOT perform manual channel mixing.
 
-    # Create aubio fvec and process
-    fvec = aubio.fvec(len(samples))
-    fvec[:] = samples
+Loop until end of stream:
+1. Read hop_size audio bytes from stream
+2. Convert bytes to float32 numpy array (audio is ALREADY mono from adapter)
+3. Normalize samples to [-1.0, 1.0] range (divide by 32768.0 for 16-bit audio)
+4. Create aubio fvec and copy samples into it
+5. Pass fvec to tempo detector
+6. If beat detected, retrieve beat timestamp and store it
+7. Continue to next chunk
 
-    is_beat = tempo(fvec)
-    if is_beat:
-        beat_time = tempo.get_last_s()
-        beats.append(beat_time)
-```
+Do NOT average channels manually - Audio Format Adaptation system already did this.
 
-**BPM Calculation** (returns raw float):
-```
-if len(beats) > 1:
-    intervals = np.diff(beats)  # Time between beats
-    bpms = 60.0 / intervals     # Convert to beats per minute
-    final_bpm = float(np.median(bpms))
+**BPM Calculation** (returns raw float, NOT formatted string):
 
-    # Return raw float value - Tag Transformations system handles formatting
-    return AnalyzerResult(success=True, data={'bpm': final_bpm})
-else:
-    # Insufficient data
-    return AnalyzerResult(success=False, error="Insufficient beats detected")
-```
+1. Calculate time intervals between consecutive beats
+2. Convert each interval to BPM (60 seconds / interval)
+3. Take median of all BPM values to get final result
+4. Return raw float value (e.g., 173.94) in AnalyzerResult
+5. Do NOT format to string, do NOT round, do NOT apply decimal places preference
+6. Tag Transformations system (BPMFormatter) handles all formatting during MediaFile.save()
 
 ### Memory Considerations
 
 - Stream audio in chunks (don't load entire file)
 - Use hop_size parameter to control chunk size
-- Typical hop_size=512 samples = 512*2*2 bytes = 2KB per chunk for 16-bit stereo
+- Typical hop_size=512 samples = 512*2 bytes = 1KB per chunk for 16-bit mono (adapter provides mono)
 - Beat list grows with file length but is minimal (timestamps only)
 - Release audio stream as soon as processing completes
+
+**Note**: The Audio Format Adaptation system provides mono audio automatically, so memory calculations are based on single-channel data.
 
 ### Performance Expectations
 
