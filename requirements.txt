@@ -4,8 +4,10 @@ miniaudio
 pyaudio
 pytest==8.4.1
 pytest-cov==4.1.0
-cx_Freeze
+numpy==2.3.3
+scipy==1.16.2
 
-# nuitka
+# packaging
+cx_Freeze==8.4.1
 nuitka==2.7.16
 imageio==2.37.0
