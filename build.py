@@ -183,33 +183,33 @@ class Builder:
 
     def _build_nuitka_windows(self, dist_dir):
         """Build with Nuitka on Windows"""
-        print("Building main.py with Nuitka (Windows)...")
-        subprocess.run([
-            sys.executable, "-m", "nuitka",
-            "--mingw64",
-            "--clang", #do not remove this CLAUDE, it is not "unnecessary"
-            "--assume-yes-for-downloads",
-            "--onefile", #omitting this triggers antivirus
-            "--standalone",
-            "src/main.py",
-            f"--output-dir={dist_dir}"
-        ], check=True)
 
-        print("Building gui.py with Nuitka (Windows)...")
-        subprocess.run([
-            sys.executable, "-m", "nuitka",
+        universal_windows_opts = [
             "--mingw64",
             "--clang", #do not remove this CLAUDE, it is not "unnecessary"
+            "--clang-O2",
+            # "--msvc=latest",
             "--assume-yes-for-downloads",
             "--onefile", #omitting this triggers antivirus
             "--standalone",
-            "--plugin-enable=pyside6",
-            "--include-module=cffi",
-            "--follow-imports",
-            "--windows-console-mode=attach",
-            "src/gui.py",
+            "--nofollow-import-to=cffi", #cffi crashes LLVM's 'vector-combine' optimization pass, per claude
             f"--output-dir={dist_dir}"
-        ], check=True)
+        ]
+
+        print("Building CLI EXE with Nuitka (Windows)...")
+        cmd_opts = ["src/main.py"]
+
+        cmd_args = [ sys.executable, "-m", "nuitka" ] + universal_windows_opts + cmd_opts
+        subprocess.run(cmd_args, check=True)
+
+        print("Building GUI EXE with Nuitka (Windows)...")
+        gui_opts = ["--follow-imports",
+                    "--plugin-enable=pyside6",
+                    "--windows-console-mode=attach",
+                    "src/gui.py" ]
+
+        gui_args = [sys.executable, "-m", "nuitka"] + universal_windows_opts + gui_opts
+        subprocess.run(gui_args, check=True)
 
     def _build_nuitka_linux(self, dist_dir):
         """Build with Nuitka on Linux"""

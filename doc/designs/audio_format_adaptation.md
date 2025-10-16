@@ -72,50 +72,21 @@ Each adapter wraps an AudioStreamBase and presents the same interface:
 
 **Purpose**: Describes desired audio format parameters.
 
-**Class Definition**:
-```
-class AudioFormatDescriptor:
-    """
-    Describes the desired format for an audio stream.
+**Attributes**:
+- `sample_rate`: Desired sample rate in Hz (None = accept native)
+- `channels`: Desired number of channels (None = accept native)
+- `sample_width`: Desired sample width in bytes (None = accept native)
+- `sample_format`: 'int' or 'float' (None = accept native)
 
-    Attributes:
-        sample_rate: Desired sample rate in Hz (None = accept native)
-        channels: Desired number of channels (None = accept native)
-        sample_width: Desired sample width in bytes (None = accept native)
-        sample_format: 'int' or 'float' (None = accept native)
-    """
+**Behavior**:
+- Constructor accepts all four attributes as optional parameters
+- Provides a `matches()` method to compare two descriptors (accounting for None as wildcard)
+- Provides human-readable string representation
 
-    def __init__(self,
-                 sample_rate: Optional[int] = None,
-                 channels: Optional[int] = None,
-                 sample_width: Optional[int] = None,
-                 sample_format: Optional[str] = None):
-        """
-        Initialize format descriptor.
-
-        Args:
-            sample_rate: Target sample rate (Hz), None for native
-            channels: Target channel count (1=mono, 2=stereo), None for native
-            sample_width: Target sample width in bytes (2=16-bit, 4=32-bit), None for native
-            sample_format: 'int' or 'float', None for native
-
-        Examples:
-            # Mono at 22050 Hz, 16-bit int
-            AudioFormatDescriptor(sample_rate=22050, channels=1, sample_width=2, sample_format='int')
-
-            # Accept native format
-            AudioFormatDescriptor()
-
-            # Mono only, accept other native parameters
-            AudioFormatDescriptor(channels=1)
-        """
-
-    def matches(self, other: 'AudioFormatDescriptor') -> bool:
-        """Check if this format matches another (accounting for None = wildcard)."""
-
-    def __repr__(self) -> str:
-        """Human-readable representation."""
-```
+**Usage Examples**:
+- Mono at 22050 Hz, 16-bit int: specify all four parameters
+- Accept native format: specify no parameters (all None)
+- Mono only, accept other native parameters: specify only channels=1
 
 **Key Design Points**:
 - None values mean "accept native format"
@@ -126,64 +97,17 @@ class AudioFormatDescriptor:
 
 **Location**: `src/providers/audio/adapters/base.py`
 
-**Purpose**: Base class for all stream adapters.
+**Purpose**: Base class for all stream adapters. Implements the decorator pattern to wrap an existing AudioStreamBase and transform its output.
 
-**Interface**:
-```
-class AdapterBase(AudioStreamBase):
-    """
-    Abstract base class for audio stream adapters.
-
-    Adapters wrap an existing AudioStreamBase and transform its output
-    according to specific rules (resampling, channel mixing, etc).
-    """
-
-    def __init__(self, source_stream: AudioStreamBase):
-        """
-        Initialize adapter with source stream.
-
-        Args:
-            source_stream: The stream to adapt
-        """
-        self._source = source_stream
-        self._is_closed = False
-
-    @abstractmethod
-    def read(self, n_frames: int) -> bytes:
-        """Read adapted audio frames."""
-
-    def seek(self, frame_offset: int) -> None:
-        """Seek to frame in adapted stream (may not be supported by all adapters)."""
-        raise NotImplementedError("Seeking not supported by this adapter")
-
-    def close(self) -> None:
-        """Close adapter and source stream."""
-        if not self._is_closed:
-            self._source.close()
-            self._is_closed = True
-
-    @property
-    def samplerate(self) -> int:
-        """Return adapted sample rate."""
-
-    @property
-    def nchannels(self) -> int:
-        """Return adapted channel count."""
-
-    @property
-    def sample_width(self) -> int:
-        """Return adapted sample width."""
-
-    @property
-    def duration_seconds(self) -> float:
-        """Return duration (may be estimate for adapted streams)."""
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-```
+**Behavior**:
+- Inherits from AudioStreamBase to maintain interface compatibility
+- Constructor accepts a source AudioStreamBase to wrap
+- Maintains internal state tracking whether the adapter is closed
+- Abstract `read()` method must be implemented by subclasses
+- `seek()` method may raise NotImplementedError if seeking not supported by adapter
+- `close()` method closes both the adapter and the wrapped source stream
+- Properties (`samplerate`, `nchannels`, `sample_width`, `duration_seconds`) return adapted format characteristics
+- Supports context manager protocol (with statement)
 
 **Key Design Points**:
 - Wraps another AudioStreamBase (source)
@@ -197,65 +121,37 @@ class AdapterBase(AudioStreamBase):
 
 **Purpose**: Convert sample rate using scipy.signal.resample_poly.
 
-**Implementation Notes**:
+**Implementation Strategy**:
 - Use scipy.signal.resample_poly for efficiency with rational ratios
-- Configure Kaiser window with beta=5.0 for good quality
+- Configure Kaiser window with beta=5.0 for good quality (beta=8.0 for critical quality)
 - Maintain small internal buffer for filter edge effects
 - Handle both upsampling and downsampling
 
-**Key Methods**:
-```
-class ResamplingAdapter(AdapterBase):
-    """
-    Adapter that resamples audio to a different sample rate.
+**Constructor**:
+- Accepts source stream and target sample rate
+- Calculates up/down factors for resample_poly
+- Initializes internal buffer for edge effects
 
-    Uses scipy.signal.resample_poly with Kaiser windowing for high quality.
-    """
+**Read Behavior**:
+1. Calculate how many source frames needed for requested output frames
+2. Read from source (may combine buffered data + new data)
+3. Apply resample_poly to audio data
+4. Convert processed audio back to bytes
+5. Update internal buffer with remaining samples
 
-    def __init__(self, source_stream: AudioStreamBase, target_samplerate: int):
-        """
-        Initialize resampling adapter.
+**Seek Behavior**:
+1. Calculate corresponding source frame position
+2. Seek source stream to that frame
+3. Clear internal buffer
+4. Note: May have slight inaccuracy (±1-2 frames) due to filter edge effects
 
-        Args:
-            source_stream: Source audio stream
-            target_samplerate: Desired output sample rate
-        """
-        # Calculate up/down factors for resample_poly
-        # Maintain internal buffer for edge effects
-        # Initialize scipy resampler
+**Properties**:
+- `samplerate` returns the target sample rate
 
-    def read(self, n_frames: int) -> bytes:
-        """
-        Read resampled frames.
-
-        Strategy:
-        1. Calculate how many source frames needed for n_frames output
-        2. Read from source (may need buffer + new data)
-        3. Apply resample_poly
-        4. Convert back to bytes
-        5. Update buffer with remaining samples
-        """
-
-    def seek(self, frame_offset: int) -> None:
-        """
-        Seek in resampled stream.
-
-        Strategy:
-        1. Calculate corresponding source frame
-        2. Seek source to that frame
-        3. Clear internal buffer
-        4. May have slight inaccuracy due to filter edge effects
-        """
-
-    @property
-    def samplerate(self) -> int:
-        return self._target_samplerate
-```
-
-**Resampling Quality Parameters**:
+**Quality Parameters**:
 - Window: Kaiser (scipy default), beta=5.0 minimum
 - For critical quality: beta=8.0 or higher
-- Future: Make beta configurable via preferences
+- Future enhancement: Make beta configurable via preferences
 
 ### 4. ChannelMixingAdapter
 
@@ -263,47 +159,22 @@ class ResamplingAdapter(AdapterBase):
 
 **Purpose**: Convert between mono and stereo.
 
-**Implementation Notes**:
-- Stereo→Mono: Average channels with 1/√2 coefficient (preserves RMS power)
-- Mono→Stereo: Duplicate mono to both channels
-- Process per-chunk in read() method
+**Constructor**:
+- Accepts source stream and target channel count (1 or 2)
 
-**Key Methods**:
-```
-class ChannelMixingAdapter(AdapterBase):
-    """
-    Adapter that mixes channels (mono/stereo conversion).
-    """
+**Read Behavior**:
+1. Read requested frames from source stream
+2. Convert bytes to numpy array
+3. Apply channel conversion:
+   - If stereo→mono: average channels with 1/√2 scaling to preserve RMS power
+   - If mono→stereo: duplicate mono channel to both left and right
+4. Convert processed audio back to bytes
 
-    def __init__(self, source_stream: AudioStreamBase, target_channels: int):
-        """
-        Initialize channel mixing adapter.
+**Seek Behavior**:
+- Pass-through to source stream (channel mixing doesn't affect frame positions)
 
-        Args:
-            source_stream: Source audio stream
-            target_channels: Desired channel count (1 or 2)
-        """
-
-    def read(self, n_frames: int) -> bytes:
-        """
-        Read channel-mixed frames.
-
-        Strategy:
-        1. Read n_frames from source
-        2. Convert bytes to numpy array
-        3. If stereo→mono: average channels with 1/√2 scaling
-        4. If mono→stereo: duplicate to both channels
-        5. Convert back to bytes
-        """
-
-    def seek(self, frame_offset: int) -> None:
-        """Seek source stream (channel mixing doesn't affect frame positions)."""
-        self._source.seek(frame_offset)
-
-    @property
-    def nchannels(self) -> int:
-        return self._target_channels
-```
+**Properties**:
+- `nchannels` returns the target channel count
 
 **Channel Mixing Algorithms**:
 - Stereo→Mono: `mono = (left + right) / sqrt(2)`
@@ -316,117 +187,75 @@ class ChannelMixingAdapter(AdapterBase):
 
 **Purpose**: Convert between different bit depths (16-bit, 24-bit, 32-bit, float).
 
-**Implementation Notes**:
-- Handle int→int, int→float, float→int conversions
-- Clip values to prevent overflow
-- No dithering in Phase 1
+**Constructor**:
+- Accepts source stream, target sample width in bytes, and target sample format ('int' or 'float')
 
-**Key Methods**:
-```
-class BitDepthAdapter(AdapterBase):
-    """
-    Adapter that converts bit depth and sample format.
-    """
+**Read Behavior**:
+1. Read requested frames from source stream
+2. Convert bytes to appropriate numpy dtype
+3. Apply bit depth conversion based on source and target formats:
+   - int→int: scale by ratio of maximum values
+   - int→float: divide by 2^(bits-1), normalizing to [-1.0, 1.0]
+   - float→int: multiply by 2^(bits-1)-1, clip to valid range, convert to integer
+4. Convert processed audio back to bytes
 
-    def __init__(self, source_stream: AudioStreamBase,
-                 target_sample_width: int,
-                 target_sample_format: str):
-        """
-        Initialize bit depth adapter.
+**Seek Behavior**:
+- Pass-through to source stream (bit depth doesn't affect frame positions)
 
-        Args:
-            source_stream: Source audio stream
-            target_sample_width: Target sample width in bytes
-            target_sample_format: 'int' or 'float'
-        """
-
-    def read(self, n_frames: int) -> bytes:
-        """
-        Read bit-depth-converted frames.
-
-        Strategy:
-        1. Read n_frames from source
-        2. Convert bytes to appropriate numpy dtype
-        3. Apply bit depth conversion:
-           - int→int: scale by ratio of max values
-           - int→float: divide by 2^(bits-1), normalize to [-1.0, 1.0]
-           - float→int: multiply by 2^(bits-1)-1, clip, convert
-        4. Convert back to bytes
-        """
-
-    def seek(self, frame_offset: int) -> None:
-        """Seek source stream (bit depth doesn't affect frame positions)."""
-        self._source.seek(frame_offset)
-
-    @property
-    def sample_width(self) -> int:
-        return self._target_sample_width
-```
+**Properties**:
+- `sample_width` returns the target sample width
 
 **Conversion Formulas**:
 - Int16→Float32: `float_val = int_val / 32768.0`
 - Float32→Int16: `int_val = clip(float_val * 32767.0, -32768, 32767)`
-- Int24→Int16: `int16_val = int24_val >> 8`
-- Int16→Int24: `int24_val = int16_val << 8`
+- Int24→Int16: `int16_val = int24_val >> 8` (right shift 8 bits)
+- Int16→Int24: `int24_val = int16_val << 8` (left shift 8 bits)
+
+**Implementation Notes**:
+- Handle int→int, int→float, float→int conversions
+- Clip values to prevent overflow
+- No dithering in Phase 1 (future enhancement)
 
 ### 6. AudioStreamFactory Enhancement
 
 **Location**: `src/providers/audio/factory.py`
 
 **Modified get_stream() Method**:
+
+**Signature**:
+- Accepts filepath and optional format_descriptor
+- Returns AudioStreamBase
+
+**Strategy**:
+1. Create base stream (MiniaudioStream) from filepath
+2. If format_descriptor is None, return base stream (native format)
+3. Compare native format to requested format
+4. Build adapter chain as needed:
+   - Wrap with ResamplingAdapter if sample rates differ
+   - Wrap with ChannelMixingAdapter if channel counts differ
+   - Wrap with BitDepthAdapter if sample widths differ
+5. Return adapted stream (or base stream if no adaptation needed)
+
+**Pseudocode**:
 ```
-class AudioStreamFactory:
-    @staticmethod
-    def get_stream(filepath: str,
-                   format_descriptor: Optional[AudioFormatDescriptor] = None) -> AudioStreamBase:
-        """
-        Create audio stream with optional format adaptation.
+function get_stream(filepath, format_descriptor):
+    base_stream = create MiniaudioStream from filepath
 
-        Args:
-            filepath: Path to audio file
-            format_descriptor: Desired format (None = native)
+    if format_descriptor is None:
+        return base_stream
 
-        Returns:
-            AudioStreamBase that provides audio in requested format
+    stream = base_stream
 
-        Strategy:
-        1. Create base stream (MiniaudioStream)
-        2. If format_descriptor is None, return base stream
-        3. Compare native format to requested format
-        4. Build adapter chain as needed:
-           - Resample if sample rates differ
-           - Mix channels if channel counts differ
-           - Convert bit depth if sample widths differ
-        5. Return adapted stream (or base if no adaptation needed)
-        """
-        # Create base stream
-        base_stream = MiniaudioStream(filepath)
+    if format_descriptor.sample_rate differs from base_stream.samplerate:
+        stream = wrap stream with ResamplingAdapter
 
-        # If no format requested, return native
-        if format_descriptor is None:
-            return base_stream
+    if format_descriptor.channels differs from base_stream.nchannels:
+        stream = wrap stream with ChannelMixingAdapter
 
-        # Build adapter chain
-        stream = base_stream
+    if format_descriptor.sample_width differs from base_stream.sample_width:
+        stream = wrap stream with BitDepthAdapter
 
-        # Check if resampling needed
-        if (format_descriptor.sample_rate is not None and
-            format_descriptor.sample_rate != base_stream.samplerate):
-            stream = ResamplingAdapter(stream, format_descriptor.sample_rate)
-
-        # Check if channel mixing needed
-        if (format_descriptor.channels is not None and
-            format_descriptor.channels != base_stream.nchannels):
-            stream = ChannelMixingAdapter(stream, format_descriptor.channels)
-
-        # Check if bit depth conversion needed
-        if (format_descriptor.sample_width is not None and
-            format_descriptor.sample_width != base_stream.sample_width):
-            stream = BitDepthAdapter(stream,
-                                    format_descriptor.sample_width,
-                                    format_descriptor.sample_format or 'int')
-
-        return stream
+    return stream
 ```
 
 **Key Design Points**:
@@ -439,33 +268,20 @@ class AudioStreamFactory:
 **Location**: `src/models/media_file.py`
 
 **Modified get_audio_stream() Method**:
-```
-def get_audio_stream(self,
-                    format_descriptor: Optional[AudioFormatDescriptor] = None) -> AudioStreamBase:
-    """
-    Get an audio stream for reading audio data from this file.
 
-    Args:
-        format_descriptor: Desired audio format (None = native format)
+**Signature**:
+- Accepts optional format_descriptor parameter
+- Returns AudioStreamBase instance
 
-    Returns:
-        AudioStreamBase instance providing audio in requested format
+**Behavior**:
+- Delegates to AudioStreamFactory.get_stream() with file path and format_descriptor
+- If format_descriptor is None, returns native format stream (backward compatible)
+- If format_descriptor is provided, returns adapted stream matching requested format
+- Raises exception if audio stream cannot be created
 
-    Raises:
-        Exception if audio stream cannot be created
-
-    Examples:
-        # Get native format stream
-        stream = media_file.get_audio_stream()
-
-        # Get mono stream at 22050 Hz
-        from providers.audio.format_descriptor import AudioFormatDescriptor
-        fmt = AudioFormatDescriptor(sample_rate=22050, channels=1)
-        stream = media_file.get_audio_stream(fmt)
-    """
-    from providers.audio.factory import AudioStreamFactory
-    return AudioStreamFactory.get_stream(self._file_path, format_descriptor)
-```
+**Usage Examples**:
+- Get native format stream: call with no arguments
+- Get mono stream at 22050 Hz: call with AudioFormatDescriptor(sample_rate=22050, channels=1)
 
 **Key Design Points**:
 - Backward compatible: existing code works without changes
@@ -494,6 +310,13 @@ src/
 
 ### Example 1: Analyzer Requesting Mono
 
+An analyzer (e.g., aubio BPM analyzer) that requires mono audio:
+1. Create AudioFormatDescriptor with channels=1, leaving other parameters as None
+2. Request audio stream from MediaFile with this descriptor
+3. Receive stream guaranteed to be mono (adapted if source is stereo)
+4. Process audio in chunks by repeatedly calling read()
+5. Stream automatically handles conversion from stereo to mono if needed
+
 ```
 # In aubio_bpm.py
 from providers.audio.format_descriptor import AudioFormatDescriptor
@@ -514,6 +337,13 @@ def analyze(self) -> AnalyzerResult:
 
 ### Example 2: Playback System with Hardware Limits
 
+A playback system with hardware constraints (e.g., max 48kHz, 16-bit, stereo):
+1. Create AudioFormatDescriptor specifying all hardware limits: sample_rate=48000, channels=2, sample_width=2, sample_format='int'
+2. Request audio stream from MediaFile with this descriptor
+3. Receive stream adapted to match hardware capabilities
+4. Feed audio data directly to hardware output device
+5. Stream automatically handles any necessary resampling, channel mixing, and bit depth conversion
+
 ```
 # In playback system
 from providers.audio.format_descriptor import AudioFormatDescriptor
@@ -532,6 +362,12 @@ stream = media_file.get_audio_stream(hw_format)
 ```
 
 ### Example 3: Native Format (No Adaptation)
+
+A waveform display that accepts any format:
+1. Request audio stream from MediaFile with no format_descriptor parameter
+2. Receive stream in native format with no overhead
+3. Use stream's properties to determine actual format
+4. Render waveform according to native format characteristics
 
 ```
 # Waveform display accepts any format
@@ -594,15 +430,11 @@ stream = media_file.get_audio_stream()  # No format_descriptor
 
 **Strategy**: Close all streams in chain, propagate exception
 
-**Example**:
-```
-try:
-    stream = ResamplingAdapter(base_stream, 22050)
-    stream = ChannelMixingAdapter(stream, 1)
-except Exception as e:
-    # All streams closed via __exit__ if using context manager
-    raise AudioAdaptationError(f"Failed to create adapted stream: {e}")
-```
+When building an adapter chain, if any adapter construction fails:
+- Close all previously created streams in the chain
+- If using context manager (with statement), __exit__ handles cleanup automatically
+- Raise AudioAdaptationError describing the failure
+- Ensures no resource leaks even when adapter chain creation fails
 
 ## Testing Requirements
 
@@ -698,21 +530,19 @@ except Exception as e:
 1. Enhance AudioStreamFactory to build adapter chains
 2. Update MediaFile.get_audio_stream()
 3. Add integration tests
-4. Performance testing and optimization
 
 ### Phase 4: Consumer Updates
 
-1. Update aubio BPM analyzer to use format adaptation
-2. Remove manual conversion code from analyzer
-3. Update other analyzers as needed
-4. Update playback system (if exists)
+1. Remove manual conversion code from analyzers
+2. Update audio playback system
+3. Add Debug menu to MainWindow with option to set audio playback sample rate, bit depth, and channels
+4. Add unit tests for updated code
 
 ### Phase 5: Documentation & Polish
 
 1. Document AudioFormatDescriptor API
 2. Add examples to docstrings
-3. Update analyzer documentation
-4. Performance tuning based on profiling
+4. Performance optimization and tuning based on profiling
 
 ## Future Enhancements
 
@@ -734,7 +564,6 @@ except Exception as e:
 
 1. **Vectorized Operations**: Optimize NumPy operations
 2. **Chunk Size Tuning**: Optimize buffer sizes for cache efficiency
-3. **Multi-threading**: Parallel adaptation for multi-file batches
 
 ## References
 

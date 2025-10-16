@@ -1,7 +1,10 @@
 import pyaudio
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
+from typing import Optional
 
 from models.media_file import MediaFile
+from models.settings import settings
+from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.logging import log
 
 # Playback states
@@ -36,6 +39,45 @@ class PlaybackWorker(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._playback_loop)
 
+    def _get_format_descriptor(self) -> Optional[AudioFormatDescriptor]:
+        """
+        Get the format descriptor from settings for audio playback adaptation.
+
+        Returns:
+            AudioFormatDescriptor if format adaptation is enabled, None otherwise
+        """
+        # Check if format adaptation is enabled in settings
+        enabled = settings.value("Debug/PlaybackFormatAdaptationEnabled", False, type=bool)
+        if not enabled:
+            return None
+
+        # Read format settings from QSettings
+        sample_rate = settings.value("Debug/PlaybackSampleRate", None, type=int)
+        channels = settings.value("Debug/PlaybackChannels", None, type=int)
+        sample_width = settings.value("Debug/PlaybackSampleWidth", None, type=int)
+        sample_format = settings.value("Debug/PlaybackSampleFormat", None, type=str)
+
+        # Convert empty strings or 0 to None
+        if sample_rate == 0:
+            sample_rate = None
+        if channels == 0:
+            channels = None
+        if sample_width == 0:
+            sample_width = None
+        if not sample_format:
+            sample_format = None
+
+        # If all parameters are None, return None (native format)
+        if all(v is None for v in [sample_rate, channels, sample_width, sample_format]):
+            return None
+
+        return AudioFormatDescriptor(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+            sample_format=sample_format
+        )
+
     @Slot(object)
     def start_playback(self, media_file: MediaFile):
         """
@@ -51,27 +93,33 @@ class PlaybackWorker(QObject):
             self.current_file = media_file.file_path
             log.info(f"Starting playback of {media_file.file_path}")
 
-            self.audio_stream = media_file.get_audio_stream()
+            # Get format descriptor from settings
+            format_descriptor = self._get_format_descriptor()
+            if format_descriptor:
+                log.info(f"Using format adaptation for playback: {format_descriptor}")
+
+            # Get audio stream with optional format adaptation
+            self.audio_stream = media_file.get_audio_stream(format_descriptor)
             self.pyaudio = pyaudio.PyAudio()
-            
+
             self.output_stream = self.pyaudio.open(
                 format=self.pyaudio.get_format_from_width(self.audio_stream.sample_width),
                 channels=self.audio_stream.nchannels,
                 rate=self.audio_stream.samplerate,
                 output=True
             )
-            
+
             self.duration = self.audio_stream.duration_seconds
             self.total_frames_read = 0
 
             # Dynamically set timer interval
             chunk_duration_ms = (self.chunk_size / self.audio_stream.samplerate) * 1000
             self.timer.setInterval(chunk_duration_ms / 2)  # Update at twice the speed of chunk playback
-            
+
             self.state = PLAYING
             self.playback_started.emit(self.current_file, self.duration)
             self.timer.start()
-            
+
         except Exception as e:
             log.error(f"Error starting playback: {str(e)}")
             self.error_occurred.emit(f"Error starting playback: {str(e)}")
