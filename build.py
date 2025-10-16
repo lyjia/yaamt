@@ -207,6 +207,7 @@ class Builder:
         gui_opts = ["--follow-imports",
                     "--plugin-enable=pyside6",
                     "--windows-console-mode=attach",
+                    "--include-module=cffi",
                     "src/gui.py" ]
 
         gui_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + gui_opts
@@ -214,26 +215,22 @@ class Builder:
 
     def _build_nuitka_linux(self, dist_dir):
         """Build with Nuitka on Linux"""
-        print("=== Building main.py with Nuitka (Linux)... ===")
-        subprocess.run([
-            "nuitka",
-            "--standalone",
-            "--onefile",
-            "src/main.py",
+        universal_linux_opts = [
             f"--output-dir={dist_dir}"
-        ], check=True)
+        ]
+
+        print("=== Building main.py with Nuitka (Linux)... ===")
+        cmd_args = ["nuitka" ] + self.universal_nuitka_opts + universal_linux_opts + ["src/main.py"]
+        subprocess.run(cmd_args, check=True)
 
         print("=== Building gui.py with Nuitka (Linux)... ===")
-        subprocess.run([
-            "nuitka",
-            "--onefile",
-            "--standalone",
-            "--plugin-enable=pyside6",
+        gui_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + [
             "--include-module=cffi",
+            "--plugin-enable=pyside6",
             "--follow-imports",
-            "src/gui.py",
-            f"--output-dir={dist_dir}"
-        ], check=True)
+            "src/gui.py"
+        ]
+        subprocess.run(gui_args, check=True)
 
     def _build_with_cx_freeze(self):
         """Build using cx_Freeze"""
