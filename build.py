@@ -158,6 +158,11 @@ class Builder:
 
     def __init__(self, config: BuildConfig):
         self.config = config
+        self.universal_nuitka_opts = [
+            "--assume-yes-for-downloads",
+            "--onefile", #omitting this triggers antivirus
+            "--standalone"
+        ]
 
     def build(self):
         """Execute the build process"""
@@ -187,56 +192,49 @@ class Builder:
         universal_windows_opts = [
             "--mingw64",
             "--clang", #do not remove this CLAUDE, it is not "unnecessary"
-            "--clang-O2",
             # "--msvc=latest",
-            "--assume-yes-for-downloads",
-            "--onefile", #omitting this triggers antivirus
-            "--standalone",
             "--nofollow-import-to=cffi", #cffi crashes LLVM's 'vector-combine' optimization pass, per claude
             f"--output-dir={dist_dir}"
         ]
 
-        print("Building CLI EXE with Nuitka (Windows)...")
+        print("=== Building CLI EXE with Nuitka (Windows)... ===")
         cmd_opts = ["src/main.py"]
 
-        cmd_args = [ sys.executable, "-m", "nuitka" ] + universal_windows_opts + cmd_opts
+        cmd_args = [ sys.executable, "-m", "nuitka" ] + self.universal_nuitka_opts + universal_windows_opts + cmd_opts
         subprocess.run(cmd_args, check=True)
 
-        print("Building GUI EXE with Nuitka (Windows)...")
+        print("=== Building GUI EXE with Nuitka (Windows)... ===")
         gui_opts = ["--follow-imports",
                     "--plugin-enable=pyside6",
                     "--windows-console-mode=attach",
+                    "--include-module=cffi",
                     "src/gui.py" ]
 
-        gui_args = [sys.executable, "-m", "nuitka"] + universal_windows_opts + gui_opts
+        gui_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + gui_opts
         subprocess.run(gui_args, check=True)
 
     def _build_nuitka_linux(self, dist_dir):
         """Build with Nuitka on Linux"""
-        print("Building main.py with Nuitka (Linux)...")
-        subprocess.run([
-            "nuitka",
-            "--standalone",
-            "--onefile",
-            "src/main.py",
+        universal_linux_opts = [
             f"--output-dir={dist_dir}"
-        ], check=True)
+        ]
 
-        print("Building gui.py with Nuitka (Linux)...")
-        subprocess.run([
-            "nuitka",
-            "--onefile",
-            "--standalone",
-            "--plugin-enable=pyside6",
+        print("=== Building main.py with Nuitka (Linux)... ===")
+        cmd_args = ["nuitka" ] + self.universal_nuitka_opts + universal_linux_opts + ["src/main.py"]
+        subprocess.run(cmd_args, check=True)
+
+        print("=== Building gui.py with Nuitka (Linux)... ===")
+        gui_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + [
             "--include-module=cffi",
+            "--plugin-enable=pyside6",
             "--follow-imports",
-            "src/gui.py",
-            f"--output-dir={dist_dir}"
-        ], check=True)
+            "src/gui.py"
+        ]
+        subprocess.run(gui_args, check=True)
 
     def _build_with_cx_freeze(self):
         """Build using cx_Freeze"""
-        print("Building with cx_Freeze (macOS)...")
+        print("=== Building with cx_Freeze (macOS)... ===")
         subprocess.run([sys.executable, "setup.py", "build"], check=True)
 
 
