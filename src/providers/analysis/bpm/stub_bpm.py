@@ -82,19 +82,19 @@ class StubBPMAnalyzer(AnalyzerBase):
             QWidget with decimal places spin box
         """
         widget = QWidget()
-        layout = QFormLayout()
-
-        # Create spin box for decimal places
-        decimal_spin = QSpinBox()
-        decimal_spin.setMinimum(0)
-        decimal_spin.setMaximum(2)
-        decimal_spin.setValue(0)
-        decimal_spin.setObjectName("decimal_places")  # Important: used to retrieve value
-        decimal_spin.setToolTip("Number of decimal places to use for BPM value (0-2)")
-
-        layout.addRow("Decimal Places:", decimal_spin)
-
-        widget.setLayout(layout)
+        # layout = QFormLayout()
+        #
+        # # Create spin box for decimal places
+        # decimal_spin = QSpinBox()
+        # decimal_spin.setMinimum(0)
+        # decimal_spin.setMaximum(2)
+        # decimal_spin.setValue(0)
+        # decimal_spin.setObjectName("decimal_places")  # Important: used to retrieve value
+        # decimal_spin.setToolTip("Number of decimal places to use for BPM value (0-2)")
+        #
+        # layout.addRow("Decimal Places:", decimal_spin)
+        #
+        # widget.setLayout(layout)
         return widget
 
 register_analyzer(AnalyzerCategory.BPM, StubBPMAnalyzer)
