@@ -154,6 +154,7 @@ class AubioBPMAnalyzer(AnalyzerBase):
             log.debug(f"  Detected {len(beats)} beats in {samples_read / samplerate:.2f}s")
 
             # Calculate BPM from beat intervals
+            # This matches the aubio command-line tool's calculation method
             if len(beats) < 2:
                 return AnalyzerResult(
                     success=False,
@@ -163,18 +164,22 @@ class AubioBPMAnalyzer(AnalyzerBase):
             # Calculate intervals between consecutive beats
             intervals = np.diff(beats)
 
-            # Filter out unrealistic intervals (< 0.2s = >300 BPM, > 2s = <30 BPM)
-            valid_intervals = intervals[(intervals > 0.2) & (intervals < 2.0)]
+            # Filter out zero or very small intervals (avoid division by zero)
+            # Minimum interval of 0.1s = maximum 600 BPM (unrealistic for most music)
+            valid_intervals = intervals[intervals > 0.1]
 
-            if len(valid_intervals) < 2:
+            if len(valid_intervals) == 0:
                 return AnalyzerResult(
                     success=False,
-                    error="Could not determine consistent tempo - beat intervals too irregular"
+                    error="Could not determine tempo - beat intervals too irregular"
                 )
 
-            # Calculate BPM from median interval (60 seconds / interval)
-            median_interval = np.median(valid_intervals)
-            bpm = 60.0 / median_interval
+            # Calculate BPM for each interval, then take the mean
+            # This matches aubio's reference implementation in cmd.py:
+            #   bpms = 60. / np.diff(self.beat_locations)
+            #   median_bpm = np.mean(bpms)
+            bpms = 60.0 / valid_intervals
+            bpm = np.mean(bpms)
 
             log.info(f"Aubio analyzer detected BPM: {bpm:.2f} for {self.media_file.file_path}")
 
