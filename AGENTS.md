@@ -19,6 +19,16 @@ This project implements an audio file metadata manager, through a few primary co
 * A command-line Python entrypoint that uses MediaFile to interact with, analyze, and edit metadata on media files requested by the user. It should support operating on both a single file or a directory of files. (Entrypoint is `src/main.py`)
 * A GUI that implements a file+directory browser. This component also uses MediaFile to both display metadata to the user (as configurable columns in the file browser), and to interact with, analyze, and edit metadata on behalf of the user. (Entrypoint is `src/gui.py`)
 
+## Paths to Ignore
+
+The following directories contain reference materials and should NOT be modified, searched, or analyzed during normal tasks:
+
+* `path/to/submodule1/` - RapidEvolution2 reference
+* `path/to/submodule2/` - RapidEvolution3 reference
+* Any other submodules in the root directory
+
+These paths should ONLY be accessed when explicitly requested by the user with a direct reference (e.g., "@path/to/submodule1/file.py").
+
 ## AI-specific Instructions
 
 * In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
