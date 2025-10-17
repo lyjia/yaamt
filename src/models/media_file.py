@@ -281,6 +281,18 @@ class MediaFile:
     def file_id(self):
         return self._file_id
 
+    @property
+    def length_in_seconds(self) -> float:
+        """
+        Get the audio file duration in seconds.
+
+        Returns:
+            Duration in seconds as a float, or 0.0 if unavailable
+        """
+        from util.const import KEY_LENGTH
+        length = self.get_stream_info_value(KEY_LENGTH)
+        return float(length) if length is not None else 0.0
+
     def get_internal_tag_name_for_generic(self, generic_tag_name):
         return self._generic_to_internal_map.get(generic_tag_name)
 

@@ -64,7 +64,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 * Logging should be done using `log`, which is provided by @src/util/logging.py. 
 * PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
-* Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred.
+* Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred. This is a python 3.12+ project, so avoid pulling in `typing` unless absolutely necessary.
 * Libraries brought in must be able to be compiled into a standalone executable using `nuitka`.
 
 ## YAAMT Design Conventions
@@ -133,7 +133,8 @@ A unit test suite (using pytest) can be found in `tests` in the project root.
 
 * DO NOT WRITE TO THE TEST FIXTURES in `tests/fixtures`. Instead, copy the original file to a temporary location and perform your tests on that. THIS IS VERY IMPORTANT!
 * Be extremely cautious about making edits to the program itself when fixing test failures. There is a lot of functionality in the GUI that is not easily tested, and you may break something outside the scope of your visibility.
-* Tests requiring a QApplication object cannot be run in a Github runner and must be skipped in that case. To do so, `from util.const import IN_GITHUB_RUNNER` in your tests' header and add the `@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")` decorator to your test. These tests still need to pass locally.
+* Tests requiring a QApplication object cannot be run in a Github runner and must be skipped in that case. To do so, use `from util.const import IN_GITHUB_RUNNER` in your tests' header and add the `@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")` decorator to your test. These tests still need to pass locally.
+* Tests should be written against real data whenever possible. There are a number of audio files in the @tests/fixtures/ directory that can be used for this purpose. Mocking should be used sparingly.
 
 #### Notes
 

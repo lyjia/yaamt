@@ -57,12 +57,25 @@ class EllipticalFilter:
         Returns:
             Filtered output value
         """
+        # Clamp input to prevent runaway values
+        val = np.clip(val, -10.0, 10.0)
+
         # Shift past inputs
         self.past_b[1:] = self.past_b[:-1]
         self.past_b[0] = val
 
         # Calculate output using Direct Form II
         newval = np.dot(self.b, self.past_b) - np.dot(self.a[1:], self.past_a[1:])
+
+        # Protect against NaN/Inf
+        if not np.isfinite(newval):
+            newval = 0.0
+            # Reset filter state if we hit NaN/Inf
+            self.past_b[:] = 0.0
+            self.past_a[:] = 0.0
+
+        # Clamp output to prevent accumulation
+        newval = np.clip(newval, -100.0, 100.0)
 
         # Shift past outputs
         self.past_a[1:] = self.past_a[:-1]
@@ -292,12 +305,13 @@ class SubBandSeparator:
                     highpass_val = self.highpass_filter.process(val)
 
                     # Accumulate energy (rectify and square)
-                    new_lowpass += max(0, lowpass_val) ** 2
-                    new_band1pass += max(0, band1_val) ** 2
-                    new_band2pass += max(0, band2_val) ** 2
-                    new_band3pass += max(0, band3_val) ** 2
-                    new_band4pass += max(0, band4_val) ** 2
-                    new_highpass += max(0, highpass_val) ** 2
+                    # Clamp values before squaring to prevent overflow
+                    new_lowpass += min(max(0, lowpass_val), 10.0) ** 2
+                    new_band1pass += min(max(0, band1_val), 10.0) ** 2
+                    new_band2pass += min(max(0, band2_val), 10.0) ** 2
+                    new_band3pass += min(max(0, band3_val), 10.0) ** 2
+                    new_band4pass += min(max(0, band4_val), 10.0) ** 2
+                    new_highpass += min(max(0, highpass_val), 10.0) ** 2
 
                 this_decimation_size -= len(self.extra)
                 self.extra = None
@@ -316,12 +330,13 @@ class SubBandSeparator:
                 highpass_val = self.highpass_filter.process(val)
 
                 # Accumulate energy (rectify and square)
-                new_lowpass += max(0, lowpass_val) ** 2
-                new_band1pass += max(0, band1_val) ** 2
-                new_band2pass += max(0, band2_val) ** 2
-                new_band3pass += max(0, band3_val) ** 2
-                new_band4pass += max(0, band4_val) ** 2
-                new_highpass += max(0, highpass_val) ** 2
+                # Clamp values before squaring to prevent overflow
+                new_lowpass += min(max(0, lowpass_val), 10.0) ** 2
+                new_band1pass += min(max(0, band1_val), 10.0) ** 2
+                new_band2pass += min(max(0, band2_val), 10.0) ** 2
+                new_band3pass += min(max(0, band3_val), 10.0) ** 2
+                new_band4pass += min(max(0, band4_val), 10.0) ** 2
+                new_highpass += min(max(0, highpass_val), 10.0) ** 2
 
             # Store log energy
             self.lowpass_data[self.lp_index] = np.log(new_lowpass)
@@ -420,8 +435,14 @@ class SubBandSeparator:
             decimated_data: Input decimated energy data
             final_data: Output envelope data
         """
+        # Replace any NaN/Inf with zeros before processing
+        decimated_data = np.nan_to_num(decimated_data, nan=0.0, posinf=0.0, neginf=0.0)
+
         # Calculate first-order differences (onset detection)
         diffs = np.diff(decimated_data)
+
+        # Replace any NaN/Inf in diffs
+        diffs = np.nan_to_num(diffs, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Half-wave rectify (only positive changes = onsets)
         diffs = np.maximum(0, diffs)
@@ -430,6 +451,10 @@ class SubBandSeparator:
         avg_diff = np.mean(diffs)
         std_dev = np.std(diffs)
         threshold = std_dev * 1.5
+
+        # Protect against NaN in threshold
+        if not np.isfinite(threshold):
+            threshold = 0.0
 
         # Apply threshold
         final_data[:] = np.where(np.abs(diffs) >= threshold, diffs, 0)
@@ -741,7 +766,7 @@ class MultibandSpectralBPMAnalyzer(AnalyzerBase):
 
             # Get stream properties
             sample_rate = audio_stream.sample_rate
-            duration = self.media_file.duration or 0.0
+            duration = self.media_file.length_in_seconds
 
             if duration <= 0:
                 return AnalyzerResult(
