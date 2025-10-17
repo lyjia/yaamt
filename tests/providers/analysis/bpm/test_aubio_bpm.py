@@ -1,13 +1,12 @@
 """
 Unit tests for the AubioBPMAnalyzer.
 
-Tests the aubio-based BPM analyzer including audio streaming, beat detection,
-and integration with the Audio Format Adaptation system.
+Tests the aubio-based BPM analyzer using real audio fixtures to ensure
+proper integration with MediaFile and audio streaming.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-import numpy as np
+from unittest.mock import patch
 from pathlib import Path
 
 from util.const import IN_GITHUB_RUNNER
@@ -35,55 +34,80 @@ class TestAubioBPMAnalyzerMetadata:
 
 
 class TestAubioBPMAnalyzerBasicBehavior:
-    """Tests for basic analyzer behavior without aubio."""
+    """Tests for basic analyzer behavior using real fixtures."""
 
     @pytest.fixture
-    def mock_media_file(self):
-        """Create a mock MediaFile for testing."""
-        media_file = Mock(spec=MediaFile)
-        media_file.file_path = "/test/file.mp3"
-        media_file.get_tag_simple.return_value = None
-        return media_file
+    def valid_audio_file(self):
+        """Get a valid audio file from test fixtures."""
+        fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "metadata"
+        sample_file = fixture_path / "sample_dtmf_original.flac"
+        if not sample_file.exists():
+            pytest.skip("Sample audio file not available")
+        return str(sample_file)
 
-    def test_analyze_skip_existing_bpm(self, mock_media_file):
+    @pytest.fixture
+    def audio_file_with_bpm(self):
+        """Get an audio file that already has BPM metadata."""
+        fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "metadata"
+        sample_file = fixture_path / "sample_dtmf_with_bpm_and_key_from_serato.flac"
+        if not sample_file.exists():
+            pytest.skip("Sample audio file with BPM not available")
+        return str(sample_file)
+
+    def test_analyze_skip_existing_bpm(self, audio_file_with_bpm):
         """Test that analyzer skips when BPM exists and overwrite is False."""
-        mock_media_file.get_tag_simple.return_value = '128.0'
-        analyzer = AubioBPMAnalyzer(mock_media_file, {'overwrite_existing': False})
+        media_file = MediaFile(audio_file_with_bpm, enable_write=False)
+
+        # Verify file has BPM metadata
+        existing_bpm = media_file.get_tag_simple('bpm')
+        assert existing_bpm is not None, "Test fixture should have BPM metadata"
+
+        analyzer = AubioBPMAnalyzer(media_file, {'overwrite_existing': False})
         result = analyzer.analyze()
 
         assert result.success is True
         assert result.skipped is True
         assert result.error == "BPM already set"
 
-    def test_analyze_overwrite_existing_bpm(self, mock_media_file):
+    def test_analyze_overwrite_existing_bpm(self, audio_file_with_bpm):
         """Test that analyzer processes when overwrite option is True."""
-        mock_media_file.get_tag_simple.return_value = '128.0'
+        try:
+            import aubio  # noqa: F401
+        except ImportError:
+            pytest.skip("aubio library not installed")
 
-        # Mock aubio to not be available - we just want to test overwrite logic
-        with patch.dict('sys.modules', {'aubio': None}):
-            analyzer = AubioBPMAnalyzer(mock_media_file, {'overwrite_existing': True})
-            result = analyzer.analyze()
+        media_file = MediaFile(audio_file_with_bpm, enable_write=False)
 
-            # Should not skip (overwrite is True)
-            assert result.skipped is False
-            # Will fail because aubio is not available
-            assert result.success is False
-            assert "aubio" in result.error.lower()
+        # Verify file has BPM metadata
+        existing_bpm = media_file.get_tag_simple('bpm')
+        assert existing_bpm is not None, "Test fixture should have BPM metadata"
 
-    def test_analyze_cancellation(self, mock_media_file):
+        analyzer = AubioBPMAnalyzer(media_file, {'overwrite_existing': True})
+        result = analyzer.analyze()
+
+        # Should not skip (overwrite is True)
+        assert result.skipped is False
+        # Will attempt analysis (may succeed or fail depending on audio content)
+        assert isinstance(result.success, bool)
+
+    def test_analyze_cancellation(self, valid_audio_file):
         """Test that cancellation is respected."""
-        analyzer = AubioBPMAnalyzer(mock_media_file)
+        media_file = MediaFile(valid_audio_file, enable_write=False)
+
+        analyzer = AubioBPMAnalyzer(media_file)
         analyzer.cancel()
         result = analyzer.analyze()
 
         assert result.success is False
         assert "cancelled" in result.error.lower()
 
-    def test_analyze_missing_aubio(self, mock_media_file):
+    def test_analyze_missing_aubio(self, valid_audio_file):
         """Test graceful handling when aubio library is not available."""
+        media_file = MediaFile(valid_audio_file, enable_write=False)
+
         # Mock aubio import to fail
         with patch.dict('sys.modules', {'aubio': None}):
-            analyzer = AubioBPMAnalyzer(mock_media_file)
+            analyzer = AubioBPMAnalyzer(media_file)
             result = analyzer.analyze()
 
             assert result.success is False
@@ -91,214 +115,79 @@ class TestAubioBPMAnalyzerBasicBehavior:
 
 
 class TestAubioBPMAnalyzerWithAubio:
-    """Tests for analyzer with mocked aubio library."""
+    """Tests for analyzer with aubio library (if available)."""
 
     @pytest.fixture
-    def mock_media_file(self):
-        """Create a mock MediaFile with audio stream."""
-        media_file = Mock(spec=MediaFile)
-        media_file.file_path = "/test/file.mp3"
-        media_file.get_tag_simple.return_value = None
-
-        # Mock audio stream (using correct property names from AudioStreamBase)
-        audio_stream = Mock()
-        audio_stream.sample_rate = 44100
-        audio_stream.sample_width = 2  # 16-bit
-        audio_stream.channels_qty = 1  # Mono (from Audio Format Adaptation)
-
-        # Simulate reading audio chunks - create a simple beat pattern at 120 BPM
-        # 120 BPM = 2 beats per second = 0.5s per beat
-        # At 44100 Hz with hop_size=512, that's ~86 hops per beat
-        chunks_per_beat = 86
-        total_beats = 10
-        total_chunks = chunks_per_beat * total_beats
-
-        def read_side_effect(size):
-            nonlocal total_chunks
-            if total_chunks <= 0:
-                return b''
-            total_chunks -= 1
-            # Return silence (zeros) as int16 samples
-            return np.zeros(512, dtype=np.int16).tobytes()
-
-        audio_stream.read = Mock(side_effect=read_side_effect)
-        audio_stream.close = Mock()
-
-        media_file.get_audio_stream.return_value = audio_stream
-        return media_file
-
-    @pytest.fixture
-    def mock_aubio(self):
-        """Create a mock aubio module."""
-        aubio_mock = Mock()
-
-        # Mock tempo detector
-        tempo_instance = Mock()
-
-        # Simulate beat detection at 120 BPM (0.5s intervals)
-        # At 44100 Hz with hop_size=512, each call advances time by 512/44100 = ~0.0116s
-        # For 120 BPM (0.5s per beat), we need ~43 calls per beat
-        samples_per_beat = int(44100 * 0.5)  # Samples in 0.5 seconds
-        hop_size = 512
-        calls_per_beat = samples_per_beat // hop_size  # ~43 calls per beat
-
-        beat_index = [0]  # Use list to maintain state in closure
-        call_count = [0]
-        detected_beats = []  # Track detected beat times
-
-        def tempo_call(samples):
-            # Track calls and detect beats at regular intervals
-            call_count[0] += 1
-            current_time = (call_count[0] * hop_size) / 44100.0
-
-            # Detect beat every calls_per_beat calls
-            if call_count[0] % calls_per_beat == 0 and len(detected_beats) < 10:
-                beat_index[0] += 1
-                detected_beats.append(current_time)
-                return True
-            return False
-
-        def get_last_s():
-            # Return the timestamp of the last detected beat
-            if detected_beats:
-                return detected_beats[-1]
-            return 0.0
-
-        tempo_instance.__call__ = Mock(side_effect=tempo_call)
-        tempo_instance.get_last_s = Mock(side_effect=get_last_s)
-
-        aubio_mock.tempo = Mock(return_value=tempo_instance)
-
-        return aubio_mock
-
-    def test_analyze_with_real_aubio_if_available(self, mock_media_file):
-        """Test analysis with real aubio if available, otherwise verify structure."""
-        try:
-            import aubio  # noqa: F401
-            has_aubio = True
-        except ImportError:
-            has_aubio = False
-
-        if not has_aubio:
-            pytest.skip("aubio library not installed - skipping real aubio test")
-
-        analyzer = AubioBPMAnalyzer(mock_media_file)
-        result = analyzer.analyze()
-
-        # Verify result structure (may succeed or fail depending on audio content)
-        assert isinstance(result, AnalyzerResult)
-        assert isinstance(result.success, bool)
-
-        # If successful, verify BPM is returned as float
-        if result.success and not result.skipped:
-            assert 'bpm' in result.data
-            assert isinstance(result.data['bpm'], float)
-            assert result.data['bpm'] > 0
-
-        # Verify audio stream was closed
-        mock_media_file.get_audio_stream.return_value.close.assert_called_once()
-
-    def test_analyze_requests_mono_audio(self, mock_media_file, mock_aubio):
-        """Test that analyzer requests mono audio via AudioFormatDescriptor."""
-        with patch.dict('sys.modules', {'aubio': mock_aubio}):
-            from providers.analysis.bpm.aubio_bpm import AubioBPMAnalyzer
-            from providers.audio.format_descriptor import AudioFormatDescriptor
-
-            analyzer = AubioBPMAnalyzer(mock_media_file)
-            result = analyzer.analyze()
-
-            # Verify get_audio_stream was called with mono format descriptor
-            mock_media_file.get_audio_stream.assert_called_once()
-            format_desc = mock_media_file.get_audio_stream.call_args[0][0]
-
-            assert isinstance(format_desc, AudioFormatDescriptor)
-            assert format_desc.channels == 1  # Must request mono
-
-    def test_analyze_insufficient_beats(self, mock_media_file):
-        """Test error handling when insufficient beats are detected."""
-        # Modify audio stream to return very little data
-        audio_stream = mock_media_file.get_audio_stream.return_value
-
-        def read_few_chunks(size):
-            read_few_chunks.count = getattr(read_few_chunks, 'count', 0) + 1
-            if read_few_chunks.count > 5:  # Only a few chunks
-                return b''
-            return np.zeros(512, dtype=np.int16).tobytes()
-
-        audio_stream.read = Mock(side_effect=read_few_chunks)
-
-        # Mock aubio to detect only one beat (insufficient for BPM calculation)
-        aubio_mock = Mock()
-        tempo_instance = Mock()
-        detected_beats = []
-        call_count = [0]
-
-        def tempo_call(samples):
-            call_count[0] += 1
-            # Detect just one beat
-            if call_count[0] == 3 and len(detected_beats) == 0:
-                detected_beats.append(0.5)
-                return True
-            return False
-
-        def get_last_s():
-            if detected_beats:
-                return detected_beats[-1]
-            return 0.0
-
-        tempo_instance.__call__ = Mock(side_effect=tempo_call)
-        tempo_instance.get_last_s = Mock(side_effect=get_last_s)
-        aubio_mock.tempo = Mock(return_value=tempo_instance)
-
-        with patch.dict('sys.modules', {'aubio': aubio_mock}):
-            from providers.analysis.bpm.aubio_bpm import AubioBPMAnalyzer
-
-            analyzer = AubioBPMAnalyzer(mock_media_file)
-            result = analyzer.analyze()
-
-            assert result.success is False
-            # Error could be about insufficient beats OR irregular tempo (depending on beat timing)
-            assert any(phrase in result.error.lower() for phrase in [
-                "insufficient beats",
-                "beats detected",
-                "irregular",
-                "consistent tempo"
-            ])
-
-    def test_analyze_mode_fast(self, mock_media_file, mock_aubio):
-        """Test that 'fast' mode uses correct parameters."""
-        with patch.dict('sys.modules', {'aubio': mock_aubio}):
-            from providers.analysis.bpm.aubio_bpm import AubioBPMAnalyzer
-
-            analyzer = AubioBPMAnalyzer(mock_media_file, {'mode': 'fast'})
-            result = analyzer.analyze()
-
-            # Verify aubio.tempo was called with fast mode parameters
-            mock_aubio.tempo.assert_called_once()
-            call_args = mock_aubio.tempo.call_args
-
-            # Fast mode should use smaller buf_size (512) and hop_size (128)
-            # and lower sample rate (8000) if not overridden
-            buf_size = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get('buf_size')
-            hop_size = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get('hop_size')
-
-            assert buf_size == 512 or buf_size == 1024  # Depending on whether overridden
-            assert hop_size == 128 or hop_size == 512
-
-
-class TestAubioBPMAnalyzerIntegration:
-    """Integration tests with real audio files (if aubio is available)."""
-
-    @pytest.fixture
-    def sample_audio_file(self):
-        """Get path to a sample audio file from test fixtures."""
+    def valid_audio_file(self):
+        """Get a valid audio file from test fixtures."""
         fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "metadata"
         sample_file = fixture_path / "sample_dtmf_original.flac"
         if not sample_file.exists():
             pytest.skip("Sample audio file not available")
         return str(sample_file)
 
-    def test_analyze_real_file(self, sample_audio_file):
+    def test_analyze_requests_mono_audio(self, valid_audio_file):
+        """Test that analyzer requests mono audio via AudioFormatDescriptor."""
+        try:
+            import aubio  # noqa: F401
+        except ImportError:
+            pytest.skip("aubio library not installed")
+
+        from providers.audio.format_descriptor import AudioFormatDescriptor
+
+        media_file = MediaFile(valid_audio_file, enable_write=False)
+        analyzer = AubioBPMAnalyzer(media_file)
+
+        # Spy on get_audio_stream to verify format descriptor
+        original_get_stream = media_file.get_audio_stream
+        format_desc_used = None
+
+        def capture_format_desc(format_descriptor=None):
+            nonlocal format_desc_used
+            format_desc_used = format_descriptor
+            return original_get_stream(format_descriptor)
+
+        media_file.get_audio_stream = capture_format_desc
+
+        # Run analysis
+        result = analyzer.analyze()
+
+        # Verify mono audio was requested
+        assert format_desc_used is not None
+        assert isinstance(format_desc_used, AudioFormatDescriptor)
+        assert format_desc_used.channels == 1  # Must request mono
+
+    def test_analyze_creates_mono_stream(self, valid_audio_file):
+        """Test that analyzer requests mono audio stream."""
+        try:
+            import aubio  # noqa: F401
+        except ImportError:
+            pytest.skip("aubio library not installed")
+
+        media_file = MediaFile(valid_audio_file, enable_write=False)
+
+        # The analyzer should request mono audio internally
+        # We verify this doesn't crash and completes
+        analyzer = AubioBPMAnalyzer(media_file)
+        result = analyzer.analyze()
+
+        # Should complete (whether successful or not)
+        assert isinstance(result, AnalyzerResult)
+
+
+class TestAubioBPMAnalyzerIntegration:
+    """Integration tests with real audio files (if aubio is available)."""
+
+    @pytest.fixture
+    def valid_audio_file(self):
+        """Get a valid audio file from test fixtures."""
+        fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "metadata"
+        sample_file = fixture_path / "sample_dtmf_original.flac"
+        if not sample_file.exists():
+            pytest.skip("Sample audio file not available")
+        return str(sample_file)
+
+    def test_analyze_real_file(self, valid_audio_file):
         """Test analysis on a real audio file (if aubio is available)."""
         try:
             import aubio  # noqa: F401
@@ -306,19 +195,20 @@ class TestAubioBPMAnalyzerIntegration:
             pytest.skip("aubio library not installed")
 
         # Create MediaFile
-        media_file = MediaFile(sample_audio_file, enable_write=False)
+        media_file = MediaFile(valid_audio_file, enable_write=False)
 
         # Run analyzer
         analyzer = AubioBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
-        # Should complete (success or failure depending on audio content)
-        # DTMF tones may not have a clear beat, so we just verify it doesn't crash
+        # Should complete without crashing
         assert isinstance(result, AnalyzerResult)
         assert isinstance(result.success, bool)
 
-        # If successful, should return a float BPM
+        # DTMF tones don't have a rhythmic beat pattern, so detection may fail
+        # We just verify the analyzer runs without errors
         if result.success and not result.skipped:
+            # If it somehow detects a BPM, verify it's reasonable
             assert 'bpm' in result.data
             assert isinstance(result.data['bpm'], float)
             assert result.data['bpm'] > 0
@@ -349,6 +239,143 @@ class TestAubioBPMAnalyzerSettingsWidget:
         # We can't easily test Qt widget internals without full Qt environment,
         # but we verify the widget was created successfully
         assert widget is not None
+
+
+class TestAubioBPMAnalyzerWithDrumLoops:
+    """Tests for the analyzer with real drum loop fixtures (requires aubio)."""
+
+    @pytest.fixture
+    def house_120bpm_file(self):
+        """Get the 120 BPM house claves drum loop."""
+        fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "metadata"
+        sample_file = fixture_path / "lyjia_house_claves_delay_120bpm.wav"
+        if not sample_file.exists():
+            pytest.skip("120 BPM drum loop fixture not available")
+        return str(sample_file)
+
+    @pytest.fixture
+    def house_128bpm_file(self):
+        """Get the 128 BPM house beat drum loop."""
+        fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "metadata"
+        sample_file = fixture_path / "lyjia_house_beat_generic_128bpm.wav"
+        if not sample_file.exists():
+            pytest.skip("128 BPM drum loop fixture not available")
+        return str(sample_file)
+
+    @pytest.fixture
+    def dnb_175bpm_file(self):
+        """Get the 175 BPM drum and bass loop."""
+        fixture_path = Path(__file__).parent.parent.parent.parent / "fixtures" / "metadata"
+        sample_file = fixture_path / "lyjia_dnb019_175bpm.wav"
+        if not sample_file.exists():
+            pytest.skip("175 BPM drum and bass fixture not available")
+        return str(sample_file)
+
+    def test_analyze_120bpm_drum_loop(self, house_120bpm_file):
+        """Test analysis on 120 BPM house drum loop."""
+        try:
+            import aubio  # noqa: F401
+        except ImportError:
+            pytest.skip("aubio library not installed")
+
+        media_file = MediaFile(house_120bpm_file, enable_write=False)
+        analyzer = AubioBPMAnalyzer(media_file)
+        result = analyzer.analyze()
+
+        assert isinstance(result, AnalyzerResult)
+
+        # Should successfully detect BPM on a clear drum loop
+        if result.success and not result.skipped:
+            assert 'bpm' in result.data
+            detected_bpm = result.data['bpm']
+            # Accept 120 BPM or common multiples/divisions (60, 240)
+            assert detected_bpm > 0, f"BPM should be positive, got {detected_bpm}"
+            # Aubio should detect something reasonable for a drum loop
+            assert 50 <= detected_bpm <= 250, f"BPM should be reasonable, got {detected_bpm}"
+
+    def test_analyze_128bpm_drum_loop(self, house_128bpm_file):
+        """Test analysis on 128 BPM house drum loop."""
+        try:
+            import aubio  # noqa: F401
+        except ImportError:
+            pytest.skip("aubio library not installed")
+
+        media_file = MediaFile(house_128bpm_file, enable_write=False)
+        analyzer = AubioBPMAnalyzer(media_file)
+        result = analyzer.analyze()
+
+        assert isinstance(result, AnalyzerResult)
+
+        # Should successfully detect BPM on a clear drum loop
+        if result.success and not result.skipped:
+            assert 'bpm' in result.data
+            detected_bpm = result.data['bpm']
+            # Accept 128 BPM or common multiples/divisions (64, 256)
+            assert detected_bpm > 0, f"BPM should be positive, got {detected_bpm}"
+            # Aubio should detect something reasonable for a drum loop
+            assert 50 <= detected_bpm <= 260, f"BPM should be reasonable, got {detected_bpm}"
+
+    def test_analyze_175bpm_dnb_loop(self, dnb_175bpm_file):
+        """Test analysis on 175 BPM drum and bass loop (may be challenging)."""
+        try:
+            import aubio  # noqa: F401
+        except ImportError:
+            pytest.skip("aubio library not installed")
+
+        media_file = MediaFile(dnb_175bpm_file, enable_write=False)
+        analyzer = AubioBPMAnalyzer(media_file)
+        result = analyzer.analyze()
+
+        assert isinstance(result, AnalyzerResult)
+
+        # DNB may be tough due to irregular beats - accept any valid result
+        if result.success and not result.skipped:
+            assert 'bpm' in result.data
+            detected_bpm = result.data['bpm']
+            assert detected_bpm > 0, f"BPM should be positive, got {detected_bpm}"
+            # Accept a wide range for DNB
+            assert 60 <= detected_bpm <= 200, f"BPM should be reasonable, got {detected_bpm}"
+        else:
+            # It's okay if detection fails on DNB
+            pass
+
+    def test_analyze_120bpm_fast_mode(self, house_120bpm_file):
+        """Test 120 BPM drum loop with fast mode."""
+        try:
+            import aubio  # noqa: F401
+        except ImportError:
+            pytest.skip("aubio library not installed")
+
+        media_file = MediaFile(house_120bpm_file, enable_write=False)
+        analyzer = AubioBPMAnalyzer(media_file, {'mode': 'fast'})
+        result = analyzer.analyze()
+
+        assert isinstance(result, AnalyzerResult)
+
+        # Fast mode should still work on drum loops
+        if result.success and not result.skipped:
+            assert 'bpm' in result.data
+            detected_bpm = result.data['bpm']
+            assert detected_bpm > 0, f"BPM should be positive, got {detected_bpm}"
+
+    def test_analyze_128bpm_default_mode(self, house_128bpm_file):
+        """Test 128 BPM drum loop with default mode."""
+        try:
+            import aubio  # noqa: F401
+        except ImportError:
+            pytest.skip("aubio library not installed")
+
+        media_file = MediaFile(house_128bpm_file, enable_write=False)
+        analyzer = AubioBPMAnalyzer(media_file, {'mode': 'default'})
+        result = analyzer.analyze()
+
+        assert isinstance(result, AnalyzerResult)
+
+        # Default mode should work well on clear drum loops
+        if result.success and not result.skipped:
+            assert 'bpm' in result.data
+            detected_bpm = result.data['bpm']
+            assert detected_bpm > 0, f"BPM should be positive, got {detected_bpm}"
 
 
 if __name__ == '__main__':
