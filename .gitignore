@@ -575,3 +575,5 @@ venv/*
 *.onefile-build
 *.exe
 build/
+nuitka-crash-report.xml
+nul
