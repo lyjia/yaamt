@@ -23,33 +23,30 @@ from util.logging import log
 
 class EllipticalFilter:
     """
-    IIR elliptical filter implementation.
+    IIR elliptical filter implementation - matches RapidEvolution3 exactly.
 
-    This implements a direct-form II digital filter using pre-calculated
-    coefficients from MATLAB's ellip() function.
-
-    NOTE: For future optimization, consider using scipy.signal.lfilter()
-    or scipy.signal.sosfilt() which are highly optimized C implementations.
-    However, this manual implementation ensures no scipy dependency and
-    matches RE3's behavior exactly.
+    NOTE: This implementation uses non-standard variable naming to match
+    the Java RE3 code. In RE3, 'a' contains numerator coefficients and 'b'
+    contains denominator coefficients (opposite of standard DSP notation).
     """
 
-    def __init__(self, b_coeffs: np.ndarray, a_coeffs: np.ndarray):
+    def __init__(self, in_a: np.ndarray, in_b: np.ndarray):
         """
         Initialize elliptical filter with coefficients.
 
         Args:
-            b_coeffs: Numerator (feedforward) coefficients
-            a_coeffs: Denominator (feedback) coefficients (first element should be 1.0)
+            in_a: Numerator coefficients (feedforward) - called 'a' in RE3 Java code
+            in_b: Denominator coefficients (feedback) - called 'b' in RE3 Java code
         """
-        self.b = np.array(b_coeffs, dtype=np.float64)
-        self.a = np.array(a_coeffs, dtype=np.float64)
-        self.past_b = np.zeros(len(b_coeffs), dtype=np.float64)
-        self.past_a = np.zeros(len(a_coeffs), dtype=np.float64)
+        # Match Java naming (backwards from standard DSP notation!)
+        self.a = np.array(in_a, dtype=np.float64)
+        self.b = np.array(in_b, dtype=np.float64)
+        self.past_a = np.zeros(len(in_a), dtype=np.float64)
+        self.past_b = np.zeros(len(in_b), dtype=np.float64)
 
     def process(self, val: float) -> float:
         """
-        Process a single sample through the filter.
+        Process a single sample through the filter - matches RE3 exactly.
 
         Args:
             val: Input sample value
@@ -57,28 +54,22 @@ class EllipticalFilter:
         Returns:
             Filtered output value
         """
-        # Clamp input to prevent runaway values
-        val = np.clip(val, -10.0, 10.0)
-
-        # Shift past inputs
-        self.past_b[1:] = self.past_b[:-1]
+        # Shift input history (Java: for i=1 to length-1: past_b[i] = past_b[i-1])
+        # In Java this appears to copy forward, but actually shifts right
+        for i in range(len(self.past_b) - 1, 0, -1):
+            self.past_b[i] = self.past_b[i - 1]
         self.past_b[0] = val
 
-        # Calculate output using Direct Form II
-        newval = np.dot(self.b, self.past_b) - np.dot(self.a[1:], self.past_a[1:])
+        # Calculate output (Java adds both terms)
+        newval = 0.0
+        for k in range(len(self.b)):
+            newval += self.b[k] * self.past_b[k]
+        for k in range(len(self.a)):
+            newval += self.a[k] * self.past_a[k]
 
-        # Protect against NaN/Inf
-        if not np.isfinite(newval):
-            newval = 0.0
-            # Reset filter state if we hit NaN/Inf
-            self.past_b[:] = 0.0
-            self.past_a[:] = 0.0
-
-        # Clamp output to prevent accumulation
-        newval = np.clip(newval, -100.0, 100.0)
-
-        # Shift past outputs
-        self.past_a[1:] = self.past_a[:-1]
+        # Shift output history
+        for i in range(len(self.past_a) - 1, 0, -1):
+            self.past_a[i] = self.past_a[i - 1]
         self.past_a[0] = newval
 
         return newval
@@ -125,6 +116,10 @@ class SubBandSeparator:
 
     This class implements the core RE3 algorithm: separating audio into 6 frequency
     bands, extracting energy envelopes, and detecting periodicities via FFT.
+
+    IMPORTANT: This implementation expects unnormalized audio samples (raw integer
+    values like -32768 to +32767 for 16-bit audio), matching the Java implementation.
+    The filter coefficients and energy calculations were designed for this range.
     """
 
     # Filter coefficients for different sample rates (from MATLAB ellip())
@@ -305,13 +300,12 @@ class SubBandSeparator:
                     highpass_val = self.highpass_filter.process(val)
 
                     # Accumulate energy (rectify and square)
-                    # Clamp values before squaring to prevent overflow
-                    new_lowpass += min(max(0, lowpass_val), 10.0) ** 2
-                    new_band1pass += min(max(0, band1_val), 10.0) ** 2
-                    new_band2pass += min(max(0, band2_val), 10.0) ** 2
-                    new_band3pass += min(max(0, band3_val), 10.0) ** 2
-                    new_band4pass += min(max(0, band4_val), 10.0) ** 2
-                    new_highpass += min(max(0, highpass_val), 10.0) ** 2
+                    new_lowpass += max(0, lowpass_val) ** 2
+                    new_band1pass += max(0, band1_val) ** 2
+                    new_band2pass += max(0, band2_val) ** 2
+                    new_band3pass += max(0, band3_val) ** 2
+                    new_band4pass += max(0, band4_val) ** 2
+                    new_highpass += max(0, highpass_val) ** 2
 
                 this_decimation_size -= len(self.extra)
                 self.extra = None
@@ -330,13 +324,12 @@ class SubBandSeparator:
                 highpass_val = self.highpass_filter.process(val)
 
                 # Accumulate energy (rectify and square)
-                # Clamp values before squaring to prevent overflow
-                new_lowpass += min(max(0, lowpass_val), 10.0) ** 2
-                new_band1pass += min(max(0, band1_val), 10.0) ** 2
-                new_band2pass += min(max(0, band2_val), 10.0) ** 2
-                new_band3pass += min(max(0, band3_val), 10.0) ** 2
-                new_band4pass += min(max(0, band4_val), 10.0) ** 2
-                new_highpass += min(max(0, highpass_val), 10.0) ** 2
+                new_lowpass += max(0, lowpass_val) ** 2
+                new_band1pass += max(0, band1_val) ** 2
+                new_band2pass += max(0, band2_val) ** 2
+                new_band3pass += max(0, band3_val) ** 2
+                new_band4pass += max(0, band4_val) ** 2
+                new_highpass += max(0, highpass_val) ** 2
 
             # Store log energy
             self.lowpass_data[self.lp_index] = np.log(new_lowpass)
@@ -435,14 +428,8 @@ class SubBandSeparator:
             decimated_data: Input decimated energy data
             final_data: Output envelope data
         """
-        # Replace any NaN/Inf with zeros before processing
-        decimated_data = np.nan_to_num(decimated_data, nan=0.0, posinf=0.0, neginf=0.0)
-
         # Calculate first-order differences (onset detection)
         diffs = np.diff(decimated_data)
-
-        # Replace any NaN/Inf in diffs
-        diffs = np.nan_to_num(diffs, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Half-wave rectify (only positive changes = onsets)
         diffs = np.maximum(0, diffs)
@@ -451,10 +438,6 @@ class SubBandSeparator:
         avg_diff = np.mean(diffs)
         std_dev = np.std(diffs)
         threshold = std_dev * 1.5
-
-        # Protect against NaN in threshold
-        if not np.isfinite(threshold):
-            threshold = 0.0
 
         # Apply threshold
         final_data[:] = np.where(np.abs(diffs) >= threshold, diffs, 0)
@@ -758,11 +741,9 @@ class MultibandSpectralBPMAnalyzer(AnalyzerBase):
             decimation_size = self.options.get('decimation_size', 64)
             threshold_time = self.options.get('threshold_time', 60.0)
 
-            # Create format descriptor requesting mono audio
-            format_descriptor = AudioFormatDescriptor(channels=1)
-
-            # Open audio stream
-            audio_stream = self.media_file.get_audio_stream(format_descriptor)
+            # Open audio stream in native format (do NOT use ChannelMixingAdapter)
+            # Java implementation SUMS channels, not averages them
+            audio_stream = self.media_file.get_audio_stream(None)
 
             # Get stream properties
             sample_rate = audio_stream.sample_rate
@@ -829,15 +810,22 @@ class MultibandSpectralBPMAnalyzer(AnalyzerBase):
                 if not audio_bytes:
                     break
 
-                # Convert to float samples
+                # Convert to float samples (unnormalized - matches Java implementation)
+                # Java uses raw integer values, not normalized to [-1.0, 1.0]
+                # Java SUMS channels for multi-channel audio, not averages
                 if audio_stream.sample_width == 2:  # 16-bit
                     samples = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float64)
-                    samples = samples / 32768.0
                 elif audio_stream.sample_width == 4:  # 32-bit
                     samples = np.frombuffer(audio_bytes, dtype=np.int32).astype(np.float64)
-                    samples = samples / 2147483648.0
                 else:
+                    # For float32 input, scale to match 16-bit range
                     samples = np.frombuffer(audio_bytes, dtype=np.float32).astype(np.float64)
+                    samples = samples * 32768.0
+
+                # If multi-channel, sum channels to mono (matches Java behavior)
+                num_channels = audio_stream.channels_qty
+                if num_channels > 1:
+                    samples = samples.reshape(-1, num_channels).sum(axis=1)
 
                 # Send to separator
                 separator.send(samples)
