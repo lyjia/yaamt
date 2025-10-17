@@ -13,6 +13,7 @@ from providers.analysis.bpm.multiband_spectral_bpm import MultibandSpectralBPMAn
 from providers import get_analyzers_by_category
 from providers.analysis import AnalyzerCategory
 from models.media_file import MediaFile
+from util.const import IN_GITHUB_RUNNER
 
 
 class TestMultibandSpectralBPMAnalyzerMetadata:
@@ -249,11 +250,12 @@ class TestMultibandSpectralBPMAnalyzerErrorHandling:
 class TestMultibandSpectralBPMAnalyzerSettingsWidget:
     """Tests for the settings widget."""
 
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
     def test_get_settings_widget(self):
         """Test that settings widget is returned."""
         widget = MultibandSpectralBPMAnalyzer.get_settings_widget()
         assert widget is not None
-
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
     def test_settings_widget_has_info_label(self):
         """Test that settings widget explains BPM range configuration."""
         widget = MultibandSpectralBPMAnalyzer.get_settings_widget()
