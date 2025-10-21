@@ -6,6 +6,7 @@ tasks, executes them in worker threads, and emits Qt signals for progress update
 """
 
 from typing import List, Type, Optional, Dict, Any
+import time
 from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot
 
 from models.media_file import MediaFile
@@ -150,6 +151,7 @@ class AnalyzerDispatcher(QObject):
         self.current_task: Optional[AnalysisTask] = None
         self._is_running = False
         self._active_workers = 0
+        self._batch_start_time: Optional[float] = None
 
         # Worker signals for thread-safe communication
         self.worker_signals = WorkerSignals()
@@ -194,6 +196,7 @@ class AnalyzerDispatcher(QObject):
             return
 
         self._is_running = True
+        self._batch_start_time = time.perf_counter()
         self.analysis_started.emit()
         log.info(f"Starting analysis of {len(self.queue)} tasks")
 
@@ -377,8 +380,14 @@ class AnalyzerDispatcher(QObject):
         self._is_running = False
         self.current_task = None
 
+        # Calculate batch elapsed time
+        batch_elapsed = 0.0
+        if self._batch_start_time is not None:
+            batch_elapsed = time.perf_counter() - self._batch_start_time
+
         summary = self.get_summary()
         log.info(f"Analysis complete: {summary['successful']}/{summary['total']} successful, "
-                f"{len(summary['failed'])} failed, {len(summary['skipped'])} skipped")
+                f"{len(summary['failed'])} failed, {len(summary['skipped'])} skipped "
+                f"[total time: {batch_elapsed:.2f}s]")
 
         self.analysis_completed.emit()

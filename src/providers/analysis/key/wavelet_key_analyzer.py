@@ -8,6 +8,7 @@ Reference: https://github.com/djqualia/RapidEvolution3
 """
 
 from typing import Optional
+import time
 import numpy as np
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
@@ -71,6 +72,9 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     skipped=True,
                     error="Key already set"
                 )
+
+            # Start timing
+            start_time = time.perf_counter()
 
             # Open audio stream in native format (do NOT normalize)
             # Java implementation uses RAW integer values, same as BPM analyzer
@@ -215,11 +219,14 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     error="Could not detect key - no clear tonality found"
                 )
 
+            # Calculate and log elapsed time
+            elapsed_time = time.perf_counter() - start_time
+
             # Log result with mode if detected
             if detected_key.mode:
-                log.info(f"RE3 detected key: {detected_key.start_key} {detected_key.mode} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path}")
+                log.info(f"RE3 detected key: {detected_key.start_key} {detected_key.mode} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path} [analysis took {elapsed_time:.2f}s]")
             else:
-                log.info(f"RE3 detected key: {detected_key.start_key} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path}")
+                log.info(f"RE3 detected key: {detected_key.start_key} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path} [analysis took {elapsed_time:.2f}s]")
 
             # Prepare result data
             # Return key string (Tag Transformation system handles notation conversion)
