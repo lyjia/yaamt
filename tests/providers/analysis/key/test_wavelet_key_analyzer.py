@@ -345,7 +345,7 @@ class TestMusicalKeyAnalyzerRegistration:
 
     def test_analyzer_metadata(self):
         """Test analyzer metadata fields."""
-        assert WaveletKeyAnalyzer.name == "Wavelet Key Analyzer (RE3)"
+        assert WaveletKeyAnalyzer.name == "Wavelet Key Analyzer"
         assert WaveletKeyAnalyzer.category == "key"
         assert WaveletKeyAnalyzer.version == "1.0.0"
         assert "RapidEvolution3" in WaveletKeyAnalyzer.description
