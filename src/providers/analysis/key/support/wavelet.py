@@ -567,6 +567,14 @@ class KeyProbability:
     chromatic pitch class data over time and matching against modal
     templates to determine the most likely musical key.
 
+    NOTE: While there are 7 diatonic modes, only 6 are used for detection.
+    Locrian mode (VII) is intentionally excluded because:
+    - It has a diminished fifth (tritone), making it harmonically unstable
+    - Songs in locrian are extremely rare in tonal/popular music
+    - Including it would likely produce false positives and reduce accuracy
+
+    This design matches the RapidEvolution3 reference implementation.
+
     Reference: KeyProbability.java in RE3
     """
 
@@ -584,6 +592,7 @@ class KeyProbability:
         self.segment_totals = np.zeros(12, dtype=np.float64)  # Accumulated pitch class energies
 
         # Initialize 6 modal filters (3 major-type, 3 minor-type)
+        # NOTE: Locrian (VII) is intentionally excluded - see class docstring for rationale
         # These are the exact templates from KeyProbability.java constructor
 
         # Java: filters.add(new SingleKeyProbabilityFilter(true, "ionian",

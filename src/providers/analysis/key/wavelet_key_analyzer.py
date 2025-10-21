@@ -35,7 +35,9 @@ class WaveletKeyAnalyzer(AnalyzerBase):
 
     The analyzer processes audio in 8192-sample chunks, extracting
     chromatic energy via wavelets and scoring against 6 modal templates
-    (Ionian, Lydian, Mixolydian, Aeolian, Dorian, Phrygian).
+    (Ionian, Lydian, Mixolydian, Aeolian, Dorian, Phrygian). Locrian
+    mode is intentionally excluded due to its harmonic instability and
+    rarity in tonal music.
 
     Configuration: No user-configurable options at this time.
     """
