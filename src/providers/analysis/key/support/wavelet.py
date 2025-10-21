@@ -406,19 +406,22 @@ class SingleKeyProbabilityFilter:
         Args:
             values: 12-element array of pitch class energies
         """
-        # Java: for (int k = 0; k < 12; ++k) {
-        #           double total = 0.0;
-        #           for (int n = 0; n < 12; ++n)
-        #               total += pmatrix[k][n] * values[n];
-        #           probability[k] = total + probability[k];// * decay;
-        #       }
-        for k in range(12):
-            total = 0.0
-            for n in range(12):
-                # IMPORTANT: Multiply pmatrix[k][n] BY values[n], then accumulate
-                total += self.pmatrix[k, n] * values[n]
-            # IMPORTANT: Add total TO probability[k], not replace
-            self.probability[k] = total + self.probability[k]
+        # OPTIMIZATION: Vectorized matrix multiplication
+        # Original Java code:
+        # for (int k = 0; k < 12; ++k) {
+        #     double total = 0.0;
+        #     for (int n = 0; n < 12; ++n)
+        #         total += pmatrix[k][n] * values[n];
+        #     probability[k] = total + probability[k];
+        # }
+
+        # Compute all totals at once using matrix multiplication
+        # pmatrix shape: [12, 12], values shape: [12]
+        # Result shape: [12]
+        totals = np.dot(self.pmatrix, values)
+
+        # Accumulate into probability array
+        self.probability += totals
 
     def get_probability(self, index: int) -> float:
         """Get accumulated probability for a specific key index."""
@@ -860,27 +863,26 @@ def count_key_probabilities(
             cwt.fill(0.0)
 
             # Convolve audio with wavelets for all 12 pitch classes
-            # Java: for (int m = 0; m < amt; ++m) {
-            #           for (int z = 0; z < 12; ++z) {
-            #               double x = matrix.getValue(p, ks, m, z);
-            #               double y = wavedata[m + icountInt];
-            #               cwt[z] += y * x;
-            #           }
-            #       }
-            for m in range(amt):
-                for z in range(12):
-                    # Get wavelet coefficient
-                    # Java: double x = matrix.getValue(p, ks, m, z);
-                    x = matrix.get_value(p, ks, m, z)
+            # OPTIMIZATION: Vectorized matrix multiplication instead of nested loops
+            # Original Java code:
+            # for (int m = 0; m < amt; ++m) {
+            #     for (int z = 0; z < 12; ++z) {
+            #         cwt[z] += wavedata[m + icountInt] * matrix.getValue(p, ks, m, z);
+            #     }
+            # }
 
-                    # Get audio sample
-                    # Java: double y = wavedata[m + icountInt];
-                    y = wavedata[m + icount_int]
+            # Get the wavelet matrix slice for this octave and shift
+            # Shape: [amt, 12]
+            wavelet_slice = matrix.vmatrix[p, ks, :amt, :]
 
-                    # Accumulate CWT coefficient
-                    # Java: cwt[z] += y * x;
-                    # IMPORTANT: Multiply y BY x, then add to cwt[z]
-                    cwt[z] += y * x
+            # Get the audio data for this chunk
+            # Shape: [amt]
+            audio_chunk = wavedata[icount_int:icount_int + amt]
+
+            # Perform dot product: audio_chunk @ wavelet_slice
+            # This computes the convolution for all 12 pitch classes at once
+            # Result shape: [12]
+            cwt[:] = np.dot(audio_chunk, wavelet_slice)
 
             # Accumulate absolute CWT values into pitch class energies
             # Java: for (int z = 0; z< 12; ++z)

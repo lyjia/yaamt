@@ -129,14 +129,57 @@ class WaveletKeyAnalyzer(AnalyzerBase):
             chunks_processed = 0
             chunks_skipped = 0
 
-            # Calculate chunk skip pattern based on percentage
-            # Similar to RE3's implementation in KeyDetector.java
+            # Calculate intelligent chunk selection strategy
             chunk_count = 0
-            process_every_n_chunks = int(100.0 / percent_to_analyze) if percent_to_analyze < 100 else 1
+            total_chunks = total_samples // KEY_DETECTOR_ANALYZE_CHUNK_SIZE
+
+            # For intelligent sampling, divide song into sections and sample from each
+            # This ensures we get samples from intro, middle, and outro
+            if percent_to_analyze < 100 and total_chunks > 10:
+                # Calculate how many chunks to process
+                target_chunks = max(1, int(total_chunks * percent_to_analyze / 100))
+
+                # Divide song into sections
+                if target_chunks >= 3:
+                    # Sample from beginning (30%), middle (40%), end (30%)
+                    sections = [
+                        (0, int(total_chunks * 0.3)),  # Intro
+                        (int(total_chunks * 0.3), int(total_chunks * 0.7)),  # Middle
+                        (int(total_chunks * 0.7), total_chunks)  # Outro
+                    ]
+                    chunks_per_section = [
+                        int(target_chunks * 0.3),  # 30% from intro
+                        int(target_chunks * 0.4),  # 40% from middle
+                        target_chunks - int(target_chunks * 0.3) - int(target_chunks * 0.4)  # Rest from outro
+                    ]
+                else:
+                    # For very low sampling, just take from middle
+                    sections = [(int(total_chunks * 0.4), int(total_chunks * 0.6))]
+                    chunks_per_section = [target_chunks]
+
+                # Build set of chunks to process
+                chunks_to_process = set()
+                for (start, end), num_chunks in zip(sections, chunks_per_section):
+                    if num_chunks > 0 and end > start:
+                        section_size = end - start
+                        step = max(1, section_size // num_chunks)
+                        for i in range(num_chunks):
+                            chunk_idx = start + (i * step)
+                            if chunk_idx < end:
+                                chunks_to_process.add(chunk_idx)
+
+                log.debug(f"Intelligent sampling: processing {len(chunks_to_process)} of {total_chunks} chunks")
+            else:
+                # Process all chunks or use simple interval sampling for short files
+                chunks_to_process = None
+                process_every_n_chunks = int(100.0 / percent_to_analyze) if percent_to_analyze < 100 else 1
 
             log.debug(f"Processing {total_samples} samples in {KEY_DETECTOR_ANALYZE_CHUNK_SIZE}-sample chunks")
             if percent_to_analyze < 100:
-                log.debug(f"  Processing every {process_every_n_chunks} chunks for {percent_to_analyze}% accuracy")
+                if chunks_to_process is not None:
+                    log.debug(f"  Using intelligent sampling for {percent_to_analyze}% accuracy")
+                else:
+                    log.debug(f"  Processing every {process_every_n_chunks} chunks for {percent_to_analyze}% accuracy")
 
             while True:
                 # Check for cancellation
