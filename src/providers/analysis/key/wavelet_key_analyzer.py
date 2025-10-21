@@ -27,7 +27,7 @@ from providers.analysis.key.support.wavelet import (
 
 class WaveletKeyAnalyzer(AnalyzerBase):
     """
-    Musical key analyzer using the RapidEvolution3 CWT algorithm.
+    Musical key analyzer adapted from the RapidEvolution3 CWT algorithm.
 
     This analyzer implements chromatic pitch class detection using
     Continuous Wavelet Transform, followed by modal template matching
@@ -40,8 +40,8 @@ class WaveletKeyAnalyzer(AnalyzerBase):
     Configuration: No user-configurable options at this time.
     """
 
-    name = "Wavelet Key Analyzer (RE3)"
-    description = "Wavelet-based key detection (ported from RapidEvolution3)"
+    name = "Wavelet Key Analyzer"
+    description = "Wavelet-based key detection (adapted from RapidEvolution3)"
     category = "key"
     version = "1.0.0"
 
