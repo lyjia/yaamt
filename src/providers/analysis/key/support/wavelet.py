@@ -299,26 +299,34 @@ class KeyProbabilitySet:
         #           total += normalizedProbabilities[i];
         return float(np.sum(self.normalized_probabilities))
 
-    def get_key_string(self, detect_advanced_modes: bool = False) -> str:
+    def get_key_string(self, detect_advanced_modes: bool = False, index: Optional[int] = None) -> str:
         """
-        Get the key string with highest probability.
+        Get the key string for a specific index or the highest probability.
 
         Args:
             detect_advanced_modes: If True, append mode name (e.g., "A dorian")
+            index: Specific key index (0-11). If None, uses highest probability
 
         Returns:
             Key string (e.g., "A", "Am", "C#", "F#m")
         """
-        # Find index with maximum probability
-        # Java: double maximum = Double.MIN_VALUE;
-        #       int index = -1;
-        #       for (int i = 0; i < 12; ++i) {
-        #           if (normalizedProbabilities[i] > maximum) {
-        #               maximum = normalizedProbabilities[i];
-        #               index = i;
-        #           }
-        #       }
-        index = int(np.argmax(self.normalized_probabilities))
+        # Use provided index or find the one with maximum probability
+        if index is None:
+            # Find index with maximum probability
+            # Java: double maximum = Double.MIN_VALUE;
+            #       int index = -1;
+            #       for (int i = 0; i < 12; ++i) {
+            #           if (normalizedProbabilities[i] > maximum) {
+            #               maximum = normalizedProbabilities[i];
+            #               index = i;
+            #           }
+            #       }
+            index = int(np.argmax(self.normalized_probabilities))
+
+        # Validate index
+        if index < 0 or index >= 12:
+            log.error(f"Invalid key index: {index}")
+            return ""
 
         # Build key string
         # Java: StringBuffer key = new StringBuffer();
@@ -735,7 +743,8 @@ class KeyProbability:
 
             # Add all 12 keys from this filter to results
             for i in range(12):
-                key_str = result_set.get_key_string(detect_advanced_modes=False)
+                # Get the key string for THIS specific index, not the highest one
+                key_str = result_set.get_key_string(detect_advanced_modes=False, index=i)
                 prob = result_set.get_probability(i)
                 mode_type = result_set.mode_type if detect_mode else ""
                 results.append((key_str, prob, mode_type))
