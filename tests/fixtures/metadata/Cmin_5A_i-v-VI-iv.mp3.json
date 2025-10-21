@@ -1,19 +1,19 @@
 {
     "stream_info": {
         "bitrate": {
-            "value": null,
+            "value": 320000,
             "provider": "MutagenProvider"
         },
         "length": {
-            "value": null,
+            "value": 2.7951,
             "provider": "MutagenProvider"
         },
         "sample_rate": {
-            "value": null,
+            "value": 44100,
             "provider": "MutagenProvider"
         },
         "channels": {
-            "value": null,
+            "value": 2,
             "provider": "MutagenProvider"
         },
         "bits_per_sample": {
@@ -21,11 +21,11 @@
             "provider": "MutagenProvider"
         },
         "total_samples": {
-            "value": null,
+            "value": 5.5902,
             "provider": "MutagenProvider"
         },
         "format": {
-            "value": null,
+            "value": "MPEG 1 layer 3",
             "provider": "MutagenProvider"
         }
     },
@@ -71,9 +71,11 @@
             ]
         },
         "artist": {
-            "value": null,
+            "value": "Lyjia",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "Lyjia"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -95,17 +97,21 @@
             ]
         },
         "bpm": {
-            "value": null,
+            "value": "174",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "174"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
         },
         "comment": {
-            "value": null,
+            "value": "Made with Tom's Production Template v5.4c",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "Made with Tom's Production Template v5.4c"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -150,6 +156,16 @@
                 "MutagenProvider"
             ]
         },
+        "date": {
+            "value": "2025",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "2025"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "discnumber": {
             "value": null,
             "provider": "MutagenProvider",
@@ -167,9 +183,11 @@
             ]
         },
         "encodedby": {
-            "value": null,
+            "value": "LAME in FL Studio 2025",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "LAME in FL Studio 2025"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -288,11 +306,11 @@
         }
     },
     "internal": {
-        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\lyjia_dnb019_175bpm.wav",
-        "ftype": "wav",
-        "fsize": 1453268,
-        "fmtime": 1761015418.9996185,
-        "fctime": 1760664318.3949208,
+        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\Cmin_5A_i-v-VI-iv.mp3",
+        "ftype": "mp3",
+        "fsize": 111948,
+        "fmtime": 1761018280.5678236,
+        "fctime": 1761018278.144986,
         "ismedia": true,
         "iswritable": true
     }
