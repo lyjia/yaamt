@@ -12,6 +12,13 @@ import numpy as np
 
 from util.logging import log
 
+# Configuration constants (from re3.properties)
+KEY_DETECTOR_ANALYZE_CHUNK_SIZE = 8192
+KEY_DETECTOR_MATRIX_START_SCALE = 0.25
+KEY_DETECTOR_MATRIX_MAX_OCTAVES = 8
+KEY_DETECTOR_MATRIX_SHIFTS = 1
+KEY_DETECTOR_MATRIX_WAVELET_WIDTH = 1.0
+
 
 class DetectedKey:
     """
@@ -52,15 +59,6 @@ class DetectedKey:
         if self.end_key and self.end_key != self.start_key:
             return f"DetectedKey(start={self.start_key}, end={self.end_key}, accuracy={self.accuracy:.2f})"
         return f"DetectedKey(key={self.start_key}, accuracy={self.accuracy:.2f})"
-
-
-# Configuration constants (from re3.properties)
-KEY_DETECTOR_ANALYZE_CHUNK_SIZE = 8192
-KEY_DETECTOR_MATRIX_START_SCALE = 0.25
-KEY_DETECTOR_MATRIX_MAX_OCTAVES = 8
-KEY_DETECTOR_MATRIX_SHIFTS = 1
-KEY_DETECTOR_MATRIX_WAVELET_WIDTH = 1.0
-
 
 class KeyDetectionMatrix:
     """

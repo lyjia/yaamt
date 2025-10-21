@@ -4,6 +4,6 @@ Musical Key Analysis providers.
 This package contains key detection analyzers.
 """
 
-from .musical_key_analyzer import MusicalKeyAnalyzer
+from .wavelet_key_analyzer import WaveletKeyAnalyzer
 
-__all__ = ['MusicalKeyAnalyzer']
+__all__ = ['WaveletKeyAnalyzer']

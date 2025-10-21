@@ -15,7 +15,7 @@ from providers.analysis.bpm import aubio_bpm
 from providers.analysis.bpm import multiband_spectral_bpm
 
 # Key analyzers
-from providers.analysis.key import musical_key_analyzer
+from providers.analysis.key import wavelet_key_analyzer
 
 # Fingerprint analyzers
 # (none yet)
