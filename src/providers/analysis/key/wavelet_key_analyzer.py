@@ -129,13 +129,16 @@ class WaveletKeyAnalyzer(AnalyzerBase):
             chunks_processed = 0
             chunks_skipped = 0
 
-            # Calculate intelligent chunk selection strategy
+            # Calculate chunk selection strategy
             chunk_count = 0
             total_chunks = total_samples // KEY_DETECTOR_ANALYZE_CHUNK_SIZE
 
-            # For intelligent sampling, divide song into sections and sample from each
+            # Check if sectional sampling is enabled (default: False for uniform sampling)
+            use_sectional_sampling = self.options.get('intelligent_sampling', False)
+
+            # For sectional sampling, divide song into sections and sample from each
             # This ensures we get samples from intro, middle, and outro
-            if percent_to_analyze < 100 and total_chunks > 10:
+            if use_sectional_sampling and percent_to_analyze < 100 and total_chunks > 10:
                 # Calculate how many chunks to process
                 target_chunks = max(1, int(total_chunks * percent_to_analyze / 100))
 
@@ -168,7 +171,7 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                             if chunk_idx < end:
                                 chunks_to_process.add(chunk_idx)
 
-                log.debug(f"Intelligent sampling: processing {len(chunks_to_process)} of {total_chunks} chunks")
+                log.debug(f"Sectional sampling: processing {len(chunks_to_process)} of {total_chunks} chunks")
             else:
                 # Process all chunks or use simple interval sampling for short files
                 chunks_to_process = None
@@ -177,7 +180,7 @@ class WaveletKeyAnalyzer(AnalyzerBase):
             log.debug(f"Processing {total_samples} samples in {KEY_DETECTOR_ANALYZE_CHUNK_SIZE}-sample chunks")
             if percent_to_analyze < 100:
                 if chunks_to_process is not None:
-                    log.debug(f"  Using intelligent sampling for {percent_to_analyze}% accuracy")
+                    log.debug(f"  Using sectional sampling for {percent_to_analyze}% accuracy")
                 else:
                     log.debug(f"  Processing every {process_every_n_chunks} chunks for {percent_to_analyze}% accuracy")
 
@@ -233,8 +236,12 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     chunk_count += 1
 
                     # Decide whether to process or skip this chunk based on accuracy setting
-                    # This implements the RE3 approach from KeyDetector.java
-                    should_process = (percent_to_analyze == 100) or (chunk_count % process_every_n_chunks == 1)
+                    if chunks_to_process is not None:
+                        # Using intelligent sampling - check if this chunk is in our set
+                        should_process = (chunk_count - 1) in chunks_to_process
+                    else:
+                        # Using simple interval sampling (RE3 approach)
+                        should_process = (percent_to_analyze == 100) or (chunk_count % process_every_n_chunks == 1)
 
                     if should_process:
                         # Perform CWT analysis
@@ -428,6 +435,32 @@ class WaveletKeyAnalyzer(AnalyzerBase):
         slider_layout.addWidget(percent_spinbox)
 
         accuracy_layout.addLayout(slider_layout)
+
+        # Sampling strategy checkbox
+        sectional_checkbox = QCheckBox("Use sectional sampling (intro/middle/outro)")
+        sectional_checkbox.setObjectName("intelligent_sampling")  # Keep name for compatibility
+        sectional_checkbox.setToolTip(
+            "When enabled with reduced accuracy, samples chunks from the beginning, middle, and end of the song. "
+            "When disabled, uses uniform interval sampling throughout the entire track."
+        )
+        sectional_checkbox.setStyleSheet("font-size: 10px;")
+
+        # Load saved sampling preference
+        settings.beginGroup("analyzers/WaveletKeyAnalyzer")
+        saved_sectional = settings.value("intelligent_sampling", False, type=bool)  # Default to False (uniform)
+        settings.endGroup()
+
+        sectional_checkbox.setChecked(saved_sectional)
+
+        # Save preference on change
+        def save_sectional_pref(checked):
+            settings.beginGroup("analyzers/WaveletKeyAnalyzer")
+            settings.setValue("intelligent_sampling", checked)
+            settings.endGroup()
+
+        sectional_checkbox.stateChanged.connect(save_sectional_pref)
+        accuracy_layout.addWidget(sectional_checkbox)
+
         accuracy_group.setLayout(accuracy_layout)
         layout.addWidget(accuracy_group)
 
