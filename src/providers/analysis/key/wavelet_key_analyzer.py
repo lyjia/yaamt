@@ -208,10 +208,11 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     error="No chromatic data detected - file may be silent or corrupted"
                 )
 
-            # Get detected key
+            # Get detected key (with optional mode detection)
             # Java: DetectedKey end_key = segment_probabilities.getDetectedKey();
             #       Key key = segment_probabilities.getDetectedKey(true).getStartKey();
-            detected_key = segment_probabilities.get_detected_key(log_details=False)
+            detect_mode = self.options.get('detect_mode', False)
+            detected_key = segment_probabilities.get_detected_key(log_details=False, detect_mode=detect_mode)
 
             if not detected_key.is_valid() or not detected_key.start_key:
                 return AnalyzerResult(
@@ -219,14 +220,25 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     error="Could not detect key - no clear tonality found"
                 )
 
-            log.info(f"RE3 detected key: {detected_key.start_key} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path}")
+            # Log result with mode if detected
+            if detected_key.mode:
+                log.info(f"RE3 detected key: {detected_key.start_key} {detected_key.mode} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path}")
+            else:
+                log.info(f"RE3 detected key: {detected_key.start_key} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path}")
 
+            # Prepare result data
             # Return key string (Tag Transformation system handles notation conversion)
             # The detected key is in RE3 format (e.g., "Am", "C", "F#m")
             # YAAMT's MusicalKeyFormatter will convert to user's preferred notation
+            result_data = {'key': detected_key.start_key}
+
+            # Include mode if detected (consumer will handle appending to comments)
+            if detected_key.mode:
+                result_data['mode'] = detected_key.mode
+
             return AnalyzerResult(
                 success=True,
-                data={'key': detected_key.start_key}
+                data=result_data
             )
 
         except InterruptedError:
@@ -253,21 +265,31 @@ class WaveletKeyAnalyzer(AnalyzerBase):
         """
         Return a QWidget for configuring key analyzer parameters.
 
-        Currently no user-configurable parameters.
-
         Returns:
-            QWidget with info message
+            QWidget with mode detection checkbox
         """
+        from PySide6.QtWidgets import QCheckBox
+
         widget = QWidget()
         layout = QVBoxLayout()
 
+        # Info label
         info_label = QLabel(
-            "This analyzer uses the RapidEvolution3 wavelet-based key detection algorithm.\n\n"
-            "No configuration options are available at this time."
+            "This analyzer uses the RapidEvolution3 wavelet-based key detection algorithm."
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet("color: gray; font-size: 10px;")
         layout.addWidget(info_label)
+
+        # Mode detection checkbox
+        mode_checkbox = QCheckBox("Detect and report musical mode")
+        mode_checkbox.setObjectName("detect_mode")
+        mode_checkbox.setChecked(False)
+        mode_checkbox.setToolTip(
+            "When enabled, the analyzer will identify the musical mode (ionian, dorian, phrygian, etc.) "
+            "and append it to the track's comments field."
+        )
+        layout.addWidget(mode_checkbox)
 
         layout.addStretch()
         widget.setLayout(layout)

@@ -6,7 +6,7 @@ RapidEvolution3, using Gaussian-modulated cosine wavelets and modal template mat
 
 Reference: https://github.com/djqualia/RapidEvolution3
 """
-
+from enum import Enum
 from typing import Optional, Callable, Tuple, List
 import numpy as np
 
@@ -19,6 +19,21 @@ KEY_DETECTOR_MATRIX_MAX_OCTAVES = 8
 KEY_DETECTOR_MATRIX_SHIFTS = 1
 KEY_DETECTOR_MATRIX_WAVELET_WIDTH = 1.0
 
+class DiatonicMode(Enum):
+    dorian = "dorian",
+    phrygian = "phrygian",
+    lydian = "lydian",
+    mixolydian = "mixolydian",
+    aeolian = "aeolian",
+    locrian = "locrian",
+    ionian = "ionian",
+    I = "ionian",
+    II = "dorian",
+    III = "phrygian",
+    IV = "lydian",
+    V = "mixolydian",
+    VI = "aeolian",
+    VII = "locrian"
 
 class DetectedKey:
     """
@@ -31,9 +46,10 @@ class DetectedKey:
         start_key: The primary detected key (string format like "Am", "C", "8A")
         end_key: Optional ending key for tracks with key changes (rarely used)
         accuracy: Confidence score from 0.0 to 1.0
+        mode: Optional musical mode (string representation)
     """
 
-    def __init__(self, start_key: str = "", end_key: str = "", accuracy: float = 0.0):
+    def __init__(self, start_key: str = "", end_key: str = "", accuracy: float = 0.0, mode: str = ""):
         """
         Initialize detected key result.
 
@@ -41,10 +57,12 @@ class DetectedKey:
             start_key: Primary detected key notation
             end_key: Ending key (for key changes), empty string if same as start
             accuracy: Detection confidence (0.0 to 1.0)
+            mode: Optional musical mode type (string, corresponds to DiatonicMode enum values)
         """
         self.start_key = start_key
         self.end_key = end_key
         self.accuracy = accuracy
+        self.mode = mode
 
     def is_valid(self) -> bool:
         """
@@ -57,7 +75,11 @@ class DetectedKey:
 
     def __repr__(self) -> str:
         if self.end_key and self.end_key != self.start_key:
+            if self.mode:
+                return f"DetectedKey(start={self.start_key}, end={self.end_key}, accuracy={self.accuracy:.2f}, mode={self.mode})"
             return f"DetectedKey(start={self.start_key}, end={self.end_key}, accuracy={self.accuracy:.2f})"
+        if self.mode:
+            return f"DetectedKey(key={self.start_key}, accuracy={self.accuracy:.2f}, mode={self.mode})"
         return f"DetectedKey(key={self.start_key}, accuracy={self.accuracy:.2f})"
 
 class KeyDetectionMatrix:
@@ -686,18 +708,19 @@ class KeyProbability:
         for i in range(len(self.segment_totals)):
             self.segment_totals[i] = 0.0
 
-    def get_detected_key(self, log_details: bool = False) -> DetectedKey:
+    def get_detected_key(self, log_details: bool = False, detect_mode: bool = False) -> DetectedKey:
         """
         Get the detected key from accumulated filter results.
 
         Args:
             log_details: If True, log debugging information
+            detect_mode: If True, track and return the detected mode
 
         Returns:
             DetectedKey with best match and accuracy score
         """
         # Collect results from all filters
-        results: List[Tuple[str, float]] = []  # (key_string, probability)
+        results: List[Tuple[str, float, str]] = []  # (key_string, probability, mode_type)
         max_probability = 0.0
         min_probability = float('inf')
         total_probability = 0.0
@@ -715,7 +738,8 @@ class KeyProbability:
             for i in range(12):
                 key_str = result_set.get_key_string(detect_advanced_modes=False)
                 prob = result_set.get_probability(i)
-                results.append((key_str, prob))
+                mode_type = result_set.mode_type if detect_mode else ""
+                results.append((key_str, prob, mode_type))
 
             # Track statistics
             filter_max = result_set.get_max_probability()
@@ -758,7 +782,8 @@ class KeyProbability:
         # Get top result
         if results and len(results) > 0:
             best_key = results[0][0]
-            return DetectedKey(start_key=best_key, end_key="", accuracy=accuracy)
+            best_mode = results[0][2] if detect_mode else ""
+            return DetectedKey(start_key=best_key, end_key="", accuracy=accuracy, mode=best_mode)
         else:
             return DetectedKey(start_key="", end_key="", accuracy=0.01)
 

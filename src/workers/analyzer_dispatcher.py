@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot
 from models.media_file import MediaFile
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
 from providers.audio.base import AudioStreamBase
-from util.const import KEY_TAG_GENERIC
+from util.const import KEY_TAG_GENERIC, KEY_COMMENT
 from util.logging import log
 
 
@@ -321,9 +321,42 @@ class AnalyzerDispatcher(QObject):
 
         if task.result.success and not task.result.skipped and task.result.data:
             try:
+                # Handle special case: mode field from key analyzer
+                # Mode should be appended to comments in format "Key: C (ionian)"
+                result_data = task.result.data.copy()
+
+                # Note: key analyzer returns 'key' (not KEY_MUSICAL_KEY which is 'musical_key')
+                if 'mode' in result_data and 'key' in result_data:
+                    key_value = result_data['key']
+                    mode_value = result_data.pop('mode')  # Remove mode from data
+
+                    # Build the mode comment string
+                    mode_comment = f"Key: {key_value} ({mode_value})"
+
+                    # Get existing comments
+                    existing_comments = task.media_file.get_tag_simple(KEY_COMMENT)
+
+                    # Check if we already have a mode comment (to avoid duplicates)
+                    if existing_comments:
+                        # Replace existing "Key: ..." line or append
+                        lines = existing_comments.split('\n')
+                        updated = False
+                        for i, line in enumerate(lines):
+                            if line.startswith('Key:'):
+                                lines[i] = mode_comment
+                                updated = True
+                                break
+
+                        if updated:
+                            result_data[KEY_COMMENT] = '\n'.join(lines)
+                        else:
+                            result_data[KEY_COMMENT] = f"{existing_comments}\n{mode_comment}"
+                    else:
+                        result_data[KEY_COMMENT] = mode_comment
+
                 # Build changes dictionary using KEY_TAG_GENERIC
                 changes = {
-                    KEY_TAG_GENERIC: task.result.data
+                    KEY_TAG_GENERIC: result_data
                 }
 
                 # Save to MediaFile (autosave will handle persistence if enabled)
