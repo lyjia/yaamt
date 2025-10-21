@@ -683,14 +683,10 @@ class KeyProbability:
         #       if (total > 0)
         #           for (int i = 0; i < 12; ++i)
         #               segment_totals[i] /= total;
-        total = 0.0
-        for i in range(12):
-            total += self.segment_totals[i]
-
+        # OPTIMIZATION: Use numpy operations instead of Python loops
+        total = np.sum(self.segment_totals)
         if total > 0:
-            for i in range(12):
-                # IMPORTANT: Divide each element BY total (normalize)
-                self.segment_totals[i] /= total
+            self.segment_totals /= total
 
         # Send normalized data to each filter
         # Java: for (int f = 0; f < filters.size(); ++f) {
@@ -704,9 +700,9 @@ class KeyProbability:
         # Java: segment_size = 0;
         #       for (int i = 0; i < segment_totals.length; ++i)
         #           segment_totals[i] = 0;
+        # OPTIMIZATION: Use numpy fill instead of Python loop
         self.segment_size = 0.0
-        for i in range(len(self.segment_totals)):
-            self.segment_totals[i] = 0.0
+        self.segment_totals.fill(0.0)
 
     def get_detected_key(self, log_details: bool = False, detect_mode: bool = False) -> DetectedKey:
         """
@@ -803,6 +799,9 @@ class KeyProbability:
         return all_zeros
 
 
+# Global cache for KeyDetectionMatrix instances
+_matrix_cache: dict[int, KeyDetectionMatrix] = {}
+
 def count_key_probabilities(
     wavedata: np.ndarray,
     icount: int,
@@ -831,9 +830,13 @@ def count_key_probabilities(
 
     Reference: KeyDetector.java lines 204-223
     """
-    # Get wavelet matrix for this sample rate
+    # Get wavelet matrix for this sample rate (cached to avoid expensive recreation)
     # Java: KeyDetectionMatrix matrix = getMatrix(maxfreq);
-    matrix = KeyDetectionMatrix(maxfreq)
+    # OPTIMIZATION: Cache matrix by maxfreq to avoid recreating for every chunk
+    if maxfreq not in _matrix_cache:
+        _matrix_cache[maxfreq] = KeyDetectionMatrix(maxfreq)
+        log.debug(f"Created and cached KeyDetectionMatrix for maxfreq={maxfreq}Hz")
+    matrix = _matrix_cache[maxfreq]
 
     # Java: int icountInt = (int)icount;
     icount_int = int(icount)
@@ -841,8 +844,8 @@ def count_key_probabilities(
     # Zero the norm_keycount accumulator
     # Java: for (int i = 0; i < norm_keycount.length; ++i)
     #           norm_keycount[i] = 0.0;
-    for i in range(len(norm_keycount)):
-        norm_keycount[i] = 0.0
+    # OPTIMIZATION: Use numpy fill instead of Python loop
+    norm_keycount.fill(0.0)
 
     # Loop over all octaves
     # Java: for (int p = 0; p < matrix.getMaxOctaves(); p++) {
@@ -853,8 +856,8 @@ def count_key_probabilities(
             # Zero the CWT coefficients array for this octave/shift
             # Java: for (int z = 0; z < 12; ++z)
             #           cwt[z] = 0.0;
-            for z in range(12):
-                cwt[z] = 0.0
+            # OPTIMIZATION: Use numpy fill instead of Python loop
+            cwt.fill(0.0)
 
             # Convolve audio with wavelets for all 12 pitch classes
             # Java: for (int m = 0; m < amt; ++m) {
@@ -882,9 +885,8 @@ def count_key_probabilities(
             # Accumulate absolute CWT values into pitch class energies
             # Java: for (int z = 0; z< 12; ++z)
             #           norm_keycount[z] += Math.abs(cwt[z]);
-            for z in range(12):
-                # IMPORTANT: Add absolute value of cwt[z] TO norm_keycount[z]
-                norm_keycount[z] += abs(cwt[z])
+            # OPTIMIZATION: Use numpy operations instead of Python loop
+            norm_keycount += np.abs(cwt)
 
     # Send accumulated pitch class energies to KeyProbability
     # Java: segment_probabilities.add(norm_keycount, time);

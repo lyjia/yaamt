@@ -158,15 +158,10 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                 #       }
                 if 0 < frames_read < KEY_DETECTOR_ANALYZE_CHUNK_SIZE:
                     log.debug(f"Incomplete chunk ({frames_read} samples), looping to fill {KEY_DETECTOR_ANALYZE_CHUNK_SIZE}")
-                    # Pad by repeating
-                    padded = np.zeros(KEY_DETECTOR_ANALYZE_CHUNK_SIZE, dtype=np.float64)
-                    i = 0
-                    for j in range(KEY_DETECTOR_ANALYZE_CHUNK_SIZE):
-                        padded[j] = samples[i]
-                        i += 1
-                        if i >= frames_read:
-                            i = 0
-                    samples = padded
+                    # OPTIMIZATION: Pad by repeating using numpy.tile
+                    # Calculate how many repeats we need
+                    repeats = (KEY_DETECTOR_ANALYZE_CHUNK_SIZE + frames_read - 1) // frames_read
+                    samples = np.tile(samples, repeats)[:KEY_DETECTOR_ANALYZE_CHUNK_SIZE]
                     frames_read = KEY_DETECTOR_ANALYZE_CHUNK_SIZE
 
                 # Process full chunks only
