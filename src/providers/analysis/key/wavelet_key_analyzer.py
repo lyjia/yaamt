@@ -73,6 +73,14 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     error="Key already set"
                 )
 
+            # Get accuracy setting (percentage of audio to analyze)
+            # Default to 100% for maximum accuracy, matching RE3's default
+            percent_to_analyze = self.options.get('percent_audio_samples_to_process', 100)
+            if percent_to_analyze < 10:
+                percent_to_analyze = 10  # Minimum 10%
+            elif percent_to_analyze > 100:
+                percent_to_analyze = 100  # Maximum 100%
+
             # Start timing
             start_time = time.perf_counter()
 
@@ -92,6 +100,7 @@ class WaveletKeyAnalyzer(AnalyzerBase):
 
             log.info(f"RE3 key analyzer starting: {self.media_file.file_path}")
             log.debug(f"  Sample rate: {sample_rate}Hz, duration: {duration:.2f}s")
+            log.debug(f"  Accuracy setting: {percent_to_analyze}% of audio will be analyzed")
 
             # Calculate maximum frequency (Nyquist)
             # Java: int maxfrequency = (int) decoder.getMaxFrequency();
@@ -118,8 +127,16 @@ class WaveletKeyAnalyzer(AnalyzerBase):
             total_samples = int(sample_rate * duration)
             samples_read = 0
             chunks_processed = 0
+            chunks_skipped = 0
+
+            # Calculate chunk skip pattern based on percentage
+            # Similar to RE3's implementation in KeyDetector.java
+            chunk_count = 0
+            process_every_n_chunks = int(100.0 / percent_to_analyze) if percent_to_analyze < 100 else 1
 
             log.debug(f"Processing {total_samples} samples in {KEY_DETECTOR_ANALYZE_CHUNK_SIZE}-sample chunks")
+            if percent_to_analyze < 100:
+                log.debug(f"  Processing every {process_every_n_chunks} chunks for {percent_to_analyze}% accuracy")
 
             while True:
                 # Check for cancellation
@@ -170,26 +187,38 @@ class WaveletKeyAnalyzer(AnalyzerBase):
 
                 # Process full chunks only
                 if frames_read == KEY_DETECTOR_ANALYZE_CHUNK_SIZE:
-                    # Perform CWT analysis
-                    # Java: analyzeSegment(decoder.getAudioBuffer(), decoder, norm_keycount, segment_probabilities, cwt);
-                    count_key_probabilities(
-                        wavedata=samples,
-                        icount=0,
-                        amt=KEY_DETECTOR_ANALYZE_CHUNK_SIZE,
-                        time=time_interval,
-                        maxfreq=max_frequency,
-                        segment_probabilities=segment_probabilities,
-                        norm_keycount=norm_keycount,
-                        cwt=cwt
-                    )
+                    chunk_count += 1
 
-                    chunks_processed += 1
+                    # Decide whether to process or skip this chunk based on accuracy setting
+                    # This implements the RE3 approach from KeyDetector.java
+                    should_process = (percent_to_analyze == 100) or (chunk_count % process_every_n_chunks == 1)
+
+                    if should_process:
+                        # Perform CWT analysis
+                        # Java: analyzeSegment(decoder.getAudioBuffer(), decoder, norm_keycount, segment_probabilities, cwt);
+                        count_key_probabilities(
+                            wavedata=samples,
+                            icount=0,
+                            amt=KEY_DETECTOR_ANALYZE_CHUNK_SIZE,
+                            time=time_interval,
+                            maxfreq=max_frequency,
+                            segment_probabilities=segment_probabilities,
+                            norm_keycount=norm_keycount,
+                            cwt=cwt
+                        )
+                        chunks_processed += 1
+                    else:
+                        chunks_skipped += 1
+
                     samples_read += frames_read
 
                     # Log progress periodically
-                    if chunks_processed % 100 == 0:
+                    if chunk_count % 100 == 0:
                         progress_pct = (samples_read / total_samples) * 100
-                        log.debug(f"  Processed {chunks_processed} chunks ({progress_pct:.1f}%)")
+                        if chunks_skipped > 0:
+                            log.debug(f"  Processed {chunks_processed} chunks, skipped {chunks_skipped} ({progress_pct:.1f}% of file read)")
+                        else:
+                            log.debug(f"  Processed {chunks_processed} chunks ({progress_pct:.1f}%)")
 
                 elif frames_read == 0:
                     # End of stream
@@ -223,10 +252,16 @@ class WaveletKeyAnalyzer(AnalyzerBase):
             elapsed_time = time.perf_counter() - start_time
 
             # Log result with mode if detected
+            analysis_info = f"[analysis took {elapsed_time:.2f}s"
+            if chunks_skipped > 0:
+                speedup = (chunks_processed + chunks_skipped) / chunks_processed if chunks_processed > 0 else 1.0
+                analysis_info += f", {speedup:.1f}x speedup from {percent_to_analyze}% sampling"
+            analysis_info += "]"
+
             if detected_key.mode:
-                log.info(f"RE3 detected key: {detected_key.start_key} {detected_key.mode} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path} [analysis took {elapsed_time:.2f}s]")
+                log.info(f"RE3 detected key: {detected_key.start_key} {detected_key.mode} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path} {analysis_info}")
             else:
-                log.info(f"RE3 detected key: {detected_key.start_key} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path} [analysis took {elapsed_time:.2f}s]")
+                log.info(f"RE3 detected key: {detected_key.start_key} (accuracy: {detected_key.accuracy:.2f}) for {self.media_file.file_path} {analysis_info}")
 
             # Prepare result data
             # Return key string (Tag Transformation system handles notation conversion)
@@ -268,9 +303,11 @@ class WaveletKeyAnalyzer(AnalyzerBase):
         Return a QWidget for configuring key analyzer parameters.
 
         Returns:
-            QWidget with mode detection checkbox
+            QWidget with accuracy slider and mode detection checkbox
         """
-        from PySide6.QtWidgets import QCheckBox
+        from PySide6.QtWidgets import QCheckBox, QSlider, QHBoxLayout, QSpinBox, QGroupBox
+        from PySide6.QtCore import Qt
+        from models.settings import settings
 
         widget = QWidget()
         layout = QVBoxLayout()
@@ -283,14 +320,96 @@ class WaveletKeyAnalyzer(AnalyzerBase):
         info_label.setStyleSheet("color: gray; font-size: 10px;")
         layout.addWidget(info_label)
 
+        # Accuracy/Speed slider group
+        accuracy_group = QGroupBox("Analysis Speed vs Accuracy")
+        accuracy_layout = QVBoxLayout()
+
+        # Description
+        accuracy_desc = QLabel(
+            "Adjust the percentage of audio to analyze. Lower values are faster but may be less accurate."
+        )
+        accuracy_desc.setWordWrap(True)
+        accuracy_desc.setStyleSheet("font-size: 10px;")
+        accuracy_layout.addWidget(accuracy_desc)
+
+        # Slider with labels
+        slider_layout = QHBoxLayout()
+
+        # Labels
+        fast_label = QLabel("Faster")
+        fast_label.setStyleSheet("font-size: 10px;")
+        accurate_label = QLabel("More Accurate")
+        accurate_label.setStyleSheet("font-size: 10px;")
+
+        # Slider
+        accuracy_slider = QSlider(Qt.Horizontal)
+        accuracy_slider.setObjectName("percent_audio_samples_to_process")
+        accuracy_slider.setMinimum(10)
+        accuracy_slider.setMaximum(100)
+        accuracy_slider.setSingleStep(10)
+        accuracy_slider.setTickInterval(10)
+        accuracy_slider.setTickPosition(QSlider.TicksBelow)
+
+        # SpinBox to show percentage
+        percent_spinbox = QSpinBox()
+        percent_spinbox.setObjectName("percent_audio_samples_to_process_spinbox")
+        percent_spinbox.setMinimum(10)
+        percent_spinbox.setMaximum(100)
+        percent_spinbox.setSingleStep(10)
+        percent_spinbox.setSuffix("%")
+        percent_spinbox.setMaximumWidth(60)
+
+        # Load saved value or use default
+        settings.beginGroup("analyzers/WaveletKeyAnalyzer")
+        saved_accuracy = settings.value("percent_audio_samples_to_process", 100, type=int)
+        settings.endGroup()
+
+        accuracy_slider.setValue(saved_accuracy)
+        percent_spinbox.setValue(saved_accuracy)
+
+        # Connect slider and spinbox
+        accuracy_slider.valueChanged.connect(lambda v: percent_spinbox.setValue(v))
+        percent_spinbox.valueChanged.connect(lambda v: accuracy_slider.setValue(v))
+
+        # Save preference on change
+        def save_accuracy_pref(value):
+            settings.beginGroup("analyzers/WaveletKeyAnalyzer")
+            settings.setValue("percent_audio_samples_to_process", value)
+            settings.endGroup()
+
+        accuracy_slider.valueChanged.connect(save_accuracy_pref)
+
+        slider_layout.addWidget(fast_label)
+        slider_layout.addWidget(accuracy_slider)
+        slider_layout.addWidget(accurate_label)
+        slider_layout.addWidget(percent_spinbox)
+
+        accuracy_layout.addLayout(slider_layout)
+        accuracy_group.setLayout(accuracy_layout)
+        layout.addWidget(accuracy_group)
+
         # Mode detection checkbox
         mode_checkbox = QCheckBox("Detect and report musical mode")
         mode_checkbox.setObjectName("detect_mode")
-        mode_checkbox.setChecked(False)
+
+        # Load saved mode detection preference
+        settings.beginGroup("analyzers/WaveletKeyAnalyzer")
+        saved_mode = settings.value("detect_mode", False, type=bool)
+        settings.endGroup()
+
+        mode_checkbox.setChecked(saved_mode)
         mode_checkbox.setToolTip(
             "When enabled, the analyzer will identify the musical mode (ionian, dorian, phrygian, etc.) "
             "and append it to the track's comments field."
         )
+
+        # Save preference on change
+        def save_mode_pref(checked):
+            settings.beginGroup("analyzers/WaveletKeyAnalyzer")
+            settings.setValue("detect_mode", checked)
+            settings.endGroup()
+
+        mode_checkbox.stateChanged.connect(save_mode_pref)
         layout.addWidget(mode_checkbox)
 
         layout.addStretch()
