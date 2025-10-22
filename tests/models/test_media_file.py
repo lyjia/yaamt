@@ -184,7 +184,7 @@ def test_edit_manager_integration(tmp_path):
         assert media_file_read.get_tag_simple(key) == value
 
 
-def test_initial_key_read_write(tmp_path):
+def test_initial_key_read_write(tmp_path, monkeypatch):
     """
     Test that initial_key (musical key) can be read, displayed in the table model, and saved correctly.
 
@@ -193,6 +193,21 @@ def test_initial_key_read_write(tmp_path):
     """
     from models.qt.metadata_model import MetadataTableModel
     from models.settings import FileListSettings
+    from PySide6.QtCore import QSettings
+    from unittest.mock import MagicMock
+
+    # Mock QSettings to ensure consistent transformer behavior across environments
+    # Set the notation format to "camelot" so "8A" and "5A" remain unchanged
+    mock_settings = MagicMock(spec=QSettings)
+    mock_settings.value.return_value = "camelot"  # Use Camelot notation
+
+    # Patch QSettings constructor to return our mock
+    monkeypatch.setattr("PySide6.QtCore.QSettings", lambda *args, **kwargs: mock_settings)
+    monkeypatch.setattr("models.settings.settings", mock_settings)
+
+    # Also need to patch where transformers get their settings
+    monkeypatch.setattr("providers.metadata.tag_transformers.musical_key_formatter.QSettings",
+                       lambda *args, **kwargs: mock_settings)
 
     # Create a temporary copy of the file to write to
     temp_media_path = tmp_path / SOURCE_FILE.name
