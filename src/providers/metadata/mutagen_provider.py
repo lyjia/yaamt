@@ -49,8 +49,6 @@ from .base import MetadataProviderBase
 #     "TLAN": "language",
 # }.items():
 
-EasyID3.RegisterTextKey(KEY_INITIAL_KEY, 'TKEY')
-
 # Register comment field with proper COMM frame handling
 def comment_get(id3, key):
     """Get comment from COMM frame(s) with empty description."""
@@ -76,7 +74,9 @@ def comment_delete(id3, key):
     """Delete COMM frame with empty description."""
     id3.delall('COMM:')
 
+EasyID3.RegisterTextKey(KEY_INITIAL_KEY, 'TKEY')
 EasyID3.RegisterKey(KEY_COMMENT, comment_get, comment_set, comment_delete)
+
 MUT_EASY_TAG_NAMES = ['album',
                       'bpm',
                       'compilation',
@@ -112,7 +112,7 @@ MUT_EASY_TAG_NAMES = ['album',
                       # doesnt appear in above comment for some reason?
                       'genre'] #TODO: figure out why
 
-# This dictionary maps internal mutagen tag names to the generic KEY_ constants.
+# This dictionary maps 'easy' mutagen tag names to the generic KEY_ constants.
 # This is used to populate the `generic_tag_name` field in the TagInfo objects.
 MUTAGEN_TO_GENERIC_MAP = {
     'album': KEY_ALBUM,
