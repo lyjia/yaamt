@@ -7,9 +7,10 @@ the current file being analyzed and overall progress.
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton,
-    QMessageBox, QListWidget
+    QMessageBox, QListWidget, QHBoxLayout
 )
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, Slot, QTimer
+from PySide6.QtGui import QGuiApplication
 import os
 
 from workers.analyzer_dispatcher import AnalyzerDispatcher
@@ -37,6 +38,7 @@ class AnalyzerProgressDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Analyzing Files")
         self.setMinimumWidth(500)
+        self.setMinimumHeight(200)
         self.setModal(True)
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint
@@ -50,32 +52,38 @@ class AnalyzerProgressDialog(QDialog):
         self._setup_ui()
         self._connect_signals()
 
+        # Defer sizing until the dialog is shown
+        QTimer.singleShot(0, self._initial_resize)
+
     def _setup_ui(self):
         """Set up the dialog UI."""
         layout = QVBoxLayout()
 
-        # Analyzer name
+        # Analyzer name (at top)
         self.analyzer_label = QLabel("Analyzer: ")
         self.analyzer_label.setStyleSheet("QLabel { font-weight: bold; }")
         layout.addWidget(self.analyzer_label)
 
         layout.addSpacing(10)
 
-        # Active files list
+        # Active files list label
         active_files_title = QLabel("Processing files:")
         layout.addWidget(active_files_title)
 
+        # Active files list - this should expand to fill available space
         self.active_files_list = QListWidget()
-        self.active_files_list.setMaximumHeight(200)
         self.active_files_list.setStyleSheet("QListWidget { color: #666; }")
-        layout.addWidget(self.active_files_list)
+        # Remove maximum height constraint to allow expansion
+        layout.addWidget(self.active_files_list, stretch=1)  # stretch factor = 1
 
         layout.addSpacing(10)
 
-        # Progress bar
+        # Progress section (fixed at bottom)
+        # Progress label
         self.progress_label = QLabel("Progress:")
         layout.addWidget(self.progress_label)
 
+        # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
@@ -87,9 +95,9 @@ class AnalyzerProgressDialog(QDialog):
         self.progress_text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.progress_text_label)
 
-        layout.addStretch()
+        layout.addSpacing(10)
 
-        # Cancel button
+        # Cancel button (fixed at bottom)
         self.cancel_button = QPushButton("Cancel Analysis")
         self.cancel_button.clicked.connect(self._on_cancel_clicked)
         layout.addWidget(self.cancel_button)
@@ -115,6 +123,45 @@ class AnalyzerProgressDialog(QDialog):
         """
         self.analyzer_label.setText(f"Analyzer: {analyzer_name}")
         # Active files are now handled by active_tasks_updated signal
+
+    def _initial_resize(self):
+        """
+        Perform initial window sizing based on screen size.
+
+        Sets the dialog to a reasonable default size, with soft maximum
+        based on screen dimensions.
+        """
+        # Get the screen geometry
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            screen_width = screen_geometry.width()
+            screen_height = screen_geometry.height()
+
+            # Set soft maximum to 70% of screen height, 50% of screen width
+            max_height = int(screen_height * 0.7)
+            max_width = int(screen_width * 0.5)
+
+            # Set reasonable defaults
+            default_width = min(600, max_width)
+            default_height = min(400, max_height)
+
+            self.resize(default_width, default_height)
+            self.setMaximumHeight(max_height)
+            self.setMaximumWidth(max_width)
+
+            # Center on parent or screen
+            if self.parent():
+                parent_geo = self.parent().geometry()
+                self.move(
+                    parent_geo.x() + (parent_geo.width() - self.width()) // 2,
+                    parent_geo.y() + (parent_geo.height() - self.height()) // 2
+                )
+            else:
+                self.move(
+                    screen_geometry.x() + (screen_width - self.width()) // 2,
+                    screen_geometry.y() + (screen_height - self.height()) // 2
+                )
 
     @Slot(list)
     def _on_active_tasks_updated(self, active_tasks: list):
