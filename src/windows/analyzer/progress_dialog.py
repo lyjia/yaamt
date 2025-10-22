@@ -7,9 +7,11 @@ the current file being analyzed and overall progress.
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton,
-    QMessageBox
+    QMessageBox, QListWidget, QHBoxLayout
 )
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, Slot, QTimer
+from PySide6.QtGui import QGuiApplication
+import os
 
 from workers.analyzer_dispatcher import AnalyzerDispatcher
 from util.logging import log
@@ -36,6 +38,7 @@ class AnalyzerProgressDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Analyzing Files")
         self.setMinimumWidth(500)
+        self.setMinimumHeight(200)
         self.setModal(True)
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint
@@ -45,36 +48,43 @@ class AnalyzerProgressDialog(QDialog):
         self._is_cancelled = False
         self._completed_count = 0
         self._total_count = 0
+        self._has_sized = False  # Track if we've done initial content-based sizing
 
         self._setup_ui()
         self._connect_signals()
+
+        # Defer sizing until the dialog is shown
+        QTimer.singleShot(0, self._initial_resize)
 
     def _setup_ui(self):
         """Set up the dialog UI."""
         layout = QVBoxLayout()
 
-        # Analyzer name
+        # Analyzer name (at top)
         self.analyzer_label = QLabel("Analyzer: ")
         self.analyzer_label.setStyleSheet("QLabel { font-weight: bold; }")
         layout.addWidget(self.analyzer_label)
 
         layout.addSpacing(10)
 
-        # Current file
-        current_file_title = QLabel("Current file:")
-        layout.addWidget(current_file_title)
+        # Active files list label
+        active_files_title = QLabel("Processing files:")
+        layout.addWidget(active_files_title)
 
-        self.current_file_label = QLabel("")
-        self.current_file_label.setWordWrap(True)
-        self.current_file_label.setStyleSheet("QLabel { color: #666; }")
-        layout.addWidget(self.current_file_label)
+        # Active files list - this should expand to fill available space
+        self.active_files_list = QListWidget()
+        self.active_files_list.setStyleSheet("QListWidget { color: #666; }")
+        # Remove maximum height constraint to allow expansion
+        layout.addWidget(self.active_files_list, stretch=1)  # stretch factor = 1
 
         layout.addSpacing(10)
 
-        # Progress bar
+        # Progress section (fixed at bottom)
+        # Progress label
         self.progress_label = QLabel("Progress:")
         layout.addWidget(self.progress_label)
 
+        # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
@@ -86,9 +96,9 @@ class AnalyzerProgressDialog(QDialog):
         self.progress_text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.progress_text_label)
 
-        layout.addStretch()
+        layout.addSpacing(10)
 
-        # Cancel button
+        # Cancel button (fixed at bottom)
         self.cancel_button = QPushButton("Cancel Analysis")
         self.cancel_button.clicked.connect(self._on_cancel_clicked)
         layout.addWidget(self.cancel_button)
@@ -101,6 +111,7 @@ class AnalyzerProgressDialog(QDialog):
         self.dispatcher.task_completed.connect(self._on_task_completed)
         self.dispatcher.progress_updated.connect(self._on_progress_updated)
         self.dispatcher.analysis_completed.connect(self._on_analysis_completed)
+        self.dispatcher.active_tasks_updated.connect(self._on_active_tasks_updated)
 
     @Slot(str, str)
     def _on_task_started(self, file_path: str, analyzer_name: str):
@@ -112,7 +123,115 @@ class AnalyzerProgressDialog(QDialog):
             analyzer_name: Name of analyzer being used
         """
         self.analyzer_label.setText(f"Analyzer: {analyzer_name}")
-        self.current_file_label.setText(file_path)
+        # Active files are now handled by active_tasks_updated signal
+
+    def _initial_resize(self):
+        """
+        Perform initial window sizing based on screen size.
+
+        Sets the dialog to a reasonable default size, with soft maximum
+        based on screen dimensions.
+        """
+        # Get the screen geometry
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            screen_width = screen_geometry.width()
+            screen_height = screen_geometry.height()
+
+            # Set soft maximum to 70% of screen height, 50% of screen width
+            max_height = int(screen_height * 0.7)
+            max_width = int(screen_width * 0.5)
+
+            # Set reasonable defaults
+            default_width = min(600, max_width)
+            default_height = min(400, max_height)
+
+            self.resize(default_width, default_height)
+            self.setMaximumHeight(max_height)
+            self.setMaximumWidth(max_width)
+
+            # Center on parent or screen
+            if self.parent():
+                parent_geo = self.parent().geometry()
+                self.move(
+                    parent_geo.x() + (parent_geo.width() - self.width()) // 2,
+                    parent_geo.y() + (parent_geo.height() - self.height()) // 2
+                )
+            else:
+                self.move(
+                    screen_geometry.x() + (screen_width - self.width()) // 2,
+                    screen_geometry.y() + (screen_height - self.height()) // 2
+                )
+
+    def _size_for_content(self):
+        """
+        Resize dialog to fit all list items on first display.
+
+        Called once when tasks are first shown to optimally size the window.
+        """
+        if self._has_sized:
+            return
+
+        item_count = self.active_files_list.count()
+        if item_count == 0:
+            return
+
+        # Get height of a single item
+        item_height = self.active_files_list.sizeHintForRow(0)
+        if item_height <= 0:
+            item_height = 24  # Default fallback
+
+        # Calculate needed height for all items
+        needed_list_height = item_height * item_count
+
+        # Add extra space for horizontal scrollbar (if present) and padding
+        # QListWidget adds horizontal scrollbar if content is too wide
+        # Standard scrollbar height is ~20px, add extra padding for safety
+        scrollbar_and_padding = 40
+
+        needed_list_height += scrollbar_and_padding
+
+        # Calculate fixed elements height (everything except the list)
+        fixed_height = 200  # Approximate height of fixed elements
+
+        # Calculate ideal total height
+        ideal_height = fixed_height + needed_list_height
+
+        # Get current screen constraints
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            screen_height = screen.availableGeometry().height()
+            max_height = int(screen_height * 0.7)
+
+            # Use ideal height but respect maximum
+            new_height = min(ideal_height, max_height)
+
+            # Only resize if we need more space
+            current_height = self.height()
+            if new_height > current_height:
+                self.resize(self.width(), new_height)
+
+        self._has_sized = True
+
+    @Slot(list)
+    def _on_active_tasks_updated(self, active_tasks: list):
+        """
+        Update the active files list.
+
+        Args:
+            active_tasks: List of (file_path, analyzer_name) tuples
+        """
+        self.active_files_list.clear()
+        for file_path, analyzer_name in active_tasks:
+            filename = os.path.basename(file_path)
+            item_text = f"[{analyzer_name}] {filename}"
+            self.active_files_list.addItem(item_text)
+
+        # Size window to fit content on first update
+        if not self._has_sized:
+            # Defer slightly to ensure list items are rendered
+            QTimer.singleShot(10, self._size_for_content)
 
     @Slot(str, object)
     def _on_task_completed(self, file_path: str, result):

@@ -1,10 +1,10 @@
 name: Cleanup Artifacts
 # DISABLED: Workflow temporarily disabled to conserve GitHub Actions minutes
 # To re-enable, uncomment the 'on:' section below
-#on:
+on:
 #  schedule:
 #    - cron: '0 0 * * *'  # Mondays at midnight
-#  workflow_dispatch:  # Manual trigger
+ workflow_dispatch:  # Manual trigger
 
 jobs:
   cleanup:

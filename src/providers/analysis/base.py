@@ -125,6 +125,23 @@ class AnalyzerBase(ABC):
         return None
 
     @classmethod
+    def get_thread_count(cls, options: Optional[Dict[str, Any]] = None) -> int:
+        """
+        Return the number of threads this analyzer requires.
+
+        This method allows analyzers to report how many threads they need
+        for processing. The dispatcher uses this to determine how many
+        analyzer instances can run concurrently within the thread pool limit.
+
+        Args:
+            options: Analyzer options that might affect thread count
+
+        Returns:
+            Number of threads required (default: 1)
+        """
+        return 1
+
+    @classmethod
     def validate_file(cls, media_file) -> tuple[bool, Optional[str]]:
         """
         Check if this analyzer can process the given file.

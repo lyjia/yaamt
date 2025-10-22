@@ -7,13 +7,102 @@ tasks, executes them in worker threads, and emits Qt signals for progress update
 
 from typing import List, Type, Optional, Dict, Any
 import time
-from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot
+import concurrent.futures
+import os
+from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot, QSettings
 
 from models.media_file import MediaFile
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
 from providers.audio.base import AudioStreamBase
 from util.const import KEY_TAG_GENERIC, KEY_COMMENT, KEY_INITIAL_KEY, KEY_DIATONIC_MODE
 from util.logging import log
+
+
+# Global process pool executor (module-level to be shared across instances)
+_process_pool_executor: Optional[concurrent.futures.ProcessPoolExecutor] = None
+
+
+def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecutor:
+    """
+    Get or create the global process pool executor.
+
+    Args:
+        max_workers: Maximum number of worker processes
+
+    Returns:
+        ProcessPoolExecutor instance
+    """
+    global _process_pool_executor
+
+    if _process_pool_executor is None or _process_pool_executor._max_workers != max_workers:
+        # Shutdown existing pool if it exists
+        if _process_pool_executor is not None:
+            _process_pool_executor.shutdown(wait=False)
+
+        # Create new pool with requested size
+        _process_pool_executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
+        log.info(f"Created process pool with {max_workers} workers")
+
+    return _process_pool_executor
+
+
+def _analyze_in_process(analyzer_class_name: str, file_path: str, options: Dict[str, Any]) -> AnalyzerResult:
+    """
+    Worker function that runs in a separate process to perform analysis.
+
+    This function must be picklable, so it takes primitive types and reconstructs
+    objects from module imports.
+
+    Args:
+        analyzer_class_name: Fully qualified name of analyzer class
+        file_path: Path to the media file
+        options: Analyzer options dictionary
+
+    Returns:
+        AnalyzerResult from the analysis
+    """
+    try:
+        # Add src to path if needed (for subprocess)
+        import sys
+        from pathlib import Path
+
+        # Find the src directory
+        current_file = Path(__file__).resolve()
+        src_dir = current_file.parent.parent
+
+        if str(src_dir) not in sys.path:
+            sys.path.insert(0, str(src_dir))
+
+        # Import here to ensure each process has its own imports
+        from providers import get_analyzer_by_name, discover_providers
+        from models.media_file import MediaFile
+
+        # Ensure providers are discovered in this process
+        discover_providers()
+
+        # Get the analyzer class by name
+        analyzer_class = get_analyzer_by_name(analyzer_class_name)
+        if analyzer_class is None:
+            return AnalyzerResult(
+                success=False,
+                error=f"Analyzer class '{analyzer_class_name}' not found"
+            )
+
+        # Create MediaFile instance
+        media_file = MediaFile(file_path)
+
+        # Create analyzer and run analysis
+        analyzer = analyzer_class(media_file, options)
+        result = analyzer.analyze()
+
+        return result
+
+    except Exception as e:
+        import traceback
+        return AnalyzerResult(
+            success=False,
+            error=f"Process worker error: {str(e)}\n{traceback.format_exc()}"
+        )
 
 
 class AnalysisTask:
@@ -52,34 +141,62 @@ class AnalyzerWorker(QRunnable):
     upon completion or error.
     """
 
-    def __init__(self, task: AnalysisTask, signals: QObject):
+    def __init__(self, task: AnalysisTask, signals: QObject, worker_id: int):
         """
         Initialize the worker.
 
         Args:
             task: The AnalysisTask to execute
             signals: Signal object for emitting completion signals
+            worker_id: Unique identifier for this worker
         """
         super().__init__()
         self.task = task
         self.signals = signals
+        self.worker_id = worker_id
 
     @Slot()
     def run(self):
-        """Execute the analysis task."""
+        """Execute the analysis task, using process pool for parallel execution or direct execution for single-threaded mode."""
         try:
-            # Create the analyzer instance with options
-            analyzer = self.task.analyzer_class(self.task.media_file, self.task.options)
-            self.task.analyzer_instance = analyzer
+            analyzer_name = self.task.analyzer_class.name
+            file_path = self.task.media_file.file_path
 
-            log.debug(f"Starting analysis: {analyzer.name} on {self.task.media_file.file_path}")
+            log.debug(f"Starting analysis: {analyzer_name} on {file_path}")
 
-            # Execute the analysis
-            # Analyzers get audio stream from media_file.get_audio_stream() if needed
-            result = analyzer.analyze()
-            self.task.result = result
+            # Check if we should use multiprocessing
+            # For thread_pool_size=1, run directly in this thread (no process pool overhead)
+            qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+            thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
 
-            log.debug(f"Analysis complete: {analyzer.name} on {self.task.media_file.file_path} - "
+            if thread_pool_size == 1:
+                # Single-threaded mode: run directly without process pool
+                log.debug(f"Running in single-threaded mode (no multiprocessing)")
+                analyzer = self.task.analyzer_class(self.task.media_file, self.task.options)
+                self.task.analyzer_instance = analyzer
+                result = analyzer.analyze()
+                self.task.result = result
+            else:
+                # Multi-threaded mode: use process pool for true parallelism
+                log.debug(f"Running in multi-threaded mode with process pool")
+                analyzer_class_name = self.task.analyzer_class.__name__
+
+                # Submit to process pool and wait for result
+                # Note: This blocks the thread, but releases the GIL, allowing other threads to run
+                process_pool = _get_process_pool(os.cpu_count() or 4)
+
+                future = process_pool.submit(
+                    _analyze_in_process,
+                    analyzer_class_name,
+                    file_path,
+                    self.task.options
+                )
+
+                # Wait for the result (this blocks but releases GIL)
+                result = future.result()
+                self.task.result = result
+
+            log.debug(f"Analysis complete: {analyzer_name} on {file_path} - "
                      f"Success: {result.success}, Skipped: {result.skipped}")
 
         except Exception as e:
@@ -89,8 +206,8 @@ class AnalyzerWorker(QRunnable):
                 error=f"Unexpected error: {str(e)}"
             )
 
-        # Emit completion signal
-        self.signals.worker_finished.emit(self.task)
+        # Emit completion signal with worker ID
+        self.signals.worker_finished.emit(self.worker_id, self.task)
 
 
 class WorkerSignals(QObject):
@@ -100,7 +217,7 @@ class WorkerSignals(QObject):
     These signals are used to communicate from worker threads back to the
     main thread in a thread-safe manner.
     """
-    worker_finished = Signal(object)  # Emits AnalysisTask when worker completes
+    worker_finished = Signal(int, object)  # Emits (worker_id, AnalysisTask) when worker completes
 
 
 class AnalyzerDispatcher(QObject):
@@ -125,6 +242,7 @@ class AnalyzerDispatcher(QObject):
     task_started = Signal(str, str)  # (file_path, analyzer_name)
     task_completed = Signal(str, object)  # (file_path, AnalyzerResult)
     progress_updated = Signal(int, int)  # (completed_count, total_count)
+    active_tasks_updated = Signal(list)  # List of (file_path, analyzer_name) tuples
 
     _instance = None
 
@@ -143,15 +261,29 @@ class AnalyzerDispatcher(QObject):
         super().__init__()
         self._initialized = True
 
+        # Load thread pool size from settings
+        qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+        self.thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
+
         self.thread_pool = QThreadPool.globalInstance()
-        self.thread_pool.setMaxThreadCount(1)  # Sequential initially
+        # Set thread pool max to accommodate the requested thread pool size
+        # We need to ensure the Qt thread pool is large enough to hold all our concurrent tasks
+        self.thread_pool.setMaxThreadCount(max(self.thread_pool_size, self.thread_pool.maxThreadCount()))
+
+        log.info(f"Analyzer dispatcher initialized with thread_pool_size={self.thread_pool_size}, "
+                f"Qt thread pool max={self.thread_pool.maxThreadCount()}")
 
         self.queue: List[AnalysisTask] = []
         self.completed_tasks: List[AnalysisTask] = []
-        self.current_task: Optional[AnalysisTask] = None
+        self.current_task: Optional[AnalysisTask] = None  # Deprecated, kept for compatibility
         self._is_running = False
         self._active_workers = 0
         self._batch_start_time: Optional[float] = None
+
+        # New fields for parallel processing
+        self.active_tasks: Dict[int, tuple[AnalysisTask, int]] = {}  # worker_id -> (task, thread_count)
+        self.threads_in_use = 0
+        self._next_worker_id = 0  # Counter for worker IDs
 
         # Worker signals for thread-safe communication
         self.worker_signals = WorkerSignals()
@@ -185,6 +317,23 @@ class AnalyzerDispatcher(QObject):
 
         log.info(f"Enqueued {len(media_files)} tasks for {analyzer_class.name}")
 
+    def _reload_thread_pool_size(self) -> None:
+        """
+        Reload thread pool size from settings.
+
+        Called at the start of each analysis run to pick up any changes
+        the user made to the thread pool size setting.
+        """
+        qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+        new_thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
+
+        if new_thread_pool_size != self.thread_pool_size:
+            log.info(f"Thread pool size changed from {self.thread_pool_size} to {new_thread_pool_size}")
+            self.thread_pool_size = new_thread_pool_size
+
+            # Ensure Qt thread pool is large enough
+            self.thread_pool.setMaxThreadCount(max(self.thread_pool_size, self.thread_pool.maxThreadCount()))
+
     def start(self) -> None:
         """Begin processing the queue."""
         if self._is_running:
@@ -194,6 +343,9 @@ class AnalyzerDispatcher(QObject):
         if len(self.queue) == 0:
             log.info("Queue is empty, nothing to process")
             return
+
+        # Reload thread pool size from settings in case user changed it
+        self._reload_thread_pool_size()
 
         self._is_running = True
         self._batch_start_time = time.perf_counter()
@@ -261,39 +413,91 @@ class AnalyzerDispatcher(QObject):
         self.current_task = None
         self._is_running = False
         self._active_workers = 0
+        self.active_tasks.clear()
+        self.threads_in_use = 0
+        self._next_worker_id = 0
 
     def _process_next(self) -> None:
-        """Process the next task in the queue."""
+        """Process the next task in the queue, starting multiple workers if possible."""
         # Check if we should continue
-        if not self._is_running or len(self.queue) == 0:
+        if not self._is_running:
             if self._active_workers == 0:
                 self._finish_processing()
             return
 
-        # Get next task
-        task = self.queue.pop(0)
-        self.current_task = task
+        # Try to fill all available thread slots
+        while self.queue and self.threads_in_use < self.thread_pool_size:
+            task = self.queue[0]
 
-        # Emit task started signal
-        self.task_started.emit(
-            task.media_file.file_path,
-            task.analyzer_class.name
-        )
+            # Get thread count needed for this analyzer
+            threads_needed = task.analyzer_class.get_thread_count(task.options)
 
-        # Create and start worker
-        worker = AnalyzerWorker(task, self.worker_signals)
-        self._active_workers += 1
-        self.thread_pool.start(worker)
+            # Check if we have enough threads available
+            if self.threads_in_use + threads_needed <= self.thread_pool_size:
+                # Remove task from queue
+                self.queue.pop(0)
 
-    @Slot(object)
-    def _on_worker_finished(self, task: AnalysisTask) -> None:
+                # Generate unique worker ID
+                worker_id = self._next_worker_id
+                self._next_worker_id += 1
+
+                # Track the task
+                self.active_tasks[worker_id] = (task, threads_needed)
+                self.threads_in_use += threads_needed
+                self._active_workers += 1
+
+                # For compatibility, set current_task to the most recent task
+                self.current_task = task
+
+                # Emit task started signal
+                self.task_started.emit(
+                    task.media_file.file_path,
+                    task.analyzer_class.name
+                )
+
+                # Create and start worker
+                worker = AnalyzerWorker(task, self.worker_signals, worker_id)
+                self.thread_pool.start(worker)
+
+                log.debug(f"Started worker {worker_id} for {task.media_file.file_path}, "
+                         f"threads_in_use={self.threads_in_use}/{self.thread_pool_size}, "
+                         f"active_workers={self._active_workers}, "
+                         f"qt_active_threads={self.thread_pool.activeThreadCount()}")
+
+                # Emit active tasks update
+                self._emit_active_tasks()
+            else:
+                # Not enough threads available, wait for some to finish
+                break
+
+        # If no tasks are running and queue is empty, finish
+        if self._active_workers == 0 and len(self.queue) == 0:
+            self._finish_processing()
+
+    def _emit_active_tasks(self) -> None:
+        """Emit the list of currently active tasks."""
+        active_list = [
+            (task.media_file.file_path, task.analyzer_class.name)
+            for task, _ in self.active_tasks.values()
+        ]
+        self.active_tasks_updated.emit(active_list)
+
+    @Slot(int, object)
+    def _on_worker_finished(self, worker_id: int, task: AnalysisTask) -> None:
         """
         Handle completion of a worker task.
 
         Args:
+            worker_id: The ID of the worker that finished
             task: The completed AnalysisTask
         """
         self._active_workers -= 1
+
+        # Release threads used by this worker
+        if worker_id in self.active_tasks:
+            _, thread_count = self.active_tasks[worker_id]
+            self.threads_in_use -= thread_count
+            del self.active_tasks[worker_id]
 
         # Apply results to MediaFile if successful
         self._apply_results(task)
@@ -309,7 +513,10 @@ class AnalyzerDispatcher(QObject):
         total = completed + len(self.queue)
         self.progress_updated.emit(completed, total)
 
-        # Process next task
+        # Emit updated active tasks list
+        self._emit_active_tasks()
+
+        # Process next task(s)
         self._process_next()
 
     def _apply_results(self, task: AnalysisTask) -> None:

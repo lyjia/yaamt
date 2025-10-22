@@ -44,7 +44,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
     * Run the test suite to make sure that you did not break anything (if applicable).
     * If all tests pass, ask to create a git commit if you are able to do so.
     * It is OK to leaves tests broken if your current changes are part of a larger task, but you need to make sure that all tests pass and changes have test coverage before the large task can be considered done.
-* Make sure to use or activate the Python virtual environment in @.venv\ before running any python commands.
+* Make sure to use the Python virtual environment in `.venv` before running any python commands. The correct way to run a python command **on WINDOWS** is: `.venv/Scripts/python -m pytest tests/test_analyzer_system.py`
 
 ## Design Document Conventions
 
