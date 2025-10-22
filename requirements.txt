@@ -11,3 +11,6 @@ scipy==1.16.2
 cx_Freeze==8.4.1
 nuitka==2.7.16
 imageio==2.37.0
+
+# only needed for /scripts
+pandas
