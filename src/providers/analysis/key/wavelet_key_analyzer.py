@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import register_analyzer
+from util.const import KEY_INITIAL_KEY, KEY_DIATONIC_MODE
 from util.logging import log
 
 # Import the wavelet key detection components
@@ -66,7 +67,7 @@ class WaveletKeyAnalyzer(AnalyzerBase):
 
             # Check if key already exists (unless overwrite is enabled)
             overwrite = self.options.get('overwrite_existing', False)
-            existing_key = self.media_file.get_tag_simple('key')
+            existing_key = self.media_file.get_tag_simple(KEY_INITIAL_KEY)
 
             if existing_key and not overwrite:
                 return AnalyzerResult(
@@ -319,11 +320,11 @@ class WaveletKeyAnalyzer(AnalyzerBase):
             # Return key string (Tag Transformation system handles notation conversion)
             # The detected key is in RE3 format (e.g., "Am", "C", "F#m")
             # YAAMT's MusicalKeyFormatter will convert to user's preferred notation
-            result_data = {'key': detected_key.start_key}
+            result_data = {KEY_INITIAL_KEY: detected_key.start_key}
 
             # Include mode if detected (consumer will handle appending to comments)
             if detected_key.mode:
-                result_data['mode'] = detected_key.mode
+                result_data[KEY_DIATONIC_MODE] = detected_key.mode
 
             return AnalyzerResult(
                 success=True,

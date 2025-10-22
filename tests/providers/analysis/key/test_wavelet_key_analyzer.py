@@ -452,7 +452,7 @@ class TestMusicalKeyAnalyzerIntegration:
 
             # Should either succeed or fail, but not skip
             if result.success:
-                assert 'key' in result.data
+                assert KEY_INITIAL_KEY in result.data
 
     def test_analyze_success(self, temp_fixture):
         """Test successful key analysis on real audio."""
@@ -466,12 +466,12 @@ class TestMusicalKeyAnalyzerIntegration:
 
         # If successful, should have key data
         if result.success:
-            assert 'key' in result.data
-            assert result.data['key'] is not None
+            assert KEY_INITIAL_KEY in result.data
+            assert result.data[KEY_INITIAL_KEY] is not None
             # Key should be a string in standard notation
-            assert isinstance(result.data['key'], str)
+            assert isinstance(result.data[KEY_INITIAL_KEY], str)
             # Should have a root note (A-G) and possibly 'm' or '#'/'b'
-            assert len(result.data['key']) >= 1
+            assert len(result.data[KEY_INITIAL_KEY]) >= 1
 
     def test_analyze_real_harmonic_content(self):
         """Test analyzer on real audio with known musical key (C minor progression)."""
@@ -487,8 +487,8 @@ class TestMusicalKeyAnalyzerIntegration:
 
         # Should successfully detect a key
         assert result.success is True
-        assert 'key' in result.data
-        detected_key = result.data['key']
+        assert KEY_INITIAL_KEY in result.data
+        detected_key = result.data[KEY_INITIAL_KEY]
         assert detected_key is not None
 
         # The progression is in C minor, but the algorithm may detect either:

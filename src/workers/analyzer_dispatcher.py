@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot
 from models.media_file import MediaFile
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
 from providers.audio.base import AudioStreamBase
-from util.const import KEY_TAG_GENERIC, KEY_COMMENT
+from util.const import KEY_TAG_GENERIC, KEY_COMMENT, KEY_INITIAL_KEY, KEY_DIATONIC_MODE
 from util.logging import log
 
 
@@ -328,10 +328,11 @@ class AnalyzerDispatcher(QObject):
                 # Mode should be appended to comments in format "Key: C (ionian)"
                 result_data = task.result.data.copy()
 
-                # Note: key analyzer returns 'key' (not KEY_MUSICAL_KEY which is 'musical_key')
-                if 'mode' in result_data and 'key' in result_data:
-                    key_value = result_data['key']
-                    mode_value = result_data.pop('mode')  # Remove mode from data
+                # Note: There isn't a standard way to store diatonic mode so we're just gonna put it in comments
+                # if it exists
+                if KEY_DIATONIC_MODE in result_data and KEY_INITIAL_KEY in result_data:
+                    key_value = result_data[KEY_INITIAL_KEY]
+                    mode_value = result_data.pop(KEY_DIATONIC_MODE)  # Remove mode from data
 
                     # Build the mode comment string
                     mode_comment = f"Key: {key_value} ({mode_value})"

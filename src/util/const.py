@@ -43,37 +43,38 @@ KEY_REPLAYGAIN_TRACK_PEAK = 'replaygain_track_peak'
 # TAG KEYS
 KEY_ALBUM = 'album'
 KEY_ALBUM_ARTIST = 'albumartist'
+KEY_ALBUM_ARTIST_SORT = 'albumartistsort'
+KEY_ALBUM_SORT = 'albumsort'
+KEY_ARRANGER = 'arranger'
 KEY_ARTIST = 'artist'
+KEY_ARTIST_SORT = 'artistsort'
+KEY_AUTHOR = 'author'
 KEY_BPM = 'bpm'
 KEY_COMMENT = 'comment'
 KEY_COMPOSER = 'composer'
+KEY_COMPOSER_SORT = 'composersort'
+KEY_CONDUCTOR = 'conductor'
 KEY_COPYRIGHT = 'copyright'
 KEY_DATE = 'date'
+KEY_DIATONIC_MODE = 'diatonic_mode'
 KEY_DISC_NUMBER = 'discnumber'
+KEY_DISC_SUBTITLE = 'discsubtitle'
 KEY_DISC_TOTAL = 'disctotal'
 KEY_ENCODED_BY = 'encodedby'
 KEY_GENRE = 'genre'
 KEY_GROUPING = 'grouping'
+KEY_INITIAL_KEY = 'initial_key'
 KEY_ISRC = 'isrc'
 KEY_LANGUAGE = 'language'
 KEY_LYRICIST = 'lyricist'
 KEY_MEDIA = 'media'
 KEY_MOOD = 'mood'
-KEY_INITIAL_KEY = 'initial_key'
+KEY_ORGANIZATION = 'organization'
 KEY_TITLE = 'title'
+KEY_TITLE_SORT = 'titlesort'
 KEY_TRACK_NUMBER = 'tracknumber'
 KEY_TRACK_TOTAL = 'tracktotal'
 KEY_VERSION = 'version'
-KEY_AUTHOR = 'author'
-KEY_CONDUCTOR = 'conductor'
-KEY_ARRANGER = 'arranger'
-KEY_ORGANIZATION = 'organization'
-KEY_DISC_SUBTITLE = 'discsubtitle'
-KEY_ALBUM_ARTIST_SORT = 'albumartistsort'
-KEY_ALBUM_SORT = 'albumsort'
-KEY_COMPOSER_SORT = 'composersort'
-KEY_ARTIST_SORT = 'artistsort'
-KEY_TITLE_SORT = 'titlesort'
 KEY_YEAR = 'year'
 
 ALL_TAGS = { #display names for each tag
@@ -89,10 +90,10 @@ ALL_TAGS = { #display names for each tag
     KEY_ENCODED_BY: "Encoded By",
     KEY_GENRE: "Genre",
     KEY_GROUPING: "Grouping",
+    KEY_INITIAL_KEY: "Key",
     KEY_ISRC: "ISRC",
     KEY_LANGUAGE: "Language",
     KEY_MOOD: "Mood",
-    KEY_INITIAL_KEY: "Key",
     KEY_TITLE: "Title",
     KEY_TRACK_NUMBER: "Track",
     KEY_TRACK_TOTAL: "Tracks",
