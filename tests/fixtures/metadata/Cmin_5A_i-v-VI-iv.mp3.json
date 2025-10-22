@@ -256,7 +256,7 @@
                 "MutagenProvider"
             ]
         },
-        "musical_key": {
+        "initial_key": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,

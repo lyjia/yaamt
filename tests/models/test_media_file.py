@@ -182,3 +182,77 @@ def test_edit_manager_integration(tmp_path):
     media_file_read = MediaFile(str(temp_media_path))
     for key, value in test_changes.items():
         assert media_file_read.get_tag_simple(key) == value
+
+
+def test_initial_key_read_write(tmp_path):
+    """
+    Test that initial_key (musical key) can be read, displayed in the table model, and saved correctly.
+
+    This test specifically addresses the bug where COL_MAIN_KEY was "key" but KEY_INITIAL_KEY
+    was "initial_key", causing a mismatch that prevented the key from being displayed or saved.
+    """
+    from models.qt.metadata_model import MetadataTableModel
+    from models.settings import FileListSettings
+
+    # Create a temporary copy of the file to write to
+    temp_media_path = tmp_path / SOURCE_FILE.name
+    shutil.copy(SOURCE_FILE, temp_media_path)
+
+    # Test 1: Verify we can write initial_key directly via MediaFile
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+    test_key = "8A"
+
+    changes = {
+        KEY_TAG_GENERIC: {KEY_INITIAL_KEY: test_key},
+        KEY_TAG_INTERNAL: {}
+    }
+    media_file.save(changes)
+    time.sleep(0.1)
+
+    # Test 2: Verify the key was written and can be read back
+    media_file_read = MediaFile(str(temp_media_path), enable_write=True)
+    assert media_file_read.get_tag_simple(KEY_INITIAL_KEY) == test_key, \
+        f"Expected initial_key to be '{test_key}', but got '{media_file_read.get_tag_simple(KEY_INITIAL_KEY)}'"
+
+    # Test 3: Verify the key appears correctly in MetadataTableModel
+    edit_manager = EditManager()
+    edit_manager.register_media_files([media_file_read])
+
+    file_list_settings = FileListSettings()
+    model = MetadataTableModel(file_list_settings.columns, edit_manager)
+
+    # Get metadata and add it to the model
+    metadata = MetadataTableModel.get_metadata_from_media_file(media_file_read)
+    model.set_entire_data([metadata])
+
+    # Find the "key" column index
+    key_column_index = None
+    for i, col in enumerate(file_list_settings.columns):
+        if col.id == KEY_INITIAL_KEY:  # COL_MAIN_KEY now equals KEY_INITIAL_KEY
+            key_column_index = i
+            break
+
+    assert key_column_index is not None, "Could not find 'initial_key' column in table model"
+
+    # Get the value from the model
+    from PySide6.QtCore import Qt
+    index = model.createIndex(0, key_column_index)
+    displayed_value = model.data(index, Qt.ItemDataRole.DisplayRole)
+
+    assert displayed_value == test_key, \
+        f"Expected table model to display '{test_key}' in key column, but got '{displayed_value}'"
+
+    # Test 4: Verify staging changes through the model works
+    new_key = "5A"
+    result = model.setData(index, new_key, Qt.ItemDataRole.EditRole)
+    assert result is True, "setData should return True for successful edit"
+
+    # Commit the staged changes
+    saved_file_ids, errors = edit_manager.commit_changes_sync()
+    assert len(errors) == 0, f"Errors occurred during save: {errors}"
+    assert media_file_read.file_id in saved_file_ids, "File should have been saved"
+
+    # Test 5: Verify the new key was persisted
+    media_file_final = MediaFile(str(temp_media_path))
+    assert media_file_final.get_tag_simple(KEY_INITIAL_KEY) == new_key, \
+        f"Expected final initial_key to be '{new_key}', but got '{media_file_final.get_tag_simple(KEY_INITIAL_KEY)}'"
