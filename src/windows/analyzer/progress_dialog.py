@@ -7,9 +7,10 @@ the current file being analyzed and overall progress.
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton,
-    QMessageBox
+    QMessageBox, QListWidget
 )
 from PySide6.QtCore import Qt, Slot
+import os
 
 from workers.analyzer_dispatcher import AnalyzerDispatcher
 from util.logging import log
@@ -60,14 +61,14 @@ class AnalyzerProgressDialog(QDialog):
 
         layout.addSpacing(10)
 
-        # Current file
-        current_file_title = QLabel("Current file:")
-        layout.addWidget(current_file_title)
+        # Active files list
+        active_files_title = QLabel("Processing files:")
+        layout.addWidget(active_files_title)
 
-        self.current_file_label = QLabel("")
-        self.current_file_label.setWordWrap(True)
-        self.current_file_label.setStyleSheet("QLabel { color: #666; }")
-        layout.addWidget(self.current_file_label)
+        self.active_files_list = QListWidget()
+        self.active_files_list.setMaximumHeight(200)
+        self.active_files_list.setStyleSheet("QListWidget { color: #666; }")
+        layout.addWidget(self.active_files_list)
 
         layout.addSpacing(10)
 
@@ -101,6 +102,7 @@ class AnalyzerProgressDialog(QDialog):
         self.dispatcher.task_completed.connect(self._on_task_completed)
         self.dispatcher.progress_updated.connect(self._on_progress_updated)
         self.dispatcher.analysis_completed.connect(self._on_analysis_completed)
+        self.dispatcher.active_tasks_updated.connect(self._on_active_tasks_updated)
 
     @Slot(str, str)
     def _on_task_started(self, file_path: str, analyzer_name: str):
@@ -112,7 +114,21 @@ class AnalyzerProgressDialog(QDialog):
             analyzer_name: Name of analyzer being used
         """
         self.analyzer_label.setText(f"Analyzer: {analyzer_name}")
-        self.current_file_label.setText(file_path)
+        # Active files are now handled by active_tasks_updated signal
+
+    @Slot(list)
+    def _on_active_tasks_updated(self, active_tasks: list):
+        """
+        Update the active files list.
+
+        Args:
+            active_tasks: List of (file_path, analyzer_name) tuples
+        """
+        self.active_files_list.clear()
+        for file_path, analyzer_name in active_tasks:
+            filename = os.path.basename(file_path)
+            item_text = f"[{analyzer_name}] {filename}"
+            self.active_files_list.addItem(item_text)
 
     @Slot(str, object)
     def _on_task_completed(self, file_path: str, result):
