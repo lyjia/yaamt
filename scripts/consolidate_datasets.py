@@ -14,6 +14,8 @@ Outputs:
 - Consolidated audio files in 'consolidated_audio' folder
 - CSV file with all metadata
 
+TODO: Incorporate https://mirdata.readthedocs.io/en/0.3.6/source/tutorial.html#tutorial ?
+
 Usage:
     python consolidate_datasets.py                    # Uses script directory
     python consolidate_datasets.py --path /some/path  # Uses custom path
