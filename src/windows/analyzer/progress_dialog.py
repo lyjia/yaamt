@@ -48,6 +48,7 @@ class AnalyzerProgressDialog(QDialog):
         self._is_cancelled = False
         self._completed_count = 0
         self._total_count = 0
+        self._has_sized = False  # Track if we've done initial content-based sizing
 
         self._setup_ui()
         self._connect_signals()
@@ -163,6 +164,56 @@ class AnalyzerProgressDialog(QDialog):
                     screen_geometry.y() + (screen_height - self.height()) // 2
                 )
 
+    def _size_for_content(self):
+        """
+        Resize dialog to fit all list items on first display.
+
+        Called once when tasks are first shown to optimally size the window.
+        """
+        if self._has_sized:
+            return
+
+        item_count = self.active_files_list.count()
+        if item_count == 0:
+            return
+
+        # Get height of a single item
+        item_height = self.active_files_list.sizeHintForRow(0)
+        if item_height <= 0:
+            item_height = 24  # Default fallback
+
+        # Calculate needed height for all items
+        needed_list_height = item_height * item_count
+
+        # Add extra space for horizontal scrollbar (if present) and padding
+        # QListWidget adds horizontal scrollbar if content is too wide
+        # Standard scrollbar height is ~20px, add extra padding for safety
+        scrollbar_and_padding = 40
+
+        needed_list_height += scrollbar_and_padding
+
+        # Calculate fixed elements height (everything except the list)
+        fixed_height = 200  # Approximate height of fixed elements
+
+        # Calculate ideal total height
+        ideal_height = fixed_height + needed_list_height
+
+        # Get current screen constraints
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            screen_height = screen.availableGeometry().height()
+            max_height = int(screen_height * 0.7)
+
+            # Use ideal height but respect maximum
+            new_height = min(ideal_height, max_height)
+
+            # Only resize if we need more space
+            current_height = self.height()
+            if new_height > current_height:
+                self.resize(self.width(), new_height)
+
+        self._has_sized = True
+
     @Slot(list)
     def _on_active_tasks_updated(self, active_tasks: list):
         """
@@ -176,6 +227,11 @@ class AnalyzerProgressDialog(QDialog):
             filename = os.path.basename(file_path)
             item_text = f"[{analyzer_name}] {filename}"
             self.active_files_list.addItem(item_text)
+
+        # Size window to fit content on first update
+        if not self._has_sized:
+            # Defer slightly to ensure list items are rendered
+            QTimer.singleShot(10, self._size_for_content)
 
     @Slot(str, object)
     def _on_task_completed(self, file_path: str, result):
