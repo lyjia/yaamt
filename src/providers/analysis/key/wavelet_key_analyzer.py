@@ -43,7 +43,7 @@ class WaveletKeyAnalyzer(AnalyzerBase):
     """
 
     name = "Wavelet Key Analyzer"
-    description = "Wavelet-based key detection (adapted from RapidEvolution3)"
+    description = "Continuous Wavelet Transform-based key detection (adapted from RapidEvolution3)"
     category = "key"
     version = "1.0.0"
 
