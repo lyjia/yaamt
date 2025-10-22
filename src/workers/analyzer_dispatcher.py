@@ -317,6 +317,23 @@ class AnalyzerDispatcher(QObject):
 
         log.info(f"Enqueued {len(media_files)} tasks for {analyzer_class.name}")
 
+    def _reload_thread_pool_size(self) -> None:
+        """
+        Reload thread pool size from settings.
+
+        Called at the start of each analysis run to pick up any changes
+        the user made to the thread pool size setting.
+        """
+        qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+        new_thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
+
+        if new_thread_pool_size != self.thread_pool_size:
+            log.info(f"Thread pool size changed from {self.thread_pool_size} to {new_thread_pool_size}")
+            self.thread_pool_size = new_thread_pool_size
+
+            # Ensure Qt thread pool is large enough
+            self.thread_pool.setMaxThreadCount(max(self.thread_pool_size, self.thread_pool.maxThreadCount()))
+
     def start(self) -> None:
         """Begin processing the queue."""
         if self._is_running:
@@ -326,6 +343,9 @@ class AnalyzerDispatcher(QObject):
         if len(self.queue) == 0:
             log.info("Queue is empty, nothing to process")
             return
+
+        # Reload thread pool size from settings in case user changed it
+        self._reload_thread_pool_size()
 
         self._is_running = True
         self._batch_start_time = time.perf_counter()
