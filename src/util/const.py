@@ -59,7 +59,7 @@ KEY_LANGUAGE = 'language'
 KEY_LYRICIST = 'lyricist'
 KEY_MEDIA = 'media'
 KEY_MOOD = 'mood'
-KEY_MUSICAL_KEY = 'musical_key'
+KEY_INITIAL_KEY = 'initial_key'
 KEY_TITLE = 'title'
 KEY_TRACK_NUMBER = 'tracknumber'
 KEY_TRACK_TOTAL = 'tracktotal'
@@ -92,7 +92,7 @@ ALL_TAGS = { #display names for each tag
     KEY_ISRC: "ISRC",
     KEY_LANGUAGE: "Language",
     KEY_MOOD: "Mood",
-    KEY_MUSICAL_KEY: "Key",
+    KEY_INITIAL_KEY: "Key",
     KEY_TITLE: "Title",
     KEY_TRACK_NUMBER: "Track",
     KEY_TRACK_TOTAL: "Tracks",
@@ -128,7 +128,7 @@ AVAILABLE_COLUMNS = { # for right-side file pane
     COL_MAIN_ALBUM: {"id": COL_MAIN_ALBUM, "group": GROUP_META, "label": ALL_TAGS[KEY_ALBUM], "width": 150, "is_visible": True, "is_writable": True},
     COL_MAIN_GENRE: {"id": COL_MAIN_GENRE, "group": GROUP_META, "label": ALL_TAGS[KEY_GENRE], "width": 100, "is_visible": True, "is_writable": True},
     COL_MAIN_BPM: {"id": COL_MAIN_BPM, "group": GROUP_META, "label": ALL_TAGS[KEY_BPM], "width": 50, "is_visible": True, "is_writable": True},
-    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_MUSICAL_KEY], "width": 50, "is_visible": True, "is_writable": True}
+    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_INITIAL_KEY], "width": 50, "is_visible": True, "is_writable": True}
 }
 #### END column names for file list ####
 

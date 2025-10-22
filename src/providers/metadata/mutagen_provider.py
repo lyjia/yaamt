@@ -6,7 +6,7 @@ from mutagen.easyid3 import EasyID3
 
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
-    KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_MUSICAL_KEY, KEY_ALBUM, KEY_BPM, KEY_COMPOSER, KEY_COPYRIGHT, KEY_ENCODED_BY, \
+    KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_INITIAL_KEY, KEY_ALBUM, KEY_BPM, KEY_COMPOSER, KEY_COPYRIGHT, KEY_ENCODED_BY, \
     KEY_LYRICIST, KEY_LENGTH as KEY_LENGTH_TAG, KEY_MEDIA, KEY_MOOD, KEY_GROUPING, KEY_TITLE, KEY_VERSION, KEY_ARTIST, \
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
     KEY_ALBUM_ARTIST_SORT, KEY_ALBUM_SORT, KEY_COMPOSER_SORT, KEY_ARTIST_SORT, KEY_TITLE_SORT, KEY_ISRC, \
@@ -49,7 +49,7 @@ from .base import MetadataProviderBase
 #     "TLAN": "language",
 # }.items():
 
-EasyID3.RegisterTextKey(KEY_MUSICAL_KEY, 'TKEY')
+EasyID3.RegisterTextKey(KEY_INITIAL_KEY, 'TKEY')
 
 # Register comment field with proper COMM frame handling
 def comment_get(id3, key):
@@ -107,7 +107,7 @@ MUT_EASY_TAG_NAMES = ['album',
                       'discsubtitle',
                       'language',
                       # added manually, above
-                      KEY_MUSICAL_KEY,
+                      KEY_INITIAL_KEY,
                       KEY_COMMENT,
                       # doesnt appear in above comment for some reason?
                       'genre'] #TODO: figure out why
@@ -144,7 +144,7 @@ MUTAGEN_TO_GENERIC_MAP = {
     'isrc': KEY_ISRC,
     # 'discsubtitle': KEY_DISC_SUBTITLE, # No generic key for this yet
     'language': KEY_LANGUAGE,
-    KEY_MUSICAL_KEY: KEY_MUSICAL_KEY,
+    KEY_INITIAL_KEY: KEY_INITIAL_KEY,
     KEY_COMMENT: KEY_COMMENT,
     'genre': KEY_GENRE,
 }

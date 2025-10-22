@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 import pytest
 from providers.metadata.mutagen_provider import MutagenProvider
-from util.const import KEY_MUSICAL_KEY, KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM
+from util.const import KEY_INITIAL_KEY, KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM
 
 # Define the directory containing the test fixtures.
 FIXTURE_DIR = Path(__file__).parent.parent.parent / "fixtures" / "metadata"
@@ -31,7 +31,7 @@ def test_write_tags(media_path, tmp_path):
         KEY_ALBUM: 'New Album',
         KEY_GENRE: 'New Genre',
         KEY_BPM: '123',
-        KEY_MUSICAL_KEY: 'C'
+        KEY_INITIAL_KEY: 'C'
     }
 
     # Write the new tags to the file.

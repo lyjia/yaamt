@@ -4,7 +4,7 @@ from models.edit_manager import EditManager
 from util.const import (
     KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE,
     KEY_COMMENT, KEY_COMPOSER, KEY_TRACK_NUMBER, KEY_DISC_NUMBER, KEY_BPM,
-    KEY_MUSICAL_KEY, KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN
+    KEY_INITIAL_KEY, KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN
 )
 
 class MainTab(QWidget):
@@ -89,7 +89,7 @@ class MainTab(QWidget):
         self.track_num_edit.textChanged.connect(lambda text: self._on_edited(KEY_TRACK_NUMBER, text))
         self.disc_num_edit.textChanged.connect(lambda text: self._on_edited(KEY_DISC_NUMBER, text))
         self.bpm_edit.textChanged.connect(lambda text: self._on_edited(KEY_BPM, text))
-        self.key_edit.textChanged.connect(lambda text: self._on_edited(KEY_MUSICAL_KEY, text))
+        self.key_edit.textChanged.connect(lambda text: self._on_edited(KEY_INITIAL_KEY, text))
 
         # Connect returnPressed signals
         self.title_edit.returnPressed.connect(self._on_return_pressed)
@@ -164,6 +164,6 @@ class MainTab(QWidget):
         self._populate_field(self.track_num_edit, KEY_TRACK_NUMBER)
         self._populate_field(self.disc_num_edit, KEY_DISC_NUMBER)
         self._populate_field(self.bpm_edit, KEY_BPM)
-        self._populate_field(self.key_edit, KEY_MUSICAL_KEY)
+        self._populate_field(self.key_edit, KEY_INITIAL_KEY)
         self._populate_field(self.replaygain_track_edit, KEY_REPLAYGAIN_TRACK_GAIN)
         self._populate_field(self.replaygain_album_edit, KEY_REPLAYGAIN_ALBUM_GAIN)

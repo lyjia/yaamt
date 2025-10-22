@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, PropertyMock
 
-from util.const import IN_GITHUB_RUNNER, KEY_TAG_GENERIC, KEY_MUSICAL_KEY
+from util.const import IN_GITHUB_RUNNER, KEY_TAG_GENERIC, KEY_INITIAL_KEY
 from providers.analysis import AnalyzerCategory
 from providers import get_analyzers_by_category, get_analyzer_by_name
 

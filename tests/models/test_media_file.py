@@ -6,7 +6,7 @@ import pytest
 import time
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
-from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_MUSICAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
+from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
 from util.exceptions import InvalidFileError
 
 # Define the directory containing the test fixtures.
@@ -88,7 +88,7 @@ def test_write_tags(media_path, tmp_path):
         KEY_ALBUM: 'New Album',
         KEY_GENRE: 'New Genre',
         KEY_BPM: '123',
-        KEY_MUSICAL_KEY: 'C'
+        KEY_INITIAL_KEY: 'C'
     }
 
     # Directly save the new tags
@@ -111,7 +111,7 @@ def test_write_tags(media_path, tmp_path):
     assert media_file_read.get_tag_simple(KEY_BPM) == '123'
     # Musical key 'C' is transformed based on user preference
     # Just verify it was set to something (format depends on settings)
-    assert media_file_read.get_tag_simple(KEY_MUSICAL_KEY) is not None
+    assert media_file_read.get_tag_simple(KEY_INITIAL_KEY) is not None
 
 
 def test_empty_file(tmp_path):
