@@ -448,8 +448,7 @@ class TestMusicalKeyFormatter:
 
     def test_applicable_tags(self):
         """Test that MusicalKeyFormatter declares applicable tags."""
-        assert 'key' in MusicalKeyFormatter.applicable_tags
-        assert 'musical_key' in MusicalKeyFormatter.applicable_tags
+        assert 'initial_key' in MusicalKeyFormatter.applicable_tags
 
     def test_priority(self):
         """Test that MusicalKeyFormatter has default priority 50."""

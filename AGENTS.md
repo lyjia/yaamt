@@ -23,9 +23,9 @@ This project implements an audio file metadata manager, through a few primary co
 
 The following directories contain reference materials and should NOT be modified, searched, or analyzed during normal tasks:
 
-* `path/to/submodule1/` - RapidEvolution2 reference
-* `path/to/submodule2/` - RapidEvolution3 reference
-* Any other submodules in the root directory
+* `references/RapidEvolution2` - RapidEvolution2 reference
+* `references/RapidEvolution3` - RapidEvolution3 reference
+* Any other submodules in the `references` directory
 
 These paths should ONLY be accessed when explicitly requested by the user with a direct reference (e.g., "@path/to/submodule1/file.py").
 

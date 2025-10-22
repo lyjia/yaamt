@@ -7,6 +7,8 @@ Supports multiple notation formats including standard, Camelot, and Open Key.
 
 from typing import Any, Optional, Tuple
 from PySide6.QtCore import QSettings
+
+from util.const import KEY_INITIAL_KEY
 from .base import TransformerBase
 
 
@@ -100,7 +102,7 @@ class MusicalKeyFormatter(TransformerBase):
     name = "Musical Key Formatter"
     description = "Convert musical key notation according to user preference"
     version = "1.0.0"
-    applicable_tags = ['key', 'musical_key']
+    applicable_tags = [KEY_INITIAL_KEY]
     priority = 50  # Default priority
 
     def __init__(self, settings: QSettings):

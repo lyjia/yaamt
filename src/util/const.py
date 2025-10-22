@@ -43,37 +43,38 @@ KEY_REPLAYGAIN_TRACK_PEAK = 'replaygain_track_peak'
 # TAG KEYS
 KEY_ALBUM = 'album'
 KEY_ALBUM_ARTIST = 'albumartist'
+KEY_ALBUM_ARTIST_SORT = 'albumartistsort'
+KEY_ALBUM_SORT = 'albumsort'
+KEY_ARRANGER = 'arranger'
 KEY_ARTIST = 'artist'
+KEY_ARTIST_SORT = 'artistsort'
+KEY_AUTHOR = 'author'
 KEY_BPM = 'bpm'
 KEY_COMMENT = 'comment'
 KEY_COMPOSER = 'composer'
+KEY_COMPOSER_SORT = 'composersort'
+KEY_CONDUCTOR = 'conductor'
 KEY_COPYRIGHT = 'copyright'
 KEY_DATE = 'date'
+KEY_DIATONIC_MODE = 'diatonic_mode'
 KEY_DISC_NUMBER = 'discnumber'
+KEY_DISC_SUBTITLE = 'discsubtitle'
 KEY_DISC_TOTAL = 'disctotal'
 KEY_ENCODED_BY = 'encodedby'
 KEY_GENRE = 'genre'
 KEY_GROUPING = 'grouping'
+KEY_INITIAL_KEY = 'initial_key' #following ID3 tag name I've seen around the web, like https://docs.mp3tag.de/mapping/
 KEY_ISRC = 'isrc'
 KEY_LANGUAGE = 'language'
 KEY_LYRICIST = 'lyricist'
 KEY_MEDIA = 'media'
 KEY_MOOD = 'mood'
-KEY_MUSICAL_KEY = 'musical_key'
+KEY_ORGANIZATION = 'organization'
 KEY_TITLE = 'title'
+KEY_TITLE_SORT = 'titlesort'
 KEY_TRACK_NUMBER = 'tracknumber'
 KEY_TRACK_TOTAL = 'tracktotal'
 KEY_VERSION = 'version'
-KEY_AUTHOR = 'author'
-KEY_CONDUCTOR = 'conductor'
-KEY_ARRANGER = 'arranger'
-KEY_ORGANIZATION = 'organization'
-KEY_DISC_SUBTITLE = 'discsubtitle'
-KEY_ALBUM_ARTIST_SORT = 'albumartistsort'
-KEY_ALBUM_SORT = 'albumsort'
-KEY_COMPOSER_SORT = 'composersort'
-KEY_ARTIST_SORT = 'artistsort'
-KEY_TITLE_SORT = 'titlesort'
 KEY_YEAR = 'year'
 
 ALL_TAGS = { #display names for each tag
@@ -89,10 +90,10 @@ ALL_TAGS = { #display names for each tag
     KEY_ENCODED_BY: "Encoded By",
     KEY_GENRE: "Genre",
     KEY_GROUPING: "Grouping",
+    KEY_INITIAL_KEY: "Key",
     KEY_ISRC: "ISRC",
     KEY_LANGUAGE: "Language",
     KEY_MOOD: "Mood",
-    KEY_MUSICAL_KEY: "Key",
     KEY_TITLE: "Title",
     KEY_TRACK_NUMBER: "Track",
     KEY_TRACK_TOTAL: "Tracks",
@@ -107,12 +108,12 @@ COL_MAIN_FILENAME = "filename"
 COL_MAIN_SIZE = "size"
 COL_MAIN_TYPE = "type"
 COL_MAIN_DATE_MODIFIED = "date_modified"
-COL_MAIN_TITLE = "title"
-COL_MAIN_ARTIST = "artist"
-COL_MAIN_ALBUM = "album"
-COL_MAIN_GENRE = "genre"
-COL_MAIN_BPM = "bpm"
-COL_MAIN_KEY = "key"
+COL_MAIN_TITLE = KEY_TITLE
+COL_MAIN_ARTIST = KEY_ARTIST
+COL_MAIN_ALBUM = KEY_ALBUM
+COL_MAIN_GENRE = KEY_GENRE
+COL_MAIN_BPM = KEY_BPM
+COL_MAIN_KEY = KEY_INITIAL_KEY
 
 GROUP_FILE = "file"
 GROUP_META = "metadata"
@@ -128,7 +129,7 @@ AVAILABLE_COLUMNS = { # for right-side file pane
     COL_MAIN_ALBUM: {"id": COL_MAIN_ALBUM, "group": GROUP_META, "label": ALL_TAGS[KEY_ALBUM], "width": 150, "is_visible": True, "is_writable": True},
     COL_MAIN_GENRE: {"id": COL_MAIN_GENRE, "group": GROUP_META, "label": ALL_TAGS[KEY_GENRE], "width": 100, "is_visible": True, "is_writable": True},
     COL_MAIN_BPM: {"id": COL_MAIN_BPM, "group": GROUP_META, "label": ALL_TAGS[KEY_BPM], "width": 50, "is_visible": True, "is_writable": True},
-    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_MUSICAL_KEY], "width": 50, "is_visible": True, "is_writable": True}
+    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_INITIAL_KEY], "width": 50, "is_visible": True, "is_writable": True}
 }
 #### END column names for file list ####
 

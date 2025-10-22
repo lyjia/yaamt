@@ -250,7 +250,7 @@
                 "MutagenProvider"
             ]
         },
-        "musical_key": {
+        "initial_key": {
             "value": "Fm",
             "provider": "MutagenProvider",
             "all_values": [
