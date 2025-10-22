@@ -79,7 +79,7 @@ OPEN_KEY_MAP = {
     (11, False): "1d", # B major
 }
 
-# Note name to pitch class mapping
+# Note name to pitch class mapping -- accidental will modify these numbers +1/-1
 NOTE_TO_PITCH = {
     'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
 }
