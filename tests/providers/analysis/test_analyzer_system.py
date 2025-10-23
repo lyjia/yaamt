@@ -205,15 +205,10 @@ class TestStubBPMAnalyzer:
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
     def test_get_settings_widget(self, qapp):
-        """Test that settings widget is returned."""
+        """Test that settings widget is None (StubBPMAnalyzer has no options)."""
         widget = StubBPMAnalyzer.get_settings_widget()
-        assert widget is not None
-
-        # Find the spin box
-        spin_box = widget.findChild(type(widget).__bases__[0], "decimal_places")
-        # The widget should have the decimal_places spin box, but exact structure
-        # depends on Qt implementation, so just verify widget exists
-        assert widget is not None
+        # StubBPMAnalyzer has no configurable options, so widget should be None
+        assert widget is None
 
 
 class TestAnalysisTask:
