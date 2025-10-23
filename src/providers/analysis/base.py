@@ -112,7 +112,7 @@ class AnalyzerBase(ABC):
         return self._cancelled
 
     @classmethod
-    def get_options_metadata(cls) -> List['AnalyzerOption']:
+    def get_options_metadata(cls) -> List:
         """
         Return metadata about this analyzer's configurable options.
 
