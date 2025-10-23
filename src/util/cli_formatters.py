@@ -12,6 +12,7 @@ This module provides formatting functions for CLI output, including:
 import sys
 import json
 import csv
+import io
 from typing import List, Dict, Any, Optional, Type, TextIO
 from pathlib import Path
 
@@ -225,8 +226,8 @@ def format_analysis_results(
             header.append(f"{analyzer_name}_{key}")
         header.extend(['status', 'error'])
 
-        # Build CSV rows
-        output = []
+        # Build CSV rows using StringIO
+        output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(header)
 
@@ -244,7 +245,7 @@ def format_analysis_results(
 
             writer.writerow(row)
 
-        return '\n'.join(output)
+        return output.getvalue()
 
     else:  # table format
         if not results:
@@ -385,10 +386,10 @@ def format_metadata_output(
         if tag_filter:
             all_keys = all_keys.intersection(set(tag_filter))
 
-        # Build CSV
+        # Build CSV using StringIO
         header = ['file_path'] + sorted(list(all_keys))
 
-        output = []
+        output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(header)
 
@@ -410,7 +411,7 @@ def format_metadata_output(
 
             writer.writerow(row)
 
-        return '\n'.join(output)
+        return output.getvalue()
 
     else:  # table format
         output_lines = []
