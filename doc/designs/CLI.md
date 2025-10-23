@@ -1,11 +1,6 @@
 # CLI Refactor Design
 
 **Epic:** Major CLI refactor to support verb-based commands and dynamic analyzer options
-
-**Status:** In Progress
-
-**Last Updated:** 2025-10-22
-
 ## Overview
 
 This design document outlines a major refactor of the command-line interface (`src/main.py`) to:
