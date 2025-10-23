@@ -8,7 +8,7 @@ FFT-based periodicity detection.
 Reference: https://github.com/djqualia/RapidEvolution3
 """
 
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 import numpy as np
 
 from PySide6.QtCore import QSettings
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QSpinBox,
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import register_analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
+from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
 
 
@@ -874,6 +875,35 @@ class MultibandSpectralBPMAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
+    def get_options_metadata(cls) -> List[AnalyzerOption]:
+        """
+        Return option metadata for this analyzer.
+
+        Returns:
+            List of AnalyzerOption instances for RE3-specific options
+        """
+        return [
+            AnalyzerOption(
+                name='decimation_size',
+                type='int',
+                default=64,
+                min=8,
+                max=256,
+                interval=8,
+                help='Energy decimation factor (higher = faster but less precise)'
+            ),
+            AnalyzerOption(
+                name='threshold_time',
+                type='float',
+                default=60.0,
+                min=10.0,
+                max=120.0,
+                interval=10.0,
+                help='Segment length for early detection (seconds)'
+            )
+        ]
+
+    @classmethod
     def get_settings_widget(cls) -> Optional[QWidget]:
         """
         Return a QWidget for configuring RE3 analyzer parameters.
@@ -901,26 +931,14 @@ class MultibandSpectralBPMAnalyzer(AnalyzerBase):
         advanced_group = QGroupBox("Advanced Settings")
         advanced_group.setCheckable(True)
         advanced_group.setChecked(False)
-        advanced_layout = QFormLayout()
+        advanced_layout = QVBoxLayout()
         advanced_layout.setSpacing(4)
 
-        decimation_spin = QSpinBox()
-        decimation_spin.setMinimum(8)
-        decimation_spin.setMaximum(256)
-        decimation_spin.setSingleStep(8)
-        decimation_spin.setValue(64)
-        decimation_spin.setObjectName("decimation_size")
-        decimation_spin.setToolTip("Energy decimation factor (higher = faster but less precise)")
-        advanced_layout.addRow("Decimation Size:", decimation_spin)
-
-        threshold_spin = QDoubleSpinBox()
-        threshold_spin.setMinimum(10.0)
-        threshold_spin.setMaximum(120.0)
-        threshold_spin.setSingleStep(10.0)
-        threshold_spin.setValue(60.0)
-        threshold_spin.setObjectName("threshold_time")
-        threshold_spin.setToolTip("Segment length for early detection (seconds)")
-        advanced_layout.addRow("Segment Length:", threshold_spin)
+        # Use helper for controls (maintains consistency with metadata)
+        settings_group = f"analyzers/{cls.__name__}"
+        for option in cls.get_options_metadata():
+            option_widget = build_widget_from_option(option, settings_group)
+            advanced_layout.addWidget(option_widget)
 
         advanced_group.setLayout(advanced_layout)
         main_layout.addWidget(advanced_group)

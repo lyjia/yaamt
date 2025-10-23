@@ -7,7 +7,7 @@ all channels. The result is reported in dBFS (decibels relative to full scale).
 """
 
 import struct
-from typing import Optional
+from typing import Optional, List
 
 from providers.audio import AudioStreamBase
 from providers.analysis import AnalyzerCategory, AnalyzerBase, AnalyzerResult

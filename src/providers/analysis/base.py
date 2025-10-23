@@ -6,7 +6,7 @@ file analyzers must implement or use.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 class AnalyzerResult:
@@ -112,17 +112,55 @@ class AnalyzerBase(ABC):
         return self._cancelled
 
     @classmethod
+    def get_options_metadata(cls) -> List['AnalyzerOption']:
+        """
+        Return metadata about this analyzer's configurable options.
+
+        Subclasses should override this to define their specific options.
+        This metadata is used by both CLI (argparse) and GUI (widget generation).
+
+        The default implementation returns an empty list (no options).
+
+        Returns:
+            List of AnalyzerOption instances defining this analyzer's options
+        """
+        return []
+
+    @classmethod
     def get_settings_widget(cls) -> Optional[Any]:
         """
         Return a QWidget for analyzer-specific settings.
 
-        Returns None if no settings are needed. Override in subclasses
-        that need configuration UI.
+        Default implementation: auto-generate widget from get_options_metadata().
+
+        Subclasses can:
+        1. Use default auto-generation (don't override this method)
+        2. Override for custom layout but use build_widget_from_option() helper
+           to maintain consistency with option metadata
 
         Returns:
-            QWidget instance or None
+            QWidget instance or None if no options
         """
-        return None
+        from util.analyzer_options import build_widget_from_option
+
+        options = cls.get_options_metadata()
+        if not options:
+            return None
+
+        # Import here to avoid circular dependency
+        from PySide6.QtWidgets import QWidget, QVBoxLayout
+
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        # Build widget for each option
+        settings_group = f"analyzers/{cls.__name__}"
+        for option in options:
+            option_widget = build_widget_from_option(option, settings_group)
+            layout.addWidget(option_widget)
+
+        widget.setLayout(layout)
+        return widget
 
     @classmethod
     def get_thread_count(cls, options: Optional[Dict[str, Any]] = None) -> int:
