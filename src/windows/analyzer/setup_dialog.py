@@ -10,7 +10,7 @@ import os
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QPushButton, QGroupBox, QCheckBox, QWidget, QSpinBox, QSlider
+    QPushButton, QGroupBox, QCheckBox, QWidget, QSpinBox, QDoubleSpinBox, QSlider
 )
 from PySide6.QtCore import Qt, QSettings
 
@@ -292,8 +292,9 @@ class AnalyzerSetupDialog(QDialog):
         """
         Extract settings from the analyzer's settings widget.
 
-        This method looks for QSpinBox, QCheckBox, QComboBox, and other common widgets
-        with objectName set, and adds their values to analyzer_options.
+        This method looks for QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox,
+        and other common widgets with objectName set, and adds their values
+        to analyzer_options.
 
         Args:
             widget: The settings widget to extract from
@@ -303,6 +304,12 @@ class AnalyzerSetupDialog(QDialog):
             name = spin_box.objectName()
             if name:
                 self.analyzer_options[name] = spin_box.value()
+
+        # Find all QDoubleSpinBox widgets
+        for double_spin_box in widget.findChildren(QDoubleSpinBox):
+            name = double_spin_box.objectName()
+            if name:
+                self.analyzer_options[name] = double_spin_box.value()
 
         # Find all QCheckBox widgets
         for checkbox in widget.findChildren(QCheckBox):
