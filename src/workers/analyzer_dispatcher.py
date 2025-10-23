@@ -37,7 +37,8 @@ def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecuto
     if _process_pool_executor is None or _process_pool_executor._max_workers != max_workers:
         # Shutdown existing pool if it exists
         if _process_pool_executor is not None:
-            _process_pool_executor.shutdown(wait=False)
+            log.info(f"Shutting down existing process pool (was {_process_pool_executor._max_workers} workers)")
+            _process_pool_executor.shutdown(wait=True)  # Wait for pending tasks
 
         # Create new pool with requested size
         _process_pool_executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
@@ -193,8 +194,24 @@ class AnalyzerWorker(QRunnable):
                 )
 
                 # Wait for the result (this blocks but releases GIL)
-                result = future.result()
-                self.task.result = result
+                try:
+                    result = future.result()
+                    self.task.result = result
+                except concurrent.futures.process.BrokenProcessPool as e:
+                    log.error(f"Process pool worker crashed while analyzing {file_path}: {e}", exc_info=True)
+                    # Attempt to recreate the process pool
+                    global _process_pool_executor
+                    if _process_pool_executor is not None:
+                        try:
+                            _process_pool_executor.shutdown(wait=False, cancel_futures=True)
+                        except Exception:
+                            pass
+                        _process_pool_executor = None
+
+                    self.task.result = AnalyzerResult(
+                        success=False,
+                        error=f"Analysis worker process crashed unexpectedly"
+                    )
 
             log.debug(f"Analysis complete: {analyzer_name} on {file_path} - "
                      f"Success: {result.success}, Skipped: {result.skipped}")
