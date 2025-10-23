@@ -493,14 +493,12 @@ def main():
     analyze_parser.add_argument('-f', '--output-format', choices=OUTPUT_FORMATS, default='table',
                               help='Display format (default: table)')
     analyze_parser.add_argument('-o', '--output-file', help='Write output to file')
-    analyze_parser.add_argument('--overwrite-existing', action='store_true',
-                              help='Overwrite existing metadata values')
     analyze_parser.add_argument('--threads', type=int, default=1, help='Thread pool size (default: 1)')
     analyze_parser.add_argument('--use-saved-prefs', action='store_true',
                               help='Load analyzer options from GUI preferences')
 
     # Analyzer-specific options will be added dynamically after we know which analyzer
-    # For now, we'll parse known args and add them later
+    # Common options like --overwrite-existing are added dynamically too
     analyze_parser.add_argument('paths', nargs='+', help='Files or directories to analyze')
 
     # Parse args (first pass to get command and analyzer)
