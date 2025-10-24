@@ -164,7 +164,12 @@ class DependencyInstaller:
 
 def create_build_workspace(build_mode: str, project_root: Path) -> Path:
     """
-    Create a temporary build workspace by copying the source tree.
+    Create a temporary build workspace by copying only the necessary files.
+
+    Only copies:
+    - src/ directory (source code)
+    - resources/ directory (for GUI assets)
+    - setup.py (for cx_Freeze builds)
 
     Args:
         build_mode: 'debug' or 'release'
@@ -179,25 +184,41 @@ def create_build_workspace(build_mode: str, project_root: Path) -> Path:
 
     print(f"Creating build workspace at: {temp_path}")
 
-    # Patterns to ignore when copying
-    ignore_patterns = shutil.ignore_patterns(
-        '.git', '__pycache__', '*.pyc', '*.pyo',
-        'build', 'dist', '.pytest_cache', '.venv',
-        '*.egg-info', '.eggs', '.tox', 'venv'
-    )
-
-    # Copy source tree to temp directory
+    # Copy only what's needed for builds
     try:
-        shutil.copytree(project_root, temp_path / 'yaamt', ignore=ignore_patterns, dirs_exist_ok=True)
-        print(f"Source tree copied to workspace")
-        return temp_path / 'yaamt'
+        workspace_root = temp_path / 'yaamt'
+        workspace_root.mkdir(parents=True, exist_ok=True)
+
+        # Copy src/ directory
+        src_dest = workspace_root / 'src'
+        shutil.copytree(
+            project_root / 'src',
+            src_dest,
+            ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo')
+        )
+        print(f"  Copied src/")
+
+        # Copy resources/ directory
+        resources_dest = workspace_root / 'resources'
+        if (project_root / 'resources').exists():
+            shutil.copytree(project_root / 'resources', resources_dest)
+            print(f"  Copied resources/")
+
+        # Copy setup.py (needed for cx_Freeze)
+        setup_src = project_root / 'setup.py'
+        if setup_src.exists():
+            shutil.copy2(setup_src, workspace_root / 'setup.py')
+            print(f"  Copied setup.py")
+
+        print(f"Build workspace created")
+        return workspace_root
     except Exception as e:
         # Clean up temp dir if copy fails
         shutil.rmtree(temp_path, ignore_errors=True)
         raise RuntimeError(f"Failed to create build workspace: {e}")
 
 
-def prepare_source_for_build(temp_src_path: Path, build_mode: str) -> None:
+def prepare_source_for_build(temp_src_path: Path, build_mode: str, version_string: str) -> None:
     """
     Prepare the copied source for building by patching constants and
     removing debug-only code for release builds.
@@ -205,6 +226,7 @@ def prepare_source_for_build(temp_src_path: Path, build_mode: str) -> None:
     Args:
         temp_src_path: Path to the temporary source directory
         build_mode: 'debug' or 'release'
+        version_string: Version string to embed in the build
     """
     print(f"Preparing source for {build_mode} build...")
 
@@ -221,19 +243,6 @@ def prepare_source_for_build(temp_src_path: Path, build_mode: str) -> None:
         f'IS_DEBUG_BUILD = {is_debug_value}',
         content
     )
-
-    # Get version string from git
-    try:
-        version_result = subprocess.run(
-            ['git', 'describe', '--tags', '--always', '--dirty'],
-            cwd=temp_src_path,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        version_string = version_result.stdout.strip()
-    except subprocess.CalledProcessError:
-        version_string = "unknown"
 
     # Patch VERSION_STRING
     content = re.sub(
@@ -297,12 +306,27 @@ class Builder:
         print(f"Build mode: {self.config.build_mode}")
         print(f"Using build tool: {build_tool}\n")
 
+        # Get version string from git in original repo (before copying)
+        try:
+            version_result = subprocess.run(
+                ['git', 'describe', '--tags', '--always', '--dirty'],
+                cwd=self.config.project_root,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            version_string = version_result.stdout.strip()
+        except subprocess.CalledProcessError:
+            version_string = "unknown"
+
+        print(f"Version: {version_string}\n")
+
         # Create temporary build workspace
         temp_workspace = create_build_workspace(self.config.build_mode, self.config.project_root)
 
         try:
             # Prepare source for build (patch constants, remove debug-only code)
-            prepare_source_for_build(temp_workspace, self.config.build_mode)
+            prepare_source_for_build(temp_workspace, self.config.build_mode, version_string)
 
             # Save original working directory
             original_cwd = os.getcwd()
