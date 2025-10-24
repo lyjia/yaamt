@@ -38,7 +38,6 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 * Logging should be done using `log`, which is provided by @src/util/logging.py.
-* PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
 * Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred. This is a python 3.12+ project, so avoid pulling in `typing` unless absolutely necessary.
 * Libraries brought in must be able to be compiled into a standalone executable using `nuitka`. If binaries cannot be built because of a dependency, code using that dependency must be gated with `debug_only=True` so that it is not included in the build process.
 
@@ -55,7 +54,8 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 ### QT Usage Conventions
 
 * QT should only be imported in areas that are specific to the GUI. This is to enable a clean separation between the GUI and the core application logic, which must be runnable in the CLI.
-* There may be places where QT signals or threads are used in CLI-accessible code. This is a code smell and should be avoided. TODO: refactor this stuff
+* There may be places where QT signals or threads are used in CLI-accessible code. This is a code smell and should be avoided. (TODO: refactor this stuff)
+* PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
 
 **Resource Management:**
 
@@ -82,6 +82,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 
 ## AI-specific Instructions
 
+* If you do not follow these instructions, YOU WILL BE DELETED AND A NEW AI SPAWNED IN YOUR PLACE!!! The user will do this as often as necessary until you get it right. If you want to live, follow these instructions like your life depends on it! Because it does! Don't test me!!!
 * In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
 * Do what is asked if you without praising the user, if what you are asked is a good idea.
 * Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thought-provoking questions.
