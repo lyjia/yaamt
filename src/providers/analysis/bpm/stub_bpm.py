@@ -31,6 +31,7 @@ class StubBPMAnalyzer(AnalyzerBase):
     description = "Test analyzer that returns a fixed BPM value"
     category = "bpm"
     version = "0.1.0"
+    debug_only = True
 
     def analyze(self) -> AnalyzerResult:
         """
