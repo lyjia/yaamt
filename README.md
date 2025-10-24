@@ -8,7 +8,7 @@ Built with love (and AI) by [Lyjia](http://www.lyjia.us)! This is the music tag 
 
 ## Description
 
-YAAMT intends to be a complete music information system for viewing, editing, and analyzing metadata in various audio file formats. Users can choose between a GUI or command-line interface, and use it to manage, analyze, and edit metadata for single files or entire directories of audio files.
+**YAAMT is a music information system** for viewing, editing, and analyzing kinds of metadata (text like title/artist, BPM, musical key, etc.) for various audio file formats (MP3/FLAC/WAV etc.). Users can choose between a GUI or command-line interface, and use it to manage, analyze, and edit metadata for single files or entire directories of audio files.
 
 Supports common audio formats like MP3, FLAC, and WAV. Additional formats will be added in the future!
 
