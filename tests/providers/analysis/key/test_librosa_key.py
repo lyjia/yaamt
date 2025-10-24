@@ -178,7 +178,7 @@ class TestLibrosaKeyAnalyzerWithLibrosa:
 
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
-        # The analyzer should use audio_stream_to_mono_numpy internally
+        # The analyzer should use audio_stream_to_numpy internally
         # We verify this doesn't crash and completes
         analyzer = LibrosaKeyAnalyzer(media_file)
         result = analyzer.analyze()

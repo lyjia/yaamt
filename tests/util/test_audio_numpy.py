@@ -10,7 +10,7 @@ from pathlib import Path
 
 from models.media_file import MediaFile
 from providers.audio.format_descriptor import AudioFormatDescriptor
-from util.audio_numpy import audio_stream_to_numpy, audio_stream_to_mono_numpy
+from util.audio_numpy import audio_stream_to_numpy
 
 
 class TestAudioStreamToNumpy:
@@ -154,72 +154,6 @@ class TestAudioStreamToNumpy:
         audio_stream.close()
 
 
-class TestAudioStreamToMonoNumpy:
-    """Tests for audio_stream_to_mono_numpy function."""
-
-    @pytest.fixture
-    def audio_file(self):
-        """Get a test audio file."""
-        fixture_path = Path(__file__).parent.parent / "fixtures" / "metadata"
-        sample_file = fixture_path / "sample_dtmf_original.flac"
-        if not sample_file.exists():
-            pytest.skip("Sample audio file not available")
-        return str(sample_file)
-
-    def test_converts_to_mono(self, audio_file):
-        """Test that multi-channel audio is converted to mono."""
-        media_file = MediaFile(audio_file, enable_write=False)
-
-        # Request stereo audio
-        format_desc = AudioFormatDescriptor(channels=2)
-        audio_stream = media_file.get_audio_stream(format_desc)
-
-        y, sr = audio_stream_to_mono_numpy(audio_stream)
-
-        # Should always return mono shape (n,)
-        assert len(y.shape) == 1
-
-        audio_stream.close()
-
-    def test_mono_stays_mono(self, audio_file):
-        """Test that mono audio stays mono."""
-        media_file = MediaFile(audio_file, enable_write=False)
-
-        # Request mono audio
-        format_desc = AudioFormatDescriptor(channels=1)
-        audio_stream = media_file.get_audio_stream(format_desc)
-
-        y, sr = audio_stream_to_mono_numpy(audio_stream)
-
-        # Should be mono shape (n,)
-        assert len(y.shape) == 1
-
-        audio_stream.close()
-
-    def test_returns_float32(self, audio_file):
-        """Test that mono conversion returns float32."""
-        media_file = MediaFile(audio_file, enable_write=False)
-        audio_stream = media_file.get_audio_stream()
-
-        y, sr = audio_stream_to_mono_numpy(audio_stream)
-
-        assert y.dtype == np.float32
-
-        audio_stream.close()
-
-    def test_preserves_normalization(self, audio_file):
-        """Test that mono conversion preserves normalization."""
-        media_file = MediaFile(audio_file, enable_write=False)
-        audio_stream = media_file.get_audio_stream()
-
-        y, sr = audio_stream_to_mono_numpy(audio_stream)
-
-        # Should still be normalized to [-1, 1]
-        assert np.all(y >= -1.0) and np.all(y <= 1.0)
-
-        audio_stream.close()
-
-
 class TestAudioNumpyWithDrumLoops:
     """Tests with drum loop fixtures to verify audio quality."""
 
@@ -258,33 +192,22 @@ class TestAudioNumpyWithDrumLoops:
 
         audio_stream.close()
 
-    def test_mono_conversion_preserves_energy(self, drum_loop_128bpm):
-        """Test that mono conversion doesn't lose too much energy."""
+    def test_requested_mono_is_mono(self, drum_loop_128bpm):
+        """Test that requesting mono via AudioFormatDescriptor returns mono."""
         media_file = MediaFile(drum_loop_128bpm, enable_write=False)
 
-        # Get stereo version
-        format_desc_stereo = AudioFormatDescriptor(channels=2)
-        audio_stream_stereo = media_file.get_audio_stream(format_desc_stereo)
-        y_stereo, sr_stereo = audio_stream_to_numpy(audio_stream_stereo)
-        audio_stream_stereo.close()
-
-        # Get mono version
+        # Request mono via AudioFormatDescriptor
         format_desc_mono = AudioFormatDescriptor(channels=1)
         audio_stream_mono = media_file.get_audio_stream(format_desc_mono)
-        y_mono, sr_mono = audio_stream_to_mono_numpy(audio_stream_mono)
+        y_mono, sr_mono = audio_stream_to_numpy(audio_stream_mono)
         audio_stream_mono.close()
 
-        # Both should have reasonable energy
-        if len(y_stereo.shape) == 2:
-            rms_stereo = np.sqrt(np.mean(y_stereo**2))
-        else:
-            rms_stereo = np.sqrt(np.mean(y_stereo**2))
+        # Should be mono (shape is (n,) not (channels, n))
+        assert len(y_mono.shape) == 1, "Requested mono should have shape (n,)"
 
+        # Should have reasonable energy
         rms_mono = np.sqrt(np.mean(y_mono**2))
-
         assert rms_mono > 0.001, "Mono audio has insufficient energy"
-        # Mono and stereo RMS should be in the same ballpark
-        # (within factor of 2 is reasonable for averaging)
 
 
 if __name__ == '__main__':

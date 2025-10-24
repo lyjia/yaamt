@@ -106,14 +106,15 @@ class LibrosaKeyAnalyzer(AnalyzerBase):
                      f"hop_length: {hop_length}")
 
             # Convert audio stream to numpy array
-            from util.audio_numpy import audio_stream_to_mono_numpy
+            from util.audio_numpy import audio_stream_to_numpy
 
             # Check file duration to warn about memory usage
             duration = self.media_file.length_in_seconds
             if duration > 600:  # 10 minutes
                 log.warning(f"File is {duration:.1f}s long - librosa key analysis may use significant memory")
 
-            y, sr = audio_stream_to_mono_numpy(audio_stream)
+            # Stream is already mono since we requested channels=1 via AudioFormatDescriptor
+            y, sr = audio_stream_to_numpy(audio_stream)
 
             # Close stream early to free resources
             audio_stream.close()
