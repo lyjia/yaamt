@@ -47,11 +47,11 @@ class StubBPMAnalyzer(AnalyzerBase):
                     error="Analysis cancelled by user"
                 )
 
-            # Check if BPM already exists (unless overwrite is enabled)
-            overwrite = self.options.get('overwrite_existing', False)
+            # Check if BPM already exists (skip if requested)
+            skip_if_exists = self.options.get('skip_if_tag_exists', False)
             existing_bpm = self.media_file.get_tag_simple('bpm')
 
-            if existing_bpm and not overwrite:
+            if existing_bpm and skip_if_exists:
                 return AnalyzerResult(
                     success=True,
                     skipped=True,

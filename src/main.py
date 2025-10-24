@@ -42,7 +42,7 @@ SYS_RETURN_FILE_NOT_FOUND = 3
 SUPPORTED_EXTENSIONS = ['.mp3', '.flac', '.wav']
 
 # Output formats
-OUTPUT_FORMATS = ['table', 'csv', 'json']
+OUTPUT_FORMATS = ['list', 'table', 'csv', 'json']
 
 
 def get_files(paths: List[str], recursive: bool = False) -> List[str]:
@@ -125,11 +125,17 @@ def cmd_help(args):
             print()
             print("Options:")
             print("  -R, --recursive       Scan subdirectories")
-            print("  -f, --output-format   Output format: table, csv, json (default: table)")
+            print("  -f, --output-format   Output format: list, table, csv, json (default: table)")
             print("  -o, --output-file     Write to file instead of stdout")
             print("  --tags TAG1,TAG2,...  Show only specified tags")
             print("  --stream-info         Include stream information")
             print("  --internal            Include internal file info")
+            print()
+            print("Formats:")
+            print("  list   - Detailed view showing one file at a time")
+            print("  table  - Columnar table with directory and filename separated")
+            print("  csv    - Comma-separated values")
+            print("  json   - JSON format")
 
         elif args.subcommand == 'write':
             print("Usage: main.py write [options] <paths...>")
@@ -162,11 +168,17 @@ def cmd_help(args):
                 print("Common Options:")
                 print("  -R, --recursive              Scan subdirectories")
                 print("  -w, --write-tags             Write results to file metadata")
-                print("  -f, --output-format FORMAT   Display format: table, csv, json")
+                print("  -f, --output-format FORMAT   Display format: list, table, csv, json")
                 print("  -o, --output-file FILE       Write output to file")
-                print("  --overwrite-existing         Overwrite existing metadata values")
+                print("  --skip-if-tag-exists         Skip files that already have tag values")
                 print("  --threads N                  Thread pool size (default: 1)")
                 print("  --use-saved-prefs            Load options from GUI preferences")
+                print()
+                print("Formats:")
+                print("  list   - Detailed view showing one file at a time")
+                print("  table  - Columnar table with directory and filename separated")
+                print("  csv    - Comma-separated values")
+                print("  json   - JSON format")
                 print()
                 print("Available Analyzers:")
                 print(format_analyzer_list())
@@ -325,7 +337,7 @@ def cmd_analyze(args):
 
     # Build analyzer options
     analyzer_options = {
-        'overwrite_existing': args.overwrite_existing
+        'skip_if_tag_exists': args.skip_if_tag_exists
     }
 
     # Add analyzer-specific options

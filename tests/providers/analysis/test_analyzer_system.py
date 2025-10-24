@@ -61,7 +61,7 @@ class TestAnalyzerBase:
     def test_analyzer_initialization(self):
         """Test analyzer initialization with options."""
         mock_media_file = Mock()
-        options = {'overwrite_existing': True, 'custom_option': 'value'}
+        options = {'skip_if_tag_exists': True, 'custom_option': 'value'}
 
         # Create a concrete implementation for testing
         class TestAnalyzer(AnalyzerBase):
@@ -175,19 +175,19 @@ class TestStubBPMAnalyzer:
         assert result.data['bpm'] == 120.25
 
     def test_analyze_skip_existing(self, mock_media_file):
-        """Test that analyzer skips when BPM exists and overwrite is False."""
+        """Test that analyzer skips when BPM exists and skip_if_tag_exists is True."""
         mock_media_file.get_tag_simple.return_value = '128'
-        analyzer = StubBPMAnalyzer(mock_media_file, {'overwrite_existing': False})
+        analyzer = StubBPMAnalyzer(mock_media_file, {'skip_if_tag_exists': True})
         result = analyzer.analyze()
 
         assert result.success is True
         assert result.skipped is True
         assert result.error == "BPM already set"
 
-    def test_analyze_overwrite_existing(self, mock_media_file):
-        """Test that analyzer overwrites when overwrite option is True."""
+    def test_analyze_skip_if_tag_exists(self, mock_media_file):
+        """Test that analyzer processes when skip_if_tag_exists is False (default behavior)."""
         mock_media_file.get_tag_simple.return_value = '128'
-        analyzer = StubBPMAnalyzer(mock_media_file, {'overwrite_existing': True})
+        analyzer = StubBPMAnalyzer(mock_media_file, {'skip_if_tag_exists': False})
         result = analyzer.analyze()
 
         assert result.success is True
@@ -217,7 +217,7 @@ class TestAnalysisTask:
     def test_task_initialization(self):
         """Test creating an analysis task."""
         mock_media_file = Mock(spec=MediaFile)
-        options = {'overwrite_existing': True}
+        options = {'skip_if_tag_exists': True}
 
         task = AnalysisTask(StubBPMAnalyzer, mock_media_file, options)
 
@@ -263,7 +263,7 @@ class TestAnalyzerDispatcher:
 
     def test_enqueue_with_options(self, dispatcher, mock_media_files):
         """Test enqueueing tasks with options."""
-        options = {'overwrite_existing': True, 'decimal_places': 2}
+        options = {'skip_if_tag_exists': True, 'decimal_places': 2}
         dispatcher.enqueue(StubBPMAnalyzer, mock_media_files, options)
 
         assert len(dispatcher.queue) == 3
@@ -291,3 +291,4 @@ class TestAnalyzerDispatcher:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+

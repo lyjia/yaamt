@@ -66,11 +66,11 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     error="Analysis cancelled by user"
                 )
 
-            # Check if key already exists (unless overwrite is enabled)
-            overwrite = self.options.get('overwrite_existing', False)
+            # Check if key already exists (skip if requested)
+            skip_if_exists = self.options.get('skip_if_tag_exists', False)
             existing_key = self.media_file.get_tag_simple(KEY_INITIAL_KEY)
 
-            if existing_key and not overwrite:
+            if existing_key and skip_if_exists:
                 return AnalyzerResult(
                     success=True,
                     skipped=True,

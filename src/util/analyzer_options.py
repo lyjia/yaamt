@@ -444,9 +444,9 @@ def get_common_analyzer_options() -> List[AnalyzerOption]:
     """
     return [
         AnalyzerOption(
-            name='overwrite_existing',
+            name='skip_if_tag_exists',
             type='bool',
             default=False,
-            help='Overwrite existing metadata values (skip files with existing values if disabled)'
+            help='Skip analysis if tag already has a value (analyze all files by default)'
         )
     ]

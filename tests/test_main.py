@@ -31,7 +31,7 @@ class TestMainCli:
         """Verify reading metadata in plain text format."""
         test_file = tmp_path / "test.mp3"
         shutil.copy(SOURCE_FILE, test_file)
-        mock_argv.extend(['read', str(test_file)])
+        mock_argv.extend(['read', '-f', 'list', str(test_file)])
 
         exit_code = main()
         assert exit_code == SYS_RETURN_SUCCESS

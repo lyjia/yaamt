@@ -10,6 +10,7 @@ This module provides formatting functions for CLI output, including:
 """
 
 import sys
+import os
 import json
 import csv
 import io
@@ -187,6 +188,181 @@ def _format_option_help(option: AnalyzerOption, indent: str = "  ") -> str:
     return f"{option_line}\n{help_line}"
 
 
+def _format_as_json(data: Any) -> str:
+    """Format data as JSON."""
+    return json.dumps(data, indent=2)
+
+
+def _format_as_csv(
+    rows: List[Dict[str, Any]],
+    columns: List[str],
+    filepath_key: str = 'filepath'
+) -> str:
+    """
+    Format data as CSV with directory and filename separated.
+
+    Args:
+        rows: List of row dictionaries containing data to display
+        columns: List of column names (excluding directory and filename)
+        filepath_key: Key in row dict that contains the full file path
+
+    Returns:
+        CSV formatted string
+    """
+    if not rows:
+        return ""
+
+    # Build CSV header with separate directory and filename columns
+    header = ['directory', 'filename'] + columns
+
+    # Build CSV rows using StringIO
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(header)
+
+    for row in rows:
+        filepath = row.get(filepath_key, '')
+        path_obj = Path(filepath)
+
+        csv_row = [
+            str(path_obj.parent) if path_obj.parent != Path('.') else '',
+            path_obj.name
+        ]
+
+        # Add other column values
+        for col in columns:
+            csv_row.append(row.get(col, ''))
+
+        writer.writerow(csv_row)
+
+    return output.getvalue()
+
+
+def _format_as_list(
+    rows: List[Dict[str, Any]],
+    columns: List[str],
+    filepath_key: str = 'filepath',
+    title_prefix: str = "Data for"
+) -> str:
+    """
+    Format data as a detailed list showing one file at a time.
+
+    Args:
+        rows: List of row dictionaries containing data to display
+        columns: List of column names to display
+        filepath_key: Key in row dict that contains the full file path
+        title_prefix: Prefix for the title line (e.g., "Metadata for", "Results for")
+
+    Returns:
+        List formatted string
+    """
+    if not rows:
+        return "No results"
+
+    output_lines = []
+
+    for row in rows:
+        path_obj = Path(row.get(filepath_key, ''))
+        directory = str(path_obj.parent) if path_obj.parent != Path('.') else '.'
+        filename = path_obj.name
+        output_lines.append(f"{title_prefix}: {directory}{os.sep}{filename}")
+
+        # Show data for each column
+        has_data = False
+        for col in columns:
+            value = row.get(col)
+            if value is not None and value != '':
+                if not has_data:
+                    output_lines.append("")
+                    has_data = True
+                output_lines.append(f"  {col}: {value}")
+
+        if not has_data:
+            output_lines.append("  No data")
+
+        if len(rows) > 1:
+            output_lines.append("-" * 50)
+
+    return '\n'.join(output_lines)
+
+
+def _format_as_table(
+    rows: List[Dict[str, Any]],
+    columns: List[str],
+    filepath_key: str = 'filepath'
+) -> str:
+    """
+    Format data as a columnar table with directory and filename separated.
+
+    Args:
+        rows: List of row dictionaries containing data to display
+        columns: List of column names (excluding Directory and Filename which are added automatically)
+        filepath_key: Key in row dict that contains the full file path
+
+    Returns:
+        Formatted table string
+    """
+    if not rows:
+        return "No results"
+
+    # Build table header with Directory and Filename first
+    all_columns = ['Directory', 'Filename'] + columns
+
+    # Calculate column widths
+    col_widths = [len(col) for col in all_columns]
+
+    # Update widths based on data
+    for row in rows:
+        filepath = str(row.get(filepath_key, ''))
+        path_obj = Path(filepath)
+
+        directory = str(path_obj.parent) if path_obj.parent != Path('.') else ''
+        filename = path_obj.name
+
+        col_widths[0] = max(col_widths[0], len(directory))
+        col_widths[1] = max(col_widths[1], len(filename))
+
+        # Update widths for other columns
+        for idx, col in enumerate(columns, start=2):
+            value_str = str(row.get(col, '-'))
+            col_widths[idx] = max(col_widths[idx], len(value_str))
+
+    # Format header
+    header_parts = []
+    separator_parts = []
+    for idx, col in enumerate(all_columns):
+        header_parts.append(col.ljust(col_widths[idx]))
+        separator_parts.append('-' * col_widths[idx])
+
+    output_lines = [
+        ' | '.join(header_parts),
+        '-|-'.join(separator_parts)
+    ]
+
+    # Format rows
+    for row in rows:
+        row_parts = []
+
+        # Directory and Filename
+        filepath = str(row.get(filepath_key, ''))
+        path_obj = Path(filepath)
+
+        directory = str(path_obj.parent) if path_obj.parent != Path('.') else ''
+        filename = path_obj.name
+
+        row_parts.append(directory.ljust(col_widths[0]))
+        row_parts.append(filename.ljust(col_widths[1]))
+
+        # Other columns
+        for idx, col in enumerate(columns, start=2):
+            value_str = str(row.get(col, '-'))
+            row_parts.append(value_str.ljust(col_widths[idx]))
+
+        output_lines.append(' | '.join(row_parts))
+
+    return '\n'.join(output_lines)
+
+
 def format_analysis_results(
     results: List[Dict[str, Any]],
     analyzer_name: str,
@@ -202,126 +378,66 @@ def format_analysis_results(
                 - 'status': 'success', 'error', or 'skipped'
                 - 'error': error message (if status is 'error')
         analyzer_name: Name of the analyzer (used as column prefix)
-        output_format: Output format - 'table', 'csv', or 'json'
+        output_format: Output format - 'list', 'table', 'csv', or 'json'
 
     Returns:
         Formatted string ready for output
     """
     if output_format == 'json':
-        return json.dumps(results, indent=2)
+        return _format_as_json(results)
 
-    elif output_format == 'csv':
-        if not results:
-            return ""
+    # Collect all possible result keys
+    all_keys = set()
+    for result in results:
+        if result.get('results'):
+            all_keys.update(result['results'].keys())
 
-        # Collect all possible result keys
-        all_keys = set()
-        for result in results:
-            if result.get('results'):
-                all_keys.update(result['results'].keys())
+    # Prepare rows with flattened data
+    rows = []
+    for result in results:
+        row = {'filepath': result.get('filepath', '')}
 
-        # Build CSV header
-        header = ['filepath']
+        # Add result values
+        result_data = result.get('results', {})
         for key in sorted(all_keys):
-            header.append(f"{analyzer_name}_{key}")
-        header.extend(['status', 'error'])
+            col_name = f"{analyzer_name}_{key}"
+            row[col_name] = result_data.get(key, '')
 
-        # Build CSV rows using StringIO
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(header)
+        # Add status and error
+        status = result.get('status', '')
+        if status == 'error' and result.get('error'):
+            status_display = f"Error: {result['error']}"
+        elif status == 'skipped' and result.get('error'):
+            status_display = f"Skipped: {result['error']}"
+        else:
+            status_display = status
 
-        for result in results:
-            row = [result.get('filepath', '')]
+        row['status'] = status_display
+        row['error'] = result.get('error', '')
+        rows.append(row)
 
-            # Add result values
-            result_data = result.get('results', {})
-            for key in sorted(all_keys):
-                row.append(result_data.get(key, ''))
+    # Build column list
+    columns = []
+    for key in sorted(all_keys):
+        columns.append(f"{analyzer_name}_{key}")
+    columns.extend(['status', 'error'])
 
-            # Add status and error
-            row.append(result.get('status', ''))
-            row.append(result.get('error', ''))
-
-            writer.writerow(row)
-
-        return output.getvalue()
-
+    # Use appropriate formatter based on output_format
+    if output_format == 'csv':
+        return _format_as_csv(rows, columns, 'filepath')
+    elif output_format == 'list':
+        return _format_as_list(rows, columns, 'filepath', title_prefix="Results for")
     else:  # table format
-        if not results:
-            return "No results"
-
-        # Collect all possible result keys
-        all_keys = set()
-        for result in results:
-            if result.get('results'):
-                all_keys.update(result['results'].keys())
-
-        # Build table header
-        columns = ['File']
-        for key in sorted(all_keys):
-            columns.append(f"{analyzer_name}_{key}")
-        columns.append('Status')
-
-        # Calculate column widths
-        col_widths = [len(col) for col in columns]
-
-        # Update widths based on data
-        for result in results:
-            filepath = str(result.get('filepath', ''))
-            col_widths[0] = max(col_widths[0], len(filepath))
-
-            result_data = result.get('results', {})
-            for idx, key in enumerate(sorted(all_keys), start=1):
-                value_str = str(result_data.get(key, '-'))
-                col_widths[idx] = max(col_widths[idx], len(value_str))
-
-            status = result.get('status', '')
-            if status == 'error' and result.get('error'):
-                status = f"Error: {result['error']}"
-            elif status == 'skipped' and result.get('error'):
-                status = f"Skipped: {result['error']}"
-
-            col_widths[-1] = max(col_widths[-1], len(status))
-
-        # Format header
-        header_parts = []
-        separator_parts = []
-        for idx, col in enumerate(columns):
-            header_parts.append(col.ljust(col_widths[idx]))
-            separator_parts.append('-' * col_widths[idx])
-
-        output_lines = [
-            ' | '.join(header_parts),
-            '-|-'.join(separator_parts)
-        ]
-
-        # Format rows
-        for result in results:
-            row_parts = []
-
-            # Filepath
-            filepath = str(result.get('filepath', ''))
-            row_parts.append(filepath.ljust(col_widths[0]))
-
-            # Result values
-            result_data = result.get('results', {})
-            for idx, key in enumerate(sorted(all_keys), start=1):
-                value_str = str(result_data.get(key, '-'))
-                row_parts.append(value_str.ljust(col_widths[idx]))
-
-            # Status
-            status = result.get('status', '')
-            if status == 'error' and result.get('error'):
-                status = f"Error: {result['error']}"
-            elif status == 'skipped' and result.get('error'):
-                status = f"Skipped: {result['error']}"
-
-            row_parts.append(status.ljust(col_widths[-1]))
-
-            output_lines.append(' | '.join(row_parts))
-
-        return '\n'.join(output_lines)
+        # For table, don't include 'error' as separate column (it's in status)
+        table_columns = [col for col in columns if col != 'error']
+        # Rename status column for display
+        table_rows = []
+        for row in rows:
+            table_row = row.copy()
+            table_row['Status'] = table_row.pop('status')
+            table_rows.append(table_row)
+        table_columns = [col if col != 'status' else 'Status' for col in table_columns]
+        return _format_as_table(table_rows, table_columns, 'filepath')
 
 
 def format_metadata_output(
@@ -337,7 +453,7 @@ def format_metadata_output(
 
     Args:
         media_files: List of MediaFile instances
-        output_format: Output format - 'table', 'csv', or 'json'
+        output_format: Output format - 'list', 'table', 'csv', or 'json'
         include_tags: Include tag metadata
         include_stream_info: Include stream information
         include_internal: Include internal file info
@@ -365,101 +481,66 @@ def format_metadata_output(
 
             output_data.append(data)
 
-        return json.dumps(output_data, indent=2)
+        return _format_as_json(output_data)
 
-    elif output_format == 'csv':
-        if not media_files:
-            return ""
+    # Collect all keys and flatten data into rows
+    all_keys = set()
+    rows = []
 
-        # Collect all keys
-        all_keys = set()
-        for mf in media_files:
-            data = mf.to_dict()
-            if include_tags:
-                all_keys.update(data.get('tags', {}).keys())
-            if include_stream_info:
-                all_keys.update(data.get('stream_info', {}).keys())
-            if include_internal:
-                all_keys.update(data.get('internal', {}).keys())
+    for mf in media_files:
+        data = mf.to_dict()
 
-        # Apply tag filter
-        if tag_filter:
-            all_keys = all_keys.intersection(set(tag_filter))
+        # Collect keys
+        if include_tags:
+            all_keys.update(data.get('tags', {}).keys())
+        if include_stream_info:
+            all_keys.update(data.get('stream_info', {}).keys())
+        if include_internal:
+            all_keys.update(data.get('internal', {}).keys())
 
-        # Build CSV using StringIO
-        header = ['file_path'] + sorted(list(all_keys))
+        # Prepare row
+        row = {'filepath': mf.file_path}
 
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(header)
+        # Add tag values
+        if include_tags:
+            for key, value in data.get('tags', {}).items():
+                row[key] = value.get('value', '')
 
-        for mf in media_files:
-            data = mf.to_dict()
-            row = [mf.file_path]
+        # Add stream info values
+        if include_stream_info:
+            for key, value in data.get('stream_info', {}).items():
+                row[key] = value
 
-            for key in sorted(list(all_keys)):
-                # Check in tags first, then stream_info, then internal
-                value = None
-                if include_tags and key in data.get('tags', {}):
-                    value = data['tags'][key].get('value', '')
-                elif include_stream_info and key in data.get('stream_info', {}):
-                    value = data['stream_info'][key]
-                elif include_internal and key in data.get('internal', {}):
-                    value = data['internal'][key]
+        # Add internal values
+        if include_internal:
+            for key, value in data.get('internal', {}).items():
+                row[key] = value
 
-                row.append(value if value is not None else '')
+        rows.append(row)
 
-            writer.writerow(row)
+    # Apply tag filter
+    if tag_filter:
+        all_keys = all_keys.intersection(set(tag_filter))
+        # Remove non-filtered keys from rows
+        filtered_rows = []
+        for row in rows:
+            filtered_row = {'filepath': row['filepath']}
+            for key in all_keys:
+                if key in row:
+                    filtered_row[key] = row[key]
+            filtered_rows.append(filtered_row)
+        rows = filtered_rows
 
-        return output.getvalue()
+    # Build column list (sorted)
+    columns = sorted(list(all_keys))
 
+    # Use appropriate formatter based on output_format
+    if output_format == 'csv':
+        return _format_as_csv(rows, columns, 'filepath')
+    elif output_format == 'list':
+        return _format_as_list(rows, columns, 'filepath', title_prefix="Metadata for")
     else:  # table format
-        output_lines = []
-
-        for media_file in media_files:
-            output_lines.append(f"Metadata for: {media_file.file_path}")
-
-            metadata = media_file.to_dict()
-
-            # Tags
-            if include_tags:
-                output_lines.append("\nTags:")
-                tags = metadata.get('tags', {})
-
-                # Apply tag filter
-                if tag_filter:
-                    tags = {k: v for k, v in tags.items() if k in tag_filter}
-
-                if tags:
-                    for key, value in sorted(tags.items()):
-                        output_lines.append(f"  {key}: {value.get('value')}")
-                else:
-                    output_lines.append("  No tags found.")
-
-            # Stream info
-            if include_stream_info:
-                output_lines.append("\nStream Info:")
-                stream_info = metadata.get('stream_info', {})
-                if stream_info:
-                    for key, value in sorted(stream_info.items()):
-                        output_lines.append(f"  {key}: {value}")
-                else:
-                    output_lines.append("  No stream info found.")
-
-            # Internal data
-            if include_internal:
-                output_lines.append("\nInternal Info:")
-                internal_data = metadata.get('internal', {})
-                if internal_data:
-                    for key, value in sorted(internal_data.items()):
-                        output_lines.append(f"  {key}: {value}")
-                else:
-                    output_lines.append("  No internal info found.")
-
-            if len(media_files) > 1:
-                output_lines.append("-" * 50)
-
-        return '\n'.join(output_lines)
+        return _format_as_table(rows, columns, 'filepath')
 
 
 def write_output(content: str, output_file: Optional[str] = None) -> None:
