@@ -10,7 +10,9 @@ Built with love (and AI) by [Lyjia](http://www.lyjia.us)! This is the music tag 
 
 YAAMT intends to be a complete music information system for viewing, editing, and analyzing metadata in various audio file formats. Users can choose between a GUI or command-line interface, and use it to manage, analyze, and edit metadata for single files or entire directories of audio files.
 
-The tool is built with Python, using PySide6 for the GUI and the `mutagen` library for robust metadata manipulation.
+Supports common audio formats like MP3, FLAC, and WAV. Additional formats will be added in the future!
+
+YAAMT currently uses [mutagen](https://mutagen.readthedocs.io/en/latest/) for reading and writing metadata from ASF, FLAC, MP4, Monkey’s Audio, MP3, Musepack, Ogg Opus, Ogg FLAC, Ogg Speex, Ogg Theora, Ogg Vorbis, True Audio, WavPack, OptimFROG, and AIFF metadata. I intend to add support for more formats, such as ACID, in the future.
 
 ## Features
 
