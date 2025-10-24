@@ -9,8 +9,6 @@ the entire audio file into memory as a numpy array.
 from typing import Optional, List
 import numpy as np
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QLabel
-
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import register_analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
@@ -286,13 +284,15 @@ class LibrosaKeyAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional[QWidget]:
+    def get_settings_widget(cls) -> Optional['QWidget']:
         """
         Return a QWidget for configuring librosa key analyzer parameters.
 
         Returns:
             QWidget with controls for chromagram and key detection parameters
         """
+        from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QLabel
+
         widget = QWidget()
         main_layout = QVBoxLayout()
         main_layout.setSpacing(8)
