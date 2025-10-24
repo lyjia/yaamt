@@ -44,11 +44,16 @@ class BuildConfig:
         self.platform = platform_name or self._detect_platform()
         self.arch = arch or self._detect_arch()
         self.build_mode = build_mode  # 'debug' or 'release'
+        self.project_root = Path(__file__).parent.resolve()
+
         # Create build-mode-specific output directory with timestamp
         base_output_dir = Path(output_dir or "build")
+        # Make it absolute relative to project root if it's not already absolute
+        if not base_output_dir.is_absolute():
+            base_output_dir = self.project_root / base_output_dir
+
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.output_dir = base_output_dir / f"{build_mode}-{timestamp}"
-        self.project_root = Path(__file__).parent.resolve()
 
     def _detect_platform(self):
         """Detect the current platform"""
