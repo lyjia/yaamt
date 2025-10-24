@@ -4,7 +4,7 @@ This document outlines the design for packaging and distributing the audio-metad
 
 ## 1. Objectives
 
-- Generate standalone application binaries for both the CLI (`src/main.py`) and GUI (`src/gui.py`).
+- Generate standalone application binaries for both the CLI (`src/yaamt.py`) and GUI (`src/yaamt-gui.py`).
 - Create platform-specific installers:
     - `.msi` for Windows
     - `.dmg` for macOS
@@ -18,8 +18,8 @@ This document outlines the design for packaging and distributing the audio-metad
 
 A `setup.py` file will be created in the project root to configure the `cx_freeze` build process. It will define two main executables:
 
-- **`yaamt-cli`**: The command-line interface, from `src/main.py`.
-- **`yaamt-gui`**: The graphical user interface, from `src/gui.py`.
+- **`yaamt-cli`**: The command-line interface, from `src/yaamt.py`.
+- **`yaamt-gui`**: The graphical user interface, from `src/yaamt-gui.py`.
 
 The configuration will include:
 - **`build_exe` options**: To specify included/excluded packages, and to ensure all necessary resources (like icons) are bundled.
@@ -58,7 +58,7 @@ The `setup.py` file will contain configurations for different distribution forma
 
 The version number, stored in the `src/VERSION` file, will be read and displayed in the following locations:
 
-- **CLI**: The `main.py` script will be modified to include a `--version` argument that prints the version and exits.
+- **CLI**: The `yaamt.py` script will be modified to include a `--version` argument that prints the version and exits.
 - **GUI**: The `windows/about_window.py` will be modified to read the version file and display it in the "About" dialog. A utility function in `src/util/version.py` will handle reading the file.
 
 ## 3. Build Process

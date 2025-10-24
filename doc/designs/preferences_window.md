@@ -436,7 +436,7 @@ Analyzers read from QSettings:
 
 ### 4. Startup Directory Integration
 
-**Location**: `src/windows/main_window.py` or `src/gui.py`
+**Location**: `src/windows/main_window.py` or `src/yaamt-gui.py`
 
 **On Application Startup**:
 - Read `General/StartupDirectoryMode` from QSettings

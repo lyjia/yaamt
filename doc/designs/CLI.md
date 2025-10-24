@@ -3,7 +3,7 @@
 **Epic:** Major CLI refactor to support verb-based commands and dynamic analyzer options
 ## Overview
 
-This design document outlines a major refactor of the command-line interface (`src/main.py`) to:
+This design document outlines a major refactor of the command-line interface (`src/yaamt.py`) to:
 1. Implement a verb-based command structure (similar to git, chmod)
 2. Create a declarative option system that works for both CLI and GUI
 3. Enable dynamic discovery of analyzer options without code duplication
@@ -276,7 +276,7 @@ def get_settings_widget(cls) -> Optional[QWidget]:
 **New Structure:**
 
 ```bash
-main.py [global_options] <verb> [subverb] [options] <paths...>
+yaamt.py [global_options] <verb> [subverb] [options] <paths...>
 
 Global Options (before verb):
   --verbose, -v         Enable verbose output
@@ -302,19 +302,19 @@ Verbs:
 
 ```bash
 # Main help
-main.py help
+yaamt.py help
 
 # Command-specific help
-main.py help read
-main.py help write
-main.py help analyze
+yaamt.py help read
+yaamt.py help write
+yaamt.py help analyze
 
 # Analyzer list with descriptions
-main.py help analyze
+yaamt.py help analyze
 
 # Analyzer-specific help with options
-main.py help analyze AubioBPMAnalyzer
-main.py help analyze WaveletKeyAnalyzer
+yaamt.py help analyze AubioBPMAnalyzer
+yaamt.py help analyze WaveletKeyAnalyzer
 ```
 
 **Implementation:**
@@ -325,7 +325,7 @@ main.py help analyze WaveletKeyAnalyzer
 **Example Output:**
 
 ```
-Usage: main.py analyze AubioBPMAnalyzer [options] <paths...>
+Usage: yaamt.py analyze AubioBPMAnalyzer [options] <paths...>
 
 Detects tempo using aubio's beat tracking algorithm
 
@@ -359,12 +359,12 @@ Analyzer Options:
 
 ```bash
 # List all analyzers
-main.py list analyzers
+yaamt.py list analyzers
 
 # Filter by category
-main.py list analyzers bpm
-main.py list analyzers key
-main.py list analyzers loudness
+yaamt.py list analyzers bpm
+yaamt.py list analyzers key
+yaamt.py list analyzers loudness
 ```
 
 **Output Format:**
@@ -392,7 +392,7 @@ Loudness Analyzers:
 #### 5.3 `read` Command
 
 ```bash
-main.py read [options] <paths...>
+yaamt.py read [options] <paths...>
 
 Options:
   -R, --recursive               Scan subdirectories
@@ -408,22 +408,22 @@ Options:
 
 ```bash
 # Read all metadata
-main.py read song.mp3
+yaamt.py read song.mp3
 
 # Read specific tags only
-main.py read --tags title,artist,bpm *.mp3
+yaamt.py read --tags title,artist,bpm *.mp3
 
 # Export to CSV
-main.py read -f csv -o metadata.csv music/
+yaamt.py read -f csv -o metadata.csv music/
 
 # Recursive scan with JSON output
-main.py read -R -f json /music > all_metadata.json
+yaamt.py read -R -f json /music > all_metadata.json
 ```
 
 #### 5.4 `write` Command
 
 ```bash
-main.py write [options] <paths...>
+yaamt.py write [options] <paths...>
 
 Options:
   -R, --recursive          Scan subdirectories
@@ -442,13 +442,13 @@ Options:
 
 ```bash
 # Set title on single file
-main.py write --title "My Song" song.mp3
+yaamt.py write --title "My Song" song.mp3
 
 # Set multiple tags on multiple files
-main.py write --artist "DJ Name" --bpm 128 song1.mp3 song2.mp3
+yaamt.py write --artist "DJ Name" --bpm 128 song1.mp3 song2.mp3
 
 # Set tags on all files in directory
-main.py write -R --album "My Album" /music/album/
+yaamt.py write -R --album "My Album" /music/album/
 ```
 
 **Behavior:**
@@ -459,7 +459,7 @@ main.py write -R --album "My Album" /music/album/
 #### 5.5 `analyze` Command
 
 ```bash
-main.py analyze <AnalyzerClassName> [options] <paths...>
+yaamt.py analyze <AnalyzerClassName> [options] <paths...>
 
 Common Options:
   -R, --recursive              Scan subdirectories
@@ -533,22 +533,22 @@ JSON format:
 
 ```bash
 # Basic analysis, display results only
-main.py analyze AubioBPMAnalyzer song.mp3
+yaamt.py analyze AubioBPMAnalyzer song.mp3
 
 # Analyze and write to tags
-main.py analyze AubioBPMAnalyzer -w --overwrite-existing *.mp3
+yaamt.py analyze AubioBPMAnalyzer -w --overwrite-existing *.mp3
 
 # Analyze with custom options
-main.py analyze AubioBPMAnalyzer --method specdiff --buf-size 2048 song.mp3
+yaamt.py analyze AubioBPMAnalyzer --method specdiff --buf-size 2048 song.mp3
 
 # Batch analyze to CSV
-main.py analyze AubioBPMAnalyzer -R -f csv -o results.csv /music/
+yaamt.py analyze AubioBPMAnalyzer -R -f csv -o results.csv /music/
 
 # Use saved GUI preferences
-main.py analyze AubioBPMAnalyzer --use-saved-prefs -w -R /music/
+yaamt.py analyze AubioBPMAnalyzer --use-saved-prefs -w -R /music/
 
 # Multi-threaded analysis
-main.py analyze AubioBPMAnalyzer --threads 4 -w /music/*.mp3
+yaamt.py analyze AubioBPMAnalyzer --threads 4 -w /music/*.mp3
 ```
 
 ### 6. New Utility Modules
@@ -584,7 +584,7 @@ Contains:
 
 #### Phase 3: CLI Refactor
 7. Create `src/util/cli_formatters.py`
-8. Refactor `src/main.py` with verb-based structure
+8. Refactor `src/yaamt.py` with verb-based structure
 9. Implement each command (help, list, read, write, analyze)
 
 #### Phase 4: Integration
