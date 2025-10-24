@@ -16,8 +16,8 @@ This document is to follow the AGENTS.md spec at https://ampcode.com/AGENT.md
 This project implements an audio file metadata manager, through a few primary components:
 
 * A Python class ("MediaFile") that is responsible for reading and writing metadata (ID3, ACID, etc) to a single media file. This class represents a single media file (for now we are focusing on audio files only -- WAV/MP3/FLAC/etc). It should have internal fields representing all of the major kinds of metadata that describe a media file, such as title, artist, album, and so on. (Refer to the ID3 specification as needed.) In particular, we need to have fields for storing BPM and musical key.
-* A command-line Python entrypoint that uses MediaFile to interact with, analyze, and edit metadata on media files requested by the user. It should support operating on both a single file or a directory of files. (Entrypoint is `src/main.py`)
-* A GUI that implements a file+directory browser. This component also uses MediaFile to both display metadata to the user (as configurable columns in the file browser), and to interact with, analyze, and edit metadata on behalf of the user. (Entrypoint is `src/gui.py`)
+* A command-line Python entrypoint that uses MediaFile to interact with, analyze, and edit metadata on media files requested by the user. It should support operating on both a single file or a directory of files. (Entrypoint is `src/yaamt.py`)
+* A GUI that implements a file+directory browser. This component also uses MediaFile to both display metadata to the user (as configurable columns in the file browser), and to interact with, analyze, and edit metadata on behalf of the user. (Entrypoint is `src/yaamt-gui.py`)
 
 ## Paths to Ignore
 
@@ -97,8 +97,8 @@ audio-metadata-tool/
 │   ├── windows/                      # Various windows in the program
 │   │   └── main_window.py            # The main window
 │   ├── workers/
-│   ├── main.py                       # Entrypoint for command-line operations
-|   ├── gui.py                        # Entrypoint for accessing the desktop GUI
+│   ├── yaamt.py                      # Entrypoint for command-line operations
+|   ├── yaamt-gui.py                  # Entrypoint for accessing the desktop GUI
 ├── resources/
 │   ├── icons/
 │   │   └── app_icon.png

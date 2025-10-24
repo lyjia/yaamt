@@ -198,7 +198,7 @@ class Builder:
         ]
 
         print("=== Building CLI EXE with Nuitka (Windows)... ===")
-        cmd_opts = ["src/main.py"]
+        cmd_opts = ["src/yaamt.py"]
 
         cmd_args = [ sys.executable, "-m", "nuitka" ] + self.universal_nuitka_opts + universal_windows_opts + cmd_opts
         subprocess.run(cmd_args, check=True)
@@ -208,7 +208,7 @@ class Builder:
                     "--plugin-enable=pyside6",
                     "--windows-console-mode=attach",
                     "--include-module=cffi",
-                    "src/gui.py" ]
+                    "src/yaamt-gui.py" ]
 
         gui_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + gui_opts
         subprocess.run(gui_args, check=True)
@@ -219,16 +219,16 @@ class Builder:
             f"--output-dir={dist_dir}"
         ]
 
-        print("=== Building main.py with Nuitka (Linux)... ===")
-        cmd_args = ["nuitka" ] + self.universal_nuitka_opts + universal_linux_opts + ["src/main.py"]
+        print("=== Building CLI with Nuitka (Linux)... ===")
+        cmd_args = ["nuitka" ] + self.universal_nuitka_opts + universal_linux_opts + ["src/yaamt.py"]
         subprocess.run(cmd_args, check=True)
 
-        print("=== Building gui.py with Nuitka (Linux)... ===")
+        print("=== Building GUI with Nuitka (Linux)... ===")
         gui_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + [
             "--include-module=cffi",
             "--plugin-enable=pyside6",
             "--follow-imports",
-            "src/gui.py"
+            "src/yaamt-gui.py"
         ]
         subprocess.run(gui_args, check=True)
 

@@ -5,14 +5,14 @@
             "name": "Python: GUI",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/gui.py",
+            "program": "${workspaceFolder}/src/yaamt-gui.py",
             "console": "integratedTerminal"
         },
         {
             "name": "Python: Main",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/main.py",
+            "program": "${workspaceFolder}/src/yaamt.py",
             "console": "integratedTerminal"
         }
     ]

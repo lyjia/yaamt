@@ -114,14 +114,14 @@ def cmd_help(args):
     if args.subcommand:
         # Help for specific command
         if args.subcommand == 'list':
-            print("Usage: main.py list analyzers [category]")
+            print("Usage: yaamt.py list analyzers [category]")
             print()
             print("List available analyzers, optionally filtered by category.")
             print()
             print("Categories: bpm, key, loudness, fingerprint")
 
         elif args.subcommand == 'read':
-            print("Usage: main.py read [options] <paths...>")
+            print("Usage: yaamt.py read [options] <paths...>")
             print()
             print("Read and display metadata from audio files.")
             print()
@@ -140,7 +140,7 @@ def cmd_help(args):
             print("  json   - JSON format")
 
         elif args.subcommand == 'write':
-            print("Usage: main.py write [options] <paths...>")
+            print("Usage: yaamt.py write [options] <paths...>")
             print()
             print("Write metadata to audio files.")
             print()
@@ -163,7 +163,7 @@ def cmd_help(args):
                     return SYS_RETURN_ERROR
             else:
                 # General analyze help
-                print("Usage: main.py analyze <AnalyzerName> [options] <paths...>")
+                print("Usage: yaamt.py analyze <AnalyzerName> [options] <paths...>")
                 print()
                 print("Analyze audio files using the specified analyzer.")
                 print()
@@ -185,7 +185,7 @@ def cmd_help(args):
                 print("Available Analyzers:")
                 print(format_analyzer_list())
                 print()
-                print("For analyzer-specific options, use: main.py help analyze <AnalyzerName>")
+                print("For analyzer-specific options, use: yaamt.py help analyze <AnalyzerName>")
 
         else:
             print(f"Unknown command: {args.subcommand}")
@@ -195,7 +195,7 @@ def cmd_help(args):
         # Main help
         print("YAAMT - Yet Another Audio Metadata Tool")
         print()
-        print("Usage: main.py [--version] [--verbose] <command> [options] [arguments]")
+        print("Usage: yaamt.py [--version] [--verbose] <command> [options] [arguments]")
         print()
         print("Commands:")
         print("  help [command] [subcommand]  Show help")
@@ -208,7 +208,7 @@ def cmd_help(args):
         print("  --version    Show version and exit")
         print("  --verbose    Enable verbose output")
         print()
-        print("Use 'main.py help <command>' for more information on a specific command.")
+        print("Use 'yaamt.py help <command>' for more information on a specific command.")
 
     return SYS_RETURN_SUCCESS
 
@@ -322,7 +322,7 @@ def cmd_analyze(args):
     analyzer_class = get_analyzer_by_name(args.analyzer)
     if not analyzer_class:
         print(f"Error: Unknown analyzer '{args.analyzer}'", file=sys.stderr)
-        print("Use 'main.py list analyzers' to see available analyzers")
+        print("Use 'yaamt.py list analyzers' to see available analyzers")
         return SYS_RETURN_ERROR
 
     # Collect files

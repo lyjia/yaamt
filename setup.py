@@ -96,13 +96,13 @@ try:
     # Define executables
     executables = [
         Executable(
-            "src/gui.py",
+            "src/yaamt-gui.py",
             base=gui_base,
             target_name="yaamt-gui",
             icon="resources/icons/app_icon.png"
         ),
         Executable(
-            "src/main.py",
+            "src/yaamt.py",
             base=None,
             target_name="yaamt",
             icon="resources/icons/app_icon.png"

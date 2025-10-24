@@ -11,12 +11,12 @@ def main():
     # Get the absolute path of the directory where this script resides.
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Construct the absolute path to the main.py script.
-    main_py_path = os.path.abspath(os.path.join(script_dir, '..', '..', '..', 'src', 'main.py'))
+    # Construct the absolute path to the yaamt.py script.
+    main_py_path = os.path.abspath(os.path.join(script_dir, '..', '..', '..', 'src', 'yaamt.py'))
 
-    # Verify that the main.py script exists before proceeding.
+    # Verify that the yaamt.py script exists before proceeding.
     if not os.path.exists(main_py_path):
-        print(f"Error: main.py not found at expected path: {main_py_path}", file=sys.stderr)
+        print(f"Error: yaamt.py not found at expected path: {main_py_path}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Using main script: {main_py_path}")
@@ -53,7 +53,7 @@ def main():
                     encoding='utf-8'
                 )
 
-                # Parse the JSON output (main.py outputs a list with one element per file)
+                # Parse the JSON output (yaamt.py outputs a list with one element per file)
                 import json
                 output_list = json.loads(result.stdout)
 

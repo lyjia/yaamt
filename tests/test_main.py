@@ -5,7 +5,7 @@ import sys
 from unittest.mock import patch, MagicMock
 import pytest
 from mutagen.easyid3 import EasyID3
-from main import main, SYS_RETURN_FILE_NOT_FOUND, SYS_RETURN_FILE_INVALID, SYS_RETURN_SUCCESS
+from yaamt import main, SYS_RETURN_FILE_NOT_FOUND, SYS_RETURN_FILE_INVALID, SYS_RETURN_SUCCESS
 
 # Fixture file to use for testing
 SOURCE_FILE = os.path.join(os.path.dirname(__file__), "fixtures/metadata/sample_dtmf_unicode.mp3")
@@ -15,7 +15,7 @@ SOURCE_FILE_NO_META = os.path.join(os.path.dirname(__file__), "fixtures/metadata
 @pytest.fixture
 def mock_argv():
     """Fixture to mock sys.argv."""
-    with patch.object(sys, 'argv', ['src/main.py']):
+    with patch.object(sys, 'argv', ['src/yaamt.py']):
         yield sys.argv
 
 

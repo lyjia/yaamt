@@ -8,7 +8,7 @@ Built with love (and AI) by [Lyjia](http://www.lyjia.us)! This is the music tag 
 
 ## Description
 
-**YAAMT is a music information system** for viewing, editing, and analyzing kinds of metadata (text like title/artist, BPM, musical key, etc.) for various audio file formats (MP3/FLAC/WAV etc.). Users can choose between a GUI or command-line interface, and use it to manage, analyze, and edit metadata for single files or entire directories of audio files.
+**YAAMT is a music information system** for viewing, editing, and analyzing various kinds of metadata (text like title/artist, BPM, musical key, etc.) for various audio file formats (MP3/FLAC/WAV etc.). Users can choose between a GUI or command-line interface, and use it to manage, analyze, and edit metadata for single files or entire directories of audio files.
 
 Supports common audio formats like MP3, FLAC, and WAV. Additional formats will be added in the future!
 
@@ -75,30 +75,30 @@ The command-line interface provides powerful options for scripting and batch pro
 
 **Top-level help:**
 ```bash
-python src/main.py --help
+python src/yaamt.py --help
 ```
 
 **Help for specific commands:**
 ```bash
-python src/main.py help read
-python src/main.py help write
-python src/main.py help analyze
+python src/yaamt.py help read
+python src/yaamt.py help write
+python src/yaamt.py help analyze
 ```
 
 **List available analyzers:**
 ```bash
-python src/main.py list analyzers
+python src/yaamt.py list analyzers
 ```
 
 **List analyzers by category:**
 ```bash
-python src/main.py list analyzers --category bpm
-python src/main.py list analyzers --category key
+python src/yaamt.py list analyzers --category bpm
+python src/yaamt.py list analyzers --category key
 ```
 
 **Get help on a specific analyzer:**
 ```bash
-python src/main.py analyze StubBPMAnalyzer --help
+python src/yaamt.py analyze StubBPMAnalyzer --help
 ```
 
 #### Reading Metadata
@@ -107,32 +107,32 @@ The `read` command displays metadata from audio files. It supports multiple outp
 
 **Display metadata for a single file (detailed list format):**
 ```bash
-python src/main.py read "path/to/audio.mp3" -f list
+python src/yaamt.py read "path/to/audio.mp3" -f list
 ```
 
 **Display metadata for multiple files (table format with separated directory/filename columns):**
 ```bash
-python src/main.py read "path/to/folder/*.mp3" -f table
+python src/yaamt.py read "path/to/folder/*.mp3" -f table
 ```
 
 **Show only specific tags:**
 ```bash
-python src/main.py read "path/to/audio.mp3" --tags title,artist,album,bpm
+python src/yaamt.py read "path/to/audio.mp3" --tags title,artist,album,bpm
 ```
 
 **Export metadata from a folder to CSV:**
 ```bash
-python src/main.py read "path/to/folder/*.mp3" -f csv -o metadata.csv
+python src/yaamt.py read "path/to/folder/*.mp3" -f csv -o metadata.csv
 ```
 
 **Export metadata to JSON:**
 ```bash
-python src/main.py read "path/to/folder/*.mp3" -f json -o metadata.json
+python src/yaamt.py read "path/to/folder/*.mp3" -f json -o metadata.json
 ```
 
 **Recursively scan subdirectories:**
 ```bash
-python src/main.py read "path/to/folder" -R --tags title,artist,bpm -f table
+python src/yaamt.py read "path/to/folder" -R --tags title,artist,bpm -f table
 ```
 
 #### Writing Metadata
@@ -141,12 +141,12 @@ The `write` command modifies metadata tags on audio files. You can use either th
 
 **Using shortcut parameters (recommended for common tags):**
 ```bash
-python src/main.py write --title "New Song Title" --artist "Artist Name" "path/to/audio.mp3"
+python src/yaamt.py write --title "New Song Title" --artist "Artist Name" "path/to/audio.mp3"
 ```
 
 **Using the generic --tag option:**
 ```bash
-python src/main.py write --tag "title=New Song Title" --tag "artist=Artist Name" "path/to/audio.mp3"
+python src/yaamt.py write --tag "title=New Song Title" --tag "artist=Artist Name" "path/to/audio.mp3"
 ```
 
 **Available shortcut parameters:**
@@ -159,12 +159,12 @@ python src/main.py write --tag "title=New Song Title" --tag "artist=Artist Name"
 
 **Mass-write album tag to all files in a folder (e.g., for an album):**
 ```bash
-python src/main.py write --album "My Album Name" "path/to/album/*.mp3"
+python src/yaamt.py write --album "My Album Name" "path/to/album/*.mp3"
 ```
 
 **Write multiple tags at once using shortcuts:**
 ```bash
-python src/main.py write \
+python src/yaamt.py write \
   --title "Song Title" \
   --artist "Artist Name" \
   --album "Album Name" \
@@ -174,7 +174,7 @@ python src/main.py write \
 
 **Recursively update all files in a directory tree:**
 ```bash
-python src/main.py write --albumartist "Various Artists" "path/to/folder" -R
+python src/yaamt.py write --albumartist "Various Artists" "path/to/folder" -R
 ```
 
 #### Analyzing Files
@@ -183,27 +183,27 @@ The `analyze` command runs audio analysis algorithms to detect BPM, musical key,
 
 **Analyze a single file for BPM and write to file metadata:**
 ```bash
-python src/main.py analyze StubBPMAnalyzer "path/to/audio.mp3" -w
+python src/yaamt.py analyze StubBPMAnalyzer "path/to/audio.mp3" -w
 ```
 
 **Analyze a whole folder for musical key and output to CSV report:**
 ```bash
-python src/main.py analyze WaveletKeyAnalyzer "path/to/folder/*.mp3" -f csv -o key_report.csv
+python src/yaamt.py analyze WaveletKeyAnalyzer "path/to/folder/*.mp3" -f csv -o key_report.csv
 ```
 
 **Analyze files without writing to metadata (display results only):**
 ```bash
-python src/main.py analyze MultibandSpectralBPMAnalyzer "path/to/audio.mp3" -f table
+python src/yaamt.py analyze MultibandSpectralBPMAnalyzer "path/to/audio.mp3" -f table
 ```
 
 **Skip files that already have values (useful for partial processing):**
 ```bash
-python src/main.py analyze StubBPMAnalyzer "path/to/folder/*.mp3" -w --skip-if-tag-exists
+python src/yaamt.py analyze StubBPMAnalyzer "path/to/folder/*.mp3" -w --skip-if-tag-exists
 ```
 
 **Analyze with custom analyzer options:**
 ```bash
-python src/main.py analyze AubioBPMAnalyzer "path/to/audio.mp3" -w --method default --buf-size 1024
+python src/yaamt.py analyze AubioBPMAnalyzer "path/to/audio.mp3" -w --method default --buf-size 1024
 ```
 
 **Available Analyzers:**
@@ -215,8 +215,8 @@ python src/main.py analyze AubioBPMAnalyzer "path/to/audio.mp3" -w --method defa
 
 For a complete list of available analyzers and their options:
 ```bash
-python src/main.py list analyzers
-python src/main.py analyze <AnalyzerName> --help
+python src/yaamt.py list analyzers
+python src/yaamt.py analyze <AnalyzerName> --help
 ```
 
 ## Contributing
