@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 YAAMT Command-Line Interface
 
