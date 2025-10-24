@@ -2,11 +2,11 @@
 
 <img src="doc/YAAMT_logo.png" alt="YAAMT Logo">
 
-A powerful and flexible tool for managing audio file metadata, designed for DJs, music producers, and audiophiles.
+YET ANOTHER powerful, flexible tool for managing audio file metadata, designed for DJs, music producers, and audiophiles.
 
 ## Description
 
-This application provides a comprehensive solution for viewing, editing, and analyzing metadata in various audio file formats. It features both a graphical user interface (GUI) for easy visual editing and a command-line interface (CLI) for scripting and batch operations.
+YAAMT intends to be a complete music information system for viewing, editing, and analyzing metadata in various audio file formats. Users can choose between a GUI or command-line interface, and use it to manage, analyze, and edit metadata for single files or entire directories of audio files.
 
 The tool is built with Python, using PySide6 for the GUI and the `mutagen` library for robust metadata manipulation.
 
