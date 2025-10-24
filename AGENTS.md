@@ -29,6 +29,57 @@ The following directories contain reference materials and should NOT be modified
 
 These paths should ONLY be accessed when explicitly requested by the user with a direct reference (e.g., "@path/to/submodule1/file.py").
 
+## Code Conventions
+
+* Refer to the design specs in @doc/DESIGN.md and @doc/designs/
+* Keep your commits small; focus on a single change.
+* Explain complicated logic using comments.
+* When adding large systems, document them as a new markdown file in @docs/designs if they are not already there.
+* All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
+* The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
+* Logging should be done using `log`, which is provided by @src/util/logging.py.
+* PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
+* Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred. This is a python 3.12+ project, so avoid pulling in `typing` unless absolutely necessary.
+* Libraries brought in must be able to be compiled into a standalone executable using `nuitka`. If binaries cannot be built because of a dependency, code using that dependency must be gated with `debug_only=True` so that it is not included in the build process.
+
+### Media Handling Conventions
+
+* Read a file's audio data using the stream interface provided by the `MediaFile` instance for that file. (`.get_audio_stream()`.) Do not call `AudioStreamFactory` directly.
+* Read a file's metadata using the interface provided by the `MediaFile` instance for that file. (`.get_tags()`.) Do not use the underlying tagging library directly.
+* Write a file's metadata using the interface provided by the `MediaFile` instance for that file. (`.set_tags()`.) Do not use the underlying tagging library directly.
+* MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible.
+* Do not pass around references to files as filepath strings. Your code should accept a `MediaFile` instance instead.
+* Analysis providers should be registered in _manifest.py, and should call `register_analyzer()` at the bottom of their file.
+* An `AudioFormatDescriptor` instance passed to `.get_audio_stream()` handles channel downmixing, resampling, and other audio format conversions. Analyzers should simply request what format they require and let the system handle it. Do not re-implement this functionality, and if additional format code is needed consider adding it to `AudioFormatDescriptor`.
+
+### QT Usage Conventions
+
+* QT should only be imported in areas that are specific to the GUI. This is to enable a clean separation between the GUI and the core application logic, which must be runnable in the CLI.
+* There may be places where QT signals or threads are used in CLI-accessible code. This is a code smell and should be avoided. TODO: refactor this stuff
+
+**Resource Management:**
+
+*   **Resource Files:** Manage application resources such as icons and images using Qt's resource system (`.qrc` files).
+*   **Resource Compilation:** Use `pyside6-rcc` to compile `.qrc` files into a Python module.
+*   **Command:** `pyside6-rcc resources/resources.qrc -o src/resources_rc.py`
+*   **Resource Usage:** Import the compiled resource module in the application to access the resources.
+
+**Application Logic:**
+
+*   **Model-View-Controller (MVC):** For complex applications, structure the code following the MVC pattern.
+*   **Threading:** To prevent the GUI from becoming unresponsive during long-running tasks, execute them in separate threads (`QThread`). **This is critical for file I/O operations.**
+*   **Signals and Slots:** Use Qt's signals and slots mechanism for communication between components.
+*   **User Preferences:** Store user preferences using QSettings via model in `settings.py`
+
+## Design Document Conventions
+
+* Refer to the design specs in @docs/DESIGN.md and @docs/designs/
+* Keep these documents concise and to-the-point. These documents may be passed to an AI agent, and it is important not to blow out their context window.
+* Do not include Python code. All requirements must be articulated in plain English, a diagram, or SHORT pseudocode. Favor plain English or a diagram.
+* Mention the epic that this design document came from just below the title.
+* If details agreed-upon while writing the design document contradict the corresponding epic, update the epic with those details.
+* The epic and the design document should be kept in sync.
+
 ## AI-specific Instructions
 
 * In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
@@ -47,37 +98,6 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * Make sure to use the Python virtual environment in `.venv` before running any python commands. The correct way to run a python command:
     * on WINDOWS (Poweshell): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py` (don't use backslashes they break things)
     * on WINDOWS (WSL): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py`
-
-## Design Document Conventions
-
-* Refer to the design specs in @docs/DESIGN.md and @docs/designs/ 
-* Keep these documents concise and to-the-point. These documents may be passed to an AI agent, and it is important not to blow out their context window.
-* Do not include Python code. All requirements must be articulated in plain English, a diagram, or SHORT pseudocode. Favor plain English or a diagram.
-* Mention the epic that this design document came from just below the title.
-* If details agreed-upon while writing the design document contradict the corresponding epic, update the epic with those details.
-* The epic and the design document should be kept in sync.
-
-## Code Conventions
-
-* Refer to the design specs in @doc/DESIGN.md and @doc/designs/ 
-* Keep your commits small; focus on a single change.
-* Explain complicated logic using comments.
-* When adding large systems, document them as a new markdown file in @docs/designs if they are not already there.
-* All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
-* The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
-* Logging should be done using `log`, which is provided by @src/util/logging.py. 
-* PySide6 has a bug where emitting a QT signal with a dict with non-string keys behaves unexpectedly. To work around this, if you must emit a dict with a signal, all keys inside it must be strings. (See https://stackoverflow.com/questions/76579504/how-dose-pyside6-signal-emit-transfer-data-for-dictionary-data-why-the-behavio)
-* Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred. This is a python 3.12+ project, so avoid pulling in `typing` unless absolutely necessary.
-* Libraries brought in must be able to be compiled into a standalone executable using `nuitka`.
-
-## YAAMT Design Conventions
-
-* Read a file's audio data using the stream interface provided by the `MediaFile` instance for that file. (`.get_audio_stream()`.) Do not call `AudioStreamFactory` directly.
-* Read a file's metadata using the interface provided by the `MediaFile` instance for that file. (`.get_tags()`.) Do not use the underlying tagging library directly.
-* Write a file's metadata using the interface provided by the `MediaFile` instance for that file. (`.set_tags()`.) Do not use the underlying tagging library directly.
-* MetadataProviders have a two-tiered system for reading and writing metadata: 'generic' tags, which are single set of tag names referenced and used by most areas of the program. These map to a tagging library's 'internal' tags, which are the actual tags that are stored in the file determined by its metadata format. Always use 'generic' tags wherever possible.
-* Do not pass around references to files as filepath strings. Your code should accept a `MediaFile` instance instead.
-* Analysis providers should be registered in _manifest.py, and should call `register_analyzer()` at the bottom of their file.
 
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
@@ -111,24 +131,6 @@ audio-metadata-tool/
 ├── requirements.txt
 └── README.md
 ```
-
-### Development Workflow with PySide6
-
-Follow these best practices when developing the PySide6 application.
-
-**Resource Management:**
-
-*   **Resource Files:** Manage application resources such as icons and images using Qt's resource system (`.qrc` files).
-*   **Resource Compilation:** Use `pyside6-rcc` to compile `.qrc` files into a Python module.
-  *   **Command:** `pyside6-rcc resources/resources.qrc -o src/resources_rc.py`
-*   **Resource Usage:** Import the compiled resource module in the application to access the resources.
-
-**Application Logic:**
-
-*   **Model-View-Controller (MVC):** For complex applications, structure the code following the MVC pattern.
-*   **Threading:** To prevent the GUI from becoming unresponsive during long-running tasks, execute them in separate threads (`QThread`). **This is critical for file I/O operations.**
-*   **Signals and Slots:** Use Qt's signals and slots mechanism for communication between components.
-*   **User Preferences:** Store user preferences using QSettings via model in `settings.py`
 
 ### Testing
 
