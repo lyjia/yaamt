@@ -48,9 +48,21 @@ def revert_const_file():
 # Get version from git
 version = get_version_from_git()
 
-# Patch the const.py file with the version
+# Check if const.py has already been patched by the build system
+const_file_path = os.path.join("src", "util", "const.py")
+with open(const_file_path, 'r') as f:
+    const_content = f.read()
+
+# Check if VERSION_STRING is already set (not None)
+already_patched = 'VERSION_STRING = None' not in const_content
+
+# Patch the const.py file with the version if not already patched
 try:
-    patch_const_file(version)
+    if not already_patched:
+        patch_const_file(version)
+        print("Patched VERSION_STRING in const.py")
+    else:
+        print("VERSION_STRING already patched by build system")
 
     # Add the src directory to the Python path for cx_Freeze
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
@@ -168,5 +180,7 @@ except Exception as e:
     print(f"Error building the application: {e}")
     raise e
 finally:
-    # Revert the const.py file to its original state
-    revert_const_file()
+    # Revert the const.py file to its original state only if we patched it
+    if not already_patched:
+        revert_const_file()
+        print("Reverted VERSION_STRING in const.py")

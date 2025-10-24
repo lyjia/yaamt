@@ -22,6 +22,8 @@ import platform
 import subprocess
 import argparse
 import shutil
+import tempfile
+import re
 from pathlib import Path
 
 DEBIAN_LINUX_DEPS = ["ccache", "patchelf", "alien", "libegl1", "libxkbcommon-x11-0",
@@ -37,10 +39,13 @@ WINDOWS_CHOCO_DEPS = ["ccache"]
 class BuildConfig:
     """Configuration for building YAAMT"""
 
-    def __init__(self, platform_name=None, arch=None, output_dir=None):
+    def __init__(self, platform_name=None, arch=None, output_dir=None, build_mode='debug'):
         self.platform = platform_name or self._detect_platform()
         self.arch = arch or self._detect_arch()
-        self.output_dir = Path(output_dir or "build")
+        self.build_mode = build_mode  # 'debug' or 'release'
+        # Create build-mode-specific output directory
+        base_output_dir = Path(output_dir or "build")
+        self.output_dir = base_output_dir / build_mode
         self.project_root = Path(__file__).parent.resolve()
 
     def _detect_platform(self):
@@ -153,6 +158,126 @@ class DependencyInstaller:
         subprocess.run([sys.executable, "-m", "pip", "install"] + build_deps, check=True)
 
 
+# ============================================================================
+# Build Workspace Management
+# ============================================================================
+
+def create_build_workspace(build_mode: str, project_root: Path) -> Path:
+    """
+    Create a temporary build workspace by copying the source tree.
+
+    Args:
+        build_mode: 'debug' or 'release'
+        project_root: Path to the project root directory
+
+    Returns:
+        Path to the temporary workspace directory
+    """
+    # Create temp directory with descriptive prefix
+    temp_dir = tempfile.mkdtemp(prefix=f'yaamt_build_{build_mode}_')
+    temp_path = Path(temp_dir)
+
+    print(f"Creating build workspace at: {temp_path}")
+
+    # Patterns to ignore when copying
+    ignore_patterns = shutil.ignore_patterns(
+        '.git', '__pycache__', '*.pyc', '*.pyo',
+        'build', 'dist', '.pytest_cache', '.venv',
+        '*.egg-info', '.eggs', '.tox', 'venv'
+    )
+
+    # Copy source tree to temp directory
+    try:
+        shutil.copytree(project_root, temp_path / 'yaamt', ignore=ignore_patterns, dirs_exist_ok=True)
+        print(f"Source tree copied to workspace")
+        return temp_path / 'yaamt'
+    except Exception as e:
+        # Clean up temp dir if copy fails
+        shutil.rmtree(temp_path, ignore_errors=True)
+        raise RuntimeError(f"Failed to create build workspace: {e}")
+
+
+def prepare_source_for_build(temp_src_path: Path, build_mode: str) -> None:
+    """
+    Prepare the copied source for building by patching constants and
+    removing debug-only code for release builds.
+
+    Args:
+        temp_src_path: Path to the temporary source directory
+        build_mode: 'debug' or 'release'
+    """
+    print(f"Preparing source for {build_mode} build...")
+
+    const_file = temp_src_path / 'src' / 'util' / 'const.py'
+
+    # Read const.py
+    with open(const_file, 'r') as f:
+        content = f.read()
+
+    # Patch IS_DEBUG_BUILD constant
+    is_debug_value = 'True' if build_mode == 'debug' else 'False'
+    content = re.sub(
+        r'IS_DEBUG_BUILD\s*=\s*(True|False)',
+        f'IS_DEBUG_BUILD = {is_debug_value}',
+        content
+    )
+
+    # Get version string from git
+    try:
+        version_result = subprocess.run(
+            ['git', 'describe', '--tags', '--always', '--dirty'],
+            cwd=temp_src_path,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        version_string = version_result.stdout.strip()
+    except subprocess.CalledProcessError:
+        version_string = "unknown"
+
+    # Patch VERSION_STRING
+    content = re.sub(
+        r'VERSION_STRING\s*=\s*None',
+        f'VERSION_STRING = "{version_string}"',
+        content
+    )
+
+    # Write patched const.py
+    with open(const_file, 'w') as f:
+        f.write(content)
+
+    print(f"  Patched IS_DEBUG_BUILD = {is_debug_value}")
+    print(f"  Patched VERSION_STRING = {version_string}")
+
+    # For release builds, remove DEBUG_ONLY lines from _manifest.py
+    if build_mode == 'release':
+        manifest_file = temp_src_path / 'src' / 'providers' / 'analysis' / '_manifest.py'
+
+        with open(manifest_file, 'r') as f:
+            lines = f.readlines()
+
+        # Filter out lines with DEBUG_ONLY marker
+        filtered_lines = [line for line in lines if '# DEBUG_ONLY' not in line]
+
+        with open(manifest_file, 'w') as f:
+            f.writelines(filtered_lines)
+
+        removed_count = len(lines) - len(filtered_lines)
+        print(f"  Removed {removed_count} DEBUG_ONLY analyzer(s) from manifest")
+
+
+def cleanup_build_workspace(temp_path: Path) -> None:
+    """
+    Clean up the temporary build workspace.
+
+    Args:
+        temp_path: Path to the temporary workspace directory
+    """
+    if temp_path.exists():
+        print(f"Cleaning up build workspace: {temp_path}")
+        shutil.rmtree(temp_path, ignore_errors=True)
+
+
 class Builder:
     """Handles the actual build process"""
 
@@ -165,16 +290,46 @@ class Builder:
         ]
 
     def build(self):
-        """Execute the build process"""
+        """Execute the build process using temporary workspace"""
         build_tool = self.config.get_build_tool()
 
         print(f"\nBuilding YAAMT for {self.config.platform}-{self.config.arch}")
+        print(f"Build mode: {self.config.build_mode}")
         print(f"Using build tool: {build_tool}\n")
 
-        if build_tool == "nuitka":
-            self._build_with_nuitka()
-        else:
-            self._build_with_cx_freeze()
+        # Create temporary build workspace
+        temp_workspace = create_build_workspace(self.config.build_mode, self.config.project_root)
+
+        try:
+            # Prepare source for build (patch constants, remove debug-only code)
+            prepare_source_for_build(temp_workspace, self.config.build_mode)
+
+            # Save original working directory
+            original_cwd = os.getcwd()
+
+            try:
+                # Change to temp workspace for build
+                os.chdir(temp_workspace)
+
+                # Build from temp workspace
+                if build_tool == "nuitka":
+                    self._build_with_nuitka()
+                else:
+                    self._build_with_cx_freeze()
+
+            finally:
+                # Restore original working directory
+                os.chdir(original_cwd)
+
+            # Build succeeded - cleanup temp workspace
+            cleanup_build_workspace(temp_workspace)
+
+        except Exception as e:
+            # Build failed - preserve workspace for debugging
+            print(f"\n✗ Build failed: {e}")
+            print(f"\nTemp workspace preserved at: {temp_workspace}")
+            print(f"To clean up manually: rm -rf {temp_workspace}")
+            raise
 
     def _build_with_nuitka(self):
         """Build using Nuitka"""
@@ -319,6 +474,12 @@ def main():
     )
 
     parser.add_argument(
+        "--release",
+        action="store_true",
+        help="Build in release mode (default is debug mode)"
+    )
+
+    parser.add_argument(
         "--archive",
         action="store_true",
         help="Create archive of build artifacts"
@@ -348,17 +509,22 @@ def main():
     args = parser.parse_args()
 
     try:
+        # Determine build mode
+        build_mode = 'release' if args.release else 'debug'
+
         # Initialize configuration
         config = BuildConfig(
             platform_name=args.platform,
             arch=args.arch,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            build_mode=build_mode
         )
 
         print(f"YAAMT Build Script")
         print(f"==================")
         print(f"Platform: {config.platform}")
         print(f"Architecture: {config.arch}")
+        print(f"Build mode: {config.build_mode}")
         print(f"Build tool: {config.get_build_tool()}")
         print(f"Output directory: {config.output_dir}")
         print()

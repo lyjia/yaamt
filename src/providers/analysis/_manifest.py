@@ -7,15 +7,19 @@ is explicitly imported here, which triggers their self-registration via
 the register_analyzer() calls.
 
 When adding a new analyzer, add its import to this file.
+
+DEBUG_ONLY marker:
+Lines marked with # DEBUG_ONLY are removed from release builds by the build system.
+This allows excluding analyzers with heavy dependencies (like scipy) from release builds.
 """
 
 # BPM analyzers
 from providers.analysis.bpm import stub_bpm
 from providers.analysis.bpm import aubio_bpm
-from providers.analysis.bpm import multiband_spectral_bpm
+from providers.analysis.bpm import multiband_spectral_bpm  # DEBUG_ONLY
 
 # Key analyzers
-from providers.analysis.key import wavelet_key_analyzer
+from providers.analysis.key import wavelet_key_analyzer  # DEBUG_ONLY
 
 # Fingerprint analyzers
 # (none yet)

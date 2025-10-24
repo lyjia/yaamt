@@ -703,8 +703,8 @@ class MultibandSpectralBPMAnalyzer(AnalyzerBase):
     name = "Multiband Spectral BPM Analyzer (RE3)"
     description = "Multi-band spectral analysis (ported from RapidEvolution3)"
     category = "bpm"
+    debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"
-    debug_only = True
 
     def analyze(self) -> AnalyzerResult:
         """

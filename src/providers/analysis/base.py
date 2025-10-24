@@ -68,6 +68,7 @@ class AnalyzerBase(ABC):
     description: str = ""
     category: str = "uncategorized"
     version: str = "1.0.0"
+    debug_only: bool = False  # If True, this analyzer is only available in debug builds
 
     def __init__(self, media_file, options: Optional[Dict[str, Any]] = None):
         """
