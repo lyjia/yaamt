@@ -5,15 +5,16 @@ This analyzer detects BPM using the aubio library's beat tracking system.
 It streams audio data and returns raw float BPM values.
 """
 
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QComboBox,
-                                QSpinBox, QGroupBox)
+                                QSpinBox, QGroupBox, QLabel)
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import register_analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
+from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
 
 
@@ -55,11 +56,11 @@ class AubioBPMAnalyzer(AnalyzerBase):
                     error="Analysis cancelled by user"
                 )
 
-            # Check if BPM already exists (unless overwrite is enabled)
-            overwrite = self.options.get('overwrite_existing', False)
+            # Check if BPM already exists (skip if requested)
+            skip_if_exists = self.options.get('skip_if_tag_exists', False)
             existing_bpm = self.media_file.get_tag_simple('bpm')
 
-            if existing_bpm and not overwrite:
+            if existing_bpm and skip_if_exists:
                 return AnalyzerResult(
                     success=True,
                     skipped=True,
@@ -210,92 +211,105 @@ class AubioBPMAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
+    def get_options_metadata(cls) -> List[AnalyzerOption]:
+        """
+        Return option metadata for this analyzer.
+
+        Returns:
+            List of AnalyzerOption instances for aubio-specific options
+        """
+        return [
+            AnalyzerOption(
+                name='method',
+                type='choice',
+                default='default',
+                help='Beat detection algorithm used for onset detection',
+                choices=[
+                    'default',
+                    'specdiff',
+                    'energy',
+                    'hfc',
+                    'complex',
+                    'phase',
+                    'wphase',
+                    'kl',
+                    'mkl',
+                    'specflux'
+                ]
+            ),
+            AnalyzerOption(
+                name='mode',
+                type='choice',
+                default='default',
+                help='Processing preset for speed vs quality tradeoff',
+                choices=[
+                    ('default', 'Default (balanced speed/quality)'),
+                    ('fast', 'Fast (lower quality, faster processing)')
+                ]
+            ),
+            AnalyzerOption(
+                name='buf_size',
+                type='int',
+                default=1024,
+                min=128,
+                max=8192,
+                interval=128,
+                help='Size of analysis window in samples (larger = more accurate but slower)'
+            ),
+            AnalyzerOption(
+                name='hop_size',
+                type='int',
+                default=512,
+                min=64,
+                max=4096,
+                interval=64,
+                help='Number of samples between analysis windows (smaller = more precise but slower)'
+            ),
+            AnalyzerOption(
+                name='samplerate',
+                type='int',
+                default=0,
+                min=0,
+                max=192000,
+                interval=1000,
+                help='Target sample rate for analysis (0 = use file\'s native rate)'
+            )
+        ]
+
+    @classmethod
     def get_settings_widget(cls) -> Optional[QWidget]:
         """
         Return a QWidget for configuring aubio analyzer parameters.
 
+        Uses option metadata with custom grouping for advanced settings.
+
         Returns:
             QWidget with controls for method, mode, and advanced parameters
         """
-        from PySide6.QtWidgets import QLabel, QHBoxLayout
-
         widget = QWidget()
         main_layout = QVBoxLayout()
         main_layout.setSpacing(8)
 
-        # Method selection
-        method_label = QLabel("Detection Method:")
-        method_combo = QComboBox()
-        method_combo.addItems([
-            "default",
-            "specdiff",
-            "energy",
-            "hfc",
-            "complex",
-            "phase",
-            "wphase",
-            "kl",
-            "mkl",
-            "specflux"
-        ])
-        method_combo.setObjectName("method")
-        method_combo.setToolTip("Algorithm used for onset detection")
-        main_layout.addWidget(method_label)
-        main_layout.addWidget(method_combo)
+        options = cls.get_options_metadata()
+        settings_group = f"analyzers/{cls.__name__}"
 
-        # Mode selection
-        mode_label = QLabel("Processing Mode:")
-        mode_combo = QComboBox()
-        mode_combo.addItem("Default (balanced speed/quality)", "default")
-        mode_combo.addItem("Fast (lower quality, faster processing)", "fast")
-        mode_combo.setObjectName("mode")
-        mode_combo.setToolTip("Processing preset for speed vs quality tradeoff")
-        main_layout.addWidget(mode_label)
-        main_layout.addWidget(mode_combo)
+        # Add basic options (method and mode) directly
+        for option in options:
+            if option.name in ('method', 'mode'):
+                option_widget = build_widget_from_option(option, settings_group)
+                main_layout.addWidget(option_widget)
 
-        # Advanced settings (collapsible group)
+        # Group advanced settings in collapsible group
         advanced_group = QGroupBox("Advanced Settings")
         advanced_group.setCheckable(True)
         advanced_group.setChecked(False)  # Collapsed by default
         advanced_layout = QVBoxLayout()
         advanced_layout.setSpacing(4)
 
-        # Window size
-        buf_label = QLabel("Window Size:")
-        buf_size_spin = QSpinBox()
-        buf_size_spin.setMinimum(128)
-        buf_size_spin.setMaximum(8192)
-        buf_size_spin.setSingleStep(128)
-        buf_size_spin.setValue(1024)
-        buf_size_spin.setObjectName("buf_size")
-        buf_size_spin.setToolTip("Size of analysis window in samples (larger = more accurate but slower)")
-        advanced_layout.addWidget(buf_label)
-        advanced_layout.addWidget(buf_size_spin)
-
-        # Hop size
-        hop_label = QLabel("Hop Size:")
-        hop_size_spin = QSpinBox()
-        hop_size_spin.setMinimum(64)
-        hop_size_spin.setMaximum(4096)
-        hop_size_spin.setSingleStep(64)
-        hop_size_spin.setValue(512)
-        hop_size_spin.setObjectName("hop_size")
-        hop_size_spin.setToolTip("Number of samples between analysis windows (smaller = more precise but slower)")
-        advanced_layout.addWidget(hop_label)
-        advanced_layout.addWidget(hop_size_spin)
-
-        # Sample rate
-        rate_label = QLabel("Sample Rate:")
-        samplerate_spin = QSpinBox()
-        samplerate_spin.setMinimum(0)
-        samplerate_spin.setMaximum(192000)
-        samplerate_spin.setSingleStep(1000)
-        samplerate_spin.setValue(0)
-        samplerate_spin.setSpecialValueText("Auto (use file's native rate)")
-        samplerate_spin.setObjectName("samplerate")
-        samplerate_spin.setToolTip("Target sample rate for analysis (0 = use file's native rate)")
-        advanced_layout.addWidget(rate_label)
-        advanced_layout.addWidget(samplerate_spin)
+        for option in options:
+            if option.name in ('buf_size', 'hop_size', 'samplerate'):
+                option_widget = build_widget_from_option(option, settings_group)
+                advanced_layout.addWidget(option_widget)
 
         advanced_group.setLayout(advanced_layout)
         main_layout.addWidget(advanced_group)

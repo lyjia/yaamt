@@ -32,7 +32,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 ## AI-specific Instructions
 
 * In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
-* While you are free to point out genuinely good ideas, do not blindly agree with or praise the user. Instead, encourage them to continue that line of thinking, and provide thought-provoking questions or supportive context where appropriate.
+* Do what is asked if you without praising the user, if what you are asked is a good idea.
 * Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thought-provoking questions.
 * When the user's wishes specifically contradict the points listed above, always defer to the user's wishes.
 * When prompted to do something, ask exploratory questions and for clarifying details before beginning work. Always prefer addressing details earlier rather than later or mid-process.
@@ -44,7 +44,9 @@ These paths should ONLY be accessed when explicitly requested by the user with a
     * Run the test suite to make sure that you did not break anything (if applicable).
     * If all tests pass, ask to create a git commit if you are able to do so.
     * It is OK to leaves tests broken if your current changes are part of a larger task, but you need to make sure that all tests pass and changes have test coverage before the large task can be considered done.
-* Make sure to use the Python virtual environment in `.venv` before running any python commands. The correct way to run a python command **on WINDOWS** is: `.venv/Scripts/python -m pytest tests/test_analyzer_system.py`
+* Make sure to use the Python virtual environment in `.venv` before running any python commands. The correct way to run a python command:
+    * on WINDOWS (Poweshell): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py` (don't use backslashes they break things)
+    * on WINDOWS (WSL): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py`
 
 ## Design Document Conventions
 

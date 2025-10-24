@@ -7,15 +7,16 @@ using Continuous Wavelet Transform and modal template matching.
 Reference: https://github.com/djqualia/RapidEvolution3
 """
 
-from typing import Optional
+from typing import Optional, List
 import time
 import numpy as np
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGroupBox
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import register_analyzer
 from util.const import KEY_INITIAL_KEY, KEY_DIATONIC_MODE
+from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
 
 # Import the wavelet key detection components
@@ -65,11 +66,11 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     error="Analysis cancelled by user"
                 )
 
-            # Check if key already exists (unless overwrite is enabled)
-            overwrite = self.options.get('overwrite_existing', False)
+            # Check if key already exists (skip if requested)
+            skip_if_exists = self.options.get('skip_if_tag_exists', False)
             existing_key = self.media_file.get_tag_simple(KEY_INITIAL_KEY)
 
-            if existing_key and not overwrite:
+            if existing_key and skip_if_exists:
                 return AnalyzerResult(
                     success=True,
                     skipped=True,
@@ -349,6 +350,39 @@ class WaveletKeyAnalyzer(AnalyzerBase):
                     audio_stream.close()
                 except Exception as e:
                     log.warning(f"Error closing audio stream: {e}")
+
+    @classmethod
+    def get_options_metadata(cls) -> List[AnalyzerOption]:
+        """
+        Return option metadata for this analyzer.
+
+        Returns:
+            List of AnalyzerOption instances for wavelet key analyzer options
+        """
+        return [
+            AnalyzerOption(
+                name='percent_audio_samples_to_process',
+                type='slider',
+                default=100,
+                min=10,
+                max=100,
+                interval=10,
+                suffix='%',
+                help='Percentage of audio to analyze (lower = faster but may be less accurate)'
+            ),
+            AnalyzerOption(
+                name='intelligent_sampling',
+                type='bool',
+                default=False,
+                help='Use sectional sampling (intro/middle/outro) vs uniform interval sampling'
+            ),
+            AnalyzerOption(
+                name='detect_mode',
+                type='bool',
+                default=False,
+                help='Detect and report musical mode (ionian, dorian, phrygian, etc.)'
+            )
+        ]
 
     @classmethod
     def get_settings_widget(cls) -> Optional[QWidget]:

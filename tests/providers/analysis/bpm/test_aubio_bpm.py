@@ -62,7 +62,7 @@ class TestAubioBPMAnalyzerBasicBehavior:
         existing_bpm = media_file.get_tag_simple('bpm')
         assert existing_bpm is not None, "Test fixture should have BPM metadata"
 
-        analyzer = AubioBPMAnalyzer(media_file, {'overwrite_existing': False})
+        analyzer = AubioBPMAnalyzer(media_file, {'skip_if_tag_exists': True})
         result = analyzer.analyze()
 
         assert result.success is True
@@ -70,7 +70,7 @@ class TestAubioBPMAnalyzerBasicBehavior:
         assert result.error == "BPM already set"
 
     def test_analyze_overwrite_existing_bpm(self, audio_file_with_bpm):
-        """Test that analyzer processes when overwrite option is True."""
+        """Test that analyzer processes when skip option is False (default behavior)."""
         try:
             import aubio  # noqa: F401
         except ImportError:
@@ -82,10 +82,10 @@ class TestAubioBPMAnalyzerBasicBehavior:
         existing_bpm = media_file.get_tag_simple('bpm')
         assert existing_bpm is not None, "Test fixture should have BPM metadata"
 
-        analyzer = AubioBPMAnalyzer(media_file, {'overwrite_existing': True})
+        analyzer = AubioBPMAnalyzer(media_file, {'skip_if_tag_exists': False})
         result = analyzer.analyze()
 
-        # Should not skip (overwrite is True)
+        # Should not skip (default behavior is to analyze all files)
         assert result.skipped is False
         # Will attempt analysis (may succeed or fail depending on audio content)
         assert isinstance(result.success, bool)

@@ -65,47 +65,154 @@ python src/gui.py
 
 ### Command-Line Usage
 
-The command-line interface provides powerful options for scripting and batch processing.
+The command-line interface provides powerful options for scripting and batch processing. YAAMT CLI supports three main commands: `read`, `write`, and `analyze`.
+
+#### Getting Help
+
+**Top-level help:**
+```bash
+python src/main.py --help
+```
+
+**Help for specific commands:**
+```bash
+python src/main.py help read
+python src/main.py help write
+python src/main.py help analyze
+```
+
+**List available analyzers:**
+```bash
+python src/main.py list analyzers
+```
+
+**List analyzers by category:**
+```bash
+python src/main.py list analyzers --category bpm
+python src/main.py list analyzers --category key
+```
+
+**Get help on a specific analyzer:**
+```bash
+python src/main.py analyze StubBPMAnalyzer --help
+```
 
 #### Reading Metadata
 
-To view all metadata for a specific file, use the `view` command:
+The `read` command displays metadata from audio files. It supports multiple output formats: `list` (detailed view), `table` (columnar), `csv`, and `json`.
 
+**Display metadata for a single file (detailed list format):**
 ```bash
-python src/main.py view "path/to/your/audio.mp3"
+python src/main.py read "path/to/audio.mp3" -f list
+```
+
+**Display metadata for multiple files (table format with separated directory/filename columns):**
+```bash
+python src/main.py read "path/to/folder/*.mp3" -f table
+```
+
+**Show only specific tags:**
+```bash
+python src/main.py read "path/to/audio.mp3" --tags title,artist,album,bpm
+```
+
+**Export metadata from a folder to CSV:**
+```bash
+python src/main.py read "path/to/folder/*.mp3" -f csv -o metadata.csv
+```
+
+**Export metadata to JSON:**
+```bash
+python src/main.py read "path/to/folder/*.mp3" -f json -o metadata.json
+```
+
+**Recursively scan subdirectories:**
+```bash
+python src/main.py read "path/to/folder" -R --tags title,artist,bpm -f table
 ```
 
 #### Writing Metadata
 
-You can write metadata in several ways:
+The `write` command modifies metadata tags on audio files. You can use either the generic `--tag` option or convenient shortcut parameters for common tags.
 
-**1. Using Shortcut Arguments**
-
-For common tags, you can use dedicated shortcut arguments. For example, to set the title:
-
+**Using shortcut parameters (recommended for common tags):**
 ```bash
-python src/main.py set --title "New Title" "path/to/your/audio.mp3"
+python src/main.py write --title "New Song Title" --artist "Artist Name" "path/to/audio.mp3"
 ```
 
-**2. Using Generic Tag Arguments**
-
-To update any standard metadata tag, use the `--update-tag` argument with a `KEY=VALUE` pair:
-
+**Using the generic --tag option:**
 ```bash
-python src/main.py set --update-tag "ALBUM=New Album" "path/to/your/audio.mp3"
+python src/main.py write --tag "title=New Song Title" --tag "artist=Artist Name" "path/to/audio.mp3"
 ```
 
-**3. Using Internal Tag Arguments**
+**Available shortcut parameters:**
+- `--title`, `--artist`, `--album`, `--albumartist`
+- `--tracknumber`, `--tracktotal`, `--discnumber`, `--disctotal`
+- `--genre`, `--date`, `--year`, `--composer`
+- `--bpm`, `--initial_key` (musical key)
+- `--comment`, `--grouping`, `--mood`
+- `--isrc`, `--language`, `--encodedby`
 
-For internal or non-standard tags, use the `--update-internal-tag` argument:
-
+**Mass-write album tag to all files in a folder (e.g., for an album):**
 ```bash
-python src/main.py set --update-internal-tag "ENCODER=My Encoder" "path/to/your/audio.mp3"
+python src/main.py write --album "My Album Name" "path/to/album/*.mp3"
 ```
 
-For a full list of commands and options, use the help flag:
+**Write multiple tags at once using shortcuts:**
 ```bash
-python src/main.py --help
+python src/main.py write \
+  --title "Song Title" \
+  --artist "Artist Name" \
+  --album "Album Name" \
+  --tracknumber 1 \
+  "path/to/audio.mp3"
+```
+
+**Recursively update all files in a directory tree:**
+```bash
+python src/main.py write --albumartist "Various Artists" "path/to/folder" -R
+```
+
+#### Analyzing Files
+
+The `analyze` command runs audio analysis algorithms to detect BPM, musical key, loudness, and more.
+
+**Analyze a single file for BPM and write to file metadata:**
+```bash
+python src/main.py analyze StubBPMAnalyzer "path/to/audio.mp3" -w
+```
+
+**Analyze a whole folder for musical key and output to CSV report:**
+```bash
+python src/main.py analyze WaveletKeyAnalyzer "path/to/folder/*.mp3" -f csv -o key_report.csv
+```
+
+**Analyze files without writing to metadata (display results only):**
+```bash
+python src/main.py analyze MultibandSpectralBPMAnalyzer "path/to/audio.mp3" -f table
+```
+
+**Skip files that already have values (useful for partial processing):**
+```bash
+python src/main.py analyze StubBPMAnalyzer "path/to/folder/*.mp3" -w --skip-if-tag-exists
+```
+
+**Analyze with custom analyzer options:**
+```bash
+python src/main.py analyze AubioBPMAnalyzer "path/to/audio.mp3" -w --method default --buf-size 1024
+```
+
+**Available Analyzers:**
+- `StubBPMAnalyzer` - Fast testing analyzer (returns fixed BPM value)
+- `AubioBPMAnalyzer` - BPM detection using aubio library
+- `MultibandSpectralBPMAnalyzer` - Advanced BPM detection using multiband spectral analysis
+- `WaveletKeyAnalyzer` - Musical key detection using wavelet transforms
+- `PeakMeterAnalyzer` - Audio loudness/peak level measurement
+
+For a complete list of available analyzers and their options:
+```bash
+python src/main.py list analyzers
+python src/main.py analyze <AnalyzerName> --help
 ```
 
 ## Contributing

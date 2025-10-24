@@ -7,7 +7,7 @@ all channels. The result is reported in dBFS (decibels relative to full scale).
 """
 
 import struct
-from typing import Optional
+from typing import Optional, List
 
 from providers.audio import AudioStreamBase
 from providers.analysis import AnalyzerCategory, AnalyzerBase, AnalyzerResult
@@ -57,9 +57,9 @@ class PeakMeterAnalyzer(AnalyzerBase):
                     error="Analysis cancelled by user"
                 )
 
-            # Check if we should overwrite existing results
-            overwrite = self.options.get('overwrite_existing', False)
-            if not overwrite and self._has_existing_result():
+            # Check if we should skip existing results
+            skip_if_exists = self.options.get('skip_if_tag_exists', False)
+            if skip_if_exists and self._has_existing_result():
                 return AnalyzerResult(
                     success=True,
                     skipped=True,

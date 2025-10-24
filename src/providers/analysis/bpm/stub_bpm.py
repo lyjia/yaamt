@@ -6,12 +6,13 @@ but demonstrates the analyzer interface and can be used for testing
 the auto-discovery and dispatcher systems.
 """
 
-from typing import Optional
+from typing import Optional, List
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSpinBox, QFormLayout
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import register_analyzer
+from util.analyzer_options import AnalyzerOption
 from util.logging import log
 
 
@@ -46,11 +47,11 @@ class StubBPMAnalyzer(AnalyzerBase):
                     error="Analysis cancelled by user"
                 )
 
-            # Check if BPM already exists (unless overwrite is enabled)
-            overwrite = self.options.get('overwrite_existing', False)
+            # Check if BPM already exists (skip if requested)
+            skip_if_exists = self.options.get('skip_if_tag_exists', False)
             existing_bpm = self.media_file.get_tag_simple('bpm')
 
-            if existing_bpm and not overwrite:
+            if existing_bpm and skip_if_exists:
                 return AnalyzerResult(
                     success=True,
                     skipped=True,
@@ -74,27 +75,18 @@ class StubBPMAnalyzer(AnalyzerBase):
             )
 
     @classmethod
-    def get_settings_widget(cls) -> Optional[QWidget]:
+    def get_options_metadata(cls) -> List[AnalyzerOption]:
         """
-        Return a QWidget for configuring decimal places.
+        Return option metadata for this analyzer.
+
+        StubBPMAnalyzer has no configurable options - it returns a fixed value.
 
         Returns:
-            QWidget with decimal places spin box
+            Empty list (no options)
         """
-        widget = QWidget()
-        # layout = QFormLayout()
-        #
-        # # Create spin box for decimal places
-        # decimal_spin = QSpinBox()
-        # decimal_spin.setMinimum(0)
-        # decimal_spin.setMaximum(2)
-        # decimal_spin.setValue(0)
-        # decimal_spin.setObjectName("decimal_places")  # Important: used to retrieve value
-        # decimal_spin.setToolTip("Number of decimal places to use for BPM value (0-2)")
-        #
-        # layout.addRow("Decimal Places:", decimal_spin)
-        #
-        # widget.setLayout(layout)
-        return widget
+        return []
+
+    # Note: get_settings_widget() is inherited from AnalyzerBase
+    # and will auto-generate from get_options_metadata() (returns None since no options)
 
 register_analyzer(AnalyzerCategory.BPM, StubBPMAnalyzer)
