@@ -10,7 +10,8 @@
       "Bash(gh pr commits:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
-      "Bash(gh pr checks:*)"
+      "Bash(gh pr checks:*)",
+      "Bash(.venv/Scripts/python -m pytest:*)"
     ],
     "deny": [],
     "ask": []
