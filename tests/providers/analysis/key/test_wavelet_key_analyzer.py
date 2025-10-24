@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, PropertyMock
 
-from util.const import IN_GITHUB_RUNNER, KEY_TAG_GENERIC, KEY_INITIAL_KEY
+from util.const import IN_GITHUB_RUNNER, KEY_TAG_GENERIC, KEY_INITIAL_KEY, PROJECT_ROOT
 from providers.analysis import AnalyzerCategory
 from providers import get_analyzers_by_category, get_analyzer_by_name
 
@@ -398,7 +398,7 @@ class TestMusicalKeyAnalyzerIntegration:
     def temp_fixture(self):
         """Create a temporary copy of a test fixture for safe testing."""
         # Use one of the drum loop fixtures
-        fixture_path = Path("tests/fixtures/metadata/lyjia_dnb019_175bpm.wav")
+        fixture_path = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "lyjia_dnb019_175bpm.wav"
 
         # Create temp file
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
@@ -476,7 +476,7 @@ class TestMusicalKeyAnalyzerIntegration:
     def test_analyze_real_harmonic_content(self):
         """Test analyzer on real audio with known musical key (C minor progression)."""
         # This file contains a C minor chord progression (i-v-VI-iv)
-        fixture_path = Path("tests/fixtures/metadata/Cmin_5A_i-v-VI-iv.mp3")
+        fixture_path = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "Cmin_5A_i-v-VI-iv.mp3"
 
         if not fixture_path.exists():
             pytest.skip(f"Test fixture not found: {fixture_path}")
