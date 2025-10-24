@@ -4,3 +4,6 @@
 [submodule "references/RapidEvolution3"]
 	path = references/RapidEvolution3
 	url = https://github.com/djqualia/RapidEvolution3
+[submodule "references/MusicalKeyCNN"]
+	path = references/MusicalKeyCNN
+	url = https://github.com/a1ex90/MusicalKeyCNN
