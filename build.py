@@ -441,13 +441,15 @@ class Builder:
 
     def _build_with_nuitka(self):
         """Build using Nuitka"""
-        dist_dir = self.config.get_nuitka_dist_dir()
-        dist_dir.mkdir(parents=True, exist_ok=True)
+        # Use relative path when building in temp workspace
+        # (we're already chdir'd to temp workspace at this point)
+        dist_dir_relative = self.config.output_dir.relative_to(self.config.project_root)
+        dist_dir_relative.mkdir(parents=True, exist_ok=True)
 
         if self.config.platform == "windows":
-            self._build_nuitka_windows(dist_dir)
+            self._build_nuitka_windows(dist_dir_relative)
         else:
-            self._build_nuitka_linux(dist_dir)
+            self._build_nuitka_linux(dist_dir_relative)
 
     def _build_nuitka_windows(self, dist_dir):
         """Build with Nuitka on Windows"""
