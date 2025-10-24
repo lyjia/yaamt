@@ -281,7 +281,7 @@ This will:
 
 #### Building
 
-Once dependencies are installed, you can statically-linked binaries for your platform by running:
+Once dependencies are installed, you can build statically-linked binaries for your platform by running:
 
 ```bash
 python build.py
