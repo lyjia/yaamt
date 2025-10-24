@@ -25,6 +25,7 @@ import shutil
 import tempfile
 import re
 from pathlib import Path
+from datetime import datetime
 
 DEBIAN_LINUX_DEPS = ["ccache", "patchelf", "alien", "libegl1", "libxkbcommon-x11-0",
                      "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-randr0",
@@ -43,9 +44,10 @@ class BuildConfig:
         self.platform = platform_name or self._detect_platform()
         self.arch = arch or self._detect_arch()
         self.build_mode = build_mode  # 'debug' or 'release'
-        # Create build-mode-specific output directory
+        # Create build-mode-specific output directory with timestamp
         base_output_dir = Path(output_dir or "build")
-        self.output_dir = base_output_dir / build_mode
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.output_dir = base_output_dir / f"{build_mode}-{timestamp}"
         self.project_root = Path(__file__).parent.resolve()
 
     def _detect_platform(self):
@@ -287,6 +289,65 @@ def cleanup_build_workspace(temp_path: Path) -> None:
         shutil.rmtree(temp_path, ignore_errors=True)
 
 
+def cleanup_build_directories(output_dir: str = "build") -> None:
+    """
+    Clean up all timestamped build directories.
+
+    Removes all directories matching the pattern:
+    - build/debug-YYYYMMDD-HHMMSS/
+    - build/release-YYYYMMDD-HHMMSS/
+
+    Args:
+        output_dir: Base output directory (default: "build")
+    """
+    build_path = Path(output_dir)
+
+    if not build_path.exists():
+        print(f"Build directory does not exist: {build_path}")
+        return
+
+    # Pattern to match timestamped build directories
+    # Format: debug-YYYYMMDD-HHMMSS or release-YYYYMMDD-HHMMSS
+    import glob
+
+    patterns = [
+        str(build_path / "debug-*"),
+        str(build_path / "release-*")
+    ]
+
+    directories_found = []
+    for pattern in patterns:
+        directories_found.extend(glob.glob(pattern))
+
+    if not directories_found:
+        print(f"No timestamped build directories found in {build_path}")
+        return
+
+    print(f"Found {len(directories_found)} build director{'y' if len(directories_found) == 1 else 'ies'} to clean:")
+    for directory in directories_found:
+        print(f"  - {directory}")
+
+    # Confirm deletion
+    confirm = input("\nDelete these directories? [y/N]: ").strip().lower()
+    if confirm != 'y':
+        print("Cleanup cancelled.")
+        return
+
+    # Delete directories
+    deleted = 0
+    failed = 0
+    for directory in directories_found:
+        try:
+            shutil.rmtree(directory)
+            print(f"  ✓ Deleted: {directory}")
+            deleted += 1
+        except Exception as e:
+            print(f"  ✗ Failed to delete {directory}: {e}")
+            failed += 1
+
+    print(f"\nCleanup complete: {deleted} deleted, {failed} failed")
+
+
 class Builder:
     """Handles the actual build process"""
 
@@ -516,6 +577,12 @@ def main():
     )
 
     parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Clean up all timestamped build directories, then exit"
+    )
+
+    parser.add_argument(
         "--version-name",
         help="Version name for archive (default: local)"
     )
@@ -533,6 +600,11 @@ def main():
     args = parser.parse_args()
 
     try:
+        # Handle cleanup request (doesn't require config)
+        if args.clean:
+            cleanup_build_directories(args.output_dir)
+            return
+
         # Determine build mode
         build_mode = 'release' if args.release else 'debug'
 
