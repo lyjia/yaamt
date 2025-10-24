@@ -4,6 +4,8 @@
 
 YET ANOTHER powerful, flexible tool for managing audio file metadata, designed for DJs, music producers, and audiophiles.
 
+Built with love (and AI) by [Lyjia](http://www.lyjia.us)! This is the music tag tool that I've always wanted!
+
 ## Description
 
 YAAMT intends to be a complete music information system for viewing, editing, and analyzing metadata in various audio file formats. Users can choose between a GUI or command-line interface, and use it to manage, analyze, and edit metadata for single files or entire directories of audio files.
