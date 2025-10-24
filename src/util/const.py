@@ -151,5 +151,5 @@ IN_GITHUB_RUNNER = (os.getenv("GITHUB_ACTIONS") == "true")
 MOD_TYPE_ANALYZER = "Analyzer"
 
 # Build mode configuration - patched by build system
-IS_DEBUG_BUILD = True  # Default to debug mode; build system patches this for release builds
+IS_DEBUG_BUILD = False  # Default to debug mode; build system patches this for release builds
 VERSION_STRING = None  # VERSION_STRING is updated dynamically by the build system; leave this set to None

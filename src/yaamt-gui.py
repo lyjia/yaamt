@@ -13,8 +13,7 @@ def run_gui():
     """Initializes and runs the GUI application."""
     parser = argparse.ArgumentParser(description="Audio Metadata Tool")
     parser.add_argument("path", nargs='?', default=None, help="The starting path for the file browser.")
-    parser.add_argument('--debug', action='store_true', default=None,
-                        help=f'Enable debug mode (default: {"ON" if IS_DEBUG_BUILD else "OFF"})')
+    parser.add_argument('--debug', action='store_true', default=1, help=f'Enable debug mode (default)')
     args = parser.parse_args()
 
     # Handle debug mode
