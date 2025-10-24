@@ -47,7 +47,7 @@ class LibrosaKeyAnalyzer(AnalyzerBase):
     """
 
     name = "Librosa Key Analyzer"
-    description = "Detects musical key using chromagram and Krumhansl-Schmuckler algorithm"
+    description = "Detects musical key using librosa's chromagram and Krumhansl-Schmuckler algorithm"
     category = "key"
     version = "1.0.0"
 
