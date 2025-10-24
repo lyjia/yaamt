@@ -13,9 +13,11 @@ When adding a new analyzer, add its import to this file.
 from providers.analysis.bpm import stub_bpm
 from providers.analysis.bpm import aubio_bpm
 from providers.analysis.bpm import multiband_spectral_bpm
+from providers.analysis.bpm import librosa_bpm
 
 # Key analyzers
 from providers.analysis.key import wavelet_key_analyzer
+from providers.analysis.key import librosa_key
 
 # Fingerprint analyzers
 # (none yet)
