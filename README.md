@@ -20,11 +20,40 @@ The tool is built with Python, using PySide6 for the GUI and the `mutagen` libra
 -   **Metadata Analysis:** Analyze audio files to generate metadata like BPM and key.
 -   **Audio Playback:** A simple built-in player to preview audio files.
 
-## Installation
+## Installation (from binaries)
 
-No installation is required. Simply download the binaries from the latest release at [releases page](https://github.com/lyjia/audio-metadata-tool/releases).
+Binary builds are currently a work-in-progress. Check back soon for updates!
+
+## Installation (from source code)
+
+This project currently requires a working Python 3.12 (or greater) installation. It is recommended to use a virtual environment.
+
+The following commands will install the project and its dependencies on Linux or macOS:
+```bash
+git clone git@github.com:lyjia/yaamt.git
+cd yaamt
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+On Windows, use `.\.venv\Scripts\activate` instead of `source .venv/bin/activate` in the above sequence.
 
 ## Usage
+
+In all usecases, it is best to activate the virtual environment before running the application.
+
+Linux/macOS:
+```bash
+cd yaamt
+source .venv/bin/activate
+```
+
+Windows:
+```powershell
+cd yaamt
+.venv\Scripts\activate
+```
 
 ### GUI Mode
 
@@ -145,7 +174,7 @@ This will:
 
 #### Building
 
-Once dependencies are installed, build the application:
+Once dependencies are installed, you can statically-linked binaries for your platform by running:
 
 ```bash
 python build.py
@@ -154,7 +183,7 @@ python build.py
 This will:
 - Detect your platform and architecture
 - Build the application using the appropriate build tool (Nuitka or cx_Freeze)
-- Output binaries to the `build/` directory
+- Output finished build artifacts to the `build/` directory
 
 #### Build Script Options
 
