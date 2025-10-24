@@ -396,7 +396,7 @@ class Builder:
                 # Change to temp workspace for build
                 os.chdir(temp_workspace)
 
-                # Build from temp workspace
+                # Build from temp workspace (artifacts go to temp_workspace/build/{mode}-{timestamp}/)
                 if build_tool == "nuitka":
                     self._build_with_nuitka()
                 else:
@@ -405,6 +405,24 @@ class Builder:
             finally:
                 # Restore original working directory
                 os.chdir(original_cwd)
+
+            # Copy build artifacts from temp workspace to project root
+            temp_build_dir = temp_workspace / self.config.output_dir.relative_to(self.config.project_root)
+            final_build_dir = self.config.output_dir
+
+            print(f"\nCopying build artifacts...")
+            print(f"  From: {temp_build_dir}")
+            print(f"  To:   {final_build_dir}")
+
+            if temp_build_dir.exists():
+                # Create parent directory if needed
+                final_build_dir.parent.mkdir(parents=True, exist_ok=True)
+
+                # Copy the entire build directory
+                shutil.copytree(temp_build_dir, final_build_dir, dirs_exist_ok=True)
+                print(f"  ✓ Build artifacts copied successfully")
+            else:
+                raise RuntimeError(f"Build artifacts not found at {temp_build_dir}")
 
             # Build succeeded - cleanup temp workspace
             cleanup_build_workspace(temp_workspace)
