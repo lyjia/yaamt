@@ -6,8 +6,11 @@ It loads the entire audio file into memory as a numpy array and returns
 raw float BPM values.
 """
 
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 import numpy as np
+
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QWidget
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import register_analyzer
@@ -236,7 +239,7 @@ class LibrosaBPMAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional['QWidget']:
+    def get_settings_widget(cls) -> Optional["QWidget"]:
         """
         Return a QWidget for configuring librosa BPM analyzer parameters.
 
