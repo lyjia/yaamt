@@ -43,6 +43,19 @@ pip install -r requirements.txt
 
 On Windows, use `.\.venv\Scripts\activate` instead of `source .venv/bin/activate` in the above sequence.
 
+### Alternate method
+
+Alternatively, you can use the provided `build.py` to install dependencies with `--install-deps`. Note that this will also install build dependencies using your system package manager (chocolatey, apt, or brew):
+
+```bash
+git clone git@github.com:lyjia/yaamt.git
+cd yaamt
+python -m venv .venv
+source .venv/bin/activate
+python build.py --install-deps
+```
+
+
 ## Usage
 
 Convenience scripts are provided in the repository root: `yaamt.sh` / `yaamt.bat` for the CLI and `yaamt-gui.sh` / `yaamt-gui.bat` for the GUI. These automatically use the virtual environment and are shorthand for running `python src/yaamt.py` and `python src/yaamt-gui.py` respectively.
