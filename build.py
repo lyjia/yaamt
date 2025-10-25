@@ -22,7 +22,10 @@ import platform
 import subprocess
 import argparse
 import shutil
+import tempfile
+import re
 from pathlib import Path
+from datetime import datetime
 
 DEBIAN_LINUX_DEPS = ["ccache", "patchelf", "alien", "libegl1", "libxkbcommon-x11-0",
                      "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-randr0",
@@ -37,11 +40,20 @@ WINDOWS_CHOCO_DEPS = ["ccache"]
 class BuildConfig:
     """Configuration for building YAAMT"""
 
-    def __init__(self, platform_name=None, arch=None, output_dir=None):
+    def __init__(self, platform_name=None, arch=None, output_dir=None, build_mode='debug'):
         self.platform = platform_name or self._detect_platform()
         self.arch = arch or self._detect_arch()
-        self.output_dir = Path(output_dir or "build")
+        self.build_mode = build_mode  # 'debug' or 'release'
         self.project_root = Path(__file__).parent.resolve()
+
+        # Create build-mode-specific output directory with timestamp
+        base_output_dir = Path(output_dir or "build")
+        # Make it absolute relative to project root if it's not already absolute
+        if not base_output_dir.is_absolute():
+            base_output_dir = self.project_root / base_output_dir
+
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.output_dir = base_output_dir / f"{build_mode}-{timestamp}"
 
     def _detect_platform(self):
         """Detect the current platform"""
@@ -153,6 +165,194 @@ class DependencyInstaller:
         subprocess.run([sys.executable, "-m", "pip", "install"] + build_deps, check=True)
 
 
+# ============================================================================
+# Build Workspace Management
+# ============================================================================
+
+def create_build_workspace(build_mode: str, project_root: Path) -> Path:
+    """
+    Create a temporary build workspace by copying only the necessary files.
+
+    Only copies:
+    - src/ directory (source code)
+    - resources/ directory (for GUI assets)
+    - setup.py (for cx_Freeze builds)
+
+    Args:
+        build_mode: 'debug' or 'release'
+        project_root: Path to the project root directory
+
+    Returns:
+        Path to the temporary workspace directory
+    """
+    # Create temp directory with descriptive prefix
+    temp_dir = tempfile.mkdtemp(prefix=f'yaamt_build_{build_mode}_')
+    temp_path = Path(temp_dir)
+
+    print(f"Creating build workspace at: {temp_path}")
+
+    # Copy only what's needed for builds
+    try:
+        workspace_root = temp_path / 'yaamt'
+        workspace_root.mkdir(parents=True, exist_ok=True)
+
+        # Copy src/ directory
+        src_dest = workspace_root / 'src'
+        shutil.copytree(
+            project_root / 'src',
+            src_dest,
+            ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo')
+        )
+        print(f"  Copied src/")
+
+        # Copy resources/ directory
+        resources_dest = workspace_root / 'resources'
+        if (project_root / 'resources').exists():
+            shutil.copytree(project_root / 'resources', resources_dest)
+            print(f"  Copied resources/")
+
+        # Copy setup.py (needed for cx_Freeze)
+        setup_src = project_root / 'setup.py'
+        if setup_src.exists():
+            shutil.copy2(setup_src, workspace_root / 'setup.py')
+            print(f"  Copied setup.py")
+
+        print(f"Build workspace created")
+        return workspace_root
+    except Exception as e:
+        # Clean up temp dir if copy fails
+        shutil.rmtree(temp_path, ignore_errors=True)
+        raise RuntimeError(f"Failed to create build workspace: {e}")
+
+
+def prepare_source_for_build(temp_src_path: Path, build_mode: str, version_string: str) -> None:
+    """
+    Prepare the copied source for building by patching constants and
+    removing debug-only code for release builds.
+
+    Args:
+        temp_src_path: Path to the temporary source directory
+        build_mode: 'debug' or 'release'
+        version_string: Version string to embed in the build
+    """
+    print(f"Preparing source for {build_mode} build...")
+
+    const_file = temp_src_path / 'src' / 'util' / 'const.py'
+
+    # Read const.py
+    with open(const_file, 'r') as f:
+        content = f.read()
+
+    # Patch IS_DEBUG_BUILD constant
+    is_debug_value = 'True' if build_mode == 'debug' else 'False'
+    content = re.sub(
+        r'IS_DEBUG_BUILD\s*=\s*(True|False)',
+        f'IS_DEBUG_BUILD = {is_debug_value}',
+        content
+    )
+
+    # Patch VERSION_STRING
+    content = re.sub(
+        r'VERSION_STRING\s*=\s*None',
+        f'VERSION_STRING = "{version_string}"',
+        content
+    )
+
+    # Write patched const.py
+    with open(const_file, 'w') as f:
+        f.write(content)
+
+    print(f"  Patched IS_DEBUG_BUILD = {is_debug_value}")
+    print(f"  Patched VERSION_STRING = {version_string}")
+
+    # For release builds, remove DEBUG_ONLY lines from _manifest.py
+    if build_mode == 'release':
+        manifest_file = temp_src_path / 'src' / 'providers' / 'analysis' / '_manifest.py'
+
+        with open(manifest_file, 'r') as f:
+            lines = f.readlines()
+
+        # Filter out lines with DEBUG_ONLY marker
+        filtered_lines = [line for line in lines if '# DEBUG_ONLY' not in line]
+
+        with open(manifest_file, 'w') as f:
+            f.writelines(filtered_lines)
+
+        removed_count = len(lines) - len(filtered_lines)
+        print(f"  Removed {removed_count} DEBUG_ONLY analyzer(s) from manifest")
+
+
+def cleanup_build_workspace(temp_path: Path) -> None:
+    """
+    Clean up the temporary build workspace.
+
+    Args:
+        temp_path: Path to the temporary workspace directory
+    """
+    if temp_path.exists():
+        print(f"Cleaning up build workspace: {temp_path}")
+        shutil.rmtree(temp_path, ignore_errors=True)
+
+
+def cleanup_build_directories(output_dir: str = "build") -> None:
+    """
+    Clean up all timestamped build directories.
+
+    Removes all directories matching the pattern:
+    - build/debug-YYYYMMDD-HHMMSS/
+    - build/release-YYYYMMDD-HHMMSS/
+
+    Args:
+        output_dir: Base output directory (default: "build")
+    """
+    build_path = Path(output_dir)
+
+    if not build_path.exists():
+        print(f"Build directory does not exist: {build_path}")
+        return
+
+    # Pattern to match timestamped build directories
+    # Format: debug-YYYYMMDD-HHMMSS or release-YYYYMMDD-HHMMSS
+    import glob
+
+    patterns = [
+        str(build_path / "debug-*"),
+        str(build_path / "release-*")
+    ]
+
+    directories_found = []
+    for pattern in patterns:
+        directories_found.extend(glob.glob(pattern))
+
+    if not directories_found:
+        print(f"No timestamped build directories found in {build_path}")
+        return
+
+    print(f"Found {len(directories_found)} build director{'y' if len(directories_found) == 1 else 'ies'} to clean:")
+    for directory in directories_found:
+        print(f"  - {directory}")
+
+    # Confirm deletion
+    confirm = input("\nDelete these directories? [y/N]: ").strip().lower()
+    if confirm != 'y':
+        print("Cleanup cancelled.")
+        return
+
+    # Delete directories
+    deleted = 0
+    failed = 0
+    for directory in directories_found:
+        try:
+            shutil.rmtree(directory)
+            print(f"  ✓ Deleted: {directory}")
+            deleted += 1
+        except Exception as e:
+            print(f"  ✗ Failed to delete {directory}: {e}")
+            failed += 1
+
+    print(f"\nCleanup complete: {deleted} deleted, {failed} failed")
+
+
 class Builder:
     """Handles the actual build process"""
 
@@ -160,55 +360,125 @@ class Builder:
         self.config = config
         self.universal_nuitka_opts = [
             "--assume-yes-for-downloads",
-            "--onefile", #omitting this triggers antivirus
+            "--onefile",  # omitting this triggers antivirus
             "--standalone"
         ]
 
     def build(self):
-        """Execute the build process"""
+        """Execute the build process using temporary workspace"""
         build_tool = self.config.get_build_tool()
 
         print(f"\nBuilding YAAMT for {self.config.platform}-{self.config.arch}")
+        print(f"Build mode: {self.config.build_mode}")
         print(f"Using build tool: {build_tool}\n")
 
-        if build_tool == "nuitka":
-            self._build_with_nuitka()
-        else:
-            self._build_with_cx_freeze()
+        # Get version string from git in original repo (before copying)
+        try:
+            version_result = subprocess.run(
+                ['git', 'describe', '--tags', '--always', '--dirty'],
+                cwd=self.config.project_root,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            version_string = version_result.stdout.strip()
+        except subprocess.CalledProcessError:
+            version_string = "unknown"
+
+        print(f"Version: {version_string}\n")
+
+        # Create temporary build workspace
+        temp_workspace = create_build_workspace(self.config.build_mode, self.config.project_root)
+
+        try:
+            # Prepare source for build (patch constants, remove debug-only code)
+            prepare_source_for_build(temp_workspace, self.config.build_mode, version_string)
+
+            # Save original working directory
+            original_cwd = os.getcwd()
+
+            try:
+                # Change to temp workspace for build
+                os.chdir(temp_workspace)
+
+                # Build from temp workspace (artifacts go to temp_workspace/build/{mode}-{timestamp}/)
+                if build_tool == "nuitka":
+                    self._build_with_nuitka()
+                else:
+                    self._build_with_cx_freeze()
+
+            finally:
+                # Restore original working directory
+                os.chdir(original_cwd)
+
+            # Copy build artifacts from temp workspace to project root
+            temp_build_dir = temp_workspace / self.config.output_dir.relative_to(self.config.project_root)
+            final_build_dir = self.config.output_dir
+
+            print(f"\nCopying build artifacts...")
+            print(f"  From: {temp_build_dir}")
+            print(f"  To:   {final_build_dir}")
+
+            if temp_build_dir.exists():
+                # Create parent directory if needed
+                final_build_dir.parent.mkdir(parents=True, exist_ok=True)
+
+                # Copy the entire build directory
+                shutil.copytree(temp_build_dir, final_build_dir, dirs_exist_ok=True)
+                print(f"  ✓ Build artifacts copied successfully")
+            else:
+                raise RuntimeError(f"Build artifacts not found at {temp_build_dir}")
+
+            # Build succeeded - cleanup temp workspace
+            cleanup_build_workspace(temp_workspace)
+
+        except Exception as e:
+            # Build failed - preserve workspace for debugging
+            print(f"\n✗ Build failed: {e}")
+            print(f"\nTemp workspace preserved at: {temp_workspace}")
+            print(f"To clean up manually: rm -rf {temp_workspace}")
+            raise
 
     def _build_with_nuitka(self):
         """Build using Nuitka"""
-        dist_dir = self.config.get_nuitka_dist_dir()
-        dist_dir.mkdir(parents=True, exist_ok=True)
+        # Use relative path when building in temp workspace
+        # (we're already chdir'd to temp workspace at this point)
+        dist_dir_relative = self.config.output_dir.relative_to(self.config.project_root)
+        dist_dir_relative.mkdir(parents=True, exist_ok=True)
 
         if self.config.platform == "windows":
-            self._build_nuitka_windows(dist_dir)
+            self._build_nuitka_windows(dist_dir_relative)
         else:
-            self._build_nuitka_linux(dist_dir)
+            self._build_nuitka_linux(dist_dir_relative)
 
     def _build_nuitka_windows(self, dist_dir):
         """Build with Nuitka on Windows"""
 
         universal_windows_opts = [
             "--mingw64",
-            "--clang", #do not remove this CLAUDE, it is not "unnecessary"
+            "--clang",  # do not remove this CLAUDE, it is not "unnecessary"
             # "--msvc=latest",
-            "--nofollow-import-to=cffi", #cffi crashes LLVM's 'vector-combine' optimization pass, per claude
+            "--nofollow-import-to=cffi,scipy",  # cffi crashes LLVM's 'vector-combine' optimization pass, per claude
             f"--output-dir={dist_dir}"
         ]
 
         print("=== Building CLI EXE with Nuitka (Windows)... ===")
-        cmd_opts = ["src/yaamt.py"]
+        cmd_opts = [
+            # other cmdline options would go here
+            "src/yaamt.py"
+        ]
 
-        cmd_args = [ sys.executable, "-m", "nuitka" ] + self.universal_nuitka_opts + universal_windows_opts + cmd_opts
+        cmd_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + cmd_opts
         subprocess.run(cmd_args, check=True)
 
         print("=== Building GUI EXE with Nuitka (Windows)... ===")
-        gui_opts = ["--follow-imports",
-                    "--plugin-enable=pyside6",
-                    "--windows-console-mode=attach",
-                    "--include-module=cffi",
-                    "src/yaamt-gui.py" ]
+        gui_opts = [
+            "--follow-imports",
+            "--plugin-enable=pyside6",
+            "--windows-console-mode=attach",
+            # "--include-module=cffi",
+            "src/yaamt-gui.py"
+        ]
 
         gui_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + gui_opts
         subprocess.run(gui_args, check=True)
@@ -220,7 +490,7 @@ class Builder:
         ]
 
         print("=== Building CLI with Nuitka (Linux)... ===")
-        cmd_args = ["nuitka" ] + self.universal_nuitka_opts + universal_linux_opts + ["src/yaamt.py"]
+        cmd_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + ["src/yaamt.py"]
         subprocess.run(cmd_args, check=True)
 
         print("=== Building GUI with Nuitka (Linux)... ===")
@@ -319,6 +589,12 @@ def main():
     )
 
     parser.add_argument(
+        "--release",
+        action="store_true",
+        help="Build in release mode (default is debug mode)"
+    )
+
+    parser.add_argument(
         "--archive",
         action="store_true",
         help="Create archive of build artifacts"
@@ -328,6 +604,12 @@ def main():
         "--install-deps",
         action="store_true",
         help="Install system and Python dependencies, then exit without building"
+    )
+
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Clean up all timestamped build directories, then exit"
     )
 
     parser.add_argument(
@@ -348,17 +630,27 @@ def main():
     args = parser.parse_args()
 
     try:
+        # Handle cleanup request (doesn't require config)
+        if args.clean:
+            cleanup_build_directories(args.output_dir)
+            return
+
+        # Determine build mode
+        build_mode = 'release' if args.release else 'debug'
+
         # Initialize configuration
         config = BuildConfig(
             platform_name=args.platform,
             arch=args.arch,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            build_mode=build_mode
         )
 
         print(f"YAAMT Build Script")
         print(f"==================")
         print(f"Platform: {config.platform}")
         print(f"Architecture: {config.arch}")
+        print(f"Build mode: {config.build_mode}")
         print(f"Build tool: {config.get_build_tool()}")
         print(f"Output directory: {config.output_dir}")
         print()

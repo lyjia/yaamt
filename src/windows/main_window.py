@@ -21,6 +21,7 @@ from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
+from util.debug import is_debug_mode
 from util.logging import log
 from providers import get_all_categories, ProviderType
 from workers.analyzer_dispatcher import AnalyzerDispatcher
@@ -384,9 +385,10 @@ class MainWindow(QMainWindow):
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.action_show_playback_panel)
 
-        # Debug Menu
-        debug_menu = self.menuBar().addMenu("&Debug")
-        self._create_debug_menu(debug_menu)
+        # Debug Menu (only shown if debug mode is enabled)
+        if is_debug_mode():
+            debug_menu = self.menuBar().addMenu("&Debug")
+            self._create_debug_menu(debug_menu)
 
         # Help Menu
         help_menu = self.menuBar().addMenu("&Help")

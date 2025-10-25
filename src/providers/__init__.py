@@ -3,6 +3,7 @@ import pkgutil
 from enum import Enum
 from typing import Dict, List, Type
 from providers.analysis import AnalyzerBase, AnalyzerCategory
+from util.debug import is_debug_mode
 from util.logging import log
 
 """
@@ -28,8 +29,15 @@ def get_analyzers_by_category(category: AnalyzerCategory) -> List[Type[AnalyzerB
 
     Returns:
         List of analyzer classes for that category, or empty list if none found
+        (Filters out debug_only analyzers when debug mode is OFF)
     """
-    return PROVIDER_REGISTRY[ProviderType.ANALYZER].get(category, [])
+    analyzers = PROVIDER_REGISTRY[ProviderType.ANALYZER].get(category, [])
+
+    # Filter out debug_only analyzers when debug mode is disabled
+    if not is_debug_mode():
+        analyzers = [a for a in analyzers if not getattr(a, 'debug_only', False)]
+
+    return analyzers
 
 
 def get_all_categories(provider_type: ProviderType) -> List[AnalyzerCategory]:

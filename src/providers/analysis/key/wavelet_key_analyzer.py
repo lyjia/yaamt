@@ -47,6 +47,7 @@ class WaveletKeyAnalyzer(AnalyzerBase):
     name = "Wavelet Key Analyzer"
     description = "Continuous Wavelet Transform-based key detection (adapted from RapidEvolution3)"
     category = "key"
+    debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"
 
     def analyze(self) -> AnalyzerResult:

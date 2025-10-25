@@ -45,26 +45,17 @@ On Windows, use `.\.venv\Scripts\activate` instead of `source .venv/bin/activate
 
 ## Usage
 
-In all usecases, it is best to activate the virtual environment before running the application.
+Convenience scripts are provided in the repository root: `yaamt.sh` / `yaamt.bat` for the CLI and `yaamt-gui.sh` / `yaamt-gui.bat` for the GUI. These automatically use the virtual environment and are shorthand for running `python src/yaamt.py` and `python src/yaamt-gui.py` respectively.
 
-Linux/macOS:
-```bash
-cd yaamt
-source .venv/bin/activate
-```
-
-Windows:
-```powershell
-cd yaamt
-.venv\Scripts\activate
-```
+**Note:** On Linux/macOS, make the shell scripts executable first: `chmod +x yaamt.sh yaamt-gui.sh`
 
 ### GUI Mode
 
-To launch the graphical user interface, run:
+To launch the graphical user interface:
 
 ```bash
-python src/gui.py
+./yaamt-gui.sh      # Linux/macOS
+.\yaamt-gui.bat     # Windows
 ```
 
 ### Command-Line Usage
@@ -75,30 +66,30 @@ The command-line interface provides powerful options for scripting and batch pro
 
 **Top-level help:**
 ```bash
-python src/yaamt.py --help
+./yaamt.sh --help
 ```
 
 **Help for specific commands:**
 ```bash
-python src/yaamt.py help read
-python src/yaamt.py help write
-python src/yaamt.py help analyze
+./yaamt.sh help read
+./yaamt.sh help write
+./yaamt.sh help analyze
 ```
 
 **List available analyzers:**
 ```bash
-python src/yaamt.py list analyzers
+./yaamt.sh list analyzers
 ```
 
 **List analyzers by category:**
 ```bash
-python src/yaamt.py list analyzers --category bpm
-python src/yaamt.py list analyzers --category key
+./yaamt.sh list analyzers --category bpm
+./yaamt.sh list analyzers --category key
 ```
 
 **Get help on a specific analyzer:**
 ```bash
-python src/yaamt.py analyze StubBPMAnalyzer --help
+./yaamt.sh analyze StubBPMAnalyzer --help
 ```
 
 #### Reading Metadata
@@ -107,32 +98,32 @@ The `read` command displays metadata from audio files. It supports multiple outp
 
 **Display metadata for a single file (detailed list format):**
 ```bash
-python src/yaamt.py read "path/to/audio.mp3" -f list
+./yaamt.sh read "path/to/audio.mp3" -f list
 ```
 
 **Display metadata for multiple files (table format with separated directory/filename columns):**
 ```bash
-python src/yaamt.py read "path/to/folder/*.mp3" -f table
+./yaamt.sh read "path/to/folder/*.mp3" -f table
 ```
 
 **Show only specific tags:**
 ```bash
-python src/yaamt.py read "path/to/audio.mp3" --tags title,artist,album,bpm
+./yaamt.sh read "path/to/audio.mp3" --tags title,artist,album,bpm
 ```
 
 **Export metadata from a folder to CSV:**
 ```bash
-python src/yaamt.py read "path/to/folder/*.mp3" -f csv -o metadata.csv
+./yaamt.sh read "path/to/folder/*.mp3" -f csv -o metadata.csv
 ```
 
 **Export metadata to JSON:**
 ```bash
-python src/yaamt.py read "path/to/folder/*.mp3" -f json -o metadata.json
+./yaamt.sh read "path/to/folder/*.mp3" -f json -o metadata.json
 ```
 
 **Recursively scan subdirectories:**
 ```bash
-python src/yaamt.py read "path/to/folder" -R --tags title,artist,bpm -f table
+./yaamt.sh read "path/to/folder" -R --tags title,artist,bpm -f table
 ```
 
 #### Writing Metadata
@@ -141,12 +132,12 @@ The `write` command modifies metadata tags on audio files. You can use either th
 
 **Using shortcut parameters (recommended for common tags):**
 ```bash
-python src/yaamt.py write --title "New Song Title" --artist "Artist Name" "path/to/audio.mp3"
+./yaamt.sh write --title "New Song Title" --artist "Artist Name" "path/to/audio.mp3"
 ```
 
 **Using the generic --tag option:**
 ```bash
-python src/yaamt.py write --tag "title=New Song Title" --tag "artist=Artist Name" "path/to/audio.mp3"
+./yaamt.sh write --tag "title=New Song Title" --tag "artist=Artist Name" "path/to/audio.mp3"
 ```
 
 **Available shortcut parameters:**
@@ -159,12 +150,12 @@ python src/yaamt.py write --tag "title=New Song Title" --tag "artist=Artist Name
 
 **Mass-write album tag to all files in a folder (e.g., for an album):**
 ```bash
-python src/yaamt.py write --album "My Album Name" "path/to/album/*.mp3"
+./yaamt.sh write --album "My Album Name" "path/to/album/*.mp3"
 ```
 
 **Write multiple tags at once using shortcuts:**
 ```bash
-python src/yaamt.py write \
+./yaamt.sh write \
   --title "Song Title" \
   --artist "Artist Name" \
   --album "Album Name" \
@@ -174,7 +165,7 @@ python src/yaamt.py write \
 
 **Recursively update all files in a directory tree:**
 ```bash
-python src/yaamt.py write --albumartist "Various Artists" "path/to/folder" -R
+./yaamt.sh write --albumartist "Various Artists" "path/to/folder" -R
 ```
 
 #### Analyzing Files
@@ -183,27 +174,27 @@ The `analyze` command runs audio analysis algorithms to detect BPM, musical key,
 
 **Analyze a single file for BPM and write to file metadata:**
 ```bash
-python src/yaamt.py analyze StubBPMAnalyzer "path/to/audio.mp3" -w
+./yaamt.sh analyze StubBPMAnalyzer "path/to/audio.mp3" -w
 ```
 
 **Analyze a whole folder for musical key and output to CSV report:**
 ```bash
-python src/yaamt.py analyze WaveletKeyAnalyzer "path/to/folder/*.mp3" -f csv -o key_report.csv
+./yaamt.sh analyze WaveletKeyAnalyzer "path/to/folder/*.mp3" -f csv -o key_report.csv
 ```
 
 **Analyze files without writing to metadata (display results only):**
 ```bash
-python src/yaamt.py analyze MultibandSpectralBPMAnalyzer "path/to/audio.mp3" -f table
+./yaamt.sh analyze MultibandSpectralBPMAnalyzer "path/to/audio.mp3" -f table
 ```
 
 **Skip files that already have values (useful for partial processing):**
 ```bash
-python src/yaamt.py analyze StubBPMAnalyzer "path/to/folder/*.mp3" -w --skip-if-tag-exists
+./yaamt.sh analyze StubBPMAnalyzer "path/to/folder/*.mp3" -w --skip-if-tag-exists
 ```
 
 **Analyze with custom analyzer options:**
 ```bash
-python src/yaamt.py analyze AubioBPMAnalyzer "path/to/audio.mp3" -w --method default --buf-size 1024
+./yaamt.sh analyze AubioBPMAnalyzer "path/to/audio.mp3" -w --method default --buf-size 1024
 ```
 
 **Available Analyzers:**
@@ -215,8 +206,8 @@ python src/yaamt.py analyze AubioBPMAnalyzer "path/to/audio.mp3" -w --method def
 
 For a complete list of available analyzers and their options:
 ```bash
-python src/yaamt.py list analyzers
-python src/yaamt.py analyze <AnalyzerName> --help
+./yaamt.sh list analyzers
+./yaamt.sh analyze <AnalyzerName> --help
 ```
 
 ## Contributing
