@@ -112,6 +112,8 @@ def load_media_files(file_paths: List[str], enable_write: bool = False) -> List[
 
 def cmd_help(args):
     """Handle the 'help' command."""
+    print_program_header()
+
     if args.subcommand:
         # Help for specific command
         if args.subcommand == 'list':
@@ -194,14 +196,6 @@ def cmd_help(args):
 
     else:
         # Main help
-        print("=========================================================================================================")
-        print("YAAMT - Yet Another Audio Metadata Tool")
-        print("Copyright ©2025 by Lyjia / Tom Corelis and contributors.")
-        print("See CONTRIBUTORS.md for full list of copyright holders.")
-        print()
-        print("https://github.com/lyjia/yaamt")
-        print("=========================================================================================================")
-        print()
         print("Usage: yaamt.py [--version] [--verbose] <command> [options] [arguments]")
         print()
         print("Commands:")
@@ -220,6 +214,16 @@ def cmd_help(args):
 
     return SYS_RETURN_SUCCESS
 
+
+def print_program_header():
+    print("=========================================================================================================")
+    print("YAAMT - Yet Another Audio Metadata Tool")
+    print("Copyright ©2025 by Lyjia / Tom Corelis and contributors.")
+    print("See CONTRIBUTORS.md for full list of copyright holders.")
+    print()
+    print("https://github.com/lyjia/yaamt")
+    print("=========================================================================================================")
+    print()
 
 def cmd_list(args):
     """Handle the 'list' command."""
