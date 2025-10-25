@@ -8,7 +8,7 @@ Built with love (and AI) by [Lyjia](http://www.lyjia.us)! This is the music tag 
 
 ## Description
 
-**YAAMT is a music information system** for viewing, editing, and analyzing various kinds of metadata (text like title/artist, BPM, musical key, etc.) for various audio file formats (MP3/FLAC/WAV etc.). It is inspired by programs like [TheGodfather](https://www.jtclipper.eu/thegodfather/), (MediaMonkey)[https://www.mediamonkey.com/], and (RapidEvolution)[https://github.com/djqualia/RapidEvolution3], as well as the MIS aspects of DJ software like (Serato)[https://serato.com/] or [Rekordbox](https://rekordbox.com/en/). I am building it to tame manage my personal media collection, and tame the music intake workflow for my DJing by bringing everything under one roof.
+**YAAMT is a music information system** for viewing, editing, and analyzing various kinds of metadata (text like title/artist, BPM, musical key, etc.) for various audio file formats (MP3/FLAC/WAV etc.). It is inspired by programs like [TheGodfather](https://www.jtclipper.eu/thegodfather/), [MediaMonkey](https://www.mediamonkey.com/), and [RapidEvolution](https://github.com/djqualia/RapidEvolution3), as well as the MIS aspects of DJ software like [Serato](https://serato.com/) or [Rekordbox](https://rekordbox.com/en/). I am building it to tame manage my personal media collection, and tame the music intake workflow for my DJing by bringing everything under one roof.
 
 Supports common audio formats like MP3, FLAC, and WAV. Additional formats will be added in the future!
 
