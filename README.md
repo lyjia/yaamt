@@ -89,7 +89,7 @@ The command-line interface provides powerful options for scripting and batch pro
 
 **Get help on a specific analyzer:**
 ```bash
-./yaamt.sh analyze StubBPMAnalyzer --help
+./yaamt.sh analyze AubioBPMAnalyzer --help
 ```
 
 #### Reading Metadata
@@ -174,22 +174,22 @@ The `analyze` command runs audio analysis algorithms to detect BPM, musical key,
 
 **Analyze a single file for BPM and write to file metadata:**
 ```bash
-./yaamt.sh analyze StubBPMAnalyzer "path/to/audio.mp3" -w
+./yaamt.sh analyze AubioBPMAnalyzer "path/to/audio.mp3" -w
 ```
 
 **Analyze a whole folder for musical key and output to CSV report:**
 ```bash
-./yaamt.sh analyze WaveletKeyAnalyzer "path/to/folder/*.mp3" -f csv -o key_report.csv
+./yaamt.sh analyze RE3WaveletKeyAnalyzer "path/to/folder/*.mp3" -f csv -o key_report.csv
 ```
 
 **Analyze files without writing to metadata (display results only):**
 ```bash
-./yaamt.sh analyze MultibandSpectralBPMAnalyzer "path/to/audio.mp3" -f table
+./yaamt.sh analyze RE3BPMAnalyzer "path/to/audio.mp3" -f table
 ```
 
 **Skip files that already have values (useful for partial processing):**
 ```bash
-./yaamt.sh analyze StubBPMAnalyzer "path/to/folder/*.mp3" -w --skip-if-tag-exists
+./yaamt.sh analyze AubioBPMAnalyzer "path/to/folder/*.mp3" -w --skip-if-tag-exists
 ```
 
 **Analyze with custom analyzer options:**
@@ -198,11 +198,21 @@ The `analyze` command runs audio analysis algorithms to detect BPM, musical key,
 ```
 
 **Available Analyzers:**
-- `StubBPMAnalyzer` - Fast testing analyzer (returns fixed BPM value)
+
+BPM Detection:
 - `AubioBPMAnalyzer` - BPM detection using aubio library
-- `MultibandSpectralBPMAnalyzer` - Advanced BPM detection using multiband spectral analysis
-- `WaveletKeyAnalyzer` - Musical key detection using wavelet transforms
+- `RE3BPMAnalyzer` - Advanced BPM detection using RapidEvolution3 multiband spectral analysis (debug-only)
+- `LibrosaBeatTrackingBPMAnalyzer` - BPM detection using librosa's beat tracking (debug-only)
+- `StubBPMAnalyzer` - Fast testing analyzer returning fixed BPM (debug-only)
+
+Musical Key Detection:
+- `RE3WaveletKeyAnalyzer` - Musical key detection using RapidEvolution3 wavelet algorithm (debug-only)
+- `LibrosaChromagramKeyAnalyzer` - Key detection using librosa chromagram and Krumhansl-Schmuckler algorithm (debug-only)
+
+Audio Analysis:
 - `PeakMeterAnalyzer` - Audio loudness/peak level measurement
+
+**Note:** Analyzers marked as "debug-only" are available when running from source but are excluded from release builds to reduce dependencies and binary size.
 
 For a complete list of available analyzers and their options:
 ```bash
@@ -285,13 +295,15 @@ python build.py
 This will:
 - Detect your platform and architecture
 - Build the application using the appropriate build tool (Nuitka or cx_Freeze)
-- Output finished build artifacts to the `build/` directory
+- Output finished build artifacts to a timestamped directory in `build/` (e.g., `build/debug-20251024-143022/`)
 
 #### Build Script Options
 
 ```bash
 python build.py --help                    # Show all options
 python build.py --install-deps            # Install dependencies and exit (no build)
+python build.py --release                 # Build a release version (excludes debug-only analyzers)
+python build.py --clean                   # Clean up old timestamped build directories
 python build.py --archive                 # Create an archive of build artifacts
 python build.py --version-name v1.0.0     # Specify version name for archive
 python build.py --output-dir dist         # Specify custom output directory
@@ -304,17 +316,19 @@ python build.py --arch arm64              # Override architecture detection
 **Windows:**
 - Uses Nuitka with MinGW64
 - Produces standalone executables: `main.exe` and `gui.exe`
-- Build output: `build/nuitka-dist/`
+- Build output: `build/debug-YYYYMMDD-HHMMSS/` or `build/release-YYYYMMDD-HHMMSS/`
 
 **Linux:**
 - Uses Nuitka
 - Produces standalone executables: `main.bin` and `gui.bin`
-- Build output: `build/nuitka-dist/`
+- Build output: `build/debug-YYYYMMDD-HHMMSS/` or `build/release-YYYYMMDD-HHMMSS/`
 
 **macOS:**
 - Uses cx_Freeze (Nuitka support pending)
 - Produces executables: `yaamt` and `yaamt-gui`
-- Build output: `build/exe.*/`
+- Build output: `build/debug-YYYYMMDD-HHMMSS/` or `build/release-YYYYMMDD-HHMMSS/`
+
+**Note:** Build directories are timestamped to allow multiple builds to coexist. Use `python build.py --clean` to remove old build directories.
 
 ### Creating Installers
 
