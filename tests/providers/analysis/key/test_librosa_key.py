@@ -11,7 +11,7 @@ from pathlib import Path
 
 from util.const import IN_GITHUB_RUNNER, KEY_INITIAL_KEY
 from providers.analysis.base import AnalyzerResult
-from providers.analysis.key.librosa_key import LibrosaKeyAnalyzer
+from providers.analysis.key.librosa_key import LibrosaChromagramKeyAnalyzer
 from providers import get_analyzers_by_category
 from providers.analysis import AnalyzerCategory
 from models.media_file import MediaFile
@@ -22,16 +22,16 @@ class TestLibrosaKeyAnalyzerMetadata:
 
     def test_analyzer_metadata(self):
         """Test that analyzer has correct metadata."""
-        assert LibrosaKeyAnalyzer.name == "Librosa Key Analyzer"
-        assert LibrosaKeyAnalyzer.category == "key"
-        assert LibrosaKeyAnalyzer.version == "1.0.0"
-        assert "librosa" in LibrosaKeyAnalyzer.description.lower()
-        assert "krumhansl" in LibrosaKeyAnalyzer.description.lower()
+        assert LibrosaChromagramKeyAnalyzer.name == "Librosa Key Analyzer"
+        assert LibrosaChromagramKeyAnalyzer.category == "key"
+        assert LibrosaChromagramKeyAnalyzer.version == "1.0.0"
+        assert "librosa" in LibrosaChromagramKeyAnalyzer.description.lower()
+        assert "krumhansl" in LibrosaChromagramKeyAnalyzer.description.lower()
 
     def test_analyzer_discovered(self):
         """Test that LibrosaKeyAnalyzer is discovered by registry."""
         key_analyzers = get_analyzers_by_category(AnalyzerCategory.KEY)
-        assert LibrosaKeyAnalyzer in key_analyzers
+        assert LibrosaChromagramKeyAnalyzer in key_analyzers
 
 
 class TestLibrosaKeyAnalyzerBasicBehavior:
@@ -75,7 +75,7 @@ class TestLibrosaKeyAnalyzerBasicBehavior:
             # Fixture doesn't have key metadata, skip this test
             pytest.skip("Test fixture does not have key metadata set")
 
-        analyzer = LibrosaKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
         result = analyzer.analyze()
 
         assert result.success is True
@@ -99,7 +99,7 @@ class TestLibrosaKeyAnalyzerBasicBehavior:
             # (not testing skip behavior, just that it analyzes files)
             pytest.skip("Test fixture does not have key metadata set - cannot test overwrite behavior")
 
-        analyzer = LibrosaKeyAnalyzer(media_file, {'skip_if_tag_exists': False})
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file, {'skip_if_tag_exists': False})
         result = analyzer.analyze()
 
         # Should not skip (default behavior is to analyze all files)
@@ -111,7 +111,7 @@ class TestLibrosaKeyAnalyzerBasicBehavior:
         """Test that cancellation is respected."""
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
         analyzer.cancel()
         result = analyzer.analyze()
 
@@ -124,7 +124,7 @@ class TestLibrosaKeyAnalyzerBasicBehavior:
 
         # Mock librosa import to fail
         with patch.dict('sys.modules', {'librosa': None}):
-            analyzer = LibrosaKeyAnalyzer(media_file)
+            analyzer = LibrosaChromagramKeyAnalyzer(media_file)
             result = analyzer.analyze()
 
             assert result.success is False
@@ -153,7 +153,7 @@ class TestLibrosaKeyAnalyzerWithLibrosa:
         from providers.audio.format_descriptor import AudioFormatDescriptor
 
         media_file = MediaFile(valid_audio_file, enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
 
         # Spy on get_audio_stream to verify format descriptor
         original_get_stream = media_file.get_audio_stream
@@ -187,7 +187,7 @@ class TestLibrosaKeyAnalyzerWithLibrosa:
 
         # The analyzer should use audio_stream_to_numpy internally
         # We verify this doesn't crash and completes
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Should complete (whether successful or not)
@@ -201,7 +201,7 @@ class TestLibrosaKeyAnalyzerWithLibrosa:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(valid_audio_file, enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
 
         # Run analysis
         result = analyzer.analyze()
@@ -219,7 +219,7 @@ class TestLibrosaKeyAnalyzerWithLibrosa:
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
         # Force an error by cancelling immediately
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
         analyzer.cancel()
 
         result = analyzer.analyze()
@@ -252,7 +252,7 @@ class TestLibrosaKeyAnalyzerIntegration:
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
         # Run analyzer
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Should complete without crashing
@@ -288,7 +288,7 @@ class TestLibrosaKeyAnalyzerKrumhanslSchmuckler:
             pytest.skip("Sample audio file not available")
 
         media_file = MediaFile(str(sample_file), enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
 
         # Create a synthetic chroma vector (C major-like)
         chroma = np.array([1.0, 0.1, 0.5, 0.1, 0.5, 0.6, 0.1, 0.8, 0.1, 0.4, 0.1, 0.3])
@@ -316,7 +316,7 @@ class TestLibrosaKeyAnalyzerKrumhanslSchmuckler:
             pytest.skip("Sample audio file not available")
 
         media_file = MediaFile(str(sample_file), enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
 
         # Strong C major profile: C, E, G are strong
         chroma = np.array([1.0, 0.0, 0.3, 0.0, 0.8, 0.5, 0.0, 0.9, 0.0, 0.2, 0.0, 0.1])
@@ -334,7 +334,7 @@ class TestLibrosaKeyAnalyzerSettingsWidget:
 
     def test_get_settings_widget(self, qapp):
         """Test that settings widget is returned with correct structure."""
-        widget = LibrosaKeyAnalyzer.get_settings_widget()
+        widget = LibrosaChromagramKeyAnalyzer.get_settings_widget()
         assert widget is not None
 
         # Verify widget was created (full Qt inspection not needed)
@@ -342,7 +342,7 @@ class TestLibrosaKeyAnalyzerSettingsWidget:
 
     def test_get_options_metadata(self):
         """Test that options metadata is returned."""
-        options = LibrosaKeyAnalyzer.get_options_metadata()
+        options = LibrosaChromagramKeyAnalyzer.get_options_metadata()
         assert len(options) > 0
 
         # Verify expected options exist
@@ -372,7 +372,7 @@ class TestLibrosaKeyAnalyzerWithMusicalFixtures:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(cmin_file, enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -399,7 +399,7 @@ class TestLibrosaKeyAnalyzerWithMusicalFixtures:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(cmin_file, enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file, {'chromagram_type': 'cqt'})
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file, {'chromagram_type': 'cqt'})
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -416,7 +416,7 @@ class TestLibrosaKeyAnalyzerWithMusicalFixtures:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(cmin_file, enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file, {'chromagram_type': 'stft'})
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file, {'chromagram_type': 'stft'})
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -433,7 +433,7 @@ class TestLibrosaKeyAnalyzerWithMusicalFixtures:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(cmin_file, enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file, {'hop_length': 1024})
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file, {'hop_length': 1024})
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -463,7 +463,7 @@ class TestLibrosaKeyAnalyzerWithDrumLoops:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(drum_loop, enable_write=False)
-        analyzer = LibrosaKeyAnalyzer(media_file)
+        analyzer = LibrosaChromagramKeyAnalyzer(media_file)
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)

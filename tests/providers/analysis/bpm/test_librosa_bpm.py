@@ -11,7 +11,7 @@ from pathlib import Path
 
 from util.const import IN_GITHUB_RUNNER
 from providers.analysis.base import AnalyzerResult
-from providers.analysis.bpm.librosa_bpm import LibrosaBPMAnalyzer
+from providers.analysis.bpm.librosa_bpm import LibrosaBeatTrackingBPMAnalyzer
 from providers import get_analyzers_by_category
 from providers.analysis import AnalyzerCategory
 from models.media_file import MediaFile
@@ -22,15 +22,15 @@ class TestLibrosaBPMAnalyzerMetadata:
 
     def test_analyzer_metadata(self):
         """Test that analyzer has correct metadata."""
-        assert LibrosaBPMAnalyzer.name == "Librosa BPM Analyzer"
-        assert LibrosaBPMAnalyzer.category == "bpm"
-        assert LibrosaBPMAnalyzer.version == "1.0.0"
-        assert "librosa" in LibrosaBPMAnalyzer.description.lower()
+        assert LibrosaBeatTrackingBPMAnalyzer.name == "Librosa BPM Analyzer"
+        assert LibrosaBeatTrackingBPMAnalyzer.category == "bpm"
+        assert LibrosaBeatTrackingBPMAnalyzer.version == "1.0.0"
+        assert "librosa" in LibrosaBeatTrackingBPMAnalyzer.description.lower()
 
     def test_analyzer_discovered(self):
         """Test that LibrosaBPMAnalyzer is discovered by registry."""
         bpm_analyzers = get_analyzers_by_category(AnalyzerCategory.BPM)
-        assert LibrosaBPMAnalyzer in bpm_analyzers
+        assert LibrosaBeatTrackingBPMAnalyzer in bpm_analyzers
 
 
 class TestLibrosaBPMAnalyzerBasicBehavior:
@@ -62,7 +62,7 @@ class TestLibrosaBPMAnalyzerBasicBehavior:
         existing_bpm = media_file.get_tag_simple('bpm')
         assert existing_bpm is not None, "Test fixture should have BPM metadata"
 
-        analyzer = LibrosaBPMAnalyzer(media_file, {'skip_if_tag_exists': True})
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file, {'skip_if_tag_exists': True})
         result = analyzer.analyze()
 
         assert result.success is True
@@ -82,7 +82,7 @@ class TestLibrosaBPMAnalyzerBasicBehavior:
         existing_bpm = media_file.get_tag_simple('bpm')
         assert existing_bpm is not None, "Test fixture should have BPM metadata"
 
-        analyzer = LibrosaBPMAnalyzer(media_file, {'skip_if_tag_exists': False})
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file, {'skip_if_tag_exists': False})
         result = analyzer.analyze()
 
         # Should not skip (default behavior is to analyze all files)
@@ -94,7 +94,7 @@ class TestLibrosaBPMAnalyzerBasicBehavior:
         """Test that cancellation is respected."""
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
         analyzer.cancel()
         result = analyzer.analyze()
 
@@ -107,7 +107,7 @@ class TestLibrosaBPMAnalyzerBasicBehavior:
 
         # Mock librosa import to fail
         with patch.dict('sys.modules', {'librosa': None}):
-            analyzer = LibrosaBPMAnalyzer(media_file)
+            analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
             result = analyzer.analyze()
 
             assert result.success is False
@@ -136,7 +136,7 @@ class TestLibrosaBPMAnalyzerWithLibrosa:
         from providers.audio.format_descriptor import AudioFormatDescriptor
 
         media_file = MediaFile(valid_audio_file, enable_write=False)
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
 
         # Spy on get_audio_stream to verify format descriptor
         original_get_stream = media_file.get_audio_stream
@@ -170,7 +170,7 @@ class TestLibrosaBPMAnalyzerWithLibrosa:
 
         # The analyzer should use audio_stream_to_numpy internally
         # We verify this doesn't crash and completes
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Should complete (whether successful or not)
@@ -184,7 +184,7 @@ class TestLibrosaBPMAnalyzerWithLibrosa:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(valid_audio_file, enable_write=False)
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
 
         # Run analysis
         result = analyzer.analyze()
@@ -202,7 +202,7 @@ class TestLibrosaBPMAnalyzerWithLibrosa:
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
         # Force an error by cancelling immediately
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
         analyzer.cancel()
 
         result = analyzer.analyze()
@@ -235,7 +235,7 @@ class TestLibrosaBPMAnalyzerIntegration:
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
         # Run analyzer
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Should complete without crashing
@@ -257,7 +257,7 @@ class TestLibrosaBPMAnalyzerSettingsWidget:
 
     def test_get_settings_widget(self, qapp):
         """Test that settings widget is returned with correct structure."""
-        widget = LibrosaBPMAnalyzer.get_settings_widget()
+        widget = LibrosaBeatTrackingBPMAnalyzer.get_settings_widget()
         assert widget is not None
 
         # Verify widget was created (full Qt inspection not needed)
@@ -265,7 +265,7 @@ class TestLibrosaBPMAnalyzerSettingsWidget:
 
     def test_get_options_metadata(self):
         """Test that options metadata is returned."""
-        options = LibrosaBPMAnalyzer.get_options_metadata()
+        options = LibrosaBeatTrackingBPMAnalyzer.get_options_metadata()
         assert len(options) > 0
 
         # Verify expected options exist
@@ -315,7 +315,7 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(house_120bpm_file, enable_write=False)
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -337,7 +337,7 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(house_128bpm_file, enable_write=False)
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -359,7 +359,7 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(dnb_175bpm_file, enable_write=False)
-        analyzer = LibrosaBPMAnalyzer(media_file)
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -380,7 +380,7 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(house_128bpm_file, enable_write=False)
-        analyzer = LibrosaBPMAnalyzer(media_file, {'start_bpm': 128.0})
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file, {'start_bpm': 128.0})
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -397,7 +397,7 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(house_120bpm_file, enable_write=False)
-        analyzer = LibrosaBPMAnalyzer(media_file, {'aggregate_method': 'median'})
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file, {'aggregate_method': 'median'})
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)
@@ -414,7 +414,7 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
             pytest.skip("librosa library not installed")
 
         media_file = MediaFile(house_120bpm_file, enable_write=False)
-        analyzer = LibrosaBPMAnalyzer(media_file, {'aggregate_method': 'mean'})
+        analyzer = LibrosaBeatTrackingBPMAnalyzer(media_file, {'aggregate_method': 'mean'})
         result = analyzer.analyze()
 
         assert isinstance(result, AnalyzerResult)

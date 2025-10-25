@@ -19,7 +19,7 @@ from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
 
 
-class LibrosaBPMAnalyzer(AnalyzerBase):
+class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using librosa's beat tracking algorithm.
 
@@ -35,10 +35,11 @@ class LibrosaBPMAnalyzer(AnalyzerBase):
         - 'hop_length' (int): Number of samples between frames (default: 512)
     """
 
-    name = "Librosa BPM Analyzer"
+    name = "Librosa Beat Tracking BPM Analyzer"
     description = "Detects tempo using librosa's beat tracking algorithm"
     category = "bpm"
     version = "1.0.0"
+    debug_only = True
 
     def analyze(self) -> AnalyzerResult:
         """
@@ -292,4 +293,4 @@ class LibrosaBPMAnalyzer(AnalyzerBase):
 
 
 # Register this analyzer with the BPM category
-register_analyzer(AnalyzerCategory.BPM, LibrosaBPMAnalyzer)
+register_analyzer(AnalyzerCategory.BPM, LibrosaBeatTrackingBPMAnalyzer)
