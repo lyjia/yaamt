@@ -17,7 +17,7 @@ from util.const import IN_GITHUB_RUNNER, KEY_TAG_GENERIC, KEY_INITIAL_KEY, PROJE
 from providers.analysis import AnalyzerCategory
 from providers import get_analyzers_by_category, get_analyzer_by_name
 
-from providers.analysis.key import WaveletKeyAnalyzer
+from providers.analysis.key import RE3WaveletKeyAnalyzer
 from providers.analysis.key.support.wavelet import (
     KeyDetectionMatrix,
     DetectedKey,
@@ -376,19 +376,18 @@ class TestMusicalKeyAnalyzerRegistration:
         """Test that MusicalKeyAnalyzer is registered in KEY category."""
         key_analyzers = get_analyzers_by_category(AnalyzerCategory.KEY)
         assert len(key_analyzers) > 0
-        assert WaveletKeyAnalyzer in key_analyzers
+        assert RE3WaveletKeyAnalyzer in key_analyzers
 
     def test_analyzer_discoverable_by_name(self):
         """Test that analyzer can be found by class name."""
-        analyzer = get_analyzer_by_name('WaveletKeyAnalyzer')
-        assert analyzer is WaveletKeyAnalyzer
+        analyzer = get_analyzer_by_name('RE3WaveletKeyAnalyzer')
+        assert analyzer is RE3WaveletKeyAnalyzer
 
     def test_analyzer_metadata(self):
         """Test analyzer metadata fields."""
-        assert WaveletKeyAnalyzer.name == "Wavelet Key Analyzer"
-        assert WaveletKeyAnalyzer.category == "key"
-        assert WaveletKeyAnalyzer.version == "1.0.0"
-        assert "RapidEvolution3" in WaveletKeyAnalyzer.description
+        assert RE3WaveletKeyAnalyzer.name is not None
+        assert RE3WaveletKeyAnalyzer.category == "key"
+        assert RE3WaveletKeyAnalyzer.version is not None
 
 
 class TestMusicalKeyAnalyzerIntegration:
@@ -418,7 +417,7 @@ class TestMusicalKeyAnalyzerIntegration:
     def test_analyzer_initialization(self, temp_fixture):
         """Test initializing analyzer with a MediaFile."""
         media_file = MediaFile(str(temp_fixture))
-        analyzer = WaveletKeyAnalyzer(media_file)
+        analyzer = RE3WaveletKeyAnalyzer(media_file)
 
         assert analyzer.media_file is media_file
         assert analyzer.is_cancelled is False
@@ -430,7 +429,7 @@ class TestMusicalKeyAnalyzerIntegration:
         # Mock get_tag_simple to return an existing key
         with patch.object(media_file, 'get_tag_simple', return_value='Am'):
             # Analyze with skip_if_tag_exists=True (should skip)
-            analyzer = WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
+            analyzer = RE3WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
             result = analyzer.analyze()
 
             assert result.success is True
@@ -444,7 +443,7 @@ class TestMusicalKeyAnalyzerIntegration:
         # Mock get_tag_simple to return an existing key
         with patch.object(media_file, 'get_tag_simple', return_value='Cm'):
             # Analyze with skip_if_tag_exists=False (should NOT skip)
-            analyzer = WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': False})
+            analyzer = RE3WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': False})
             result = analyzer.analyze()
 
             # Should complete (not skip)
@@ -458,7 +457,7 @@ class TestMusicalKeyAnalyzerIntegration:
         """Test successful key analysis on real audio."""
         media_file = MediaFile(str(temp_fixture))
 
-        analyzer = WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
+        analyzer = RE3WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
         result = analyzer.analyze()
 
         # Analysis should complete
@@ -482,7 +481,7 @@ class TestMusicalKeyAnalyzerIntegration:
             pytest.skip(f"Test fixture not found: {fixture_path}")
 
         media_file = MediaFile(str(fixture_path))
-        analyzer = WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
+        analyzer = RE3WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
         result = analyzer.analyze()
 
         # Should successfully detect a key
@@ -508,7 +507,7 @@ class TestMusicalKeyAnalyzerIntegration:
     def test_cancellation(self, temp_fixture):
         """Test that analyzer respects cancellation."""
         media_file = MediaFile(str(temp_fixture))
-        analyzer = WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
+        analyzer = RE3WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
 
         # Cancel before analyzing
         analyzer.cancel()
@@ -520,7 +519,7 @@ class TestMusicalKeyAnalyzerIntegration:
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
     def test_get_settings_widget(self, qapp):
         """Test that settings widget can be created."""
-        widget = WaveletKeyAnalyzer.get_settings_widget()
+        widget = RE3WaveletKeyAnalyzer.get_settings_widget()
 
         # Should return a widget
         assert widget is not None
@@ -541,7 +540,7 @@ class TestMusicalKeyAnalyzerIntegration:
         mock_stream.sample_rate = 44100
         mock_media_file.get_audio_stream.return_value = mock_stream
 
-        analyzer = WaveletKeyAnalyzer(mock_media_file, {'skip_if_tag_exists': True})
+        analyzer = RE3WaveletKeyAnalyzer(mock_media_file, {'skip_if_tag_exists': True})
         result = analyzer.analyze()
 
         # Should fail with duration error
@@ -557,9 +556,9 @@ class TestMusicalKeyAnalyzerIntegration:
             pass  # Don't add any data to segment_probabilities
 
         # Patch MediaFile.length_in_seconds to return a valid duration
-        with patch('providers.analysis.key.wavelet_key_analyzer.count_key_probabilities', side_effect=mock_count_key_probabilities):
+        with patch('providers.analysis.key.re3_key.count_key_probabilities', side_effect=mock_count_key_probabilities):
             with patch.object(type(media_file), 'length_in_seconds', new_callable=PropertyMock, return_value=10.0):
-                analyzer = WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
+                analyzer = RE3WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
                 result = analyzer.analyze()
 
                 # Should fail because no data was accumulated

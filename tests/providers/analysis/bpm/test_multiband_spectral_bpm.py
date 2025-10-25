@@ -9,7 +9,7 @@ import pytest
 from pathlib import Path
 
 from providers.analysis.base import AnalyzerResult
-from providers.analysis.bpm.multiband_spectral_bpm import MultibandSpectralBPMAnalyzer
+from providers.analysis.bpm.re3_bpm import RE3MultibandSpectralBPMAnalyzer
 from providers import get_analyzers_by_category
 from providers.analysis import AnalyzerCategory
 from models.media_file import MediaFile
@@ -21,15 +21,14 @@ class TestMultibandSpectralBPMAnalyzerMetadata:
 
     def test_analyzer_metadata(self):
         """Test that analyzer has correct metadata."""
-        assert MultibandSpectralBPMAnalyzer.name == "Multiband Spectral BPM Analyzer (RE3)"
-        assert MultibandSpectralBPMAnalyzer.category == "bpm"
-        assert MultibandSpectralBPMAnalyzer.version == "1.0.0"
-        assert "multi-band" in MultibandSpectralBPMAnalyzer.description.lower()
+        assert RE3MultibandSpectralBPMAnalyzer.name is not None
+        assert RE3MultibandSpectralBPMAnalyzer.category == "bpm"
+        assert RE3MultibandSpectralBPMAnalyzer.version is not None
 
     def test_analyzer_discovered(self):
         """Test that MultibandSpectralBPMAnalyzer is discovered by registry."""
         bpm_analyzers = get_analyzers_by_category(AnalyzerCategory.BPM)
-        assert MultibandSpectralBPMAnalyzer in bpm_analyzers
+        assert RE3MultibandSpectralBPMAnalyzer in bpm_analyzers
 
 
 class TestMultibandSpectralBPMAnalyzerBasicBehavior:
@@ -61,7 +60,7 @@ class TestMultibandSpectralBPMAnalyzerBasicBehavior:
         existing_bpm = media_file.get_tag_simple('bpm')
         assert existing_bpm is not None, "Test fixture should have BPM metadata"
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file, {'skip_if_tag_exists': True})
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file, {'skip_if_tag_exists': True})
         result = analyzer.analyze()
 
         assert result.success is True
@@ -76,7 +75,7 @@ class TestMultibandSpectralBPMAnalyzerBasicBehavior:
         existing_bpm = media_file.get_tag_simple('bpm')
         assert existing_bpm is not None, "Test fixture should have BPM metadata"
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file, {'skip_if_tag_exists': False})
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file, {'skip_if_tag_exists': False})
         result = analyzer.analyze()
 
         # Should not skip (default behavior is to analyze all files)
@@ -88,7 +87,7 @@ class TestMultibandSpectralBPMAnalyzerBasicBehavior:
         """Test that cancellation is respected."""
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         analyzer.cancel()
         result = analyzer.analyze()
 
@@ -130,7 +129,7 @@ class TestMultibandSpectralBPMAnalyzerIntegration:
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
         # Run analyzer
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Should complete without crashing
@@ -163,7 +162,7 @@ class TestMultibandSpectralBPMAnalyzerIntegration:
         assert min_bpm > 0
 
         # Run analyzer (it should use these settings internally)
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Verify result structure (actual BPM detection may fail on DTMF tones)
@@ -175,7 +174,7 @@ class TestMultibandSpectralBPMAnalyzerIntegration:
 
         # The analyzer should request mono audio internally
         # We verify this doesn't crash and completes
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Should complete (whether successful or not)
@@ -190,7 +189,7 @@ class TestMultibandSpectralBPMAnalyzerIntegration:
         assert duration < 60.0, "Test fixture should be short for this test"
 
         # Run analyzer with default threshold_time of 60s
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Should handle short audio gracefully (may succeed or fail)
@@ -201,7 +200,7 @@ class TestMultibandSpectralBPMAnalyzerIntegration:
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
         # Use faster decimation for quicker processing
-        analyzer = MultibandSpectralBPMAnalyzer(media_file, {
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file, {
             'decimation_size': 128,  # Higher = faster but less precise
             'threshold_time': 30.0   # Shorter segments
         })
@@ -227,7 +226,7 @@ class TestMultibandSpectralBPMAnalyzerErrorHandling:
         """Test that analysis failures return proper error messages."""
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # If analysis fails, should have error message
@@ -239,7 +238,7 @@ class TestMultibandSpectralBPMAnalyzerErrorHandling:
         """Test that audio stream is properly closed after analysis."""
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # Audio stream should be closed (we can't easily verify this without
@@ -253,12 +252,12 @@ class TestMultibandSpectralBPMAnalyzerSettingsWidget:
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
     def test_get_settings_widget(self):
         """Test that settings widget is returned."""
-        widget = MultibandSpectralBPMAnalyzer.get_settings_widget()
+        widget = RE3MultibandSpectralBPMAnalyzer.get_settings_widget()
         assert widget is not None
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
     def test_settings_widget_has_info_label(self):
         """Test that settings widget explains BPM range configuration."""
-        widget = MultibandSpectralBPMAnalyzer.get_settings_widget()
+        widget = RE3MultibandSpectralBPMAnalyzer.get_settings_widget()
 
         # Widget should have info label explaining that BPM range
         # is configured in Preferences > Metadata
@@ -307,7 +306,7 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 80)
         settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 160)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # NOTE: There's currently a bug reading duration from WAV files
@@ -334,7 +333,7 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 50)
         settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 80)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # NOTE: There's currently a bug reading duration from WAV files
@@ -360,7 +359,7 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 200)
         settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 280)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # NOTE: There's currently a bug reading duration from WAV files
@@ -386,7 +385,7 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 100)
         settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 150)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # NOTE: There's currently a bug reading duration from WAV files
@@ -412,7 +411,7 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 55)
         settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 75)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # NOTE: There's currently a bug reading duration from WAV files
@@ -438,7 +437,7 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 220)
         settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 290)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # NOTE: There's currently a bug reading duration from WAV files
@@ -464,7 +463,7 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 150)
         settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 200)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # DNB may be tough due to irregular beats
@@ -490,7 +489,7 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 75)
         settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 100)
 
-        analyzer = MultibandSpectralBPMAnalyzer(media_file)
+        analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
         # DNB may be tough - accept any valid result

@@ -27,7 +27,7 @@ from providers.analysis.key.support.wavelet import (
 )
 
 
-class WaveletKeyAnalyzer(AnalyzerBase):
+class RE3WaveletKeyAnalyzer(AnalyzerBase):
     """
     Musical key analyzer adapted from the RapidEvolution3 CWT algorithm.
 
@@ -44,8 +44,8 @@ class WaveletKeyAnalyzer(AnalyzerBase):
     Configuration: No user-configurable options at this time.
     """
 
-    name = "Wavelet Key Analyzer"
-    description = "Continuous Wavelet Transform-based key detection (adapted from RapidEvolution3)"
+    name = "RE3 Wavelet Key Analyzer"
+    description = "Continuous Wavelet Transform-based key detection algorithm ported from RapidEvolution3 by DJ Qualia."
     category = "key"
     debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"
@@ -532,4 +532,4 @@ class WaveletKeyAnalyzer(AnalyzerBase):
 
 
 # Register this analyzer with the Key category
-register_analyzer(AnalyzerCategory.KEY, WaveletKeyAnalyzer)
+register_analyzer(AnalyzerCategory.KEY, RE3WaveletKeyAnalyzer)

@@ -683,7 +683,7 @@ class SubBandSeparator:
         return returnval
 
 
-class MultibandSpectralBPMAnalyzer(AnalyzerBase):
+class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using the RapidEvolution3 algorithm.
 
@@ -700,8 +700,8 @@ class MultibandSpectralBPMAnalyzer(AnalyzerBase):
         - 'threshold_time' (float): Segment length for early detection (default: 60.0s)
     """
 
-    name = "Multiband Spectral BPM Analyzer (RE3)"
-    description = "Multi-band spectral analysis (ported from RapidEvolution3)"
+    name = "RE3 Spectral BPM Analyzer"
+    description = "Multi-band spectral analysis algorithm ported from RapidEvolution3 by DJ Qualia."
     category = "bpm"
     debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"
@@ -951,4 +951,4 @@ class MultibandSpectralBPMAnalyzer(AnalyzerBase):
 
 
 # Register this analyzer with the BPM category
-register_analyzer(AnalyzerCategory.BPM, MultibandSpectralBPMAnalyzer)
+register_analyzer(AnalyzerCategory.BPM, RE3MultibandSpectralBPMAnalyzer)

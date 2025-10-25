@@ -4,6 +4,6 @@ Musical Key Analysis providers.
 This package contains key detection analyzers.
 """
 
-from .wavelet_key_analyzer import WaveletKeyAnalyzer
+from .re3_key import RE3WaveletKeyAnalyzer
 
-__all__ = ['WaveletKeyAnalyzer']
+__all__ = ['RE3WaveletKeyAnalyzer']
