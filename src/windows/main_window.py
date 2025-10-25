@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
     QDialog
 )
-from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PySide6.QtCore import (
     QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot, Signal
 )
@@ -35,9 +35,15 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("YAAMT")
         self.resize(1024, 768)
         self.setMinimumSize(640, 480)
-        self.setWindowIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
-        )
+
+        # Set application icon
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "..", "resources", "icons", "app-icon-gui.png")
+        icon_path = os.path.normpath(icon_path)
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        else:
+            # Fallback to system icon if file not found
+            self.setWindowIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
         self.thread_pool = QThreadPool()
         self._current_path = ""
         self.metadata_results = []
