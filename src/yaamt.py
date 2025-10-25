@@ -194,9 +194,13 @@ def cmd_help(args):
 
     else:
         # Main help
+        print("=========================================================================================================")
         print("YAAMT - Yet Another Audio Metadata Tool")
-        print("Original works ©2025 by Lyjia - Licensed to you as GPLv3")
+        print("Copyright ©2025 by Lyjia / Tom Corelis and contributors.")
+        print("See CONTRIBUTORS.md for full list of copyright holders.")
+        print()
         print("https://github.com/lyjia/yaamt")
+        print("=========================================================================================================")
         print()
         print("Usage: yaamt.py [--version] [--verbose] <command> [options] [arguments]")
         print()
