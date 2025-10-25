@@ -345,6 +345,63 @@ python build.py --arch arm64              # Override architecture detection
 
 **Note:** Build directories are timestamped to allow multiple builds to coexist. Use `python build.py --clean` to remove old build directories.
 
+#### Generating Platform-Specific Application Icons
+
+YAAMT uses the source icon file `resources/icons/app-icon-gui.png` for the application icon. Different platforms require different icon formats for optimal display:
+
+**Linux:**
+- Uses PNG format directly ✓
+- The existing `app-icon-gui.png` works without conversion
+
+**Windows:**
+- Requires `.ico` format containing multiple resolutions
+- To generate `app-icon-gui.ico` from the PNG source:
+
+```bash
+# Using ImageMagick (recommended):
+convert resources/icons/app-icon-gui.png \
+  -define icon:auto-resize=256,128,64,48,32,16 \
+  resources/icons/app-icon-gui.ico
+
+# Alternative using Python Pillow:
+python -c "from PIL import Image; img = Image.open('resources/icons/app-icon-gui.png'); img.save('resources/icons/app-icon-gui.ico', sizes=[(16,16), (32,32), (48,48), (64,64), (128,128), (256,256)])"
+```
+
+**macOS:**
+- Requires `.icns` format containing multiple resolutions
+- To generate `app-icon-gui.icns` from the PNG source:
+
+```bash
+# Create iconset directory
+mkdir -p app-icon-gui.iconset
+
+# Generate all required sizes using sips (macOS built-in tool)
+sips -z 16 16     resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_16x16.png
+sips -z 32 32     resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_16x16@2x.png
+sips -z 32 32     resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_32x32.png
+sips -z 64 64     resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_32x32@2x.png
+sips -z 128 128   resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_128x128.png
+sips -z 256 256   resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_128x128@2x.png
+sips -z 256 256   resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_256x256.png
+sips -z 512 512   resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_256x256@2x.png
+sips -z 512 512   resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_512x512.png
+sips -z 1024 1024 resources/icons/app-icon-gui.png --out app-icon-gui.iconset/icon_512x512@2x.png
+
+# Convert iconset to icns
+iconutil -c icns app-icon-gui.iconset -o resources/icons/app-icon-gui.icns
+
+# Clean up
+rm -rf app-icon-gui.iconset
+```
+
+**Icon Requirements Summary:**
+- **Source file (all platforms):** `resources/icons/app-icon-gui.png` ✓ Included
+- **Windows builds:** `resources/icons/app-icon-gui.ico` (needs generation)
+- **macOS builds:** `resources/icons/app-icon-gui.icns` (needs generation)
+- **Linux builds:** Uses PNG directly ✓
+
+The application will build successfully without platform-specific icons, but will display a default icon instead. For production builds, generate the appropriate icon format for your target platform.
+
 ### Creating Installers
 
 Installer builds are currently disabled during the Nuitka transition. The following installer types will be re-enabled in a future release:
