@@ -45,7 +45,7 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
     """
 
     name = "RE3 Wavelet Key Analyzer"
-    description = "Continuous Wavelet Transform-based key detection algorithm ported from RapidEvolution3 by DJ Qualia."
+    description = "Continuous Wavelet Transform-based key detection algorithm adapted from RapidEvolution3 by DJ Qualia."
     category = "key"
     debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"

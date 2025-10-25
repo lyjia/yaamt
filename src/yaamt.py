@@ -195,6 +195,8 @@ def cmd_help(args):
     else:
         # Main help
         print("YAAMT - Yet Another Audio Metadata Tool")
+        print("Original works ©2025 by Lyjia - Licensed to you as GPLv3")
+        print("https://github.com/lyjia/yaamt")
         print()
         print("Usage: yaamt.py [--version] [--verbose] <command> [options] [arguments]")
         print()
@@ -208,6 +210,7 @@ def cmd_help(args):
         print("Global Options:")
         print("  --version    Show version and exit")
         print("  --verbose    Enable verbose output")
+        print("  --debug      Enable debug mode (default)")
         print()
         print("Use 'yaamt.py help <command>' for more information on a specific command.")
 
@@ -216,7 +219,15 @@ def cmd_help(args):
 
 def cmd_list(args):
     """Handle the 'list' command."""
-    if args.type == 'analyzers':
+    if args.type is None:
+        # List all listable things
+        print("Listing all available modules:\n")
+        print("=== Analyzers ===")
+        output = format_analyzer_list(args.filter)
+        print(output)
+        print("\nHint: You can filter this list by supplying a <type> argument (e.g., 'yaamt.py list analyzers')")
+        return SYS_RETURN_SUCCESS
+    elif args.type == 'analyzers':
         output = format_analyzer_list(args.filter)
         print(output)
         return SYS_RETURN_SUCCESS
@@ -453,8 +464,8 @@ def main():
     # Global options
     parser.add_argument('--version', action='store_true', help='Show version and exit')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
-    parser.add_argument('--debug', action='store_true', default=None,
-                        help=f'Enable debug mode (default: {"ON" if IS_DEBUG_BUILD else "OFF"})')
+    parser.add_argument('--debug', action='store_true', default=1,
+                        help=f'Enable debug mode (default)')
 
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
@@ -470,7 +481,7 @@ def main():
     # list command
     # ========================================================================
     list_parser = subparsers.add_parser('list', help='List available modules')
-    list_parser.add_argument('type', choices=['analyzers'], help='Type of module to list')
+    list_parser.add_argument('type', nargs='?', choices=['analyzers'], help='Type of module to list')
     list_parser.add_argument('filter', nargs='?', help='Optional filter (e.g., category name)')
 
     # ========================================================================

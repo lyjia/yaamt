@@ -701,7 +701,7 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
     """
 
     name = "RE3 Spectral BPM Analyzer"
-    description = "Multi-band spectral analysis algorithm ported from RapidEvolution3 by DJ Qualia."
+    description = "Multi-band spectral analysis algorithm adapted from RapidEvolution3 by DJ Qualia."
     category = "bpm"
     debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"
