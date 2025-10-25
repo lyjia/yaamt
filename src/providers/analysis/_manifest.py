@@ -16,11 +16,11 @@ This allows excluding analyzers with heavy dependencies (like scipy) from releas
 # BPM analyzers
 from providers.analysis.bpm import stub_bpm
 from providers.analysis.bpm import aubio_bpm
-from providers.analysis.bpm import multiband_spectral_bpm   # DEBUG_ONLY
+from providers.analysis.bpm import re3_bpm   # DEBUG_ONLY
 from providers.analysis.bpm import librosa_bpm # DEBUG_ONLY
 
 # Key analyzers
-from providers.analysis.key import wavelet_key_analyzer   # DEBUG_ONLY
+from providers.analysis.key import re3_key   # DEBUG_ONLY
 from providers.analysis.key import librosa_key # DEBUG_ONLY
 
 # Fingerprint analyzers
