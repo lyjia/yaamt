@@ -40,6 +40,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * Logging should be done using `log`, which is provided by @src/util/logging.py.
 * Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred. This is a python 3.12+ project, so avoid pulling in `typing` unless absolutely necessary.
 * Libraries brought in must be able to be compiled into a standalone executable using `nuitka`. If binaries cannot be built because of a dependency, code using that dependency must be gated with `debug_only=True` so that it is not included in the build process.
+* Avoid magic strings or constants. Use enums or constants (defined in the same file or `src/util/const.py`) in their place. Make sure they are named descriptively. Exceptions to this are 0, 1, None, and "", if their purpose is obvious. 
 
 ### Media Handling Conventions
 
