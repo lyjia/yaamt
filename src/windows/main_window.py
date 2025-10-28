@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
     QDialog
 )
-from PySide6.QtGui import QAction, QActionGroup
+from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PySide6.QtCore import (
     QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot, Signal
 )
@@ -35,9 +35,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("YAAMT")
         self.resize(1024, 768)
         self.setMinimumSize(640, 480)
-        self.setWindowIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
-        )
+
         self.thread_pool = QThreadPool()
         self._current_path = ""
         self.metadata_results = []

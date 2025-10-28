@@ -462,6 +462,14 @@ class Builder:
             f"--output-dir={dist_dir}"
         ]
 
+        # Check for .ico icon file (Windows requires .ico format)
+        icon_ico_path = Path("resources/icons/app-icon-gui.ico")
+        if icon_ico_path.exists():
+            universal_windows_opts.append(f"--windows-icon-from-ico={icon_ico_path}")
+        else:
+            print("Warning: No .ico icon file found. Windows executable will use default icon.")
+            print("         Convert resources/icons/app-icon-gui.png to .ico format for proper icon support.")
+
         print("=== Building CLI EXE with Nuitka (Windows)... ===")
         cmd_opts = [
             # other cmdline options would go here
@@ -488,6 +496,13 @@ class Builder:
         universal_linux_opts = [
             f"--output-dir={dist_dir}"
         ]
+
+        # Add Linux icon support (can use PNG directly)
+        icon_png_path = Path("resources/icons/app-icon-gui.png")
+        if icon_png_path.exists():
+            universal_linux_opts.append(f"--linux-icon={icon_png_path}")
+        else:
+            print("Warning: Icon file not found at resources/icons/app-icon-gui.png")
 
         print("=== Building CLI with Nuitka (Linux)... ===")
         cmd_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + ["src/yaamt.py"]

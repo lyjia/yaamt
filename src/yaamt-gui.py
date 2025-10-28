@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 import sys
+import os
 import argparse
 import logging
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon
 from windows.main_window import MainWindow
 from util.const import IS_DEBUG_BUILD
 from util.debug import set_debug_mode, is_debug_mode
 from util.logging import create_logger, log, configure_logger
+import util.resources_rc  # Import compiled Qt resources
 
 
 def run_gui():
@@ -29,6 +32,15 @@ def run_gui():
 
     log.info("Starting QT application...")
     app = QApplication(sys.argv)
+
+    # Set application metadata (important for macOS menu bar)
+    app.setApplicationName("YAAMT")
+    app.setApplicationDisplayName("YAAMT")
+    app.setOrganizationName("YAAMT")
+
+    # Set application icon from Qt resources (for taskbar/dock)
+    app.setWindowIcon(QIcon(":/icons/app-icon-gui.png"))
+
     window = MainWindow(path=args.path)
     window.show()
     sys.exit(app.exec())

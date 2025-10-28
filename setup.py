@@ -111,13 +111,13 @@ try:
             "src/yaamt-gui.py",
             base=gui_base,
             target_name="yaamt-gui",
-            icon="resources/icons/app_icon.png"
+            icon="resources/icons/app-icon-gui.png"
         ),
         Executable(
             "src/yaamt.py",
             base=None,
             target_name="yaamt",
-            icon="resources/icons/app_icon.png"
+            icon="resources/icons/app-icon-gui.png"
         )
     ]
 
@@ -133,7 +133,7 @@ try:
             "upgrade_code": "{6659888b-5b85-44a8-b1e1-9ff55aa3124a}",
             "add_to_path": True,
             "all_users": True,
-            "install_icon": "resources/icons/app_icon.png",
+            "install_icon": "resources/icons/app-icon-gui.png",
             "product_name": "YAAMT - Yet Another Audio Metadata Tool",
             "summary": "A tool for managing audio file metadata",
             "initial_target_dir": r"[ProgramFilesFolder]\YAAMT"
@@ -141,10 +141,11 @@ try:
 
         # macOS app bundle configuration
         bdist_mac_options={
-            "iconfile": "resources/icons/app_icon.icns",
+            "iconfile": "resources/icons/app-icon-gui.png",  # TODO: Convert to .icns for proper macOS support
             "bundle_name": "YAAMT",
             "plist_items": {
-                "CFBundleDisplayName": "YAAMT - Yet Another Audio Metadata Tool",
+                "CFBundleDisplayName": "YAAMT",
+                "CFBundleName": "YAAMT",
                 "CFBundleVersion": version,
                 "CFBundleShortVersionString": version,
                 "NSHighResolutionCapable": True,

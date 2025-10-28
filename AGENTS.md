@@ -61,7 +61,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 
 *   **Resource Files:** Manage application resources such as icons and images using Qt's resource system (`.qrc` files).
 *   **Resource Compilation:** Use `pyside6-rcc` to compile `.qrc` files into a Python module.
-*   **Command:** `pyside6-rcc resources/resources.qrc -o src/resources_rc.py`
+*   **Command:** `pyside6-rcc resources/resources.qrc -o src/util/resources_rc.py`
 *   **Resource Usage:** Import the compiled resource module in the application to access the resources.
 
 **Application Logic:**
