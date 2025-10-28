@@ -28,9 +28,10 @@ KEY_SCORES = {
 # List of (threshold, score, category) tuples, evaluated in order
 # Threshold is the maximum absolute BPM difference for this score tier
 BPM_SCORE_TIERS = [
-    (0.01, 1.0, 'exact'),        # < 0.01 BPM difference
-    (0.05, 0.5, 'very_close'),   # < 0.05 BPM difference
-    (0.1, 0.25, 'close'),        # < 0.1 BPM difference
+    (0.01, 1.0, 'exact'),          # < 0.01 BPM difference
+    (0.02, 0.75, 'nearly_exact'),  # < 0.02 BPM difference
+    (0.05, 0.5, 'very_close'),     # < 0.05 BPM difference
+    (0.1, 0.25, 'close'),          # < 0.1 BPM difference
 ]
 # Default score for differences outside all tiers
 BPM_DEFAULT_SCORE = 0.0
