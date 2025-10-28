@@ -9,6 +9,7 @@ from typing import Any, Optional, Tuple
 from PySide6.QtCore import QSettings
 
 from util.const import KEY_INITIAL_KEY
+from util.logging import log
 from .base import TransformerBase
 
 
@@ -273,7 +274,9 @@ class MusicalKeyFormatter(TransformerBase):
         # Parse the key
         parsed = self._parse_key(key_str)
         if parsed is None:
-            raise ValueError(f"Invalid musical key notation: {key_str}")
+            # raise ValueError(f"Invalid musical key notation: {key_str}")
+            log.warn(f"Invalid musical key notation: '{key_str}'. Ignoring...")
+            return value
 
         pitch_class, is_minor = parsed
 

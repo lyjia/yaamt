@@ -306,6 +306,12 @@ class AnalyzerDispatcher(QObject):
         self.worker_signals = WorkerSignals()
         self.worker_signals.worker_finished.connect(self._on_worker_finished)
 
+        # Output options
+        self.write_to_tags = True  # Default: write results to tags
+        self.generate_report = False  # Default: no report generation
+        self.report_format = 'csv'  # Default: CSV format
+        self.report_file = None  # Report output file path
+
     def enqueue(self, analyzer_class: Type[AnalyzerBase],
                 media_files: List[MediaFile],
                 options: Optional[Dict[str, Any]] = None) -> None:
@@ -318,6 +324,15 @@ class AnalyzerDispatcher(QObject):
             options: Dictionary of analyzer options (e.g., {'overwrite_existing': True})
         """
         options = options or {}
+
+        # Extract and store output options
+        self.write_to_tags = options.get('write_to_tags', True)
+        self.generate_report = options.get('generate_report', False)
+        self.report_format = options.get('report_format', 'csv')
+        self.report_file = options.get('report_file', None)
+
+        # Store the analyzer name for report generation
+        self.analyzer_name = analyzer_class.__name__
 
         for mf in media_files:
             # Validate the file first
@@ -433,6 +448,12 @@ class AnalyzerDispatcher(QObject):
         self.active_tasks.clear()
         self.threads_in_use = 0
         self._next_worker_id = 0
+        # Reset output options to defaults
+        self.write_to_tags = True
+        self.generate_report = False
+        self.report_format = 'csv'
+        self.report_file = None
+        self.analyzer_name = None
 
     def _process_next(self) -> None:
         """Process the next task in the queue, starting multiple workers if possible."""
@@ -546,6 +567,10 @@ class AnalyzerDispatcher(QObject):
         if not task.result:
             return
 
+        # Only apply results to tags if write_to_tags is enabled
+        if not self.write_to_tags:
+            return
+
         if task.result.success and not task.result.skipped and task.result.data:
             try:
                 # Handle special case: mode field from key analyzer
@@ -615,4 +640,41 @@ class AnalyzerDispatcher(QObject):
                 f"{len(summary['failed'])} failed, {len(summary['skipped'])} skipped "
                 f"[total time: {batch_elapsed:.2f}s]")
 
+        # Generate report if requested
+        if self.generate_report and self.report_file:
+            self._generate_report()
+
         self.analysis_completed.emit()
+
+    def _generate_report(self) -> None:
+        """Generate and write analysis report to file."""
+        try:
+            from util.cli_formatters import format_analysis_results, write_output
+
+            # Build results list in the format expected by format_analysis_results
+            results = []
+            for task in self.completed_tasks:
+                result_dict = {
+                    'filepath': task.media_file.file_path,
+                    'results': task.result.data if task.result and task.result.success else {},
+                    'status': 'success' if (task.result and task.result.success) else (
+                        'skipped' if (task.result and task.result.skipped) else 'error'
+                    ),
+                    'error': task.result.error if task.result and (not task.result.success or task.result.skipped) else None
+                }
+                results.append(result_dict)
+
+            # Format the results
+            output = format_analysis_results(
+                results,
+                self.analyzer_name,
+                self.report_format
+            )
+
+            # Write to file
+            write_output(output, self.report_file)
+
+            log.info(f"Analysis report written to {self.report_file}")
+
+        except Exception as e:
+            log.error(f"Failed to generate report: {e}", exc_info=True)

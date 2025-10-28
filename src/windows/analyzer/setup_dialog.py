@@ -10,7 +10,8 @@ import os
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QPushButton, QGroupBox, QCheckBox, QWidget, QSpinBox, QDoubleSpinBox, QSlider
+    QPushButton, QGroupBox, QCheckBox, QWidget, QSpinBox, QDoubleSpinBox, QSlider,
+    QFileDialog, QLineEdit
 )
 from PySide6.QtCore import Qt, QSettings
 
@@ -105,6 +106,70 @@ class AnalyzerSetupDialog(QDialog):
 
         options_group.setLayout(options_layout)
         layout.addWidget(options_group)
+
+        # Output options
+        output_group = QGroupBox("Output Options")
+        output_layout = QVBoxLayout()
+
+        # Write to tags checkbox
+        self.write_to_tags_checkbox = QCheckBox("Write to source tags")
+        self.write_to_tags_checkbox.setChecked(True)  # Default: enabled
+        self.write_to_tags_checkbox.setToolTip(
+            "If checked, analysis results will be written to the file's metadata tags."
+        )
+        output_layout.addWidget(self.write_to_tags_checkbox)
+
+        # Generate report checkbox
+        self.generate_report_checkbox = QCheckBox("Generate report")
+        self.generate_report_checkbox.setToolTip(
+            "If checked, analysis results will be written to a report file."
+        )
+        self.generate_report_checkbox.toggled.connect(self._on_generate_report_toggled)
+        output_layout.addWidget(self.generate_report_checkbox)
+
+        # Report format layout (initially hidden)
+        report_format_layout = QHBoxLayout()
+        report_format_layout.addWidget(QLabel("Report format:"))
+
+        self.report_format_combo = QComboBox()
+        self.report_format_combo.addItem("CSV", "csv")
+        self.report_format_combo.addItem("JSON", "json")
+        report_format_layout.addWidget(self.report_format_combo)
+        report_format_layout.addStretch()
+
+        output_layout.addLayout(report_format_layout)
+
+        # Report file picker layout (initially hidden)
+        report_file_layout = QHBoxLayout()
+        report_file_layout.addWidget(QLabel("Output file:"))
+
+        self.report_file_edit = QLineEdit()
+        self.report_file_edit.setPlaceholderText("Select output file...")
+        report_file_layout.addWidget(self.report_file_edit)
+
+        self.report_file_button = QPushButton("Browse...")
+        self.report_file_button.clicked.connect(self._on_browse_report_file)
+        report_file_layout.addWidget(self.report_file_button)
+
+        output_layout.addLayout(report_file_layout)
+
+        # Store widgets that should be hidden/shown based on generate_report checkbox
+        self.report_format_widgets = [
+            report_format_layout.itemAt(i).widget()
+            for i in range(report_format_layout.count())
+            if report_format_layout.itemAt(i).widget()
+        ]
+        self.report_file_widgets = [
+            report_file_layout.itemAt(i).widget()
+            for i in range(report_file_layout.count())
+            if report_file_layout.itemAt(i).widget()
+        ]
+
+        # Initially hide report options
+        self._on_generate_report_toggled(False)
+
+        output_group.setLayout(output_layout)
+        layout.addWidget(output_group)
 
         # Performance Settings group
         perf_group = QGroupBox("Performance Settings")
@@ -263,6 +328,45 @@ class AnalyzerSetupDialog(QDialog):
         # Update thread info
         self._update_thread_info()
 
+    def _on_generate_report_toggled(self, checked: bool):
+        """
+        Handle generate report checkbox toggle.
+
+        Shows or hides the report format and file picker widgets.
+
+        Args:
+            checked: Whether the checkbox is checked
+        """
+        # Show/hide report format widgets
+        for widget in self.report_format_widgets:
+            widget.setVisible(checked)
+
+        # Show/hide report file widgets
+        for widget in self.report_file_widgets:
+            widget.setVisible(checked)
+
+    def _on_browse_report_file(self):
+        """Handle browse button click for report file selection."""
+        # Determine default extension based on selected format
+        current_format = self.report_format_combo.currentData()
+        if current_format == 'csv':
+            filter_str = "CSV Files (*.csv);;All Files (*)"
+            default_ext = ".csv"
+        else:  # json
+            filter_str = "JSON Files (*.json);;All Files (*)"
+            default_ext = ".json"
+
+        # Show file dialog
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Select Report Output File",
+            self.report_file_edit.text() or f"analysis_report{default_ext}",
+            filter_str
+        )
+
+        if file_path:
+            self.report_file_edit.setText(file_path)
+
     def _on_run_clicked(self):
         """Handle Run Analysis button click."""
         if not self.selected_analyzer:
@@ -271,8 +375,22 @@ class AnalyzerSetupDialog(QDialog):
 
         # Build options dictionary
         self.analyzer_options = {
-            'overwrite_existing': self.overwrite_checkbox.isChecked()
+            'overwrite_existing': self.overwrite_checkbox.isChecked(),
+            'write_to_tags': self.write_to_tags_checkbox.isChecked(),
+            'generate_report': self.generate_report_checkbox.isChecked(),
+            'report_format': self.report_format_combo.currentData(),
+            'report_file': self.report_file_edit.text()
         }
+
+        # Validate report options if report generation is enabled
+        if self.analyzer_options['generate_report'] and not self.analyzer_options['report_file']:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self,
+                "Missing Output File",
+                "Please specify an output file for the report."
+            )
+            return
 
         # Extract analyzer-specific options from settings widget
         if self.current_settings_widget:
@@ -349,6 +467,23 @@ class AnalyzerSetupDialog(QDialog):
         overwrite = settings.value("overwrite_existing", False, type=bool)
         self.overwrite_checkbox.setChecked(overwrite)
 
+        # Load output options (defaults: write_to_tags=True, generate_report=False)
+        write_to_tags = settings.value("write_to_tags", True, type=bool)
+        self.write_to_tags_checkbox.setChecked(write_to_tags)
+
+        generate_report = settings.value("generate_report", False, type=bool)
+        self.generate_report_checkbox.setChecked(generate_report)
+
+        # Load report format (default: csv)
+        report_format = settings.value("report_format", "csv")
+        index = self.report_format_combo.findData(report_format)
+        if index >= 0:
+            self.report_format_combo.setCurrentIndex(index)
+
+        # Load last used report file path
+        report_file = settings.value("report_file", "")
+        self.report_file_edit.setText(report_file)
+
         settings.endGroup()
 
     def _save_preferences(self):
@@ -366,6 +501,24 @@ class AnalyzerSetupDialog(QDialog):
         settings.setValue(
             "overwrite_existing",
             self.overwrite_checkbox.isChecked()
+        )
+
+        # Save output options
+        settings.setValue(
+            "write_to_tags",
+            self.write_to_tags_checkbox.isChecked()
+        )
+        settings.setValue(
+            "generate_report",
+            self.generate_report_checkbox.isChecked()
+        )
+        settings.setValue(
+            "report_format",
+            self.report_format_combo.currentData()
+        )
+        settings.setValue(
+            "report_file",
+            self.report_file_edit.text()
         )
 
         settings.endGroup()
