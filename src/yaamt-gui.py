@@ -9,6 +9,7 @@ from windows.main_window import MainWindow
 from util.const import IS_DEBUG_BUILD
 from util.debug import set_debug_mode, is_debug_mode
 from util.logging import create_logger, log, configure_logger
+import util.resources_rc  # Import compiled Qt resources
 
 
 def run_gui():
@@ -37,11 +38,8 @@ def run_gui():
     app.setApplicationDisplayName("YAAMT")
     app.setOrganizationName("YAAMT")
 
-    # Set application icon (for taskbar/dock)
-    icon_path = os.path.join(os.path.dirname(__file__), "..", "resources", "icons", "app-icon-gui.png")
-    icon_path = os.path.normpath(icon_path)
-    if os.path.exists(icon_path):
-        app.setWindowIcon(QIcon(icon_path))
+    # Set application icon from Qt resources (for taskbar/dock)
+    app.setWindowIcon(QIcon(":/icons/app-icon-gui.png"))
 
     window = MainWindow(path=args.path)
     window.show()
