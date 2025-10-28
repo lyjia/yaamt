@@ -17,7 +17,12 @@ import pandas as pd
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from util.eval_scoring import calculate_key_relationship, calculate_bpm_score
+from util.eval_scoring import (
+    calculate_key_relationship,
+    calculate_bpm_score,
+    KeyRelationship,
+    BPMCategory
+)
 from util.diatonic_key import parse_key
 
 
@@ -66,15 +71,15 @@ class AnalyzerEvaluation:
 
             # Update category counts for key evaluation
             if self.criteria == "key":
-                if result.category == "same key":
+                if result.category == KeyRelationship.SAME_KEY.value:
                     self.same_key_count += 1
-                elif result.category == "perfect fifth":
+                elif result.category == KeyRelationship.PERFECT_FIFTH.value:
                     self.perfect_fifth_count += 1
-                elif result.category == "relative major/minor":
+                elif result.category == KeyRelationship.RELATIVE_MAJOR_MINOR.value:
                     self.relative_count += 1
-                elif result.category == "parallel major/minor":
+                elif result.category == KeyRelationship.PARALLEL_MAJOR_MINOR.value:
                     self.parallel_count += 1
-                elif result.category == "other":
+                elif result.category == KeyRelationship.OTHER.value:
                     self.other_count += 1
 
     @property
@@ -181,24 +186,25 @@ def evaluate_key(ref_key_str: str, analyzed_key_str: str) -> Tuple[float, str, s
     # Parse reference key
     ref_parsed = parse_key(ref_key_str)
     if ref_parsed is None:
-        return (0.0, "other", f"Failed to parse reference key: '{ref_key_str}'")
+        return (0.0, KeyRelationship.OTHER.value, f"Failed to parse reference key: '{ref_key_str}'")
 
     ref_pitch_class, ref_is_minor = ref_parsed
 
     # Parse analyzed key
     analyzed_parsed = parse_key(analyzed_key_str)
     if analyzed_parsed is None:
-        return (0.0, "other", f"Failed to parse analyzed key: '{analyzed_key_str}'")
+        return (0.0, KeyRelationship.OTHER.value, f"Failed to parse analyzed key: '{analyzed_key_str}'")
 
     analyzed_pitch_class, analyzed_is_minor = analyzed_parsed
 
-    # Calculate score
-    score, category = calculate_key_relationship(
+    # Calculate score (returns enum)
+    score, category_enum = calculate_key_relationship(
         ref_pitch_class, ref_is_minor,
         analyzed_pitch_class, analyzed_is_minor
     )
 
-    return (score, category, "")
+    # Convert enum to string for storage
+    return (score, category_enum.value, "")
 
 
 def evaluate_bpm(ref_bpm: float, analyzed_bpm: float) -> Tuple[float, str, str]:
@@ -212,12 +218,14 @@ def evaluate_bpm(ref_bpm: float, analyzed_bpm: float) -> Tuple[float, str, str]:
     Returns:
         Tuple of (score, category, notes)
     """
-    score, category = calculate_bpm_score(ref_bpm, analyzed_bpm)
+    # Calculate score (returns enum)
+    score, category_enum = calculate_bpm_score(ref_bpm, analyzed_bpm)
 
     delta = abs(ref_bpm - analyzed_bpm)
     notes = f"Delta: {delta:.2f} BPM"
 
-    return (score, category, notes)
+    # Convert enum to string for storage
+    return (score, category_enum.value, notes)
 
 
 def evaluate_analyzer(
@@ -294,7 +302,11 @@ def evaluate_analyzer(
            (isinstance(analyzed_value, str) and not analyzed_value.strip()):
             result.analyzed_value = ""
             result.score = 0.0
-            result.category = "other"
+            # Use appropriate default category based on criteria
+            if criteria == "key":
+                result.category = KeyRelationship.OTHER.value
+            else:
+                result.category = BPMCategory.OTHER.value
             result.notes = f"Analysis failed or missing (status: {status})"
             evaluation.add_result(result)
             continue

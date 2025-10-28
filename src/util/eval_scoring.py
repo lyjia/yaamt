@@ -5,6 +5,7 @@ Provides functions for calculating MIREX scores for key detection
 and custom scores for BPM detection.
 """
 
+from enum import Enum
 from typing import Tuple
 import mingus.core.intervals as intervals
 
@@ -13,14 +14,32 @@ import mingus.core.intervals as intervals
 NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 
 
+class KeyRelationship(Enum):
+    """MIREX key relationship categories."""
+    SAME_KEY = 'same key'
+    PERFECT_FIFTH = 'perfect fifth'
+    RELATIVE_MAJOR_MINOR = 'relative major/minor'
+    PARALLEL_MAJOR_MINOR = 'parallel major/minor'
+    OTHER = 'other'
+
+
+class BPMCategory(Enum):
+    """BPM scoring categories based on absolute difference."""
+    EXACT = 'exact'
+    NEARLY_EXACT = 'nearly_exact'
+    VERY_CLOSE = 'very_close'
+    CLOSE = 'close'
+    OTHER = 'other'
+
+
 # MIREX Key Scoring Configuration
 # Each relationship type maps to its score value
 KEY_SCORES = {
-    'same key': 1.0,
-    'perfect fifth': 0.5,
-    'relative major/minor': 0.3,
-    'parallel major/minor': 0.2,
-    'other': 0.0,
+    KeyRelationship.SAME_KEY: 1.0,
+    KeyRelationship.PERFECT_FIFTH: 0.5,
+    KeyRelationship.RELATIVE_MAJOR_MINOR: 0.3,
+    KeyRelationship.PARALLEL_MAJOR_MINOR: 0.2,
+    KeyRelationship.OTHER: 0.0,
 }
 
 
@@ -28,14 +47,14 @@ KEY_SCORES = {
 # List of (threshold, score, category) tuples, evaluated in order
 # Threshold is the maximum absolute BPM difference for this score tier
 BPM_SCORE_TIERS = [
-    (0.01, 1.0, 'exact'),          # < 0.01 BPM difference
-    (0.02, 0.75, 'nearly_exact'),  # < 0.02 BPM difference
-    (0.05, 0.5, 'very_close'),     # < 0.05 BPM difference
-    (0.1, 0.25, 'close'),          # < 0.1 BPM difference
+    (0.01, 1.0, BPMCategory.EXACT),          # < 0.01 BPM difference
+    (0.02, 0.75, BPMCategory.NEARLY_EXACT),  # < 0.02 BPM difference
+    (0.05, 0.5, BPMCategory.VERY_CLOSE),     # < 0.05 BPM difference
+    (0.1, 0.25, BPMCategory.CLOSE),          # < 0.1 BPM difference
 ]
 # Default score for differences outside all tiers
 BPM_DEFAULT_SCORE = 0.0
-BPM_DEFAULT_CATEGORY = 'other'
+BPM_DEFAULT_CATEGORY = BPMCategory.OTHER
 
 
 def calculate_key_relationship(
@@ -43,7 +62,7 @@ def calculate_key_relationship(
     ref_is_minor: bool,
     analyzed_pitch_class: int,
     analyzed_is_minor: bool
-) -> Tuple[float, str]:
+) -> Tuple[float, KeyRelationship]:
     """
     Calculate MIREX relationship score between reference and analyzed keys.
 
@@ -54,10 +73,9 @@ def calculate_key_relationship(
         analyzed_is_minor: True if analyzed key is minor
 
     Returns:
-        Tuple of (score, category_name)
+        Tuple of (score, category)
         - score: MIREX score (1.0, 0.5, 0.3, 0.2, or 0.0)
-        - category_name: One of 'same key', 'perfect fifth', 'relative major/minor',
-                        'parallel major/minor', 'other'
+        - category: KeyRelationship enum value
     """
     # Convert pitch classes to mingus note format
     ref_note = NOTE_NAMES[ref_pitch_class]
@@ -65,7 +83,7 @@ def calculate_key_relationship(
 
     # Check for same key (exact match)
     if ref_pitch_class == analyzed_pitch_class and ref_is_minor == analyzed_is_minor:
-        return (1.0, 'same key')
+        return (1.0, KeyRelationship.SAME_KEY)
 
     # Calculate semitone distances (both directions since mingus.measure is directional)
     distance_forward = intervals.measure(ref_note, analyzed_note)
@@ -73,18 +91,18 @@ def calculate_key_relationship(
 
     # Check for parallel major/minor (same tonic, different mode)
     if ref_pitch_class == analyzed_pitch_class and ref_is_minor != analyzed_is_minor:
-        return (0.2, 'parallel major/minor')
+        return (0.2, KeyRelationship.PARALLEL_MAJOR_MINOR)
 
     # Check for relative major/minor (mode differs, distance is 3 semitones in either direction)
     if ref_is_minor != analyzed_is_minor and (distance_forward == 3 or distance_backward == 3):
-        return (0.3, 'relative major/minor')
+        return (0.3, KeyRelationship.RELATIVE_MAJOR_MINOR)
 
     # Check for perfect fifth (same mode, distance is 7 semitones in either direction)
     if ref_is_minor == analyzed_is_minor and (distance_forward == 7 or distance_backward == 7):
-        return (0.5, 'perfect fifth')
+        return (0.5, KeyRelationship.PERFECT_FIFTH)
 
     # No meaningful relationship
-    return (0.0, 'other')
+    return (0.0, KeyRelationship.OTHER)
 
 
 def calculate_key_score(
@@ -113,7 +131,7 @@ def calculate_key_score(
     return score
 
 
-def calculate_bpm_score(reference_bpm: float, analyzed_bpm: float) -> Tuple[float, str]:
+def calculate_bpm_score(reference_bpm: float, analyzed_bpm: float) -> Tuple[float, BPMCategory]:
     """
     Calculate custom score for BPM detection based on absolute difference.
 
@@ -124,7 +142,7 @@ def calculate_bpm_score(reference_bpm: float, analyzed_bpm: float) -> Tuple[floa
     Returns:
         Tuple of (score, category)
         - score: Based on BPM_SCORE_TIERS configuration
-        - category: Description of the match quality
+        - category: BPMCategory enum value
     """
     # Round values to 2 decimal places for comparison
     ref_rounded = round(reference_bpm, 2)
