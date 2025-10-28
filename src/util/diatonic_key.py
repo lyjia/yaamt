@@ -148,7 +148,10 @@ def parse_key(key_str: str) -> Optional[Tuple[int, bool]]:
             root_note = first_char
             remainder = key_upper[1:]
 
-            # Check for accidental, remove from remaindr if found
+            # Check for accidental, remove from remainder if found
+            # Note: 'B' here means flat (♭), not the note B. This works because
+            # the root note was already extracted, so any 'B' in the remainder
+            # must be a flat symbol. For example: "Bb" -> root='B', remainder='b' (uppercase = 'B')
             if remainder and remainder[0] in ['#', '♯']:
                 accidental = 1
                 remainder = remainder[1:]

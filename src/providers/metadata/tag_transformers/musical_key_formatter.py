@@ -43,19 +43,16 @@ class MusicalKeyFormatter(TransformerBase):
         Read the notation_format preference from QSettings.
 
         Returns:
-            Notation format string (default: "standard_abbrev")
+            Notation format enum (default: NotationFormat.StandardAbbrev)
         """
-        value = self.settings.value("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
-        # Validate format
-        valid_formats = [
-            NotationFormat.Standard,
-            NotationFormat.StandardAbbrev,
-            NotationFormat.StandardSingle,
-            NotationFormat.Camelot,
-            NotationFormat.OpenKey
-        ]
-        if value in valid_formats:
-            return value
+        value_str = self.settings.value("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
+
+        # Convert string to enum by matching against enum values
+        for fmt in NotationFormat:
+            if fmt.value == value_str:
+                return fmt
+
+        # Default to standard_abbrev if invalid format
         return NotationFormat.StandardAbbrev
 
     def transform(self, value: Any, tag_name: str) -> str:
@@ -83,7 +80,7 @@ class MusicalKeyFormatter(TransformerBase):
         parsed = parse_key(key_str)
         if parsed is None:
             # raise ValueError(f"Invalid musical key notation: {key_str}")
-            log.warn(f"Invalid musical key notation: '{key_str}'. Ignoring...")
+            log.warning(f"Invalid musical key notation: '{key_str}'. Ignoring...")
             return value
 
         pitch_class, is_minor = parsed

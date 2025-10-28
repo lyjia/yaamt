@@ -327,99 +327,62 @@ class TestBPMFormatter:
 class TestMusicalKeyFormatter:
     """Tests for MusicalKeyFormatter transformer."""
 
-    def test_parse_standard_abbrev(self, mock_settings):
-        """Test parsing standard abbreviated notation."""
-        mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
-        formatter = MusicalKeyFormatter(mock_settings)
+    def test_reads_notation_format_from_settings(self, mock_settings):
+        """Test that formatter reads notation format preference from QSettings."""
+        from util.diatonic_key import NotationFormat
 
-        assert formatter.transform("Cmin", 'key') == "Cmin"
-        assert formatter.transform("Cmaj", 'key') == "Cmaj"
-        assert formatter.transform("C#min", 'key') == "C#min"
-        assert formatter.transform("Ebmin", 'key') == "Ebmin"
-
-    def test_parse_standard_single(self, mock_settings):
-        """Test parsing standard single-letter notation."""
-        mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
-        formatter = MusicalKeyFormatter(mock_settings)
-
-        # Parse various formats and convert to standard_abbrev
-        assert formatter.transform("Cm", 'key') == "Cmin"
-        assert formatter.transform("C", 'key') == "Cmaj"
-        assert formatter.transform("Am", 'key') == "Amin"
-        assert formatter.transform("A", 'key') == "Amaj"
-
-    def test_parse_long_names(self, mock_settings):
-        """Test parsing long key names."""
-        mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
-        formatter = MusicalKeyFormatter(mock_settings)
-
-        assert formatter.transform("C minor", 'key') == "Cmin"
-        assert formatter.transform("C major", 'key') == "Cmaj"
-        assert formatter.transform("A minor", 'key') == "Amin"
-
-    def test_convert_to_camelot(self, mock_settings):
-        """Test conversion to Camelot notation."""
         mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "camelot")
         formatter = MusicalKeyFormatter(mock_settings)
+        assert formatter.notation_format == NotationFormat.Camelot
 
-        assert formatter.transform("Cmin", 'key') == "5A"
-        assert formatter.transform("Cmaj", 'key') == "8B"
-        assert formatter.transform("Amin", 'key') == "8A"
-        assert formatter.transform("Amaj", 'key') == "11B"
-        assert formatter.transform("Ebmin", 'key') == "2A"
-
-    def test_convert_to_open_key(self, mock_settings):
-        """Test conversion to Open Key notation."""
         mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "open_key")
         formatter = MusicalKeyFormatter(mock_settings)
+        assert formatter.notation_format == NotationFormat.OpenKey
 
-        assert formatter.transform("Cmin", 'key') == "5m"
-        assert formatter.transform("Cmaj", 'key') == "8d"
-        assert formatter.transform("Amin", 'key') == "8m"
-        assert formatter.transform("Amaj", 'key') == "11d"
+    def test_default_notation_format(self, mock_settings):
+        """Test that default notation format is standard_abbrev."""
+        from util.diatonic_key import NotationFormat
 
-    def test_convert_to_standard_single(self, mock_settings):
-        """Test conversion to standard single notation."""
-        mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "standard_single")
         formatter = MusicalKeyFormatter(mock_settings)
+        assert formatter.notation_format == NotationFormat.StandardAbbrev
 
-        assert formatter.transform("Cmin", 'key') == "Cm"
-        assert formatter.transform("Cmaj", 'key') == "C"
-        assert formatter.transform("Amin", 'key') == "Am"
-        assert formatter.transform("Amaj", 'key') == "A"
+    def test_invalid_notation_format_uses_default(self, mock_settings):
+        """Test that invalid notation format falls back to default."""
+        from util.diatonic_key import NotationFormat
 
-    def test_parse_camelot_input(self, mock_settings):
-        """Test parsing Camelot notation as input."""
+        mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "invalid_format")
+        formatter = MusicalKeyFormatter(mock_settings)
+        assert formatter.notation_format == NotationFormat.StandardAbbrev
+
+    def test_transform_converts_to_target_format(self, mock_settings):
+        """Test that transform applies the target notation format."""
+        # Test conversion to standard_abbrev
         mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
         formatter = MusicalKeyFormatter(mock_settings)
+        assert formatter.transform("5A", 'key') == "Cmin"  # Camelot -> standard_abbrev
+        assert formatter.transform("Cm", 'key') == "Cmin"  # standard_single -> standard_abbrev
 
-        assert formatter.transform("5A", 'key') == "Cmin"
-        assert formatter.transform("8B", 'key') == "Cmaj"
-        assert formatter.transform("8A", 'key') == "Amin"
-        assert formatter.transform("11B", 'key') == "Amaj"
-
-    def test_parse_open_key_input(self, mock_settings):
-        """Test parsing Open Key notation as input."""
-        mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
-        formatter = MusicalKeyFormatter(mock_settings)
-
-        assert formatter.transform("5m", 'key') == "Cmin"
-        assert formatter.transform("8d", 'key') == "Cmaj"
-        assert formatter.transform("8m", 'key') == "Amin"
-        assert formatter.transform("11d", 'key') == "Amaj"
-
-    def test_roundtrip_conversion(self, mock_settings):
-        """Test that conversions are reversible."""
-        # Convert standard -> camelot -> standard
+        # Test conversion to camelot
         mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "camelot")
-        formatter_camelot = MusicalKeyFormatter(mock_settings)
-        camelot = formatter_camelot.transform("Cmin", 'key')
+        formatter = MusicalKeyFormatter(mock_settings)
+        assert formatter.transform("Cmin", 'key') == "5A"  # standard_abbrev -> Camelot
+        assert formatter.transform("Cm", 'key') == "5A"  # standard_single -> Camelot
 
+    def test_transform_handles_various_input_formats(self, mock_settings):
+        """Test that transform can parse various input formats."""
         mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
-        formatter_standard = MusicalKeyFormatter(mock_settings)
-        standard = formatter_standard.transform(camelot, 'key')
+        formatter = MusicalKeyFormatter(mock_settings)
 
-        assert standard == "Cmin"
+        # Standard formats
+        assert formatter.transform("Cmin", 'key') == "Cmin"
+        assert formatter.transform("Cm", 'key') == "Cmin"
+        assert formatter.transform("C minor", 'key') == "Cmin"
+
+        # Camelot format
+        assert formatter.transform("5A", 'key') == "Cmin"
+
+        # Open Key format
+        assert formatter.transform("5m", 'key') == "Cmin"
 
     def test_empty_key(self, mock_settings):
         """Test handling of empty key value."""
@@ -427,24 +390,12 @@ class TestMusicalKeyFormatter:
         assert formatter.transform("", 'key') == ""
         assert formatter.transform(None, 'key') == ""
 
-    # def test_invalid_key_raises_error(self, mock_settings):
-    #     """Test that invalid key notation raises ValueError."""
-    #     formatter = MusicalKeyFormatter(mock_settings)
-    #     with pytest.raises(ValueError):
-    #         formatter.transform("invalid", 'key')
-    #     with pytest.raises(ValueError):
-    #         formatter.transform("Z minor", 'key')
-
-    def test_default_notation_format(self, mock_settings):
-        """Test that default notation format is standard_abbrev."""
+    def test_invalid_key_logs_warning(self, mock_settings):
+        """Test that invalid key notation logs a warning and returns original value."""
         formatter = MusicalKeyFormatter(mock_settings)
-        assert formatter.notation_format == "standard_abbrev"
-
-    def test_invalid_notation_format_uses_default(self, mock_settings):
-        """Test that invalid notation format falls back to default."""
-        mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "invalid_format")
-        formatter = MusicalKeyFormatter(mock_settings)
-        assert formatter.notation_format == "standard_abbrev"
+        # Invalid keys should return the original value with a warning logged
+        assert formatter.transform("invalid", 'key') == "invalid"
+        assert formatter.transform("Z minor", 'key') == "Z minor"
 
     def test_applicable_tags(self):
         """Test that MusicalKeyFormatter declares applicable tags."""

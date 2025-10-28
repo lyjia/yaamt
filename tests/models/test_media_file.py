@@ -199,7 +199,14 @@ def test_initial_key_read_write(tmp_path, monkeypatch):
     # Mock QSettings to ensure consistent transformer behavior across environments
     # Set the notation format to "camelot" so "8A" and "5A" remain unchanged
     mock_settings = MagicMock(spec=QSettings)
-    mock_settings.value.return_value = "camelot"  # Use Camelot notation
+
+    # Configure mock to return appropriate values based on the key
+    def mock_value(key, default=None):
+        if key == "Analyzers/CategoryOptions/key/notation_format":
+            return "camelot"
+        return default
+
+    mock_settings.value.side_effect = mock_value
 
     # Patch QSettings constructor to return our mock
     monkeypatch.setattr("PySide6.QtCore.QSettings", lambda *args, **kwargs: mock_settings)
