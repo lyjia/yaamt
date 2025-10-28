@@ -6,7 +6,7 @@ pytest==8.4.1
 pytest-cov==4.1.0
 numpy==2.3.3
 scipy==1.16.2
-# mingus (consider for future use) https://bspaans.github.io/python-mingus/index.html#
+
 
 # for LibrosaBPMAnalyzer and LibrosaKeyAnalyzer
 librosa>=0.10.0
@@ -16,5 +16,6 @@ cx_Freeze==8.4.1
 nuitka==2.7.16
 imageio==2.37.0
 
-# only needed for /scripts
+# only needed for analyzer evaluator
 pandas
+mingus #(consider for future use) https://bspaans.github.io/python-mingus/index.html#
