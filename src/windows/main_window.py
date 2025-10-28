@@ -190,6 +190,12 @@ class MainWindow(QMainWindow):
         self.start_playback_signal.connect(self.playback_worker.start_playback)
 
     def closeEvent(self, event):
+        # Cancel any running file loading worker
+        if self._current_load_worker is not None:
+            log.debug("Cancelling file loading worker on window close")
+            self._current_load_worker.cancel()
+            self._current_load_worker = None
+
         if self.edit_manager.has_staged_changes():
             reply = QMessageBox.question(
                 self,
