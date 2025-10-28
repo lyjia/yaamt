@@ -185,7 +185,7 @@ def format_key(pitch_class: int, is_minor: bool, notation_format: NotationFormat
     Args:
         pitch_class: Pitch class (0-11)
         is_minor: Whether the key is minor
-        notation_format: "camelot", "open_key", "standard", "standard_single", "standard_abbrev"
+        notation_format: NotationFormat enum value (Camelot, OpenKey, Standard, StandardAbbrev, StandardSingle)
 
     Returns:
         Formatted key string

@@ -78,6 +78,7 @@ class MetadataPane(PreferencePaneBase):
     KEY_FORMATS = [
         ("Standard with abbreviations (Cmin, Amaj)", "standard_abbrev"),
         ("Standard with single letter (Cm, A)", "standard_single"),
+        ("Standard (C minor, A major)", "standard"),
         ("Camelot (6A, 8B)", "camelot"),
         ("Open Key (1m, 12d)", "open_key"),
     ]
