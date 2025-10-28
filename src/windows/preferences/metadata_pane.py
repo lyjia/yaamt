@@ -67,9 +67,9 @@ class MetadataPane(PreferencePaneBase):
     # BPM range presets: (display_name, (min, max))
     BPM_PRESETS = [
         ("Hip Hop / Trap (55-118)", (55, 118)),
-        ("House / Techno (65-138)", (65, 138)),
-        ("Trance / Dance (75-158)", (75, 158)),
-        ("Drum & Bass (85-178)", (85, 178)),
+        ("House / Techno (98-138)", (98, 138)),
+        ("Trance / Dance (117-151)", (117, 151)),
+        ("Drum & Bass (149-181)", (149, 181)),
         ("Hardstyle / Hardcore (95-198)", (95, 198)),
         ("Custom", (None, None)),
     ]
