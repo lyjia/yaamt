@@ -612,8 +612,22 @@ class AnalyzerDispatcher(QObject):
                     KEY_TAG_GENERIC: result_data
                 }
 
-                # Save to MediaFile (autosave will handle persistence if enabled)
-                task.media_file.save(changes)
+                # Temporarily override key notation format if specified in options
+                saved_key_format = None
+                if 'key_notation_format' in task.options:
+                    qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+                    saved_key_format = qsettings.value("Analyzers/CategoryOptions/key/notation_format")
+                    qsettings.setValue("Analyzers/CategoryOptions/key/notation_format", task.options['key_notation_format'])
+                    log.debug(f"Temporarily overriding key notation format to: {task.options['key_notation_format']}")
+
+                try:
+                    # Save to MediaFile (autosave will handle persistence if enabled)
+                    task.media_file.save(changes)
+                finally:
+                    # Restore original key notation format if it was overridden
+                    if saved_key_format is not None:
+                        qsettings.setValue("Analyzers/CategoryOptions/key/notation_format", saved_key_format)
+                        log.debug(f"Restored key notation format to: {saved_key_format}")
 
                 log.info(f"Applied analysis results to {task.media_file.file_path}: {task.result.data}")
 

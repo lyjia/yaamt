@@ -20,6 +20,7 @@ from providers import get_analyzers_by_category, AnalyzerCategory
 from models.settings import settings
 from models.media_file import MediaFile
 from util.logging import log
+from util.diatonic_key import get_notation_format_display_list
 
 
 class AnalyzerSetupDialog(QDialog):
@@ -167,6 +168,45 @@ class AnalyzerSetupDialog(QDialog):
 
         # Initially hide report options
         self._on_generate_report_toggled(False)
+
+        # Key format override (only shown for 'key' category)
+        self.key_format_override_checkbox = QCheckBox("Override preferred key format")
+        self.key_format_override_checkbox.setToolTip(
+            "If checked, analysis results will use the selected key notation format "
+            "instead of the default format from Preferences."
+        )
+        self.key_format_override_checkbox.toggled.connect(self._on_key_format_override_toggled)
+
+        key_format_layout = QHBoxLayout()
+        key_format_layout.addWidget(QLabel("Key notation format:"))
+
+        self.key_format_combo = QComboBox()
+        for format_name, format_id in get_notation_format_display_list():
+            self.key_format_combo.addItem(format_name, format_id)
+        key_format_layout.addWidget(self.key_format_combo)
+        key_format_layout.addStretch()
+
+        # Only show key format options for 'key' category
+        if self.category == AnalyzerCategory.KEY:
+            output_layout.addWidget(self.key_format_override_checkbox)
+            output_layout.addLayout(key_format_layout)
+
+            # Store widgets for enable/disable
+            self.key_format_widgets = [
+                key_format_layout.itemAt(i).widget()
+                for i in range(key_format_layout.count())
+                if key_format_layout.itemAt(i).widget()
+            ]
+
+            # Initially disable format combo
+            self._on_key_format_override_toggled(False)
+        else:
+            # Hide these widgets for non-key categories
+            self.key_format_override_checkbox.hide()
+            for i in range(key_format_layout.count()):
+                widget = key_format_layout.itemAt(i).widget()
+                if widget:
+                    widget.hide()
 
         output_group.setLayout(output_layout)
         layout.addWidget(output_group)
@@ -345,6 +385,20 @@ class AnalyzerSetupDialog(QDialog):
         for widget in self.report_file_widgets:
             widget.setVisible(checked)
 
+    def _on_key_format_override_toggled(self, checked: bool):
+        """
+        Handle key format override checkbox toggle.
+
+        Enables or disables the key format combo box.
+
+        Args:
+            checked: Whether the checkbox is checked
+        """
+        # Only process if this is for a key analyzer
+        if self.category == AnalyzerCategory.KEY:
+            for widget in self.key_format_widgets:
+                widget.setEnabled(checked)
+
     def _on_browse_report_file(self):
         """Handle browse button click for report file selection."""
         # Determine default extension based on selected format
@@ -381,6 +435,10 @@ class AnalyzerSetupDialog(QDialog):
             'report_format': self.report_format_combo.currentData(),
             'report_file': self.report_file_edit.text()
         }
+
+        # Add key format override if applicable and checked
+        if self.category == AnalyzerCategory.KEY and self.key_format_override_checkbox.isChecked():
+            self.analyzer_options['key_notation_format'] = self.key_format_combo.currentData()
 
         # Validate report options if report generation is enabled
         if self.analyzer_options['generate_report'] and not self.analyzer_options['report_file']:
