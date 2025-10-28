@@ -80,6 +80,22 @@ class NotationFormat(Enum):
     Camelot = "camelot"
     OpenKey = "open_key"
 
+
+def get_notation_format_display_list():
+    """
+    Get a list of notation formats for UI display.
+
+    Returns:
+        List of tuples (display_name, format_id) where format_id corresponds to NotationFormat enum values
+    """
+    return [
+        ("Standard with abbreviations (Cmin, Amaj)", NotationFormat.StandardAbbrev.value),
+        ("Standard with single letter (Cm, A)", NotationFormat.StandardSingle.value),
+        ("Standard (C minor, A major)", NotationFormat.Standard.value),
+        ("Camelot (6A, 8B)", NotationFormat.Camelot.value),
+        ("Open Key (1m, 12d)", NotationFormat.OpenKey.value),
+    ]
+
 def parse_key(key_str: str) -> Optional[Tuple[int, bool]]:
     """
     Parse a key string into internal representation.

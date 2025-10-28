@@ -10,6 +10,7 @@ from PySide6.QtCore import QSettings, Signal
 from windows.preferences.base import PreferencePaneBase
 from providers import get_analyzers_by_category, get_all_categories, ProviderType
 from providers.analysis import AnalyzerCategory
+from util.diatonic_key import get_notation_format_display_list
 
 
 class ValidatedLineEdit(QLineEdit):
@@ -74,14 +75,7 @@ class MetadataPane(PreferencePaneBase):
         ("Custom", (None, None)),
     ]
 
-    # Key notation formats: (display_name, format_id)
-    KEY_FORMATS = [
-        ("Standard with abbreviations (Cmin, Amaj)", "standard_abbrev"),
-        ("Standard with single letter (Cm, A)", "standard_single"),
-        ("Standard (C minor, A major)", "standard"),
-        ("Camelot (6A, 8B)", "camelot"),
-        ("Open Key (1m, 12d)", "open_key"),
-    ]
+    # Key notation formats are now retrieved from util.diatonic_key to maintain consistency
 
     def __init__(self, parent=None):
         """Initialize the MetadataPane."""
@@ -165,7 +159,7 @@ class MetadataPane(PreferencePaneBase):
         key_layout = QVBoxLayout()
         key_layout.addWidget(QLabel("Notation format:"))
         self.key_format_combo = QComboBox()
-        for format_name, format_id in self.KEY_FORMATS:
+        for format_name, format_id in get_notation_format_display_list():
             self.key_format_combo.addItem(format_name, format_id)
         key_layout.addWidget(self.key_format_combo)
         key_group.setLayout(key_layout)
