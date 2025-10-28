@@ -54,8 +54,8 @@ Count results for: 'same key', 'perfect fifth', 'relative major/minor', 'paralle
 #### BPM Scoring (Custom)
 
 - Difference < 0.01 BPM: 1.0 point
-- Within 1/10 of reference (±10%): 0.5 points
-- Within 1/5 of reference (±20%): 0.25 points
+- Difference < 0.05 of reference: 0.5 points
+- Difference < 0.1 of reference: 0.25 points
 - Other: 0.0 points
 - All values rounded to 2 decimal places
 

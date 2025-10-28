@@ -18,4 +18,4 @@ imageio==2.37.0
 
 # only needed for analyzer evaluator
 pandas
-mingus #(consider for future use) https://bspaans.github.io/python-mingus/index.html#
+mingus  # Used for music theory calculations (interval detection for key scoring)
