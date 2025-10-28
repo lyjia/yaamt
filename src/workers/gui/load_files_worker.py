@@ -23,6 +23,7 @@ class LoadFilesWorker(QRunnable):
         super().__init__()
         self.files = files
         self.signals = WorkerSignals()
+        self._is_cancelled = False
 
     def run(self):
         """
@@ -30,6 +31,12 @@ class LoadFilesWorker(QRunnable):
         """
         total_files = len(self.files)
         for i, file_path in enumerate(self.files):
+            # Check if cancelled before processing each file
+            if self._is_cancelled:
+                log.debug(f"LoadFilesWorker cancelled after processing {i}/{total_files} files")
+                self.signals.finished.emit()
+                return
+
             progress_percentage = int(((i + 1) / total_files) * 100)
             self.signals.progress.emit(progress_percentage)
             try:
@@ -42,8 +49,10 @@ class LoadFilesWorker(QRunnable):
 
         self.signals.finished.emit()
 
-    def stop(self):
-        self.terminate()
-        self.wait()
-        self.signals.finished.emit()
-        log.debug("LoadFilesWorker stopped.")
+    def cancel(self):
+        """
+        Request cancellation of the worker.
+        This sets a flag that is checked in the run loop.
+        """
+        self._is_cancelled = True
+        log.debug("LoadFilesWorker cancellation requested.")

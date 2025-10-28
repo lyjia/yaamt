@@ -40,6 +40,8 @@ class MainWindow(QMainWindow):
         self._current_path = ""
         self.metadata_results = []
         self.column_menu = QMenu("Columns", self)
+        self._current_load_worker = None
+        self._current_worker_id = 0
 
         # Playback components
         self.playback_panel = PlaybackPanel()
@@ -82,6 +84,7 @@ class MainWindow(QMainWindow):
         self.status_bar.addPermanentWidget(self.progress_bar)
 
         self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.on_load_cancelled)
         self.status_bar.addPermanentWidget(self.cancel_button)
 
         # Central Widget
@@ -187,6 +190,12 @@ class MainWindow(QMainWindow):
         self.start_playback_signal.connect(self.playback_worker.start_playback)
 
     def closeEvent(self, event):
+        # Cancel any running file loading worker
+        if self._current_load_worker is not None:
+            log.debug("Cancelling file loading worker on window close")
+            self._current_load_worker.cancel()
+            self._current_load_worker = None
+
         if self.edit_manager.has_staged_changes():
             reply = QMessageBox.question(
                 self,
@@ -224,16 +233,26 @@ class MainWindow(QMainWindow):
         settings.setValue("last_path", path)
 
     def on_directory_changed(self, current, previous):
+        # Cancel any existing load operation
+        if self._current_load_worker is not None:
+            log.debug("Cancelling previous load worker due to directory change")
+            self._current_load_worker.cancel()
+
         self.metadata_results = []
         path = self.dir_model.filePath(current)
         self.set_path(path)
         files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
-        
+
+        # Increment worker ID to track this specific load operation
+        self._current_worker_id += 1
+        worker_id = self._current_worker_id
+
         worker = LoadFilesWorker(files)
+        self._current_load_worker = worker
         worker.signals.progress.connect(self.update_progress)
-        worker.signals.finished.connect(self.on_worker_finished)
-        worker.signals.result.connect(self.on_worker_result)
-        
+        worker.signals.finished.connect(lambda: self.on_worker_finished(worker_id))
+        worker.signals.result.connect(lambda result: self.on_worker_result(result, worker_id))
+
         self.thread_pool.start(worker)
         self.status_label.setText(f"Loading files in {path}...")
         self.progress_bar.show()
@@ -242,14 +261,33 @@ class MainWindow(QMainWindow):
     def update_progress(self, percent):
         self.progress_bar.setValue(percent)
 
-    def on_worker_finished(self):
-        self.progress_bar.hide()
-        self.cancel_button.hide()
-        self.status_label.setText("Finished loading.")
-        self.file_model.set_entire_data(self.metadata_results)
+    def on_worker_finished(self, worker_id):
+        # Only update UI if this is the current worker
+        if worker_id == self._current_worker_id:
+            self.progress_bar.hide()
+            self.cancel_button.hide()
+            self.status_label.setText("Finished loading.")
+            self.file_model.set_entire_data(self.metadata_results)
+            self._current_load_worker = None
+        else:
+            log.debug(f"Ignoring finished signal from old worker {worker_id} (current: {self._current_worker_id})")
 
-    def on_worker_result(self, result_data):
-        self.metadata_results.append(result_data)
+    def on_worker_result(self, result_data, worker_id):
+        # Only accept results from the current worker
+        if worker_id == self._current_worker_id:
+            self.metadata_results.append(result_data)
+        else:
+            log.debug(f"Ignoring result from old worker {worker_id} (current: {self._current_worker_id})")
+
+    def on_load_cancelled(self):
+        """Handle the cancel button being clicked during file loading."""
+        if self._current_load_worker is not None:
+            log.info("User cancelled file loading")
+            self._current_load_worker.cancel()
+            self.status_label.setText("Loading cancelled.")
+            self.progress_bar.hide()
+            self.cancel_button.hide()
+            self._current_load_worker = None
 
     def on_header_context_menu(self, pos):
         self.column_menu.exec_(self.files_view.header().mapToGlobal(pos))
