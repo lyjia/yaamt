@@ -127,7 +127,7 @@ class TestKeyScore:
 
 
 class TestBPMScore:
-    """Test custom BPM scoring logic."""
+    """Test custom BPM scoring logic with absolute differences."""
 
     def test_exact_match(self):
         """Test exact BPM match (< 0.01 BPM difference)."""
@@ -135,59 +135,71 @@ class TestBPMScore:
         assert score == 1.0
         assert category == 'exact'
 
-        # Within 0.01 threshold
-        score, category = calculate_bpm_score(120.0, 120.005)
+        # Within 0.01 threshold (rounds to 120.00 and 120.00)
+        score, category = calculate_bpm_score(120.0, 120.004)
         assert score == 1.0
         assert category == 'exact'
 
-    def test_within_10_percent(self):
-        """Test BPM within ±10%."""
-        # 120 BPM ± 10% = 108-132 BPM
-        score, category = calculate_bpm_score(120.0, 132.0)
+        # Just below 0.01 threshold after rounding (120.00 vs 120.00)
+        score, category = calculate_bpm_score(120.001, 120.003)
+        assert score == 1.0
+        assert category == 'exact'
+
+    def test_very_close_match(self):
+        """Test very close BPM match (< 0.05 BPM difference)."""
+        # At 0.01 boundary (should be very_close)
+        score, category = calculate_bpm_score(120.0, 120.01)
         assert score == 0.5
-        assert category == 'within_10pct'
+        assert category == 'very_close'
 
-        score, category = calculate_bpm_score(120.0, 108.0)
+        # Within 0.05 threshold
+        score, category = calculate_bpm_score(120.0, 120.03)
         assert score == 0.5
-        assert category == 'within_10pct'
+        assert category == 'very_close'
 
-        # Just within 10%
-        score, category = calculate_bpm_score(120.0, 120.0 + 12.0)  # +10%
+        score, category = calculate_bpm_score(120.0, 119.97)
         assert score == 0.5
-        assert category == 'within_10pct'
+        assert category == 'very_close'
 
-        score, category = calculate_bpm_score(120.0, 120.0 - 12.0)  # -10%
+        # Just below 0.05 threshold after rounding (120.00 vs 120.04)
+        score, category = calculate_bpm_score(120.0, 120.044)
         assert score == 0.5
-        assert category == 'within_10pct'
+        assert category == 'very_close'
 
-    def test_within_20_percent(self):
-        """Test BPM within ±20%."""
-        # 120 BPM ± 20% = 96-144 BPM
-        score, category = calculate_bpm_score(120.0, 144.0)
+    def test_close_match(self):
+        """Test close BPM match (< 0.1 BPM difference)."""
+        # Just above 0.05 threshold (should be close)
+        score, category = calculate_bpm_score(120.0, 120.06)
         assert score == 0.25
-        assert category == 'within_20pct'
+        assert category == 'close'
 
-        score, category = calculate_bpm_score(120.0, 96.0)
+        # Within 0.1 threshold
+        score, category = calculate_bpm_score(120.0, 120.08)
         assert score == 0.25
-        assert category == 'within_20pct'
+        assert category == 'close'
 
-        # Between 10% and 20%
-        score, category = calculate_bpm_score(120.0, 135.0)
+        score, category = calculate_bpm_score(120.0, 119.93)
         assert score == 0.25
-        assert category == 'within_20pct'
+        assert category == 'close'
 
-        score, category = calculate_bpm_score(120.0, 105.0)
+        # Just below 0.1 threshold after rounding (120.00 vs 120.09)
+        score, category = calculate_bpm_score(120.0, 120.094)
         assert score == 0.25
-        assert category == 'within_20pct'
+        assert category == 'close'
 
-    def test_outside_20_percent(self):
-        """Test BPM outside ±20%."""
-        # 120 BPM ± 20% = 96-144 BPM
-        score, category = calculate_bpm_score(120.0, 150.0)
+    def test_outside_threshold(self):
+        """Test BPM outside all thresholds."""
+        # At 0.1 boundary (diff = 0.1, which is NOT < 0.1, so it's "other")
+        score, category = calculate_bpm_score(120.0, 120.1)
         assert score == 0.0
         assert category == 'other'
 
-        score, category = calculate_bpm_score(120.0, 90.0)
+        # Well beyond threshold
+        score, category = calculate_bpm_score(120.0, 121.0)
+        assert score == 0.0
+        assert category == 'other'
+
+        score, category = calculate_bpm_score(120.0, 119.5)
         assert score == 0.0
         assert category == 'other'
 
@@ -199,26 +211,40 @@ class TestBPMScore:
         assert category == 'exact'
 
     def test_various_bpm_ranges(self):
-        """Test scoring across different BPM ranges."""
+        """Test scoring across different BPM ranges with absolute differences."""
         # Test with drum and bass tempo (~174 BPM)
         score, category = calculate_bpm_score(174.0, 174.0)
         assert score == 1.0
+        assert category == 'exact'
 
-        score, category = calculate_bpm_score(174.0, 191.4)  # +10%
+        score, category = calculate_bpm_score(174.0, 174.03)
         assert score == 0.5
+        assert category == 'very_close'
 
-        score, category = calculate_bpm_score(174.0, 208.8)  # +20%
+        score, category = calculate_bpm_score(174.0, 174.08)
         assert score == 0.25
+        assert category == 'close'
+
+        score, category = calculate_bpm_score(174.0, 174.5)
+        assert score == 0.0
+        assert category == 'other'
 
         # Test with slower tempo (~90 BPM)
         score, category = calculate_bpm_score(90.0, 90.0)
         assert score == 1.0
+        assert category == 'exact'
 
-        score, category = calculate_bpm_score(90.0, 99.0)  # +10%
+        score, category = calculate_bpm_score(90.0, 90.04)
         assert score == 0.5
+        assert category == 'very_close'
 
-        score, category = calculate_bpm_score(90.0, 108.0)  # +20%
+        score, category = calculate_bpm_score(90.0, 90.09)
         assert score == 0.25
+        assert category == 'close'
+
+        score, category = calculate_bpm_score(90.0, 90.5)
+        assert score == 0.0
+        assert category == 'other'
 
 
 class TestEdgeCases:
@@ -238,18 +264,23 @@ class TestEdgeCases:
         assert category == 'exact'
 
     def test_bpm_boundary_values(self):
-        """Test BPM at exact threshold boundaries."""
-        # Exactly at 10% boundary
-        score, category = calculate_bpm_score(100.0, 110.0)
+        """Test BPM at exact threshold boundaries with absolute differences."""
+        # Exactly at 0.01 boundary (diff = 0.01, NOT < 0.01, goes to next tier)
+        score, category = calculate_bpm_score(100.0, 100.01)
         assert score == 0.5
-        assert category == 'within_10pct'
+        assert category == 'very_close'
 
-        # Exactly at 20% boundary
-        score, category = calculate_bpm_score(100.0, 120.0)
+        # Exactly at 0.05 boundary (diff = 0.05, NOT < 0.05, goes to next tier)
+        score, category = calculate_bpm_score(100.0, 100.05)
         assert score == 0.25
-        assert category == 'within_20pct'
+        assert category == 'close'
 
-        # Just over 20% boundary
-        score, category = calculate_bpm_score(100.0, 120.01)
+        # Exactly at 0.1 boundary (diff = 0.1, NOT < 0.1, goes to default)
+        score, category = calculate_bpm_score(100.0, 100.1)
+        assert score == 0.0
+        assert category == 'other'
+
+        # Just over 0.1 boundary
+        score, category = calculate_bpm_score(100.0, 100.11)
         assert score == 0.0
         assert category == 'other'

@@ -13,6 +13,30 @@ import mingus.core.intervals as intervals
 NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 
 
+# MIREX Key Scoring Configuration
+# Each relationship type maps to its score value
+KEY_SCORES = {
+    'same key': 1.0,
+    'perfect fifth': 0.5,
+    'relative major/minor': 0.3,
+    'parallel major/minor': 0.2,
+    'other': 0.0,
+}
+
+
+# BPM Scoring Configuration
+# List of (threshold, score, category) tuples, evaluated in order
+# Threshold is the maximum absolute BPM difference for this score tier
+BPM_SCORE_TIERS = [
+    (0.01, 1.0, 'exact'),        # < 0.01 BPM difference
+    (0.05, 0.5, 'very_close'),   # < 0.05 BPM difference
+    (0.1, 0.25, 'close'),        # < 0.1 BPM difference
+]
+# Default score for differences outside all tiers
+BPM_DEFAULT_SCORE = 0.0
+BPM_DEFAULT_CATEGORY = 'other'
+
+
 def calculate_key_relationship(
     ref_pitch_class: int,
     ref_is_minor: bool,
@@ -90,7 +114,7 @@ def calculate_key_score(
 
 def calculate_bpm_score(reference_bpm: float, analyzed_bpm: float) -> Tuple[float, str]:
     """
-    Calculate custom score for BPM detection.
+    Calculate custom score for BPM detection based on absolute difference.
 
     Args:
         reference_bpm: Reference BPM value
@@ -98,32 +122,20 @@ def calculate_bpm_score(reference_bpm: float, analyzed_bpm: float) -> Tuple[floa
 
     Returns:
         Tuple of (score, category)
-        - score: 1.0 (exact), 0.5 (±10%), 0.25 (±20%), or 0.0 (other)
+        - score: Based on BPM_SCORE_TIERS configuration
         - category: Description of the match quality
     """
     # Round values to 2 decimal places for comparison
     ref_rounded = round(reference_bpm, 2)
     analyzed_rounded = round(analyzed_bpm, 2)
 
-    # Calculate absolute difference
-    diff = abs(ref_rounded - analyzed_rounded)
+    # Calculate absolute difference and round to avoid floating point precision issues
+    diff = round(abs(ref_rounded - analyzed_rounded), 2)
 
-    # Small epsilon for floating point comparison tolerance
-    epsilon = 1e-9
+    # Check tiers in order (should be ordered from smallest to largest threshold)
+    for threshold, score, category in BPM_SCORE_TIERS:
+        if diff < threshold:
+            return (score, category)
 
-    # Exact match (< 0.01 BPM difference)
-    if diff < 0.01:
-        return (1.0, 'exact')
-
-    # Within ±10%
-    threshold_10pct = ref_rounded * 0.1
-    if diff <= threshold_10pct + epsilon:
-        return (0.5, 'within_10pct')
-
-    # Within ±20%
-    threshold_20pct = ref_rounded * 0.2
-    if diff <= threshold_20pct + epsilon:
-        return (0.25, 'within_20pct')
-
-    # Outside acceptable range
-    return (0.0, 'other')
+    # No tier matched, return default
+    return (BPM_DEFAULT_SCORE, BPM_DEFAULT_CATEGORY)
