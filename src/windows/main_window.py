@@ -11,7 +11,6 @@ from PySide6.QtCore import (
 )
 
 import windows
-import util.resources_rc  # Import compiled Qt resources
 from models.media_file import MediaFile
 from models.qt.metadata_model import MetadataTableModel
 from workers.gui.load_files_worker import LoadFilesWorker
@@ -37,8 +36,6 @@ class MainWindow(QMainWindow):
         self.resize(1024, 768)
         self.setMinimumSize(640, 480)
 
-        # Set application icon from Qt resources
-        self.setWindowIcon(QIcon(":/icons/app-icon-gui.png"))
         self.thread_pool = QThreadPool()
         self._current_path = ""
         self.metadata_results = []
