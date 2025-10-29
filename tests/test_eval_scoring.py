@@ -169,51 +169,51 @@ class TestBPMScore:
         assert category == BPMCategory.NEARLY_EXACT
 
     def test_very_close_match(self):
-        """Test very close BPM match (< 0.05 BPM difference)."""
+        """Test very close BPM match (< 0.1 BPM difference)."""
         # At 0.02 boundary (should be very_close)
         score, category = calculate_bpm_score(120.0, 120.02)
         assert score == 0.5
         assert category == BPMCategory.VERY_CLOSE
 
-        # Within 0.05 threshold
-        score, category = calculate_bpm_score(120.0, 120.03)
+        # Within 0.1 threshold
+        score, category = calculate_bpm_score(120.0, 120.05)
         assert score == 0.5
         assert category == BPMCategory.VERY_CLOSE
 
-        score, category = calculate_bpm_score(120.0, 119.97)
+        score, category = calculate_bpm_score(120.0, 119.95)
         assert score == 0.5
         assert category == BPMCategory.VERY_CLOSE
 
-        # Just below 0.05 threshold after rounding (120.00 vs 120.04)
-        score, category = calculate_bpm_score(120.0, 120.044)
+        # Just below 0.1 threshold after rounding (120.00 vs 120.09)
+        score, category = calculate_bpm_score(120.0, 120.094)
         assert score == 0.5
         assert category == BPMCategory.VERY_CLOSE
 
     def test_close_match(self):
-        """Test close BPM match (< 0.1 BPM difference)."""
-        # Just above 0.05 threshold (should be close)
-        score, category = calculate_bpm_score(120.0, 120.06)
+        """Test close BPM match (< 0.5 BPM difference)."""
+        # Just above 0.1 threshold (should be close)
+        score, category = calculate_bpm_score(120.0, 120.1)
         assert score == 0.25
         assert category == BPMCategory.CLOSE
 
-        # Within 0.1 threshold
-        score, category = calculate_bpm_score(120.0, 120.08)
+        # Within 0.5 threshold
+        score, category = calculate_bpm_score(120.0, 120.3)
         assert score == 0.25
         assert category == BPMCategory.CLOSE
 
-        score, category = calculate_bpm_score(120.0, 119.93)
+        score, category = calculate_bpm_score(120.0, 119.7)
         assert score == 0.25
         assert category == BPMCategory.CLOSE
 
-        # Just below 0.1 threshold after rounding (120.00 vs 120.09)
-        score, category = calculate_bpm_score(120.0, 120.094)
+        # Just below 0.5 threshold after rounding (120.00 vs 120.49)
+        score, category = calculate_bpm_score(120.0, 120.494)
         assert score == 0.25
         assert category == BPMCategory.CLOSE
 
     def test_outside_threshold(self):
         """Test BPM outside all thresholds."""
-        # At 0.1 boundary (diff = 0.1, which is NOT < 0.1, so it's "other")
-        score, category = calculate_bpm_score(120.0, 120.1)
+        # At 0.5 boundary (diff = 0.5, which is NOT < 0.5, so it's "other")
+        score, category = calculate_bpm_score(120.0, 120.5)
         assert score == 0.0
         assert category == BPMCategory.OTHER
 
@@ -222,7 +222,7 @@ class TestBPMScore:
         assert score == 0.0
         assert category == BPMCategory.OTHER
 
-        score, category = calculate_bpm_score(120.0, 119.5)
+        score, category = calculate_bpm_score(120.0, 119.0)
         assert score == 0.0
         assert category == BPMCategory.OTHER
 
@@ -244,11 +244,11 @@ class TestBPMScore:
         assert score == 0.75
         assert category == BPMCategory.NEARLY_EXACT
 
-        score, category = calculate_bpm_score(174.0, 174.03)
+        score, category = calculate_bpm_score(174.0, 174.05)
         assert score == 0.5
         assert category == BPMCategory.VERY_CLOSE
 
-        score, category = calculate_bpm_score(174.0, 174.08)
+        score, category = calculate_bpm_score(174.0, 174.2)
         assert score == 0.25
         assert category == BPMCategory.CLOSE
 
@@ -265,11 +265,11 @@ class TestBPMScore:
         assert score == 0.75
         assert category == BPMCategory.NEARLY_EXACT
 
-        score, category = calculate_bpm_score(90.0, 90.04)
+        score, category = calculate_bpm_score(90.0, 90.05)
         assert score == 0.5
         assert category == BPMCategory.VERY_CLOSE
 
-        score, category = calculate_bpm_score(90.0, 90.09)
+        score, category = calculate_bpm_score(90.0, 90.2)
         assert score == 0.25
         assert category == BPMCategory.CLOSE
 
@@ -306,17 +306,17 @@ class TestEdgeCases:
         assert score == 0.5
         assert category == BPMCategory.VERY_CLOSE
 
-        # Exactly at 0.05 boundary (diff = 0.05, NOT < 0.05, goes to next tier)
-        score, category = calculate_bpm_score(100.0, 100.05)
+        # Exactly at 0.1 boundary (diff = 0.1, NOT < 0.1, goes to next tier)
+        score, category = calculate_bpm_score(100.0, 100.1)
         assert score == 0.25
         assert category == BPMCategory.CLOSE
 
-        # Exactly at 0.1 boundary (diff = 0.1, NOT < 0.1, goes to default)
-        score, category = calculate_bpm_score(100.0, 100.1)
+        # Exactly at 0.5 boundary (diff = 0.5, NOT < 0.5, goes to default)
+        score, category = calculate_bpm_score(100.0, 100.5)
         assert score == 0.0
         assert category == BPMCategory.OTHER
 
-        # Just over 0.1 boundary
-        score, category = calculate_bpm_score(100.0, 100.11)
+        # Just over 0.5 boundary
+        score, category = calculate_bpm_score(100.0, 100.51)
         assert score == 0.0
         assert category == BPMCategory.OTHER

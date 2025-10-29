@@ -49,8 +49,8 @@ KEY_SCORES = {
 BPM_SCORE_TIERS = [
     (0.01, 1.0, BPMCategory.EXACT),          # < 0.01 BPM difference
     (0.02, 0.75, BPMCategory.NEARLY_EXACT),  # < 0.02 BPM difference
-    (0.05, 0.5, BPMCategory.VERY_CLOSE),     # < 0.05 BPM difference
-    (0.1, 0.25, BPMCategory.CLOSE),          # < 0.1 BPM difference
+    (0.1, 0.5, BPMCategory.VERY_CLOSE),      # < 0.1 BPM difference
+    (0.5, 0.25, BPMCategory.CLOSE),          # < 0.5 BPM difference
 ]
 # Default score for differences outside all tiers
 BPM_DEFAULT_SCORE = 0.0

@@ -302,8 +302,8 @@ The `yaamt-eval` tool compares analyzer outputs against hand-reviewed reference 
 *BPM Detection (Custom Absolute Difference):*
 - Exact (< 0.01 BPM): 1.0 point
 - Nearly exact (< 0.02 BPM): 0.75 points
-- Very close (< 0.05 BPM): 0.5 points
-- Close (< 0.1 BPM): 0.25 points
+- Very close (< 0.1 BPM): 0.5 points
+- Close (< 0.5 BPM): 0.25 points
 - Other: 0.0 points
 
 **Input Formats:**
