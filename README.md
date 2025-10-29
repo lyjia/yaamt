@@ -60,9 +60,14 @@ python build.py --install-deps
 
 ## Usage
 
-Convenience scripts are provided in the repository root: `yaamt.sh` / `yaamt.bat` for the CLI and `yaamt-gui.sh` / `yaamt-gui.bat` for the GUI. These automatically use the virtual environment and are shorthand for running `python src/yaamt.py` and `python src/yaamt-gui.py` respectively.
+Convenience scripts are provided in the repository root:
+- `yaamt.sh` / `yaamt.bat` - Command-line interface
+- `yaamt-gui.sh` / `yaamt-gui.bat` - Graphical interface
+- `yaamt-eval.sh` / `yaamt-eval.bat` - Analyzer evaluation tool
 
-**Note:** On Linux/macOS, make the shell scripts executable first: `chmod +x yaamt.sh yaamt-gui.sh`
+These automatically use the virtual environment and are shorthand for running the corresponding Python scripts in `src/`.
+
+**Note:** On Linux/macOS, make the shell scripts executable first: `chmod +x yaamt.sh yaamt-gui.sh yaamt-eval.sh`
 
 ### GUI Mode
 
@@ -234,6 +239,85 @@ For a complete list of available analyzers and their options:
 ./yaamt.sh list analyzers
 ./yaamt.sh analyze <AnalyzerName> --help
 ```
+
+#### Evaluating Analyzer Performance
+
+The `yaamt-eval` tool compares analyzer outputs against hand-reviewed reference data to measure accuracy. It supports evaluating both key detection (using MIREX scoring) and BPM detection (using custom absolute difference scoring).
+
+**Launch the evaluator:**
+```bash
+./yaamt-eval.sh      # Linux/macOS
+.\yaamt-eval.bat     # Windows
+```
+
+**Get help:**
+```bash
+./yaamt-eval.sh --help
+./yaamt-eval.sh key --help
+./yaamt-eval.sh bpm --help
+```
+
+**Evaluate key detection accuracy:**
+```bash
+./yaamt-eval.sh key \
+  --reference path/to/reference.csv \
+  --analysis path/to/key_analysis.csv \
+  --output-dir results/
+```
+
+**Evaluate BPM detection accuracy:**
+```bash
+./yaamt-eval.sh bpm \
+  --reference path/to/reference.csv \
+  --analysis path/to/bpm_analysis.csv \
+  --output-dir results/
+```
+
+**Evaluate multiple analyzers at once:**
+```bash
+./yaamt-eval.sh key \
+  --reference reference.csv \
+  --analysis analyzer1_results.csv analyzer2_results.csv analyzer3_results.csv \
+  --output-dir results/
+```
+
+**Validate against audio directory (optional):**
+```bash
+./yaamt-eval.sh key \
+  --reference reference.csv \
+  --analysis results.csv \
+  --audio-dir path/to/audio/files \
+  --output-dir results/
+```
+
+**Scoring Systems:**
+
+*Key Detection (MIREX):*
+- Same key: 1.0 point
+- Perfect fifth: 0.5 points
+- Relative major/minor: 0.3 points
+- Parallel major/minor: 0.2 points
+- Other: 0.0 points
+
+*BPM Detection (Custom Absolute Difference):*
+- Exact (< 0.01 BPM): 1.0 point
+- Nearly exact (< 0.02 BPM): 0.75 points
+- Very close (< 0.1 BPM): 0.5 points
+- Close (< 0.5 BPM): 0.25 points
+- Other: 0.0 points
+
+**Input Formats:**
+
+*Reference CSV:* Consolidated dataset format with columns: `id, artist, title, mix, album, key, bpm, genre, datasets, output_filename`
+
+*Analysis CSV:* Report format from YAAMT CLI with columns: `directory, filename, [AnalyzerName_field], status, error`
+
+**Output Files:**
+
+The evaluator generates two types of CSV reports:
+
+1. **Summary CSV** (`eval_summary_{criteria}_{timestamp}.csv`): Aggregate statistics for all analyzers
+2. **Detailed CSV** (`eval_{analyzer_name}_{criteria}_{timestamp}.csv`): Per-file results for each analyzer
 
 ## Contributing
 
