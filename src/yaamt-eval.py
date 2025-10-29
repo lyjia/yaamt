@@ -14,8 +14,8 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 import pandas as pd
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+# Add src directory to path for imports (since we're in src/)
+sys.path.insert(0, str(Path(__file__).parent))
 
 from util.eval_scoring import (
     calculate_key_relationship,
