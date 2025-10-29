@@ -23,7 +23,7 @@ from util.eval_scoring import (
     KeyRelationship,
     BPMCategory
 )
-from util.diatonic_key import parse_key
+from util.diatonic_key import parse_key, format_key, NotationFormat
 
 
 class EvaluationResult:
@@ -172,7 +172,7 @@ def load_analysis_data(analysis_paths: List[Path], criteria: str) -> Dict[str, p
     return analysis_data
 
 
-def evaluate_key(ref_key_str: str, analyzed_key_str: str) -> Tuple[float, str, str]:
+def evaluate_key(ref_key_str: str, analyzed_key_str: str) -> Tuple[float, str, str, str, str]:
     """
     Evaluate key detection for a single file.
 
@@ -181,21 +181,25 @@ def evaluate_key(ref_key_str: str, analyzed_key_str: str) -> Tuple[float, str, s
         analyzed_key_str: Analyzed key string
 
     Returns:
-        Tuple of (score, category, notes)
+        Tuple of (score, category, notes, ref_standard, analyzed_standard)
+        - ref_standard: Reference key in Standard notation
+        - analyzed_standard: Analyzed key in Standard notation
     """
     # Parse reference key
     ref_parsed = parse_key(ref_key_str)
     if ref_parsed is None:
-        return (0.0, KeyRelationship.OTHER.value, f"Failed to parse reference key: '{ref_key_str}'")
+        return (0.0, KeyRelationship.OTHER.value, f"Failed to parse reference key: '{ref_key_str}'", ref_key_str, "")
 
     ref_pitch_class, ref_is_minor = ref_parsed
+    ref_standard = format_key(ref_pitch_class, ref_is_minor, NotationFormat.Standard)
 
     # Parse analyzed key
     analyzed_parsed = parse_key(analyzed_key_str)
     if analyzed_parsed is None:
-        return (0.0, KeyRelationship.OTHER.value, f"Failed to parse analyzed key: '{analyzed_key_str}'")
+        return (0.0, KeyRelationship.OTHER.value, f"Failed to parse analyzed key: '{analyzed_key_str}'", ref_standard, analyzed_key_str)
 
     analyzed_pitch_class, analyzed_is_minor = analyzed_parsed
+    analyzed_standard = format_key(analyzed_pitch_class, analyzed_is_minor, NotationFormat.Standard)
 
     # Calculate score (returns enum)
     score, category_enum = calculate_key_relationship(
@@ -204,7 +208,7 @@ def evaluate_key(ref_key_str: str, analyzed_key_str: str) -> Tuple[float, str, s
     )
 
     # Convert enum to string for storage
-    return (score, category_enum.value, "")
+    return (score, category_enum.value, "", ref_standard, analyzed_standard)
 
 
 def evaluate_bpm(ref_bpm: float, analyzed_bpm: float) -> Tuple[float, str, str]:
@@ -291,7 +295,6 @@ def evaluate_analyzer(
 
         # Get reference value
         ref_value = ref_lookup[filename]
-        result.reference_value = str(ref_value)
 
         # Get analyzed value
         status = row.get('status', '')
@@ -305,18 +308,28 @@ def evaluate_analyzer(
             # Use appropriate default category based on criteria
             if criteria == "key":
                 result.category = KeyRelationship.OTHER.value
+                # For key, still try to format reference in Standard notation if possible
+                ref_parsed = parse_key(str(ref_value))
+                if ref_parsed:
+                    ref_pitch_class, ref_is_minor = ref_parsed
+                    result.reference_value = format_key(ref_pitch_class, ref_is_minor, NotationFormat.Standard)
+                else:
+                    result.reference_value = str(ref_value)
             else:
                 result.category = BPMCategory.OTHER.value
+                result.reference_value = str(ref_value)
             result.notes = f"Analysis failed or missing (status: {status})"
             evaluation.add_result(result)
             continue
 
-        result.analyzed_value = str(analyzed_value)
-
         # Evaluate based on criteria
         if criteria == "key":
-            score, category, notes = evaluate_key(str(ref_value), str(analyzed_value))
+            score, category, notes, ref_standard, analyzed_standard = evaluate_key(str(ref_value), str(analyzed_value))
+            result.reference_value = ref_standard
+            result.analyzed_value = analyzed_standard
         else:  # bpm
+            result.reference_value = str(ref_value)
+            result.analyzed_value = str(analyzed_value)
             try:
                 ref_bpm = float(ref_value)
                 analyzed_bpm = float(analyzed_value)
