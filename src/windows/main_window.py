@@ -38,7 +38,6 @@ class MainWindow(QMainWindow):
 
         self.thread_pool = QThreadPool()
         self._current_path = ""
-        self.metadata_results = []
         self.column_menu = QMenu("Columns", self)
         self._current_load_worker = None
         self._current_worker_id = 0
@@ -135,6 +134,10 @@ class MainWindow(QMainWindow):
         self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
         self.files_view.doubleClicked.connect(self.on_files_view_double_clicked)
+
+        # Connect to viewport changes for priority loading
+        self.files_view.verticalScrollBar().valueChanged.connect(self._on_viewport_changed)
+        self.files_view.resizeEvent = self._create_resize_event_wrapper(self.files_view.resizeEvent)
 
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
@@ -238,46 +241,126 @@ class MainWindow(QMainWindow):
             log.debug("Cancelling previous load worker due to directory change")
             self._current_load_worker.cancel()
 
-        self.metadata_results = []
         path = self.dir_model.filePath(current)
         self.set_path(path)
-        files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+
+        # Clear the model for the new directory
+        self.file_model.set_entire_data([])
 
         # Increment worker ID to track this specific load operation
         self._current_worker_id += 1
         worker_id = self._current_worker_id
 
-        worker = LoadFilesWorker(files)
+        # Create worker with directory path
+        worker = LoadFilesWorker(path)
         self._current_load_worker = worker
-        worker.signals.progress.connect(self.update_progress)
+
+        # Connect to new two-stage signals
+        worker.signals.files_discovered.connect(lambda files: self.on_files_discovered(files, worker_id))
+        worker.signals.discovery_finished.connect(lambda count: self.on_discovery_finished(count, worker_id))
+        worker.signals.file_updated.connect(lambda index, metadata: self.on_file_updated(index, metadata, worker_id))
+        worker.signals.enrichment_progress.connect(lambda current, total: self.on_enrichment_progress(current, total, worker_id))
         worker.signals.finished.connect(lambda: self.on_worker_finished(worker_id))
-        worker.signals.result.connect(lambda result: self.on_worker_result(result, worker_id))
 
         self.thread_pool.start(worker)
-        self.status_label.setText(f"Loading files in {path}...")
+        self.status_label.setText(f"Scanning files in {path}...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.setMaximum(0)  # Indeterminate mode during discovery
         self.progress_bar.show()
         self.cancel_button.show()
 
     def update_progress(self, percent):
         self.progress_bar.setValue(percent)
 
-    def on_worker_finished(self, worker_id):
-        # Only update UI if this is the current worker
-        if worker_id == self._current_worker_id:
-            self.progress_bar.hide()
-            self.cancel_button.hide()
-            self.status_label.setText("Finished loading.")
-            self.file_model.set_entire_data(self.metadata_results)
-            self._current_load_worker = None
-        else:
-            log.debug(f"Ignoring finished signal from old worker {worker_id} (current: {self._current_worker_id})")
+    def on_files_discovered(self, files: list, worker_id: int):
+        """
+        Handle files discovered during Stage 1.
 
-    def on_worker_result(self, result_data, worker_id):
-        # Only accept results from the current worker
-        if worker_id == self._current_worker_id:
-            self.metadata_results.append(result_data)
-        else:
-            log.debug(f"Ignoring result from old worker {worker_id} (current: {self._current_worker_id})")
+        Args:
+            files: List of basic file data dictionaries
+            worker_id: ID of the worker that emitted this signal
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring discovery from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        # Add discovered files to the model
+        self.file_model.add_rows(files)
+
+        # Update status with current count
+        current_count = self.file_model.rowCount()
+        self.status_label.setText(f"Scanning files... ({current_count} found)")
+
+    def on_discovery_finished(self, total_count: int, worker_id: int):
+        """
+        Handle completion of Stage 1 discovery.
+
+        Args:
+            total_count: Total number of files discovered
+            worker_id: ID of the worker that emitted this signal
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring discovery finish from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        log.info(f"Discovery finished: {total_count} files found")
+        self.status_label.setText(f"Loading metadata... (0/{total_count})")
+        self.progress_bar.setMaximum(100)  # Switch to determinate mode
+        self.progress_bar.setValue(0)
+
+        # Send initial viewport range to worker
+        self._update_viewport_priority()
+
+    def on_file_updated(self, index: int, metadata: dict, worker_id: int):
+        """
+        Handle a single file being updated during Stage 2.
+
+        Args:
+            index: Row index to update
+            metadata: Full metadata dictionary
+            worker_id: ID of the worker that emitted this signal
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring file update from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        # Update the row with enriched metadata
+        self.file_model.update_row(index, metadata)
+
+    def on_enrichment_progress(self, current: int, total: int, worker_id: int):
+        """
+        Handle progress updates during Stage 2.
+
+        Args:
+            current: Number of files processed
+            total: Total number of files
+            worker_id: ID of the worker that emitted this signal
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring enrichment progress from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        # Update status and progress bar
+        self.status_label.setText(f"Loading metadata... ({current}/{total})")
+        progress_percent = int((current / total) * 100) if total > 0 else 0
+        self.progress_bar.setValue(progress_percent)
+
+    def on_worker_finished(self, worker_id):
+        """
+        Handle worker completion.
+
+        Args:
+            worker_id: ID of the worker that finished
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring finished signal from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        self.progress_bar.hide()
+        self.cancel_button.hide()
+        file_count = self.file_model.rowCount()
+        self.status_label.setText(f"Ready. {file_count} files loaded.")
+        self._current_load_worker = None
 
     def on_load_cancelled(self):
         """Handle the cancel button being clicked during file loading."""
@@ -288,6 +371,57 @@ class MainWindow(QMainWindow):
             self.progress_bar.hide()
             self.cancel_button.hide()
             self._current_load_worker = None
+
+    def _on_viewport_changed(self):
+        """Called when the viewport scrolls or changes."""
+        self._update_viewport_priority()
+
+    def _create_resize_event_wrapper(self, original_resize_event):
+        """
+        Create a wrapper for the resize event that also updates viewport priority.
+
+        Args:
+            original_resize_event: The original resizeEvent method
+
+        Returns:
+            Wrapped resize event handler
+        """
+        def wrapped_resize_event(event):
+            original_resize_event(event)
+            self._update_viewport_priority()
+
+        return wrapped_resize_event
+
+    def _update_viewport_priority(self):
+        """
+        Calculate the visible row range and send it to the worker for priority loading.
+        """
+        if self._current_load_worker is None:
+            return
+
+        # Get visible row range
+        viewport = self.files_view.viewport()
+        top_index = self.files_view.indexAt(viewport.rect().topLeft())
+        bottom_index = self.files_view.indexAt(viewport.rect().bottomLeft())
+
+        # Map proxy indices to source indices
+        if top_index.isValid() and bottom_index.isValid():
+            source_top = self.proxy_model.mapToSource(top_index)
+            source_bottom = self.proxy_model.mapToSource(bottom_index)
+
+            start_row = source_top.row()
+            end_row = source_bottom.row() + 1  # +1 to include the bottom row
+
+            # Add some buffer rows for smoother scrolling
+            buffer = 50
+            start_row = max(0, start_row - buffer)
+            end_row = min(self.file_model.rowCount(), end_row + buffer)
+
+            # Send priority range to worker
+            self._current_load_worker.set_priority_range(start_row, end_row)
+        else:
+            # No valid indices, set default range
+            self._current_load_worker.set_priority_range(0, 100)
 
     def on_header_context_menu(self, pos):
         self.column_menu.exec_(self.files_view.header().mapToGlobal(pos))
