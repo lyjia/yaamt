@@ -25,7 +25,6 @@ from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.const import KEY_INITIAL_KEY
 from util.logging import log
 
-
 # Camelot Wheel mapping (from MusicalKeyCNN dataset.py)
 # Maps key names to indices 0-23 (0-11 = minor, 12-23 = major)
 CAMELOT_MAPPING = {
@@ -295,7 +294,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
 
         return model
 
-    def _preprocess_audio(self, waveform: np.ndarray, sample_rate: int, librosa) -> "torch.Tensor":
+    def _preprocess_audio(self, waveform: np.ndarray, sample_rate: int, librosa):
         """
         Preprocess audio to CQT spectrogram as expected by KeyNet.
 
