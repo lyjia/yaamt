@@ -65,11 +65,24 @@ class AnalyzerSettings:
 
 
 @dataclass
+class Favorite:
+    """Represents a single favorite location."""
+    path: str
+
+
+@dataclass
+class FavoritesSettings:
+    """Stores settings related to user favorites."""
+    locations: List[Favorite] = field(default_factory=list)
+
+
+@dataclass
 class Settings:
     """Stores the main application settings."""
     file_list: FileListSettings = field(default_factory=FileListSettings)
     general: GeneralSettings = field(default_factory=GeneralSettings)
     analyzers: AnalyzerSettings = field(default_factory=AnalyzerSettings)
+    favorites: FavoritesSettings = field(default_factory=FavoritesSettings)
 
 
 settings = QSettings("Lyjia", "Audio Metadata Tool")
