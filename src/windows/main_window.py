@@ -147,9 +147,18 @@ class MainWindow(QMainWindow):
         self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
         self.files_view.doubleClicked.connect(self.on_files_view_double_clicked)
 
-        # Connect to viewport changes for priority loading
-        self.files_view.verticalScrollBar().valueChanged.connect(self._on_viewport_changed)
-        self.files_view.resizeEvent = self._create_resize_event_wrapper(self.files_view.resizeEvent)
+        # TODO: Viewport-aware priority loading during scrolling (currently disabled)
+        # The priority range calculation works correctly, but the worker's priority list
+        # is built once at the start of Stage 2 enrichment and never rebuilt. This means
+        # scrolling during loading updates the priority range but doesn't actually change
+        # the processing order. To make this work properly, we need to:
+        # 1. Implement a dynamic priority queue in LoadFilesWorker that can be reordered
+        # 2. Add debouncing (500ms) to prevent flooding the worker with priority updates
+        # 3. Rebuild the processing order when priority range changes significantly
+        # For now, only the INITIAL viewport when enrichment starts is prioritized.
+        #
+        # self.files_view.verticalScrollBar().valueChanged.connect(self._on_viewport_changed_debounced)
+        # self.files_view.resizeEvent = self._create_resize_event_wrapper(self.files_view.resizeEvent)
 
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
@@ -426,25 +435,26 @@ class MainWindow(QMainWindow):
             self.cancel_button.hide()
             self._current_load_worker = None
 
-    def _on_viewport_changed(self):
-        """Called when the viewport scrolls or changes."""
-        self._update_viewport_priority()
-
-    def _create_resize_event_wrapper(self, original_resize_event):
-        """
-        Create a wrapper for the resize event that also updates viewport priority.
-
-        Args:
-            original_resize_event: The original resizeEvent method
-
-        Returns:
-            Wrapped resize event handler
-        """
-        def wrapped_resize_event(event):
-            original_resize_event(event)
-            self._update_viewport_priority()
-
-        return wrapped_resize_event
+    # TODO: Re-enable these methods when dynamic priority queue is implemented
+    # def _on_viewport_changed(self):
+    #     """Called when the viewport scrolls or changes."""
+    #     self._update_viewport_priority()
+    #
+    # def _create_resize_event_wrapper(self, original_resize_event):
+    #     """
+    #     Create a wrapper for the resize event that also updates viewport priority.
+    #
+    #     Args:
+    #         original_resize_event: The original resizeEvent method
+    #
+    #     Returns:
+    #         Wrapped resize event handler
+    #     """
+    #     def wrapped_resize_event(event):
+    #         original_resize_event(event)
+    #         self._update_viewport_priority()
+    #
+    #     return wrapped_resize_event
 
     def _update_viewport_priority(self):
         """
