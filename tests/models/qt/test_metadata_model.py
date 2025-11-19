@@ -132,3 +132,172 @@ def test_set_data_not_writable(model):
     """Test that setData() returns False for non-writable columns."""
     index = model.createIndex(0, 1)
     assert not model.setData(index, "New Artist", role=Qt.ItemDataRole.EditRole)
+
+
+# Tests for seamless file loading feature
+
+def test_add_rows(model):
+    """Test that add_rows() appends new rows to the model."""
+    initial_count = model.rowCount()
+    assert initial_count == 0
+
+    # Add some rows
+    rows_data = [
+        {KEY_TITLE: "Song 1", KEY_ARTIST: "Artist 1"},
+        {KEY_TITLE: "Song 2", KEY_ARTIST: "Artist 2"},
+        {KEY_TITLE: "Song 3", KEY_ARTIST: "Artist 3"},
+    ]
+
+    rows_inserted_emitted = False
+    def on_rows_inserted(*args, **kwargs):
+        nonlocal rows_inserted_emitted
+        rows_inserted_emitted = True
+
+    model.rowsInserted.connect(on_rows_inserted)
+    model.add_rows(rows_data)
+
+    assert rows_inserted_emitted
+    assert model.rowCount() == 3
+    assert model._data[0][KEY_TITLE] == "Song 1"
+    assert model._data[1][KEY_TITLE] == "Song 2"
+    assert model._data[2][KEY_TITLE] == "Song 3"
+
+
+def test_add_rows_empty_list(model):
+    """Test that add_rows() handles empty list gracefully."""
+    initial_count = model.rowCount()
+    model.add_rows([])
+    assert model.rowCount() == initial_count  # No change
+
+
+def test_add_rows_incremental(model):
+    """Test that add_rows() can be called multiple times."""
+    model.add_rows([{KEY_TITLE: "Song 1"}])
+    assert model.rowCount() == 1
+
+    model.add_rows([{KEY_TITLE: "Song 2"}, {KEY_TITLE: "Song 3"}])
+    assert model.rowCount() == 3
+
+    model.add_rows([{KEY_TITLE: "Song 4"}])
+    assert model.rowCount() == 4
+
+
+def test_update_row(model):
+    """Test that update_row() updates an existing row."""
+    # Add initial data
+    model.add_rows([
+        {KEY_TITLE: "Song 1", KEY_ARTIST: "Artist 1"},
+        {KEY_TITLE: "Song 2", KEY_ARTIST: "Artist 2"},
+    ])
+
+    data_changed_emitted = False
+    def on_data_changed(*args, **kwargs):
+        nonlocal data_changed_emitted
+        data_changed_emitted = True
+
+    model.dataChanged.connect(on_data_changed)
+
+    # Update the second row
+    new_metadata = {KEY_TITLE: "Updated Song 2", KEY_ARTIST: "Updated Artist 2", KEY_ALBUM: "Album"}
+    model.update_row(1, new_metadata)
+
+    assert data_changed_emitted
+    assert model._data[1][KEY_TITLE] == "Updated Song 2"
+    assert model._data[1][KEY_ARTIST] == "Updated Artist 2"
+    assert model._data[1][KEY_ALBUM] == "Album"
+
+
+def test_update_row_invalid_index(model, caplog):
+    """Test that update_row() handles invalid indices gracefully."""
+    import logging
+
+    # The YAAMT logger has propagate=False, so we need to enable it temporarily
+    yaamt_logger = logging.getLogger('YAAMT')
+    original_propagate = yaamt_logger.propagate
+    yaamt_logger.propagate = True
+
+    try:
+        caplog.set_level(logging.DEBUG, logger='YAAMT')
+
+        model.add_rows([{KEY_TITLE: "Song 1"}])
+
+        # Try to update a non-existent row
+        model.update_row(5, {KEY_TITLE: "Invalid"})
+
+        # Should log an error and not crash
+        assert "Invalid row index for update" in caplog.text
+        assert model.rowCount() == 1  # No change
+    finally:
+        # Restore original propagate setting
+        yaamt_logger.propagate = original_propagate
+
+
+def test_sort_with_none_values(model):
+    """Test that sort() handles None values correctly."""
+    # Add rows with None values
+    model.add_rows([
+        {KEY_TITLE: "Song C", KEY_ARTIST: "Artist C"},
+        {KEY_TITLE: None, KEY_ARTIST: "Artist B"},
+        {KEY_TITLE: "Song A", KEY_ARTIST: None},
+    ])
+
+    # Sort by title (ascending)
+    model.sort(0, Qt.SortOrder.AscendingOrder)
+
+    # None values should be treated as empty strings and sort first
+    assert model._data[0][KEY_TITLE] is None  # None sorts before "Song A"
+    assert model._data[1][KEY_TITLE] == "Song A"
+    assert model._data[2][KEY_TITLE] == "Song C"
+
+
+def test_sort_descending_with_none(model):
+    """Test that sort() handles None values in descending order."""
+    model.add_rows([
+        {KEY_TITLE: "Song C", KEY_ARTIST: "Artist C"},
+        {KEY_TITLE: None, KEY_ARTIST: "Artist B"},
+        {KEY_TITLE: "Song A", KEY_ARTIST: None},
+    ])
+
+    # Sort by title (descending)
+    model.sort(0, Qt.SortOrder.DescendingOrder)
+
+    # In descending order, None should sort last
+    assert model._data[0][KEY_TITLE] == "Song C"
+    assert model._data[1][KEY_TITLE] == "Song A"
+    assert model._data[2][KEY_TITLE] is None
+
+
+from util.const import LOADING_PLACEHOLDER
+
+
+def test_loading_placeholder_display_role(model):
+    """Test that loading placeholder is returned for DisplayRole."""
+    model.add_rows([{KEY_TITLE: LOADING_PLACEHOLDER, KEY_ARTIST: "Real Artist"}])
+
+    index = model.createIndex(0, 0)  # Title column
+    display_data = model.data(index, Qt.ItemDataRole.DisplayRole)
+
+    assert display_data == LOADING_PLACEHOLDER
+
+
+def test_loading_placeholder_foreground_color(model):
+    """Test that loading placeholder is displayed in gray color."""
+    from PySide6.QtGui import QColor
+
+    model.add_rows([{KEY_TITLE: LOADING_PLACEHOLDER, KEY_ARTIST: "Real Artist"}])
+
+    index = model.createIndex(0, 0)  # Title column with placeholder
+    color = model.data(index, Qt.ItemDataRole.ForegroundRole)
+
+    assert isinstance(color, QColor)
+    assert color == QColor(Qt.GlobalColor.lightGray)
+
+
+def test_non_placeholder_no_gray_color(model):
+    """Test that non-placeholder values don't get gray color."""
+    model.add_rows([{KEY_TITLE: "Real Title", KEY_ARTIST: "Real Artist"}])
+
+    index = model.createIndex(0, 0)  # Title column with real data
+    color = model.data(index, Qt.ItemDataRole.ForegroundRole)
+
+    assert color is None  # No special color for real data

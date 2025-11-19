@@ -174,7 +174,7 @@ class TestMainWindowFavorites:
         # Menu should have "Add Favorite..." action
         actions = menu.actions()
         assert len(actions) == 1
-        assert actions[0].text() == "Add Favorite..."
+        assert actions[0].text() == "Add Favorite"
 
     def test_create_favorites_menu_with_favorites(self, main_window):
         """Test creating favorites menu with favorites."""

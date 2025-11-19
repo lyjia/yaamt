@@ -103,6 +103,9 @@ ALL_TAGS = { #display names for each tag
 
 #### END metadata model keys ####
 
+# UI constants
+LOADING_PLACEHOLDER = "⧖"  # Hourglass symbol for loading state
+
 #### COLUMN names for file list ####
 COL_MAIN_FILENAME = "filename"
 COL_MAIN_SIZE = "size"
