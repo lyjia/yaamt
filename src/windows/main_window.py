@@ -23,6 +23,7 @@ from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
 from util.debug import is_debug_mode
 from util.logging import log
+from util.resource_manager import get_resource_manager
 from providers import get_all_categories, ProviderType
 from workers.analyzer_dispatcher import AnalyzerDispatcher
 
@@ -552,6 +553,12 @@ class MainWindow(QMainWindow):
         debug_menu.addMenu(sample_format_menu)
         self.debug_sample_format_menu = sample_format_menu
 
+        # Resource cache management
+        debug_menu.addSeparator()
+        clear_cache_action = QAction("Clear Downloaded Resource Cache", self)
+        clear_cache_action.triggered.connect(self._on_clear_resource_cache)
+        debug_menu.addAction(clear_cache_action)
+
         # Update submenu enabled state based on adaptation toggle
         self._update_debug_menu_state()
 
@@ -580,6 +587,49 @@ class MainWindow(QMainWindow):
         """Handle sample format selection."""
         settings.setValue("Debug/PlaybackSampleFormat", value)
         log.info(f"Debug playback sample format set to: {value if value else 'Native'}")
+
+    def _on_clear_resource_cache(self):
+        """Handle clearing the downloaded resource cache."""
+        # Confirm with user
+        reply = QMessageBox.question(
+            self,
+            "Clear Resource Cache",
+            "This will delete all downloaded resources (models, data files, etc.).\n\n"
+            "Resources will be re-downloaded when needed.\n\n"
+            "Are you sure you want to continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                resource_manager = get_resource_manager()
+                cache_root = resource_manager.get_cache_root()
+
+                # Get cached resources before clearing
+                cached_resources = resource_manager.get_cached_resources()
+                num_resources = len(cached_resources)
+
+                # Clear the cache
+                resource_manager.clear_cache()
+
+                # Show success message
+                QMessageBox.information(
+                    self,
+                    "Cache Cleared",
+                    f"Successfully cleared resource cache.\n\n"
+                    f"Removed {num_resources} cached resource(s) from:\n{cache_root}"
+                )
+
+                log.info(f"Resource cache cleared: {num_resources} resources removed from {cache_root}")
+
+            except Exception as e:
+                log.error(f"Error clearing resource cache: {e}")
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Failed to clear resource cache:\n\n{str(e)}"
+                )
 
     def _update_debug_menu_state(self):
         """Enable or disable debug submenus based on adaptation toggle."""
