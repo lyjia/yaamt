@@ -362,9 +362,10 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
             ),
             AnalyzerOption(
                 name='model_path',
-                type='str',
+                type='file',
                 default='',
-                help='Custom path to model checkpoint file (leave empty for default)'
+                help='Custom path to model checkpoint file (leave empty for default)',
+                choices=['PyTorch Models (*.pth *.pt)', 'ONNX Models (*.onnx)']
             )
         ]
 

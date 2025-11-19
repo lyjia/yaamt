@@ -17,7 +17,8 @@ from argparse import ArgumentParser
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox, QSlider
+    QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox, QSlider,
+    QPushButton, QLineEdit, QFileDialog
 )
 from PySide6.QtCore import Qt, QSettings
 
@@ -57,7 +58,7 @@ class AnalyzerOption:
 
     def __post_init__(self):
         """Validate option configuration."""
-        valid_types = {'int', 'float', 'bool', 'choice', 'slider'}
+        valid_types = {'int', 'float', 'bool', 'choice', 'slider', 'file'}
         if self.type not in valid_types:
             raise ValueError(f"Invalid option type '{self.type}'. Must be one of {valid_types}")
 
@@ -109,7 +110,7 @@ def build_widget_from_option(option: AnalyzerOption,
             saved_value = settings.value(option.name, option.default, type=int)
         elif option.type == 'float':
             saved_value = settings.value(option.name, option.default, type=float)
-        else:  # choice
+        else:  # choice, file
             saved_value = settings.value(option.name, option.default)
 
         settings.endGroup()
@@ -132,6 +133,9 @@ def build_widget_from_option(option: AnalyzerOption,
 
     elif option.type == 'float':
         return _build_spinbox(option, saved_value, settings_group, is_float=True)
+
+    elif option.type == 'file':
+        return _build_file_input(option, saved_value, settings_group)
 
     else:
         raise ValueError(f"Cannot build widget for option type: {option.type}")
@@ -348,6 +352,78 @@ def _build_slider_spinbox(option: AnalyzerOption,
     return container
 
 
+def _build_file_input(option: AnalyzerOption,
+                     value: str,
+                     settings_group: Optional[str]) -> QWidget:
+    """Build a file input widget with QLineEdit and Browse button."""
+    container = QWidget()
+    main_layout = QVBoxLayout()
+    main_layout.setContentsMargins(0, 0, 0, 0)
+
+    # Add label
+    label = QLabel(option.help + ":")
+    main_layout.addWidget(label)
+
+    # Horizontal layout for line edit and button
+    h_layout = QHBoxLayout()
+
+    # Create line edit
+    line_edit = QLineEdit()
+    line_edit.setObjectName(option.name)
+    line_edit.setText(str(value) if value else '')
+    line_edit.setPlaceholderText("Select a file..." if not value else "")
+
+    h_layout.addWidget(line_edit)
+
+    # Create browse button
+    browse_button = QPushButton("Browse...")
+    browse_button.setMaximumWidth(100)
+
+    # Define file dialog function
+    def open_file_dialog():
+        # Determine file filters based on choices (if provided)
+        # choices can be used to specify allowed file extensions
+        filters = "All Files (*.*)"
+        if option.choices:
+            # Assume choices contains file extensions like ['.pth', '.pt', '.onnx']
+            # or filter descriptions like ['PyTorch Models (*.pth *.pt)', 'ONNX Models (*.onnx)']
+            if isinstance(option.choices[0], str) and option.choices[0].startswith('.'):
+                # Simple extensions list
+                extensions = ' '.join(f'*{ext}' for ext in option.choices)
+                filters = f"Model Files ({extensions});;All Files (*.*)"
+            elif isinstance(option.choices[0], str) and '(' in option.choices[0]:
+                # Filter descriptions
+                filters = ';;'.join(option.choices) + ";;All Files (*.*)"
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            container,
+            f"Select {option.help}",
+            line_edit.text() if line_edit.text() else "",
+            filters
+        )
+
+        if file_path:
+            line_edit.setText(file_path)
+
+    browse_button.clicked.connect(open_file_dialog)
+    h_layout.addWidget(browse_button)
+
+    main_layout.addLayout(h_layout)
+
+    # Save to QSettings on change
+    if settings_group:
+        def save_value(text: str):
+            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings.beginGroup(settings_group)
+            settings.setValue(option.name, text)
+            settings.endGroup()
+
+        line_edit.textChanged.connect(save_value)
+
+    container.setLayout(main_layout)
+    return container
+
+
 def add_option_to_argparse(parser: ArgumentParser,
                           option: AnalyzerOption,
                           prefix: str = "--") -> None:
@@ -429,6 +505,11 @@ def add_option_to_argparse(parser: ArgumentParser,
             kwargs['help'] += f' (min: {option.min})'
         elif option.max is not None:
             kwargs['help'] += f' (max: {option.max})'
+
+    elif option.type == 'file':
+        kwargs['type'] = str
+        kwargs['metavar'] = 'PATH'
+        kwargs['help'] += ' (file path)'
 
     parser.add_argument(arg_name, **kwargs)
 
