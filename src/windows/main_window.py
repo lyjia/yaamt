@@ -275,8 +275,8 @@ class MainWindow(QMainWindow):
         # Disable sorting during load and force to filename ascending
         self.files_view.setSortingEnabled(False)
         if filename_column is not None:
-            # Sort both the source model and proxy model to filename ascending
-            self.file_model.sort(filename_column, Qt.SortOrder.AscendingOrder)
+            # Only sort the proxy model - source model stays in insertion order
+            # This keeps row indices stable for the worker's file_updated signals
             self.proxy_model.sort(filename_column, Qt.SortOrder.AscendingOrder)
             header.setSortIndicator(filename_column, Qt.SortOrder.AscendingOrder)
 
@@ -393,8 +393,7 @@ class MainWindow(QMainWindow):
         if self._saved_sort_column is not None and self._saved_sort_order is not None:
             header = self.files_view.header()
             header.setSortIndicator(self._saved_sort_column, self._saved_sort_order)
-            # Sort both source and proxy model to ensure consistency
-            self.file_model.sort(self._saved_sort_column, self._saved_sort_order)
+            # Only sort the proxy model - source model stays in insertion order
             self.proxy_model.sort(self._saved_sort_column, self._saved_sort_order)
 
         # Re-enable sorting
@@ -416,8 +415,7 @@ class MainWindow(QMainWindow):
             if self._saved_sort_column is not None and self._saved_sort_order is not None:
                 header = self.files_view.header()
                 header.setSortIndicator(self._saved_sort_column, self._saved_sort_order)
-                # Sort both source and proxy model to ensure consistency
-                self.file_model.sort(self._saved_sort_column, self._saved_sort_order)
+                # Only sort the proxy model - source model stays in insertion order
                 self.proxy_model.sort(self._saved_sort_column, self._saved_sort_order)
 
             # Re-enable sorting
