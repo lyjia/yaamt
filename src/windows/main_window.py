@@ -41,6 +41,8 @@ class MainWindow(QMainWindow):
         self.column_menu = QMenu("Columns", self)
         self._current_load_worker = None
         self._current_worker_id = 0
+        self._saved_sort_column = None
+        self._saved_sort_order = None
 
         # Playback components
         self.playback_panel = PlaybackPanel()
@@ -257,6 +259,25 @@ class MainWindow(QMainWindow):
         # Clear the model for the new directory
         self.file_model.set_entire_data([])
 
+        # Save current sort order and switch to filename ascending for loading
+        header = self.files_view.header()
+        self._saved_sort_column = header.sortIndicatorSection()
+        self._saved_sort_order = header.sortIndicatorOrder()
+
+        # Find the filename column index
+        from util.const import COL_MAIN_FILENAME
+        filename_column = None
+        for i, col_id in enumerate(self._logical_column_ids):
+            if col_id == COL_MAIN_FILENAME:
+                filename_column = i
+                break
+
+        # Disable sorting during load and force to filename ascending
+        self.files_view.setSortingEnabled(False)
+        if filename_column is not None:
+            self.file_model.sort(filename_column, Qt.SortOrder.AscendingOrder)
+            header.setSortIndicator(filename_column, Qt.SortOrder.AscendingOrder)
+
         # Increment worker ID to track this specific load operation
         self._current_worker_id += 1
         worker_id = self._current_worker_id
@@ -366,6 +387,15 @@ class MainWindow(QMainWindow):
             log.debug(f"Ignoring finished signal from old worker {worker_id} (current: {self._current_worker_id})")
             return
 
+        # Restore the saved sort order
+        if self._saved_sort_column is not None and self._saved_sort_order is not None:
+            header = self.files_view.header()
+            header.setSortIndicator(self._saved_sort_column, self._saved_sort_order)
+            self.file_model.sort(self._saved_sort_column, self._saved_sort_order)
+
+        # Re-enable sorting
+        self.files_view.setSortingEnabled(True)
+
         self.progress_bar.hide()
         self.cancel_button.hide()
         file_count = self.file_model.rowCount()
@@ -377,6 +407,16 @@ class MainWindow(QMainWindow):
         if self._current_load_worker is not None:
             log.info("User cancelled file loading")
             self._current_load_worker.cancel()
+
+            # Restore the saved sort order
+            if self._saved_sort_column is not None and self._saved_sort_order is not None:
+                header = self.files_view.header()
+                header.setSortIndicator(self._saved_sort_column, self._saved_sort_order)
+                self.file_model.sort(self._saved_sort_column, self._saved_sort_order)
+
+            # Re-enable sorting
+            self.files_view.setSortingEnabled(True)
+
             self.status_label.setText("Loading cancelled.")
             self.progress_bar.hide()
             self.cancel_button.hide()

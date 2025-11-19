@@ -8,7 +8,8 @@ from models.qt.metadata_model import MetadataTableModel
 from util.logging import log
 from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_CTIME,
-    KEY_FILE_TYPE, KEY_IS_MEDIA, KEY_FILE_ID, KEY_TITLE
+    KEY_FILE_TYPE, KEY_IS_MEDIA, KEY_FILE_ID, KEY_TITLE, KEY_ARTIST,
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, LOADING_PLACEHOLDER
 )
 
 
@@ -95,7 +96,13 @@ class LoadFilesWorker(QRunnable):
                             KEY_FILE_TYPE: os.path.splitext(file_path)[1].lstrip('.').upper(),
                             KEY_IS_MEDIA: None,  # Unknown until Stage 2
                             KEY_FILE_ID: None,  # Will be set in Stage 2
-                            KEY_TITLE: "Loading...",  # Placeholder
+                            # Populate all metadata fields with loading placeholder
+                            KEY_TITLE: LOADING_PLACEHOLDER,
+                            KEY_ARTIST: LOADING_PLACEHOLDER,
+                            KEY_ALBUM: LOADING_PLACEHOLDER,
+                            KEY_GENRE: LOADING_PLACEHOLDER,
+                            KEY_BPM: LOADING_PLACEHOLDER,
+                            KEY_INITIAL_KEY: LOADING_PLACEHOLDER,
                         }
 
                         batch.append(basic_data)
