@@ -73,8 +73,7 @@ class MainWindow(QMainWindow):
         self.favorites_button.setIcon(favorites_icon)
         self.favorites_button.setToolTip("Favorites")
         self.favorites_button.setPopupMode(QToolButton.MenuButtonPopup)
-        self.favorites_toolbar_menu = self._create_favorites_menu()
-        self.favorites_button.setMenu(self.favorites_toolbar_menu)
+        # Menu will be created and shared with menu bar in _create_menus()
         self.favorites_button.clicked.connect(self._on_favorites_button_clicked)
         self.toolbar.addWidget(self.favorites_button)
 
@@ -432,11 +431,12 @@ class MainWindow(QMainWindow):
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.action_show_playback_panel)
 
-        # Favorites Menu
-        self.favorites_menubar_menu = self._create_favorites_menu()
-        self.menuBar().addMenu(self.favorites_menubar_menu)
-        # Store reference to update menu dynamically
-        self.favorites_menubar_menu.aboutToShow.connect(lambda: self._refresh_favorites_menu(self.favorites_menubar_menu))
+        # Favorites Menu - shared between menu bar and toolbar
+        self.favorites_menu = self._create_favorites_menu()
+        self.menuBar().addMenu(self.favorites_menu)
+        self.favorites_button.setMenu(self.favorites_menu)
+        # Refresh menu dynamically when shown
+        self.favorites_menu.aboutToShow.connect(lambda: self._refresh_favorites_menu(self.favorites_menu))
 
         # Debug Menu (only shown if debug mode is enabled)
         if is_debug_mode():
@@ -818,8 +818,8 @@ class MainWindow(QMainWindow):
         favorites.append(Favorite(path=current_path))
         self._save_favorites(favorites)
 
-        # Refresh all menus to show the new favorite immediately
-        self._refresh_all_favorites_menus()
+        # Refresh menu to show the new favorite immediately
+        self._refresh_favorites_menu(self.favorites_menu)
 
         log.info(f"Added favorite: {current_path}")
 
@@ -843,8 +843,8 @@ class MainWindow(QMainWindow):
             favorites = [f for f in favorites if f.path != path]
             self._save_favorites(favorites)
 
-            # Refresh all menus to reflect the removal immediately
-            self._refresh_all_favorites_menus()
+            # Refresh menu to reflect the removal immediately
+            self._refresh_favorites_menu(self.favorites_menu)
 
             log.info(f"Removed favorite: {path}")
 
@@ -888,17 +888,10 @@ class MainWindow(QMainWindow):
 
         settings.endGroup()
 
-    def _refresh_all_favorites_menus(self):
-        """Refresh all favorites menus to reflect current state."""
-        # Refresh toolbar menu
-        self._refresh_favorites_menu(self.favorites_toolbar_menu)
-        # Refresh menu bar menu
-        self._refresh_favorites_menu(self.favorites_menubar_menu)
-
     def _on_favorites_button_clicked(self):
         """Handle favorites toolbar button click by refreshing and showing the menu."""
         # Refresh the menu to reflect any changes
-        self._refresh_favorites_menu(self.favorites_toolbar_menu)
+        self._refresh_favorites_menu(self.favorites_menu)
         self.favorites_button.showMenu()
 
     def _refresh_favorites_menu(self, menu: QMenu):
