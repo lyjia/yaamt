@@ -765,6 +765,9 @@ class MainWindow(QMainWindow):
         # Add "Add Favorite..." action
         add_action = QAction("Add Favorite...", self)
         add_action.triggered.connect(self._on_add_favorite)
+        # Disable if current path is already in favorites
+        current_path_is_favorite = any(f.path == self._current_path for f in favorites)
+        add_action.setEnabled(not current_path_is_favorite)
         menu.addAction(add_action)
 
         # Add "Remove Favorite" submenu
@@ -920,6 +923,9 @@ class MainWindow(QMainWindow):
         # Add "Add Favorite..." action
         add_action = QAction("Add Favorite...", self)
         add_action.triggered.connect(self._on_add_favorite)
+        # Disable if current path is already in favorites
+        current_path_is_favorite = any(f.path == self._current_path for f in favorites)
+        add_action.setEnabled(not current_path_is_favorite)
         menu.addAction(add_action)
 
         # Add "Remove Favorite" submenu
