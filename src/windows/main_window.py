@@ -747,7 +747,16 @@ class MainWindow(QMainWindow):
             QMenu with favorites locations and management actions
         """
         menu = QMenu("&Favorites", self)
+        self._populate_favorites_menu(menu)
+        return menu
 
+    def _populate_favorites_menu(self, menu: QMenu):
+        """
+        Populate a menu with favorites content.
+
+        Args:
+            menu: The menu to populate
+        """
         # Load favorites from settings
         favorites = self._load_favorites()
 
@@ -763,7 +772,7 @@ class MainWindow(QMainWindow):
             menu.addSeparator()
 
         # Add "Add Favorite..." action
-        add_action = QAction("Add Favorite...", self)
+        add_action = QAction("Add Favorite", self)
         add_action.triggered.connect(self._on_add_favorite)
         # Disable if current path is already in favorites
         current_path_is_favorite = any(f.path == self._current_path for f in favorites)
@@ -778,8 +787,6 @@ class MainWindow(QMainWindow):
                 action.triggered.connect(lambda checked, path=favorite.path: self._on_remove_favorite(path))
                 remove_menu.addAction(action)
             menu.addAction(remove_menu.menuAction())
-
-        return menu
 
     def _on_add_favorite(self):
         """Add the current directory to favorites."""
@@ -905,37 +912,7 @@ class MainWindow(QMainWindow):
             menu: The menu to refresh
         """
         menu.clear()
-
-        # Load favorites from settings
-        favorites = self._load_favorites()
-
-        # Sort favorites alphabetically by path
-        sorted_favorites = sorted(favorites, key=lambda f: f.path)
-
-        # Add favorite locations
-        if sorted_favorites:
-            for favorite in sorted_favorites:
-                action = QAction(favorite.path, self)
-                action.triggered.connect(lambda checked, path=favorite.path: self.set_path(path))
-                menu.addAction(action)
-            menu.addSeparator()
-
-        # Add "Add Favorite..." action
-        add_action = QAction("Add Favorite...", self)
-        add_action.triggered.connect(self._on_add_favorite)
-        # Disable if current path is already in favorites
-        current_path_is_favorite = any(f.path == self._current_path for f in favorites)
-        add_action.setEnabled(not current_path_is_favorite)
-        menu.addAction(add_action)
-
-        # Add "Remove Favorite" submenu
-        if sorted_favorites:
-            remove_menu = QMenu("Remove Favorite", self)
-            for favorite in sorted_favorites:
-                action = QAction(favorite.path, self)
-                action.triggered.connect(lambda checked, path=favorite.path: self._on_remove_favorite(path))
-                remove_menu.addAction(action)
-            menu.addAction(remove_menu.menuAction())
+        self._populate_favorites_menu(menu)
 
     def open_properties_window(self):
         selected_indexes = self.files_view.selectionModel().selectedRows()
