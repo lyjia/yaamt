@@ -449,30 +449,48 @@ class MainWindow(QMainWindow):
     def _update_viewport_priority(self):
         """
         Calculate the visible row range and send it to the worker for priority loading.
+
+        Note: Since the proxy model can be sorted, visible VIEW rows may map to
+        scattered SOURCE rows. We collect all source rows for visible view rows,
+        then find the min/max range to send to the worker.
         """
         if self._current_load_worker is None:
             return
 
-        # Get visible row range
+        # Get visible row range in the VIEW
         viewport = self.files_view.viewport()
         top_index = self.files_view.indexAt(viewport.rect().topLeft())
         bottom_index = self.files_view.indexAt(viewport.rect().bottomLeft())
 
-        # Map proxy indices to source indices
         if top_index.isValid() and bottom_index.isValid():
-            source_top = self.proxy_model.mapToSource(top_index)
-            source_bottom = self.proxy_model.mapToSource(bottom_index)
+            # Collect source row indices for all visible view rows
+            view_start_row = top_index.row()
+            view_end_row = bottom_index.row() + 1
 
-            start_row = source_top.row()
-            end_row = source_bottom.row() + 1  # +1 to include the bottom row
+            source_rows = []
+            for view_row in range(view_start_row, view_end_row):
+                view_index = self.proxy_model.index(view_row, 0)
+                source_index = self.proxy_model.mapToSource(view_index)
+                if source_index.isValid():
+                    source_rows.append(source_index.row())
 
-            # Add some buffer rows for smoother scrolling
-            buffer = 50
-            start_row = max(0, start_row - buffer)
-            end_row = min(self.file_model.rowCount(), end_row + buffer)
+            if source_rows:
+                # Find min and max source rows that correspond to visible view rows
+                # Note: This may include some non-visible rows if the sort is scrambled,
+                # but it ensures we cover all visible rows
+                start_row = min(source_rows)
+                end_row = max(source_rows) + 1
 
-            # Send priority range to worker
-            self._current_load_worker.set_priority_range(start_row, end_row)
+                # Add buffer rows for smoother scrolling
+                buffer = 50
+                start_row = max(0, start_row - buffer)
+                end_row = min(self.file_model.rowCount(), end_row + buffer)
+
+                # Send priority range to worker
+                self._current_load_worker.set_priority_range(start_row, end_row)
+            else:
+                # Fallback to default range
+                self._current_load_worker.set_priority_range(0, 100)
         else:
             # No valid indices, set default range
             self._current_load_worker.set_priority_range(0, 100)
