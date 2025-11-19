@@ -1,6 +1,6 @@
 import os
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QColor
 from models.settings import ColumnSettings
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
@@ -9,7 +9,7 @@ from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA,
     COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
-    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_FILE_ID
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_FILE_ID, LOADING_PLACEHOLDER
 )
 from util.display import human_readable_size, human_readable_timestamp
 from util.logging import log
@@ -82,6 +82,12 @@ class MetadataTableModel(QAbstractTableModel):
                 font = QFont()
                 font.setBold(True)
                 return font
+
+        elif role == Qt.ItemDataRole.ForegroundRole:
+            # Display loading placeholder in gray
+            value = row_data.get(column.id, "")
+            if value == LOADING_PLACEHOLDER:
+                return QColor(Qt.GlobalColor.lightGray)
 
         elif role == Qt.ItemDataRole.UserRole or role == Qt.ItemDataRole.EditRole:
             # For EditRole, return the current value from row_data, which should be consistent
@@ -218,10 +224,53 @@ class MetadataTableModel(QAbstractTableModel):
         self._data = data
         self.endResetModel()
 
+    def add_rows(self, rows_data: list[dict]):
+        """
+        Append new rows to the model (used during Stage 1 discovery).
+
+        Args:
+            rows_data: List of dictionaries containing basic file data
+        """
+        if not rows_data:
+            return
+
+        # Insert rows at the end
+        position = len(self._data)
+        self.beginInsertRows(QModelIndex(), position, position + len(rows_data) - 1)
+        self._data.extend(rows_data)
+        self.endInsertRows()
+
+    def update_row(self, index: int, metadata: dict):
+        """
+        Update an existing row with enriched metadata (used during Stage 2 enrichment).
+
+        Args:
+            index: Row index to update
+            metadata: Dictionary containing full metadata
+        """
+        if index < 0 or index >= len(self._data):
+            log.error(f"Invalid row index for update: {index} (total rows: {len(self._data)})")
+            return
+
+        # Update the row data
+        self._data[index] = metadata
+
+        # Emit dataChanged signal for this row
+        start_index = self.createIndex(index, 0)
+        end_index = self.createIndex(index, self.columnCount() - 1)
+        self.dataChanged.emit(start_index, end_index, [])
+
     def sort(self, column, order):
         self.layoutAboutToBeChanged.emit()
         column_settings = self._columns[column]
-        self._data.sort(key=lambda x: x.get(column_settings.id, ""), reverse=order == Qt.SortOrder.DescendingOrder)
+
+        # Handle None values in sort key by converting them to empty strings
+        def sort_key(x):
+            value = x.get(column_settings.id, "")
+            # Convert None to empty string for comparison
+            return value if value is not None else ""
+
+        self._data.sort(key=sort_key, reverse=order == Qt.SortOrder.DescendingOrder)
         self.layoutChanged.emit()
 
     @staticmethod
