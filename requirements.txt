@@ -5,13 +5,6 @@ pytest==8.4.1
 pytest-cov==4.1.0
 numpy==2.3.3
 
-# for LibrosaBPMAnalyzer, LibrosaKeyAnalyzer, and MusicalKeyCNNAnalyzer
-# these dependencies cause issues compiling with nuitka
-scipy==1.16.2
-librosa==0.11.0
-torchaudio==2.9.0
-torch==2.9.0
-
 # packaging
 cx_Freeze==8.4.1
 nuitka==2.7.16
@@ -20,3 +13,10 @@ imageio==2.37.0
 # only needed for analyzer evaluator
 pandas==2.3.3
 mingus==0.6.1  # Used for music theory calculations (interval detection for key scoring)
+
+# for LibrosaBPMAnalyzer, LibrosaKeyAnalyzer, and MusicalKeyCNNAnalyzer
+# these dependencies cause issues compiling with nuitka
+scipy==1.16.2
+librosa==0.11.0
+torchaudio==2.9.0
+torch==2.9.0
