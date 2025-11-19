@@ -41,6 +41,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred. This is a python 3.12+ project, so avoid pulling in `typing` unless absolutely necessary.
 * Libraries brought in must be able to be compiled into a standalone executable using `nuitka`. If binaries cannot be built because of a dependency, code using that dependency must be gated with `debug_only=True` so that it is not included in the build process.
 * Avoid "magic" strings or values. Use enums or constants (defined in the same file or `src/util/const.py`) in their place. Make sure they are named descriptively. Exceptions to this are 0, 1, None, and "", if their purpose is obvious. 
+* Don't Repeat Yourself (DRY). If you find yourself writing the same code in multiple places, consider extracting it into a function.
 
 ### Media Handling Conventions
 
@@ -100,6 +101,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * Make sure to use the Python virtual environment in `.venv` before running any python commands. The correct way to run a python command:
     * on WINDOWS (Poweshell): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py` (don't use backslashes they break things)
     * on WINDOWS (WSL): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py`
+* When planning or generating a design document, avoid including code examples unless they are essential to the design. Always prefer pseudocode or a diagram. 
 
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
