@@ -275,7 +275,9 @@ class MainWindow(QMainWindow):
         # Disable sorting during load and force to filename ascending
         self.files_view.setSortingEnabled(False)
         if filename_column is not None:
+            # Sort both the source model and proxy model to filename ascending
             self.file_model.sort(filename_column, Qt.SortOrder.AscendingOrder)
+            self.proxy_model.sort(filename_column, Qt.SortOrder.AscendingOrder)
             header.setSortIndicator(filename_column, Qt.SortOrder.AscendingOrder)
 
         # Increment worker ID to track this specific load operation
@@ -391,7 +393,9 @@ class MainWindow(QMainWindow):
         if self._saved_sort_column is not None and self._saved_sort_order is not None:
             header = self.files_view.header()
             header.setSortIndicator(self._saved_sort_column, self._saved_sort_order)
+            # Sort both source and proxy model to ensure consistency
             self.file_model.sort(self._saved_sort_column, self._saved_sort_order)
+            self.proxy_model.sort(self._saved_sort_column, self._saved_sort_order)
 
         # Re-enable sorting
         self.files_view.setSortingEnabled(True)
@@ -412,7 +416,9 @@ class MainWindow(QMainWindow):
             if self._saved_sort_column is not None and self._saved_sort_order is not None:
                 header = self.files_view.header()
                 header.setSortIndicator(self._saved_sort_column, self._saved_sort_order)
+                # Sort both source and proxy model to ensure consistency
                 self.file_model.sort(self._saved_sort_column, self._saved_sort_order)
+                self.proxy_model.sort(self._saved_sort_column, self._saved_sort_order)
 
             # Re-enable sorting
             self.files_view.setSortingEnabled(True)
