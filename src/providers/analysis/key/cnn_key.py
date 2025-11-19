@@ -24,6 +24,11 @@ from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.const import KEY_INITIAL_KEY
 from util.logging import log
+from util.resource_manager import (
+    get_resource_manager,
+    ResourceMetadata,
+    CLIProgressReporter
+)
 
 # Camelot Wheel mapping (from MusicalKeyCNN dataset.py)
 # Maps key names to indices 0-23 (0-11 = minor, 12-23 = major)
@@ -62,6 +67,15 @@ INDEX_TO_KEY = {
     18: 'F', 19: 'C', 20: 'G', 21: 'D', 22: 'A', 23: 'E'
 }
 
+# Resource constants for KeyNet model
+KEYNET_RESOURCE_ID = "keynet_model"
+KEYNET_MODEL_FILENAME = "keynet.pt"
+# Note: The model URL and checksum should be configured by the user or provided
+# by the application maintainer. For now, we support local-only mode.
+KEYNET_MODEL_URL = ""  # User must configure if download is desired
+KEYNET_MODEL_SIZE = 50 * 1024 * 1024  # Approximate 50 MB
+KEYNET_MODEL_CHECKSUM = ""  # User must configure for validation
+
 
 class MusicalKeyCNNAnalyzer(AnalyzerBase):
     """
@@ -83,7 +97,9 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
     - RekordBox 7.12: 65.53%
 
     Analyzer-specific options:
-        - 'model_path' (str): Path to model checkpoint file (default: auto-detect)
+        - 'model_path' (str): Path to model checkpoint file (leave empty for auto-detect)
+        - 'cache_directory' (str): Directory for caching downloaded models (leave empty for default)
+        - 'model_url' (str): URL to download model from if not found locally
         - 'device' (str): Computation device ("auto", "cpu", or "cuda")
     """
 
@@ -247,21 +263,81 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         """
         Get the path to the model checkpoint.
 
+        This method handles multiple scenarios:
+        1. User-specified custom model path
+        2. Development mode (references directory exists)
+        3. Resource manager (downloads model if URL configured)
+
         Returns:
             Path to the model checkpoint file
+
+        Raises:
+            RuntimeError: If model cannot be found or downloaded
         """
         # Check if user specified a custom model path
-        model_path_str = self.options.get('model_path', None)
+        model_path_str = self.options.get('model_path', '')
         if model_path_str:
-            return Path(model_path_str)
+            model_path = Path(model_path_str)
+            if model_path.exists():
+                log.debug(f"Using custom model path: {model_path}")
+                return model_path
+            else:
+                log.warning(f"Custom model path does not exist: {model_path}")
 
-        # Default: look in references/MusicalKeyCNN/checkpoints/keynet.pt
-        # Get project root (go up from src/providers/analysis/key/)
-        current_file = Path(__file__)
-        project_root = current_file.parent.parent.parent.parent.parent
+        # Try development mode: look in references/MusicalKeyCNN/checkpoints/keynet.pt
+        try:
+            current_file = Path(__file__)
+            project_root = current_file.parent.parent.parent.parent.parent
+            dev_path = project_root / "references" / "MusicalKeyCNN" / "checkpoints" / "keynet.pt"
 
-        default_path = project_root / "references" / "MusicalKeyCNN" / "checkpoints" / "keynet.pt"
-        return default_path
+            if dev_path.exists():
+                log.debug(f"Using development model path: {dev_path}")
+                return dev_path
+        except Exception as e:
+            log.debug(f"Development mode check failed: {e}")
+
+        # Try resource manager for deployment mode
+        model_url = self.options.get('model_url', KEYNET_MODEL_URL)
+
+        if not model_url:
+            raise RuntimeError(
+                "KeyNet model not found. Please either:\n"
+                "1. Specify a custom model path in settings, or\n"
+                "2. Configure a model download URL in settings, or\n"
+                "3. For development: ensure references/MusicalKeyCNN/checkpoints/keynet.pt exists"
+            )
+
+        # Register resource if URL is configured
+        resource_manager = get_resource_manager()
+
+        # Set custom cache directory if specified
+        cache_dir_str = self.options.get('cache_directory', '')
+        if cache_dir_str:
+            resource_manager.set_cache_root(Path(cache_dir_str))
+
+        # Register the KeyNet model resource
+        checksum = self.options.get('model_checksum', KEYNET_MODEL_CHECKSUM)
+        resource_manager.register_resource(ResourceMetadata(
+            resource_id=KEYNET_RESOURCE_ID,
+            url=model_url,
+            filename=KEYNET_MODEL_FILENAME,
+            expected_size=KEYNET_MODEL_SIZE,
+            checksum=checksum if checksum else None,
+            category="models"
+        ))
+
+        # Ensure resource is available (downloads if needed)
+        try:
+            # Use CLI progress reporter for now
+            # TODO: Add GUI progress reporter when running in GUI mode
+            model_path = resource_manager.ensure_resource(
+                KEYNET_RESOURCE_ID,
+                progress_reporter=CLIProgressReporter()
+            )
+            log.info(f"Using downloaded model: {model_path}")
+            return model_path
+        except Exception as e:
+            raise RuntimeError(f"Failed to download KeyNet model: {e}") from e
 
     def _load_model(self, model_path: Path, device):
         """
@@ -364,8 +440,20 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
                 name='model_path',
                 type='file',
                 default='',
-                help='Custom path to model checkpoint file (leave empty for default)',
+                help='Custom path to model checkpoint file (leave empty for auto-detect)',
                 choices=['PyTorch Models (*.pth *.pt)', 'ONNX Models (*.onnx)']
+            ),
+            AnalyzerOption(
+                name='cache_directory',
+                type='directory',
+                default='',
+                help='Directory for caching downloaded models (leave empty for default platform location)'
+            ),
+            AnalyzerOption(
+                name='model_url',
+                type='file',  # Using 'file' type for string input
+                default='',
+                help='URL to download KeyNet model from (leave empty to use local model only)'
             )
         ]
 
@@ -377,7 +465,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         Returns:
             QWidget with controls for CNN key detection parameters
         """
-        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGroupBox
 
         widget = QWidget()
         main_layout = QVBoxLayout()
@@ -398,11 +486,25 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         options = cls.get_options_metadata()
         settings_group = f"analyzers/{cls.__name__}"
 
-        # Add device option
+        # Device settings group
+        device_group = QGroupBox("Device Settings")
+        device_layout = QVBoxLayout()
         for option in options:
             if option.name == 'device':
                 option_widget = build_widget_from_option(option, settings_group)
-                main_layout.addWidget(option_widget)
+                device_layout.addWidget(option_widget)
+        device_group.setLayout(device_layout)
+        main_layout.addWidget(device_group)
+
+        # Model settings group
+        model_group = QGroupBox("Model Location")
+        model_layout = QVBoxLayout()
+        for option in options:
+            if option.name in ('model_path', 'cache_directory', 'model_url'):
+                option_widget = build_widget_from_option(option, settings_group)
+                model_layout.addWidget(option_widget)
+        model_group.setLayout(model_layout)
+        main_layout.addWidget(model_group)
 
         main_layout.addStretch()
 
