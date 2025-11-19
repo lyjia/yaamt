@@ -100,6 +100,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * Make sure to use the Python virtual environment in `.venv` before running any python commands. The correct way to run a python command:
     * on WINDOWS (Poweshell): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py` (don't use backslashes they break things)
     * on WINDOWS (WSL): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py`
+* When planning or generating a design document, avoid including code examples unless they are essential to the design. Always prefer pseudocode or a diagram. 
 
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
