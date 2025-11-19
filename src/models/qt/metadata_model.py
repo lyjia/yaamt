@@ -263,7 +263,14 @@ class MetadataTableModel(QAbstractTableModel):
     def sort(self, column, order):
         self.layoutAboutToBeChanged.emit()
         column_settings = self._columns[column]
-        self._data.sort(key=lambda x: x.get(column_settings.id, ""), reverse=order == Qt.SortOrder.DescendingOrder)
+
+        # Handle None values in sort key by converting them to empty strings
+        def sort_key(x):
+            value = x.get(column_settings.id, "")
+            # Convert None to empty string for comparison
+            return value if value is not None else ""
+
+        self._data.sort(key=sort_key, reverse=order == Qt.SortOrder.DescendingOrder)
         self.layoutChanged.emit()
 
     @staticmethod
