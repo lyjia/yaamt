@@ -87,7 +87,7 @@ class MetadataTableModel(QAbstractTableModel):
             # Display loading placeholder in gray
             value = row_data.get(column.id, "")
             if value == LOADING_PLACEHOLDER:
-                return QColor(Qt.GlobalColor.gray)
+                return QColor(Qt.GlobalColor.lightGray)
 
         elif role == Qt.ItemDataRole.UserRole or role == Qt.ItemDataRole.EditRole:
             # For EditRole, return the current value from row_data, which should be consistent
