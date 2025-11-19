@@ -11,7 +11,9 @@
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
-      "Bash(.venv/Scripts/python -m pytest:*)"
+      "Bash(.venv/Scripts/python -m pytest:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(git push)"
     ],
     "deny": [],
     "ask": []
