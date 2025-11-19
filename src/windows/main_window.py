@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
     QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
-    QDialog
+    QDialog, QToolButton
 )
 from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PySide6.QtCore import (
@@ -66,6 +66,16 @@ class MainWindow(QMainWindow):
         refresh_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
         action_refresh = QAction(refresh_icon, "Refresh", self)
         self.toolbar.addAction(action_refresh)
+
+        # Add Favorites toolbar button
+        self.favorites_button = QToolButton()
+        favorites_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DirLinkIcon)
+        self.favorites_button.setIcon(favorites_icon)
+        self.favorites_button.setToolTip("Favorites")
+        self.favorites_button.setPopupMode(QToolButton.MenuButtonPopup)
+        # Menu will be created and shared with menu bar in _create_menus()
+        self.favorites_button.clicked.connect(self._on_favorites_button_clicked)
+        self.toolbar.addWidget(self.favorites_button)
 
         self.path_textbox = QLineEdit()
         self.path_textbox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -421,6 +431,13 @@ class MainWindow(QMainWindow):
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.action_show_playback_panel)
 
+        # Favorites Menu - shared between menu bar and toolbar
+        self.favorites_menu = self._create_favorites_menu()
+        self.menuBar().addMenu(self.favorites_menu)
+        self.favorites_button.setMenu(self.favorites_menu)
+        # Refresh menu dynamically when shown
+        self.favorites_menu.aboutToShow.connect(lambda: self._refresh_favorites_menu(self.favorites_menu))
+
         # Debug Menu (only shown if debug mode is enabled)
         if is_debug_mode():
             debug_menu = self.menuBar().addMenu("&Debug")
@@ -721,6 +738,181 @@ class MainWindow(QMainWindow):
                 )
 
         log.info(f"Selected {len(file_paths)} files for retry")
+
+    def _create_favorites_menu(self) -> QMenu:
+        """
+        Create and populate the Favorites menu.
+
+        Returns:
+            QMenu with favorites locations and management actions
+        """
+        menu = QMenu("&Favorites", self)
+        self._populate_favorites_menu(menu)
+        return menu
+
+    def _populate_favorites_menu(self, menu: QMenu):
+        """
+        Populate a menu with favorites content.
+
+        Args:
+            menu: The menu to populate
+        """
+        # Load favorites from settings
+        favorites = self._load_favorites()
+
+        # Sort favorites alphabetically by path
+        sorted_favorites = sorted(favorites, key=lambda f: f.path)
+
+        # Add favorite locations
+        if sorted_favorites:
+            for favorite in sorted_favorites:
+                action = QAction(favorite.path, self)
+                action.triggered.connect(lambda checked, path=favorite.path: self.set_path(path))
+                menu.addAction(action)
+            menu.addSeparator()
+
+        # Add "Add Favorite..." action
+        add_action = QAction("Add Favorite", self)
+        add_action.triggered.connect(self._on_add_favorite)
+        # Disable if current path is already in favorites
+        current_path_is_favorite = any(f.path == self._current_path for f in favorites)
+        add_action.setEnabled(not current_path_is_favorite)
+        menu.addAction(add_action)
+
+        # Add "Remove Favorite" submenu
+        if sorted_favorites:
+            remove_menu = QMenu("Remove Favorite", self)
+            for favorite in sorted_favorites:
+                action = QAction(favorite.path, self)
+                action.triggered.connect(lambda checked, path=favorite.path: self._on_remove_favorite(path))
+                remove_menu.addAction(action)
+            menu.addAction(remove_menu.menuAction())
+
+    def _on_add_favorite(self):
+        """Add the current directory to favorites."""
+        current_path = self._current_path
+
+        if not current_path:
+            QMessageBox.warning(
+                self,
+                "No Directory",
+                "No directory is currently selected."
+            )
+            return
+
+        # Load current favorites
+        favorites = self._load_favorites()
+
+        # Check if already in favorites
+        if any(f.path == current_path for f in favorites):
+            QMessageBox.information(
+                self,
+                "Already Favorited",
+                f"The path '{current_path}' is already in your favorites."
+            )
+            return
+
+        # Check maximum limit (25 as per design spec)
+        MAX_FAVORITES = 25
+        if len(favorites) >= MAX_FAVORITES:
+            QMessageBox.warning(
+                self,
+                "Too Many Favorites",
+                f"You have reached the maximum number of favorites ({MAX_FAVORITES}).\n"
+                "Please remove some favorites before adding new ones."
+            )
+            return
+
+        # Add to favorites
+        from models.settings import Favorite
+        favorites.append(Favorite(path=current_path))
+        self._save_favorites(favorites)
+
+        # Refresh menu to show the new favorite immediately
+        self._refresh_favorites_menu(self.favorites_menu)
+
+        log.info(f"Added favorite: {current_path}")
+
+    def _on_remove_favorite(self, path: str):
+        """
+        Remove a favorite from the list.
+
+        Args:
+            path: The path to remove from favorites
+        """
+        reply = QMessageBox.question(
+            self,
+            "Remove Favorite",
+            f"Are you sure you want to remove this favorite?\n\n{path}",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            favorites = self._load_favorites()
+            favorites = [f for f in favorites if f.path != path]
+            self._save_favorites(favorites)
+
+            # Refresh menu to reflect the removal immediately
+            self._refresh_favorites_menu(self.favorites_menu)
+
+            log.info(f"Removed favorite: {path}")
+
+    def _load_favorites(self) -> list:
+        """
+        Load favorites from QSettings.
+
+        Returns:
+            List of Favorite objects
+        """
+        from models.settings import Favorite
+
+        settings.beginGroup("Favorites")
+        favorites = []
+
+        num_favorites = settings.beginReadArray("locations")
+        for i in range(num_favorites):
+            settings.setArrayIndex(i)
+            path = settings.value("path", type=str)
+            if path:
+                favorites.append(Favorite(path=path))
+        settings.endArray()
+
+        settings.endGroup()
+        return favorites
+
+    def _save_favorites(self, favorites: list):
+        """
+        Save favorites to QSettings.
+
+        Args:
+            favorites: List of Favorite objects to save
+        """
+        settings.beginGroup("Favorites")
+
+        settings.beginWriteArray("locations", len(favorites))
+        for i, favorite in enumerate(favorites):
+            settings.setArrayIndex(i)
+            settings.setValue("path", favorite.path)
+        settings.endArray()
+
+        settings.endGroup()
+
+    def _on_favorites_button_clicked(self):
+        """Handle favorites toolbar button click by refreshing and showing the menu."""
+        # Refresh the menu to reflect any changes
+        self._refresh_favorites_menu(self.favorites_menu)
+        self.favorites_button.showMenu()
+
+    def _refresh_favorites_menu(self, menu: QMenu):
+        """
+        Refresh the favorites menu to reflect current state.
+
+        Args:
+            menu: The menu to refresh
+        """
+        menu.clear()
+        self._populate_favorites_menu(menu)
 
     def open_properties_window(self):
         selected_indexes = self.files_view.selectionModel().selectedRows()
