@@ -161,20 +161,6 @@ class ResourceManager:
         Returns:
             Path to cache root directory
         """
-        # Check if running in development mode (references folder exists)
-        try:
-            current_file = Path(__file__)
-            project_root = current_file.parent.parent.parent
-            references_dir = project_root / "references"
-
-            # If references directory exists, we're in development mode
-            if references_dir.exists():
-                cache_dir = project_root / "cache"
-                log.debug("Using development cache directory")
-                return cache_dir
-        except Exception as e:
-            log.warning(f"Error detecting development mode: {e}")
-
         # Use platform-specific cache directory
         try:
             from PySide6.QtCore import QStandardPaths

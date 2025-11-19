@@ -263,10 +263,9 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         """
         Get the path to the model checkpoint.
 
-        This method handles multiple scenarios:
+        This method handles two scenarios:
         1. User-specified custom model path
-        2. Development mode (references directory exists)
-        3. Resource manager (downloads model if URL configured)
+        2. Resource manager (downloads model if URL configured)
 
         Returns:
             Path to the model checkpoint file
@@ -284,27 +283,14 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
             else:
                 log.warning(f"Custom model path does not exist: {model_path}")
 
-        # Try development mode: look in references/MusicalKeyCNN/checkpoints/keynet.pt
-        try:
-            current_file = Path(__file__)
-            project_root = current_file.parent.parent.parent.parent.parent
-            dev_path = project_root / "references" / "MusicalKeyCNN" / "checkpoints" / "keynet.pt"
-
-            if dev_path.exists():
-                log.debug(f"Using development model path: {dev_path}")
-                return dev_path
-        except Exception as e:
-            log.debug(f"Development mode check failed: {e}")
-
-        # Try resource manager for deployment mode
+        # Try resource manager for download/cache
         model_url = self.options.get('model_url', KEYNET_MODEL_URL)
 
         if not model_url:
             raise RuntimeError(
                 "KeyNet model not found. Please either:\n"
                 "1. Specify a custom model path in settings, or\n"
-                "2. Configure a model download URL in settings, or\n"
-                "3. For development: ensure references/MusicalKeyCNN/checkpoints/keynet.pt exists"
+                "2. Configure a model download URL in settings"
             )
 
         # Register resource if URL is configured
