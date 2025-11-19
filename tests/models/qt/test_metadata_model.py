@@ -209,6 +209,9 @@ def test_update_row(model):
 
 def test_update_row_invalid_index(model, caplog):
     """Test that update_row() handles invalid indices gracefully."""
+    import logging
+    caplog.set_level(logging.DEBUG, logger='YAAMT')
+
     model.add_rows([{KEY_TITLE: "Song 1"}])
 
     # Try to update a non-existent row
