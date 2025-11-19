@@ -210,16 +210,26 @@ def test_update_row(model):
 def test_update_row_invalid_index(model, caplog):
     """Test that update_row() handles invalid indices gracefully."""
     import logging
-    caplog.set_level(logging.DEBUG, logger='YAAMT')
 
-    model.add_rows([{KEY_TITLE: "Song 1"}])
+    # The YAAMT logger has propagate=False, so we need to enable it temporarily
+    yaamt_logger = logging.getLogger('YAAMT')
+    original_propagate = yaamt_logger.propagate
+    yaamt_logger.propagate = True
 
-    # Try to update a non-existent row
-    model.update_row(5, {KEY_TITLE: "Invalid"})
+    try:
+        caplog.set_level(logging.DEBUG, logger='YAAMT')
 
-    # Should log an error and not crash
-    assert "Invalid row index for update" in caplog.text
-    assert model.rowCount() == 1  # No change
+        model.add_rows([{KEY_TITLE: "Song 1"}])
+
+        # Try to update a non-existent row
+        model.update_row(5, {KEY_TITLE: "Invalid"})
+
+        # Should log an error and not crash
+        assert "Invalid row index for update" in caplog.text
+        assert model.rowCount() == 1  # No change
+    finally:
+        # Restore original propagate setting
+        yaamt_logger.propagate = original_propagate
 
 
 def test_sort_with_none_values(model):
