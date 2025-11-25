@@ -22,6 +22,7 @@ from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
 from util.debug import is_debug_mode
+from util.file_browser import open_in_file_browser
 from util.logging import log
 from providers import get_all_categories, ProviderType
 from workers.analyzer_dispatcher import AnalyzerDispatcher
@@ -512,6 +513,7 @@ class MainWindow(QMainWindow):
         menu = QMenu()
         menu.addAction(self.action_play_file)
         menu.addAction(self.action_properties)
+        menu.addAction(self.action_open_in_file_browser)
         menu.addSeparator()
 
         # Add Analyze submenu
@@ -602,6 +604,11 @@ class MainWindow(QMainWindow):
         self.action_show_playback_panel.setChecked(self.playback_panel.isVisible())
         self.action_show_playback_panel.triggered.connect(self.on_show_playback_panel_requested)
 
+        # File browser action
+        self.action_open_in_file_browser = QAction("Open in File Browser", self)
+        self.action_open_in_file_browser.setEnabled(False)
+        self.action_open_in_file_browser.triggered.connect(self.on_open_in_file_browser)
+
     def _create_menus(self):
         # File Menu
         file_menu = self.menuBar().addMenu("&File")
@@ -618,6 +625,7 @@ class MainWindow(QMainWindow):
 
         file_menu.addAction(self.action_properties)
         file_menu.addAction(self.action_play_file)
+        file_menu.addAction(self.action_open_in_file_browser)
         file_menu.addSeparator()
 
         # Preferences action
@@ -1181,6 +1189,7 @@ class MainWindow(QMainWindow):
 
         self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
         self.action_play_file.setEnabled(len(selected_rows) == 1 and is_media_file)
+        self.action_open_in_file_browser.setEnabled(len(selected_rows) == 1)
         # Save and Reset actions are enabled/disabled by on_autosave_changed
         # but they also require staged changes to be meaningful.
         # We can further refine their state here if needed, e.g., disable if no staged changes.
@@ -1404,6 +1413,23 @@ class MainWindow(QMainWindow):
                 media_file = MediaFile(file_path)
                 self.playback_panel.show()
                 self.start_playback_signal.emit(media_file)
+
+    def on_open_in_file_browser(self):
+        """
+        Opens the system file browser with the selected file revealed.
+        """
+        selected_indexes = self.files_view.selectionModel().selectedRows()
+        if len(selected_indexes) == 1:
+            source_index = self.proxy_model.mapToSource(selected_indexes[0])
+            row_data = self.file_model.get_data_for_row(row=source_index.row())
+            file_path = row_data.get(KEY_FILE_PATH)
+            if file_path:
+                if not open_in_file_browser(file_path):
+                    QMessageBox.warning(
+                        self,
+                        "Error",
+                        f"Could not open file browser for:\n{file_path}"
+                    )
 
     @Slot(bool)
     def on_show_playback_panel_requested(self, checked: bool):
