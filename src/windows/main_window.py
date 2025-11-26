@@ -1239,7 +1239,7 @@ class MainWindow(QMainWindow):
 
         self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
         self.action_play_file.setEnabled(len(selected_rows) == 1 and is_media_file)
-        self.action_open_in_file_browser.setEnabled(len(selected_rows) == 1)
+        self.action_open_in_file_browser.setEnabled(len(selected_rows) >= 1)
         # Save and Reset actions are enabled/disabled by on_autosave_changed
         # but they also require staged changes to be meaningful.
         # We can further refine their state here if needed, e.g., disable if no staged changes.
@@ -1466,10 +1466,11 @@ class MainWindow(QMainWindow):
 
     def on_open_in_file_browser(self):
         """
-        Opens the system file browser with the selected file revealed.
+        Opens the system file browser with the first selected file revealed.
+        When multiple files are selected, the first one is used.
         """
         selected_indexes = self.files_view.selectionModel().selectedRows()
-        if len(selected_indexes) == 1:
+        if len(selected_indexes) >= 1:
             source_index = self.proxy_model.mapToSource(selected_indexes[0])
             row_data = self.file_model.get_data_for_row(row=source_index.row())
             file_path = row_data.get(KEY_FILE_PATH)
