@@ -1,5 +1,60 @@
 from PySide6.QtCore import Signal, Slot, Qt
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider, QGridLayout, QSizePolicy
+from PySide6.QtGui import QMouseEvent
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider, QGridLayout, QSizePolicy, QStyle, QStyleOptionSlider
+
+
+class ClickableSlider(QSlider):
+    """
+    A QSlider that supports click-to-seek functionality.
+
+    Clicking anywhere on the slider track will immediately jump to that position,
+    rather than requiring the user to drag the handle.
+    """
+
+    # Signal emitted when user clicks on the track (not just drags)
+    clicked_at_value = Signal(int)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        """Handle mouse press to jump to clicked position."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Calculate the position based on click location
+            opt = QStyleOptionSlider()
+            self.initStyleOption(opt)
+
+            # Get the groove (track) rectangle
+            groove_rect = self.style().subControlRect(
+                QStyle.ComplexControl.CC_Slider, opt,
+                QStyle.SubControl.SC_SliderGroove, self
+            )
+
+            # Calculate the value based on click position
+            if self.orientation() == Qt.Orientation.Horizontal:
+                # For horizontal slider, use x coordinate
+                pos = event.position().x()
+                slider_length = groove_rect.width()
+                slider_min = groove_rect.x()
+            else:
+                # For vertical slider, use y coordinate (inverted)
+                pos = event.position().y()
+                slider_length = groove_rect.height()
+                slider_min = groove_rect.y()
+
+            # Calculate the proportional value
+            if slider_length > 0:
+                proportion = (pos - slider_min) / slider_length
+                # Clamp to [0, 1]
+                proportion = max(0.0, min(1.0, proportion))
+
+                # Convert to slider value
+                value_range = self.maximum() - self.minimum()
+                new_value = self.minimum() + int(proportion * value_range)
+
+                # Set the value and emit signal
+                self.setValue(new_value)
+                self.clicked_at_value.emit(new_value)
+
+        # Call parent implementation to maintain drag functionality
+        super().mousePressEvent(event)
 
 
 class PlaybackPanel(QWidget):
@@ -21,7 +76,7 @@ class PlaybackPanel(QWidget):
         self.pause_button = QPushButton("Pause")
         self.stop_button = QPushButton("Stop")
         self.filename_label = QLabel("No file loaded")
-        self.playback_slider = QSlider()
+        self.playback_slider = ClickableSlider()
         self.time_label = QLabel("0:00 / 0:00")
         
         # Setup UI
@@ -32,10 +87,15 @@ class PlaybackPanel(QWidget):
         self.pause_button.clicked.connect(self.pause_requested.emit)
         self.stop_button.clicked.connect(self.stop_requested.emit)
         self.playback_slider.sliderReleased.connect(self.on_slider_released)
+        self.playback_slider.clicked_at_value.connect(self.on_slider_clicked)
 
     def on_slider_released(self):
         """Handle the slider being released after dragging."""
         self.seek_requested.emit(self.playback_slider.value())
+
+    def on_slider_clicked(self, value: int):
+        """Handle the slider track being clicked to seek to that position."""
+        self.seek_requested.emit(float(value))
     
     def _setup_ui(self):
         """
