@@ -481,7 +481,7 @@ class TestMusicalKeyAnalyzerIntegration:
             pytest.skip(f"Test fixture not found: {fixture_path}")
 
         media_file = MediaFile(str(fixture_path))
-        analyzer = RE3WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': True})
+        analyzer = RE3WaveletKeyAnalyzer(media_file, {'skip_if_tag_exists': False})
         result = analyzer.analyze()
 
         # Should successfully detect a key
