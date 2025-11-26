@@ -216,10 +216,10 @@ class MainWindow(QMainWindow):
         self.start_playback_signal.connect(self.playback_worker.start_playback)
 
     def closeEvent(self, event):
-        log.info("MainWindow close event received!") # Commenting-out or removing this line causes playback to freeze for some reason
+        log.info("MainWindow close event received!") # Commenting-out or removing this line causes playback to freeze for some reason https://github.com/lyjia/yaamt/issues/49
 
         # Stop playback and clean up the playback thread
-        self._cleanup_playback()  # Commenting-out or removing this line fixes the playback bug mentioned above, but then the program won't exit cleanly
+        self._cleanup_playback()  # Commenting-out or removing this line fixes the playback bug mentioned above, but then the program won't exit cleanly https://github.com/lyjia/yaamt/issues/49
 
         # Cancel any running file loading worker
         if self._current_load_worker is not None:
