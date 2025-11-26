@@ -68,9 +68,9 @@ KEYNET_RESOURCE_ID = "keynet_model"
 KEYNET_MODEL_FILENAME = "keynet.pt"
 # Note: The model URL and checksum should be configured by the user or provided
 # by the application maintainer. For now, we support local-only mode.
-KEYNET_MODEL_URL = ""  # User must configure if download is desired
-KEYNET_MODEL_SIZE = 50 * 1024 * 1024  # Approximate 50 MB
-KEYNET_MODEL_CHECKSUM = ""  # User must configure for validation
+KEYNET_MODEL_URL = "https://github.com/a1ex90/MusicalKeyCNN/blob/main/checkpoints/keynet.pt"
+KEYNET_MODEL_SIZE = "1874533" # Used only for progress display on downloader
+KEYNET_MODEL_CHECKSUM = "fc92072f1b9b19552ce3b74a9c8ce0cecb97633a12ae524ac0d93c05800e354e"  # SHA256 for validation
 
 
 class MusicalKeyCNNAnalyzer(AnalyzerBase):
