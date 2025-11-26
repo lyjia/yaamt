@@ -4,12 +4,15 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
     QStackedWidget, QMessageBox, QSplitter, QListWidgetItem
 )
-from PySide6.QtCore import QSettings, Qt, QSize
+from PySide6.QtCore import Qt, QSize
+
+from models.settings import get_qsettings
 from PySide6.QtGui import QKeySequence, QShortcut
 
 from windows.preferences.base import PreferencePaneBase
 from windows.preferences.general_pane import GeneralPane
 from windows.preferences.metadata_pane import MetadataPane
+from windows.preferences.resources_pane import ResourcesPane
 
 
 class PreferencesWindow(QDialog):
@@ -27,7 +30,7 @@ class PreferencesWindow(QDialog):
     def __init__(self, parent=None):
         """Initialize the PreferencesWindow."""
         super().__init__(parent)
-        self.settings = QSettings("Lyjia", "Audio Metadata Tool")
+        self.settings = get_qsettings()
         self.panes: List[PreferencePaneBase] = []
 
         self._setup_window()
@@ -117,8 +120,9 @@ class PreferencesWindow(QDialog):
         # Create and register panes
         general_pane = GeneralPane()
         metadata_pane = MetadataPane()
+        resources_pane = ResourcesPane()
 
-        self.panes = [general_pane, metadata_pane]
+        self.panes = [general_pane, metadata_pane, resources_pane]
 
         # Add to UI
         for pane in self.panes:
@@ -181,3 +185,6 @@ class PreferencesWindow(QDialog):
         # Clear Analyzer settings
         self.settings.remove("Analyzers/Preferred")
         self.settings.remove("Analyzers/CategoryOptions")
+
+        # Clear Resources settings
+        self.settings.remove("Resources")

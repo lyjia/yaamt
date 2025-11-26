@@ -11,9 +11,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import QSettings, QCoreApplication
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication
 
+from models.settings import get_qsettings
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
 from providers.analysis import AnalyzerCategory
 from providers import register_analyzer
@@ -95,7 +96,7 @@ class TestParallelAnalyzerExecution:
     def test_dispatcher_loads_thread_pool_size(self):
         """Test that dispatcher loads thread pool size from settings."""
         # Set a specific value in settings
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         settings.setValue("Analyzers/thread_pool_size", 4)
 
         # Create new dispatcher instance (reset singleton)
@@ -186,7 +187,7 @@ class TestParallelAnalyzerExecution:
 
     def test_active_tasks_tracking(self, mock_media_files):
         """Test that active tasks are correctly tracked."""
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         settings.setValue("Analyzers/thread_pool_size", 3)
 
         AnalyzerDispatcher._instance = None
@@ -225,7 +226,7 @@ class TestParallelAnalyzerExecution:
         # Configure analyzer to need 2 threads per instance
         multi_thread_options = {'thread_count': 2}
 
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         settings.setValue("Analyzers/thread_pool_size", 4)
 
         AnalyzerDispatcher._instance = None
@@ -256,7 +257,7 @@ class TestParallelAnalyzerExecution:
 
     def test_dispatcher_respects_thread_limit(self, mock_media_files):
         """Test that dispatcher never exceeds configured thread limit."""
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         settings.setValue("Analyzers/thread_pool_size", 2)
 
         AnalyzerDispatcher._instance = None

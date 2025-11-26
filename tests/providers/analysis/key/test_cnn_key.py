@@ -11,10 +11,25 @@ from pathlib import Path
 
 from util.const import IN_GITHUB_RUNNER, KEY_INITIAL_KEY
 from providers.analysis.base import AnalyzerResult
-from providers.analysis.key.cnn_key import MusicalKeyCNNAnalyzer
+from providers.analysis.key.cnn_key import MusicalKeyCNNAnalyzer, KEYNET_RESOURCE_ID
 from providers import get_analyzers_by_category
 from providers.analysis import AnalyzerCategory
 from models.media_file import MediaFile
+
+
+def get_model_path_or_skip(analyzer):
+    """
+    Helper to get model path or skip test if model not available.
+
+    With the new resource manager system, _get_model_path() raises RuntimeError
+    if the model is not found instead of returning an invalid path.
+    """
+    try:
+        return analyzer._get_model_path()
+    except RuntimeError as e:
+        if "not found" in str(e).lower():
+            pytest.skip("Model checkpoint not available via resource manager")
+        raise
 
 
 class TestMusicalKeyCNNAnalyzerMetadata:
@@ -31,6 +46,18 @@ class TestMusicalKeyCNNAnalyzerMetadata:
         """Test that MusicalKeyCNNAnalyzer is discovered by registry."""
         key_analyzers = get_analyzers_by_category(AnalyzerCategory.KEY)
         assert MusicalKeyCNNAnalyzer in key_analyzers
+
+    def test_get_required_resources(self):
+        """Test that analyzer declares required resources."""
+        resources = MusicalKeyCNNAnalyzer.get_required_resources()
+        assert len(resources) == 1
+
+        keynet_resource = resources[0]
+        assert keynet_resource.resource_id == KEYNET_RESOURCE_ID
+        assert keynet_resource.filename == "keynet.pt"
+        assert keynet_resource.category == "models"
+        assert keynet_resource.display_name == "KeyNet CNN Model"
+        assert keynet_resource.required_by == "MusicalKeyCNNAnalyzer"
 
 
 class TestMusicalKeyCNNAnalyzerBasicBehavior:
@@ -100,9 +127,7 @@ class TestMusicalKeyCNNAnalyzerBasicBehavior:
 
         # Check if model file exists
         analyzer = MusicalKeyCNNAnalyzer(media_file, {'skip_if_tag_exists': False})
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        get_model_path_or_skip(analyzer)
 
         result = analyzer.analyze()
 
@@ -145,9 +170,11 @@ class TestMusicalKeyCNNAnalyzerBasicBehavior:
 
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
-        # Specify a non-existent model path
-        analyzer = MusicalKeyCNNAnalyzer(media_file, {'model_path': '/nonexistent/model.pt'})
-        result = analyzer.analyze()
+        # Mock resource manager to simulate missing model
+        with patch('providers.analysis.key.cnn_key.get_resource_manager') as mock_rm:
+            mock_rm.return_value.is_resource_loadable.return_value = False
+            analyzer = MusicalKeyCNNAnalyzer(media_file)
+            result = analyzer.analyze()
 
         assert result.success is False
         assert "not found" in result.error.lower()
@@ -180,9 +207,7 @@ class TestMusicalKeyCNNAnalyzerWithTorch:
         analyzer = MusicalKeyCNNAnalyzer(media_file)
 
         # Check if model exists
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        model_path = get_model_path_or_skip(analyzer)
 
         # Spy on get_audio_stream to verify format descriptor
         original_get_stream = media_file.get_audio_stream
@@ -219,9 +244,7 @@ class TestMusicalKeyCNNAnalyzerWithTorch:
         analyzer = MusicalKeyCNNAnalyzer(media_file)
 
         # Check if model exists
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        model_path = get_model_path_or_skip(analyzer)
 
         # The analyzer should use audio_stream_to_numpy internally
         # We verify this doesn't crash and completes
@@ -243,9 +266,7 @@ class TestMusicalKeyCNNAnalyzerWithTorch:
         analyzer = MusicalKeyCNNAnalyzer(media_file)
 
         # Check if model exists
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        model_path = get_model_path_or_skip(analyzer)
 
         # Run analysis
         result = analyzer.analyze()
@@ -303,9 +324,7 @@ class TestMusicalKeyCNNAnalyzerIntegration:
         analyzer = MusicalKeyCNNAnalyzer(media_file)
 
         # Check if model exists
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        model_path = get_model_path_or_skip(analyzer)
 
         result = analyzer.analyze()
 
@@ -348,9 +367,7 @@ class TestMusicalKeyCNNAnalyzerDeviceSelection:
         analyzer = MusicalKeyCNNAnalyzer(media_file, {'device': 'auto'})
 
         # Check if model exists
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        model_path = get_model_path_or_skip(analyzer)
 
         result = analyzer.analyze()
         assert isinstance(result, AnalyzerResult)
@@ -368,9 +385,7 @@ class TestMusicalKeyCNNAnalyzerDeviceSelection:
         analyzer = MusicalKeyCNNAnalyzer(media_file, {'device': 'cpu'})
 
         # Check if model exists
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        model_path = get_model_path_or_skip(analyzer)
 
         result = analyzer.analyze()
         assert isinstance(result, AnalyzerResult)
@@ -393,7 +408,7 @@ class TestMusicalKeyCNNAnalyzerSettingsWidget:
         # Verify expected options exist
         option_names = [opt.name for opt in options]
         assert 'device' in option_names
-        assert 'model_path' in option_names
+        # Note: model_path option removed - model management now via Resources pane
 
 
 class TestMusicalKeyCNNAnalyzerWithMusicalFixtures:
@@ -421,9 +436,7 @@ class TestMusicalKeyCNNAnalyzerWithMusicalFixtures:
         analyzer = MusicalKeyCNNAnalyzer(media_file)
 
         # Check if model exists
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        model_path = get_model_path_or_skip(analyzer)
 
         result = analyzer.analyze()
 
@@ -467,9 +480,7 @@ class TestMusicalKeyCNNAnalyzerWithDrumLoops:
         analyzer = MusicalKeyCNNAnalyzer(media_file)
 
         # Check if model exists
-        model_path = analyzer._get_model_path()
-        if not model_path.exists():
-            pytest.skip(f"Model checkpoint not found at {model_path}")
+        model_path = get_model_path_or_skip(analyzer)
 
         result = analyzer.analyze()
 

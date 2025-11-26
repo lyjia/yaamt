@@ -13,8 +13,9 @@ from PySide6.QtWidgets import (
     QPushButton, QGroupBox, QCheckBox, QWidget, QSpinBox, QDoubleSpinBox, QSlider,
     QFileDialog, QLineEdit
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt
 
+from models.settings import get_qsettings
 from providers.analysis.base import AnalyzerBase
 from providers import get_analyzers_by_category, AnalyzerCategory
 from models.settings import settings
@@ -224,7 +225,7 @@ class AnalyzerSetupDialog(QDialog):
         self.thread_pool_slider.setRange(1, cpu_count)
 
         # Load saved value from settings
-        qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+        qsettings = get_qsettings()
         saved_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
         # Ensure saved value is within valid range
         saved_pool_size = max(1, min(saved_pool_size, cpu_count))
@@ -455,7 +456,7 @@ class AnalyzerSetupDialog(QDialog):
             self._extract_settings_from_widget(self.current_settings_widget)
 
         # Save thread pool size
-        qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+        qsettings = get_qsettings()
         qsettings.setValue("Analyzers/thread_pool_size", self.thread_pool_slider.value())
 
         # Save preferences

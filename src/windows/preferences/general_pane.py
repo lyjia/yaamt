@@ -5,8 +5,8 @@ from PySide6.QtWidgets import (
     QLabel, QComboBox, QHBoxLayout, QFileDialog, QStyleFactory
 )
 from PySide6.QtGui import QIcon
-from PySide6.QtCore import QSettings
 
+from models.settings import get_qsettings
 from windows.preferences.base import PreferencePaneBase
 
 
@@ -16,7 +16,7 @@ class GeneralPane(PreferencePaneBase):
     def __init__(self, parent=None):
         """Initialize the GeneralPane."""
         super().__init__(parent)
-        self.settings = QSettings("Lyjia", "Audio Metadata Tool")
+        self.settings = get_qsettings()
         self._setup_ui()
 
     def _setup_ui(self) -> None:
