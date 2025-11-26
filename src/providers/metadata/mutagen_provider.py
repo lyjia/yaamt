@@ -144,7 +144,7 @@ MUTAGEN_TO_GENERIC_MAP = {
     'isrc': KEY_ISRC,
     # 'discsubtitle': KEY_DISC_SUBTITLE, # No generic key for this yet
     'language': KEY_LANGUAGE,
-    KEY_INITIAL_KEY: KEY_INITIAL_KEY,
+    KEY_INITIAL_KEY: KEY_INITIAL_KEY, #for ID3, this should be 'initial key', but for vorbis, it should be 'initialkey'
     KEY_COMMENT: KEY_COMMENT,
     'genre': KEY_GENRE,
 }
@@ -231,14 +231,14 @@ class MutagenProvider(MetadataProviderBase):
     # def all_tags(self):
     #     return dict(self._audio.tags)
 
-    def all_stream_infos(self):
-        return {
-            KEY_BITRATE: self.get_stream_info(KEY_BITRATE),
-            KEY_LENGTH: self.get_stream_info(KEY_LENGTH),
-            KEY_SAMPLE_RATE: self.get_stream_info(KEY_SAMPLE_RATE),
-            KEY_CHANNELS: self.get_stream_info(KEY_CHANNELS),
-            KEY_FORMAT: self.get_stream_info(KEY_FORMAT)
-        }
+    # def all_stream_infos(self): #TODO: delete me
+    #     return {
+    #         KEY_BITRATE: self.get_stream_info(KEY_BITRATE),
+    #         KEY_LENGTH: self.get_stream_info(KEY_LENGTH),
+    #         KEY_SAMPLE_RATE: self.get_stream_info(KEY_SAMPLE_RATE),
+    #         KEY_CHANNELS: self.get_stream_info(KEY_CHANNELS),
+    #         KEY_FORMAT: self.get_stream_info(KEY_FORMAT)
+    #     }
 
 
     def is_readable(self):
