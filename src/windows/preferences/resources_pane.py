@@ -7,8 +7,9 @@ from PySide6.QtWidgets import (
     QProgressDialog
 )
 from PySide6.QtGui import QIcon, QColor
-from PySide6.QtCore import QSettings, Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal
 
+from models.settings import get_qsettings
 from windows.preferences.base import PreferencePaneBase
 from util.resource_manager import get_resource_manager, ResourceMetadata
 
@@ -25,7 +26,7 @@ class ResourcesPane(PreferencePaneBase):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.settings = QSettings("Lyjia", "Audio Metadata Tool")
+        self.settings = get_qsettings()
         self._setup_ui()
 
     def _setup_ui(self) -> None:

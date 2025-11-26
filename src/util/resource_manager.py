@@ -177,8 +177,8 @@ class ResourceManager:
     def _load_cache_root_setting(self) -> Optional[Path]:
         """Load custom cache root from QSettings if previously set."""
         try:
-            from PySide6.QtCore import QSettings
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            from models.settings import get_qsettings
+            settings = get_qsettings()
             cache_root_str = settings.value("Resources/CacheRoot", "")
             if cache_root_str:
                 path = Path(cache_root_str)
@@ -191,8 +191,8 @@ class ResourceManager:
     def _load_custom_locations(self) -> None:
         """Load custom resource locations from QSettings on initialization."""
         try:
-            from PySide6.QtCore import QSettings
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            from models.settings import get_qsettings
+            settings = get_qsettings()
             settings.beginGroup("Resources/CustomLocations")
             for key in settings.allKeys():
                 path_str = settings.value(key, "")
@@ -208,8 +208,8 @@ class ResourceManager:
     def _save_custom_location(self, resource_id: str, path: Optional[Path]) -> None:
         """Save a custom location to QSettings."""
         try:
-            from PySide6.QtCore import QSettings
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            from models.settings import get_qsettings
+            settings = get_qsettings()
             settings.beginGroup("Resources/CustomLocations")
             if path:
                 settings.setValue(resource_id, str(path))

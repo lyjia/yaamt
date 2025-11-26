@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtCore import QSettings
 
+from models.settings import get_qsettings
 from providers.analysis.bpm.stub_bpm import StubBPMAnalyzer
 from workers.analyzer_dispatcher import AnalyzerDispatcher
 from models.media_file import MediaFile
@@ -48,7 +48,7 @@ class TestMultiprocessingToggle:
     def test_single_threaded_mode_no_multiprocessing(self, mock_media_file):
         """Test that thread_pool_size=1 runs without multiprocessing."""
         # Set to single-threaded
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         settings.setValue("Analyzers/thread_pool_size", 1)
 
         # Reset dispatcher to pick up new settings
@@ -74,7 +74,7 @@ class TestMultiprocessingToggle:
     def test_multi_threaded_mode_uses_multiprocessing(self, mock_media_file):
         """Test that thread_pool_size>1 uses multiprocessing."""
         # Set to multi-threaded
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         settings.setValue("Analyzers/thread_pool_size", 4)
 
         # Reset dispatcher to pick up new settings
@@ -98,7 +98,7 @@ class TestMultiprocessingToggle:
 
     def test_settings_default_to_single_threaded(self):
         """Test that default settings use single-threaded mode."""
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         # Don't set any value - should default to 1
         settings.remove("Analyzers/thread_pool_size")
 

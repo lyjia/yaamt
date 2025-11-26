@@ -4,7 +4,9 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
     QStackedWidget, QMessageBox, QSplitter, QListWidgetItem
 )
-from PySide6.QtCore import QSettings, Qt, QSize
+from PySide6.QtCore import Qt, QSize
+
+from models.settings import get_qsettings
 from PySide6.QtGui import QKeySequence, QShortcut
 
 from windows.preferences.base import PreferencePaneBase
@@ -28,7 +30,7 @@ class PreferencesWindow(QDialog):
     def __init__(self, parent=None):
         """Initialize the PreferencesWindow."""
         super().__init__(parent)
-        self.settings = QSettings("Lyjia", "Audio Metadata Tool")
+        self.settings = get_qsettings()
         self.panes: List[PreferencePaneBase] = []
 
         self._setup_window()

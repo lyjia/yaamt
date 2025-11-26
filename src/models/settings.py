@@ -2,7 +2,20 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
 from PySide6.QtCore import QSettings, Qt
-from util.const import AVAILABLE_COLUMNS
+from util.const import AVAILABLE_COLUMNS, APP_ORGANIZATION_NAME, APP_APPLICATION_NAME
+
+
+def get_qsettings() -> QSettings:
+    """
+    Factory function for creating QSettings instances.
+
+    Centralizes QSettings creation to ensure consistent organization
+    and application name across the codebase.
+
+    Returns:
+        QSettings instance configured with the application's org/app name.
+    """
+    return QSettings(APP_ORGANIZATION_NAME, APP_APPLICATION_NAME)
 
 
 
@@ -85,4 +98,4 @@ class Settings:
     favorites: FavoritesSettings = field(default_factory=FavoritesSettings)
 
 
-settings = QSettings("Lyjia", "Audio Metadata Tool")
+settings = get_qsettings()

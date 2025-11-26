@@ -20,7 +20,9 @@ from PySide6.QtWidgets import (
     QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox, QSlider,
     QPushButton, QLineEdit, QFileDialog
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt
+
+from models.settings import get_qsettings
 
 
 @dataclass
@@ -100,7 +102,7 @@ def build_widget_from_option(option: AnalyzerOption,
     # Load saved value from QSettings if available
     saved_value = option.default
     if settings_group:
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         settings.beginGroup(settings_group)
 
         # Type-appropriate retrieval
@@ -155,7 +157,7 @@ def _build_checkbox(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(checked: bool):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, checked)
             settings.endGroup()
@@ -201,7 +203,7 @@ def _build_combobox(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(index: int):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, combo.itemData(index))
             settings.endGroup()
@@ -256,7 +258,7 @@ def _build_spinbox(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(new_value: Union[int, float]):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, new_value)
             settings.endGroup()
@@ -342,7 +344,7 @@ def _build_slider_spinbox(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(new_value: Union[int, float]):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, new_value)
             settings.endGroup()
@@ -416,7 +418,7 @@ def _build_file_input(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(text: str):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, text)
             settings.endGroup()
@@ -473,7 +475,7 @@ def _build_directory_input(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(text: str):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, text)
             settings.endGroup()
