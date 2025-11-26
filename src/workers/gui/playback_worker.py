@@ -174,8 +174,10 @@ class PlaybackWorker(QObject):
                 sample_rate=self.audio_stream.sample_rate
             )
 
-            # Start playback with our generator
-            self.playback_device.start(self._audio_generator())
+            # Create and prime the generator before starting playback
+            generator = self._audio_generator()
+            next(generator)  # Prime the generator
+            self.playback_device.start(generator)
 
             # Set up position update timer (update every 50ms)
             self.timer.setInterval(50)
