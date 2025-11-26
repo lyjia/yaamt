@@ -154,11 +154,17 @@ class ResourceManager:
 
         Args:
             cache_root: Root directory for cached resources. If None, uses
-                       platform-appropriate default location.
+                       platform-appropriate default location or saved setting.
         """
         self._registry: Dict[str, ResourceMetadata] = {}
-        self._cache_root = cache_root or self._get_default_cache_root()
         self._custom_locations: Dict[str, Path] = {}
+
+        # Determine cache root: explicit arg > saved setting > platform default
+        if cache_root:
+            self._cache_root = cache_root
+        else:
+            self._cache_root = self._load_cache_root_setting() or \
+                self._get_default_cache_root()
 
         # Load custom locations from settings
         self._load_custom_locations()
@@ -167,6 +173,20 @@ class ResourceManager:
         self._cache_root.mkdir(parents=True, exist_ok=True)
 
         log.debug(f"ResourceManager initialized with cache root: {self._cache_root}")
+
+    def _load_cache_root_setting(self) -> Optional[Path]:
+        """Load custom cache root from QSettings if previously set."""
+        try:
+            from PySide6.QtCore import QSettings
+            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            cache_root_str = settings.value("Resources/CacheRoot", "")
+            if cache_root_str:
+                path = Path(cache_root_str)
+                log.debug(f"Loaded cache root setting: {path}")
+                return path
+        except Exception as e:
+            log.warning(f"Error loading cache root setting: {e}")
+        return None
 
     def _load_custom_locations(self) -> None:
         """Load custom resource locations from QSettings on initialization."""
@@ -235,6 +255,16 @@ class ResourceManager:
         self._cache_root = cache_root
         self._cache_root.mkdir(parents=True, exist_ok=True)
         log.info(f"Cache root set to: {self._cache_root}")
+
+    def reset_cache_root(self) -> None:
+        """
+        Reset the cache root to the default platform-specific location.
+
+        This clears any custom cache root setting.
+        """
+        self._cache_root = self._get_default_cache_root()
+        self._cache_root.mkdir(parents=True, exist_ok=True)
+        log.info(f"Cache root reset to default: {self._cache_root}")
 
     def get_cache_root(self) -> Path:
         """

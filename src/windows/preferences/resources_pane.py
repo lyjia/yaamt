@@ -62,18 +62,97 @@ class ResourcesPane(PreferencePaneBase):
 
         layout.addWidget(self.resources_table)
 
-        # Cache location info
+        # Cache location section
         cache_group = QGroupBox("Cache Location")
         cache_layout = QVBoxLayout()
 
-        rm = get_resource_manager()
-        cache_path_label = QLabel(f"Resources are cached in: {rm.get_cache_root()}")
-        cache_path_label.setWordWrap(True)
-        cache_path_label.setStyleSheet("color: gray; font-size: 10px;")
-        cache_layout.addWidget(cache_path_label)
+        # Cache path display row
+        cache_path_row = QHBoxLayout()
+
+        self.cache_path_label = QLabel()
+        self.cache_path_label.setWordWrap(True)
+        cache_path_row.addWidget(self.cache_path_label, 1)
+
+        change_cache_btn = QPushButton("Change...")
+        change_cache_btn.clicked.connect(self._on_change_cache_location)
+        cache_path_row.addWidget(change_cache_btn)
+
+        reset_cache_btn = QPushButton("Reset to Default")
+        reset_cache_btn.clicked.connect(self._on_reset_cache_location)
+        cache_path_row.addWidget(reset_cache_btn)
+
+        cache_layout.addLayout(cache_path_row)
+
+        # Info label
+        cache_info_label = QLabel(
+            "Note: Changing the cache location will not move existing downloads. "
+            "You may need to re-download resources or use 'Locate...' to specify their paths."
+        )
+        cache_info_label.setWordWrap(True)
+        cache_info_label.setStyleSheet("color: gray; font-size: 10px;")
+        cache_layout.addWidget(cache_info_label)
 
         cache_group.setLayout(cache_layout)
         layout.addWidget(cache_group)
+
+        # Update cache path display
+        self._update_cache_path_display()
+
+    def _update_cache_path_display(self) -> None:
+        """Update the cache path label with current location."""
+        rm = get_resource_manager()
+        self.cache_path_label.setText(f"Current: {rm.get_cache_root()}")
+
+    def _on_change_cache_location(self) -> None:
+        """Handle change cache location button click."""
+        rm = get_resource_manager()
+        current_path = str(rm.get_cache_root())
+
+        new_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Cache Directory",
+            current_path,
+            QFileDialog.Option.ShowDirsOnly
+        )
+
+        if new_path and new_path != current_path:
+            # Warn user about existing downloads
+            result = QMessageBox.warning(
+                self,
+                "Change Cache Location",
+                "Changing the cache location will not move existing downloads.\n\n"
+                "Resources downloaded to the previous location will need to be "
+                "re-downloaded or manually located using the 'Locate...' button.\n\n"
+                "Do you want to continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+
+            if result == QMessageBox.StandardButton.Yes:
+                rm.set_cache_root(Path(new_path))
+                # Persist the setting
+                self.settings.setValue("Resources/CacheRoot", new_path)
+                self._update_cache_path_display()
+                self._populate_table()
+
+    def _on_reset_cache_location(self) -> None:
+        """Handle reset cache location button click."""
+        result = QMessageBox.question(
+            self,
+            "Reset Cache Location",
+            "Reset the cache location to the default system location?\n\n"
+            "This will not move any existing downloads.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if result == QMessageBox.StandardButton.Yes:
+            rm = get_resource_manager()
+            # Clear the custom setting and reset to default
+            self.settings.remove("Resources/CacheRoot")
+            rm.reset_cache_root()
+            self._update_cache_path_display()
+            self._populate_table()
 
     def _populate_table(self) -> None:
         """Populate the resources table with current data."""
