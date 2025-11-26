@@ -144,7 +144,7 @@ MUTAGEN_TO_GENERIC_MAP = {
     'isrc': KEY_ISRC,
     # 'discsubtitle': KEY_DISC_SUBTITLE, # No generic key for this yet
     'language': KEY_LANGUAGE,
-    KEY_INITIAL_KEY: KEY_INITIAL_KEY, #for ID3, this should be 'initial key', but for vorbis, it should be 'initialkey'
+    KEY_INITIAL_KEY: KEY_INITIAL_KEY,
     KEY_COMMENT: KEY_COMMENT,
     'genre': KEY_GENRE,
 }
