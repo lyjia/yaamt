@@ -5,8 +5,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QLineEdit, QFormLayout
 )
 from PySide6.QtGui import QIcon, QPalette, QColor
-from PySide6.QtCore import QSettings, Signal
+from PySide6.QtCore import Signal
 
+from models.settings import get_qsettings
 from windows.preferences.base import PreferencePaneBase
 from providers import get_analyzers_by_category, get_all_categories, ProviderType
 from providers.analysis import AnalyzerCategory
@@ -80,7 +81,7 @@ class MetadataPane(PreferencePaneBase):
     def __init__(self, parent=None):
         """Initialize the MetadataPane."""
         super().__init__(parent)
-        self.settings = QSettings("Lyjia", "Audio Metadata Tool")
+        self.settings = get_qsettings()
         self.analyzer_combos: Dict[AnalyzerCategory, QComboBox] = {}
         self._setup_ui()
 

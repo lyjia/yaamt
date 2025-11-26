@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
     QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
-    QDialog
+    QDialog, QToolButton
 )
 from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PySide6.QtCore import (
@@ -23,6 +23,7 @@ from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
 from util.debug import is_debug_mode
 from util.logging import log
+from util.resource_manager import get_resource_manager
 from providers import get_all_categories, ProviderType
 from workers.analyzer_dispatcher import AnalyzerDispatcher
 
@@ -38,10 +39,11 @@ class MainWindow(QMainWindow):
 
         self.thread_pool = QThreadPool()
         self._current_path = ""
-        self.metadata_results = []
         self.column_menu = QMenu("Columns", self)
         self._current_load_worker = None
         self._current_worker_id = 0
+        self._saved_sort_column = None
+        self._saved_sort_order = None
 
         # Playback components
         self.playback_panel = PlaybackPanel()
@@ -66,6 +68,16 @@ class MainWindow(QMainWindow):
         refresh_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
         action_refresh = QAction(refresh_icon, "Refresh", self)
         self.toolbar.addAction(action_refresh)
+
+        # Add Favorites toolbar button
+        self.favorites_button = QToolButton()
+        favorites_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DirLinkIcon)
+        self.favorites_button.setIcon(favorites_icon)
+        self.favorites_button.setToolTip("Favorites")
+        self.favorites_button.setPopupMode(QToolButton.MenuButtonPopup)
+        # Menu will be created and shared with menu bar in _create_menus()
+        self.favorites_button.clicked.connect(self._on_favorites_button_clicked)
+        self.toolbar.addWidget(self.favorites_button)
 
         self.path_textbox = QLineEdit()
         self.path_textbox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -135,6 +147,19 @@ class MainWindow(QMainWindow):
         self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.customContextMenuRequested.connect(self.on_files_view_customContextMenuRequested)
         self.files_view.doubleClicked.connect(self.on_files_view_double_clicked)
+
+        # TODO: Viewport-aware priority loading during scrolling (currently disabled)
+        # The priority range calculation works correctly, but the worker's priority list
+        # is built once at the start of Stage 2 enrichment and never rebuilt. This means
+        # scrolling during loading updates the priority range but doesn't actually change
+        # the processing order. To make this work properly, we need to:
+        # 1. Implement a dynamic priority queue in LoadFilesWorker that can be reordered
+        # 2. Add debouncing (500ms) to prevent flooding the worker with priority updates
+        # 3. Rebuild the processing order when priority range changes significantly
+        # For now, only the INITIAL viewport when enrichment starts is prioritized.
+        #
+        # self.files_view.verticalScrollBar().valueChanged.connect(self._on_viewport_changed_debounced)
+        # self.files_view.resizeEvent = self._create_resize_event_wrapper(self.files_view.resizeEvent)
 
         splitter.addWidget(self.files_view)
         splitter.setStretchFactor(0, 0)
@@ -238,56 +263,248 @@ class MainWindow(QMainWindow):
             log.debug("Cancelling previous load worker due to directory change")
             self._current_load_worker.cancel()
 
-        self.metadata_results = []
         path = self.dir_model.filePath(current)
         self.set_path(path)
-        files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+
+        # Clear the model for the new directory
+        self.file_model.set_entire_data([])
+
+        # Save current sort order and switch to filename ascending for loading
+        header = self.files_view.header()
+        self._saved_sort_column = header.sortIndicatorSection()
+        self._saved_sort_order = header.sortIndicatorOrder()
+
+        # Find the filename column index
+        from util.const import COL_MAIN_FILENAME
+        filename_column = None
+        for i, col_id in enumerate(self._logical_column_ids):
+            if col_id == COL_MAIN_FILENAME:
+                filename_column = i
+                break
+
+        # Disable sorting during load and force to filename ascending
+        self.files_view.setSortingEnabled(False)
+        if filename_column is not None:
+            # Only sort the proxy model - source model stays in insertion order
+            # This keeps row indices stable for the worker's file_updated signals
+            self.proxy_model.sort(filename_column, Qt.SortOrder.AscendingOrder)
+            header.setSortIndicator(filename_column, Qt.SortOrder.AscendingOrder)
 
         # Increment worker ID to track this specific load operation
         self._current_worker_id += 1
         worker_id = self._current_worker_id
 
-        worker = LoadFilesWorker(files)
+        # Create worker with directory path
+        worker = LoadFilesWorker(path)
         self._current_load_worker = worker
-        worker.signals.progress.connect(self.update_progress)
+
+        # Connect to new two-stage signals
+        worker.signals.files_discovered.connect(lambda files: self.on_files_discovered(files, worker_id))
+        worker.signals.discovery_finished.connect(lambda count: self.on_discovery_finished(count, worker_id))
+        worker.signals.file_updated.connect(lambda index, metadata: self.on_file_updated(index, metadata, worker_id))
+        worker.signals.enrichment_progress.connect(lambda current, total: self.on_enrichment_progress(current, total, worker_id))
         worker.signals.finished.connect(lambda: self.on_worker_finished(worker_id))
-        worker.signals.result.connect(lambda result: self.on_worker_result(result, worker_id))
 
         self.thread_pool.start(worker)
-        self.status_label.setText(f"Loading files in {path}...")
+        self.status_label.setText(f"Scanning files in {path}...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.setMaximum(0)  # Indeterminate mode during discovery
         self.progress_bar.show()
         self.cancel_button.show()
 
     def update_progress(self, percent):
         self.progress_bar.setValue(percent)
 
-    def on_worker_finished(self, worker_id):
-        # Only update UI if this is the current worker
-        if worker_id == self._current_worker_id:
-            self.progress_bar.hide()
-            self.cancel_button.hide()
-            self.status_label.setText("Finished loading.")
-            self.file_model.set_entire_data(self.metadata_results)
-            self._current_load_worker = None
-        else:
-            log.debug(f"Ignoring finished signal from old worker {worker_id} (current: {self._current_worker_id})")
+    def on_files_discovered(self, files: list, worker_id: int):
+        """
+        Handle files discovered during Stage 1.
 
-    def on_worker_result(self, result_data, worker_id):
-        # Only accept results from the current worker
-        if worker_id == self._current_worker_id:
-            self.metadata_results.append(result_data)
-        else:
-            log.debug(f"Ignoring result from old worker {worker_id} (current: {self._current_worker_id})")
+        Args:
+            files: List of basic file data dictionaries
+            worker_id: ID of the worker that emitted this signal
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring discovery from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        # Add discovered files to the model
+        self.file_model.add_rows(files)
+
+        # Update status with current count
+        current_count = self.file_model.rowCount()
+        self.status_label.setText(f"Scanning files... ({current_count} found)")
+
+    def on_discovery_finished(self, total_count: int, worker_id: int):
+        """
+        Handle completion of Stage 1 discovery.
+
+        Args:
+            total_count: Total number of files discovered
+            worker_id: ID of the worker that emitted this signal
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring discovery finish from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        log.info(f"Discovery finished: {total_count} files found")
+        self.status_label.setText(f"Loading metadata... (0/{total_count})")
+        self.progress_bar.setMaximum(100)  # Switch to determinate mode
+        self.progress_bar.setValue(0)
+
+        # Send initial viewport range to worker
+        self._update_viewport_priority()
+
+    def on_file_updated(self, index: int, metadata: dict, worker_id: int):
+        """
+        Handle a single file being updated during Stage 2.
+
+        Args:
+            index: Row index to update
+            metadata: Full metadata dictionary
+            worker_id: ID of the worker that emitted this signal
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring file update from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        # Update the row with enriched metadata
+        self.file_model.update_row(index, metadata)
+
+    def on_enrichment_progress(self, current: int, total: int, worker_id: int):
+        """
+        Handle progress updates during Stage 2.
+
+        Args:
+            current: Number of files processed
+            total: Total number of files
+            worker_id: ID of the worker that emitted this signal
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring enrichment progress from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        # Update status and progress bar
+        self.status_label.setText(f"Loading metadata... ({current}/{total})")
+        progress_percent = int((current / total) * 100) if total > 0 else 0
+        self.progress_bar.setValue(progress_percent)
+
+    def on_worker_finished(self, worker_id):
+        """
+        Handle worker completion.
+
+        Args:
+            worker_id: ID of the worker that finished
+        """
+        if worker_id != self._current_worker_id:
+            log.debug(f"Ignoring finished signal from old worker {worker_id} (current: {self._current_worker_id})")
+            return
+
+        # Restore the saved sort order
+        if self._saved_sort_column is not None and self._saved_sort_order is not None:
+            header = self.files_view.header()
+            header.setSortIndicator(self._saved_sort_column, self._saved_sort_order)
+            # Only sort the proxy model - source model stays in insertion order
+            self.proxy_model.sort(self._saved_sort_column, self._saved_sort_order)
+
+        # Re-enable sorting
+        self.files_view.setSortingEnabled(True)
+
+        self.progress_bar.hide()
+        self.cancel_button.hide()
+        file_count = self.file_model.rowCount()
+        self.status_label.setText(f"Ready. {file_count} files loaded.")
+        self._current_load_worker = None
 
     def on_load_cancelled(self):
         """Handle the cancel button being clicked during file loading."""
         if self._current_load_worker is not None:
             log.info("User cancelled file loading")
             self._current_load_worker.cancel()
+
+            # Restore the saved sort order
+            if self._saved_sort_column is not None and self._saved_sort_order is not None:
+                header = self.files_view.header()
+                header.setSortIndicator(self._saved_sort_column, self._saved_sort_order)
+                # Only sort the proxy model - source model stays in insertion order
+                self.proxy_model.sort(self._saved_sort_column, self._saved_sort_order)
+
+            # Re-enable sorting
+            self.files_view.setSortingEnabled(True)
+
             self.status_label.setText("Loading cancelled.")
             self.progress_bar.hide()
             self.cancel_button.hide()
             self._current_load_worker = None
+
+    # TODO: Re-enable these methods when dynamic priority queue is implemented
+    # def _on_viewport_changed(self):
+    #     """Called when the viewport scrolls or changes."""
+    #     self._update_viewport_priority()
+    #
+    # def _create_resize_event_wrapper(self, original_resize_event):
+    #     """
+    #     Create a wrapper for the resize event that also updates viewport priority.
+    #
+    #     Args:
+    #         original_resize_event: The original resizeEvent method
+    #
+    #     Returns:
+    #         Wrapped resize event handler
+    #     """
+    #     def wrapped_resize_event(event):
+    #         original_resize_event(event)
+    #         self._update_viewport_priority()
+    #
+    #     return wrapped_resize_event
+
+    def _update_viewport_priority(self):
+        """
+        Calculate the visible row range and send it to the worker for priority loading.
+
+        Note: Since the proxy model can be sorted, visible VIEW rows may map to
+        scattered SOURCE rows. We collect all source rows for visible view rows,
+        then find the min/max range to send to the worker.
+        """
+        if self._current_load_worker is None:
+            return
+
+        # Get visible row range in the VIEW
+        viewport = self.files_view.viewport()
+        top_index = self.files_view.indexAt(viewport.rect().topLeft())
+        bottom_index = self.files_view.indexAt(viewport.rect().bottomLeft())
+
+        if top_index.isValid() and bottom_index.isValid():
+            # Collect source row indices for all visible view rows
+            view_start_row = top_index.row()
+            view_end_row = bottom_index.row() + 1
+
+            source_rows = []
+            for view_row in range(view_start_row, view_end_row):
+                view_index = self.proxy_model.index(view_row, 0)
+                source_index = self.proxy_model.mapToSource(view_index)
+                if source_index.isValid():
+                    source_rows.append(source_index.row())
+
+            if source_rows:
+                # Find min and max source rows that correspond to visible view rows
+                # Note: This may include some non-visible rows if the sort is scrambled,
+                # but it ensures we cover all visible rows
+                start_row = min(source_rows)
+                end_row = max(source_rows) + 1
+
+                # Add buffer rows for smoother scrolling
+                buffer = 50
+                start_row = max(0, start_row - buffer)
+                end_row = min(self.file_model.rowCount(), end_row + buffer)
+
+                # Send priority range to worker
+                self._current_load_worker.set_priority_range(start_row, end_row)
+            else:
+                # Fallback to default range
+                self._current_load_worker.set_priority_range(0, 100)
+        else:
+            # No valid indices, set default range
+            self._current_load_worker.set_priority_range(0, 100)
 
     def on_header_context_menu(self, pos):
         self.column_menu.exec_(self.files_view.header().mapToGlobal(pos))
@@ -421,6 +638,13 @@ class MainWindow(QMainWindow):
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.action_show_playback_panel)
 
+        # Favorites Menu - shared between menu bar and toolbar
+        self.favorites_menu = self._create_favorites_menu()
+        self.menuBar().addMenu(self.favorites_menu)
+        self.favorites_button.setMenu(self.favorites_menu)
+        # Refresh menu dynamically when shown
+        self.favorites_menu.aboutToShow.connect(lambda: self._refresh_favorites_menu(self.favorites_menu))
+
         # Debug Menu (only shown if debug mode is enabled)
         if is_debug_mode():
             debug_menu = self.menuBar().addMenu("&Debug")
@@ -552,6 +776,12 @@ class MainWindow(QMainWindow):
         debug_menu.addMenu(sample_format_menu)
         self.debug_sample_format_menu = sample_format_menu
 
+        # Resource cache management
+        debug_menu.addSeparator()
+        clear_cache_action = QAction("Clear Downloaded Resource Cache", self)
+        clear_cache_action.triggered.connect(self._on_clear_resource_cache)
+        debug_menu.addAction(clear_cache_action)
+
         # Update submenu enabled state based on adaptation toggle
         self._update_debug_menu_state()
 
@@ -580,6 +810,49 @@ class MainWindow(QMainWindow):
         """Handle sample format selection."""
         settings.setValue("Debug/PlaybackSampleFormat", value)
         log.info(f"Debug playback sample format set to: {value if value else 'Native'}")
+
+    def _on_clear_resource_cache(self):
+        """Handle clearing the downloaded resource cache."""
+        # Confirm with user
+        reply = QMessageBox.question(
+            self,
+            "Clear Resource Cache",
+            "This will delete all downloaded resources (models, data files, etc.).\n\n"
+            "Resources will be re-downloaded when needed.\n\n"
+            "Are you sure you want to continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                resource_manager = get_resource_manager()
+                cache_root = resource_manager.get_cache_root()
+
+                # Get cached resources before clearing
+                cached_resources = resource_manager.get_cached_resources()
+                num_resources = len(cached_resources)
+
+                # Clear the cache
+                resource_manager.clear_cache()
+
+                # Show success message
+                QMessageBox.information(
+                    self,
+                    "Cache Cleared",
+                    f"Successfully cleared resource cache.\n\n"
+                    f"Removed {num_resources} cached resource(s) from:\n{cache_root}"
+                )
+
+                log.info(f"Resource cache cleared: {num_resources} resources removed from {cache_root}")
+
+            except Exception as e:
+                log.error(f"Error clearing resource cache: {e}")
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Failed to clear resource cache:\n\n{str(e)}"
+                )
 
     def _update_debug_menu_state(self):
         """Enable or disable debug submenus based on adaptation toggle."""
@@ -721,6 +994,181 @@ class MainWindow(QMainWindow):
                 )
 
         log.info(f"Selected {len(file_paths)} files for retry")
+
+    def _create_favorites_menu(self) -> QMenu:
+        """
+        Create and populate the Favorites menu.
+
+        Returns:
+            QMenu with favorites locations and management actions
+        """
+        menu = QMenu("&Favorites", self)
+        self._populate_favorites_menu(menu)
+        return menu
+
+    def _populate_favorites_menu(self, menu: QMenu):
+        """
+        Populate a menu with favorites content.
+
+        Args:
+            menu: The menu to populate
+        """
+        # Load favorites from settings
+        favorites = self._load_favorites()
+
+        # Sort favorites alphabetically by path
+        sorted_favorites = sorted(favorites, key=lambda f: f.path)
+
+        # Add favorite locations
+        if sorted_favorites:
+            for favorite in sorted_favorites:
+                action = QAction(favorite.path, self)
+                action.triggered.connect(lambda checked, path=favorite.path: self.set_path(path))
+                menu.addAction(action)
+            menu.addSeparator()
+
+        # Add "Add Favorite..." action
+        add_action = QAction("Add Favorite", self)
+        add_action.triggered.connect(self._on_add_favorite)
+        # Disable if current path is already in favorites
+        current_path_is_favorite = any(f.path == self._current_path for f in favorites)
+        add_action.setEnabled(not current_path_is_favorite)
+        menu.addAction(add_action)
+
+        # Add "Remove Favorite" submenu
+        if sorted_favorites:
+            remove_menu = QMenu("Remove Favorite", self)
+            for favorite in sorted_favorites:
+                action = QAction(favorite.path, self)
+                action.triggered.connect(lambda checked, path=favorite.path: self._on_remove_favorite(path))
+                remove_menu.addAction(action)
+            menu.addAction(remove_menu.menuAction())
+
+    def _on_add_favorite(self):
+        """Add the current directory to favorites."""
+        current_path = self._current_path
+
+        if not current_path:
+            QMessageBox.warning(
+                self,
+                "No Directory",
+                "No directory is currently selected."
+            )
+            return
+
+        # Load current favorites
+        favorites = self._load_favorites()
+
+        # Check if already in favorites
+        if any(f.path == current_path for f in favorites):
+            QMessageBox.information(
+                self,
+                "Already Favorited",
+                f"The path '{current_path}' is already in your favorites."
+            )
+            return
+
+        # Check maximum limit (25 as per design spec)
+        MAX_FAVORITES = 25
+        if len(favorites) >= MAX_FAVORITES:
+            QMessageBox.warning(
+                self,
+                "Too Many Favorites",
+                f"You have reached the maximum number of favorites ({MAX_FAVORITES}).\n"
+                "Please remove some favorites before adding new ones."
+            )
+            return
+
+        # Add to favorites
+        from models.settings import Favorite
+        favorites.append(Favorite(path=current_path))
+        self._save_favorites(favorites)
+
+        # Refresh menu to show the new favorite immediately
+        self._refresh_favorites_menu(self.favorites_menu)
+
+        log.info(f"Added favorite: {current_path}")
+
+    def _on_remove_favorite(self, path: str):
+        """
+        Remove a favorite from the list.
+
+        Args:
+            path: The path to remove from favorites
+        """
+        reply = QMessageBox.question(
+            self,
+            "Remove Favorite",
+            f"Are you sure you want to remove this favorite?\n\n{path}",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            favorites = self._load_favorites()
+            favorites = [f for f in favorites if f.path != path]
+            self._save_favorites(favorites)
+
+            # Refresh menu to reflect the removal immediately
+            self._refresh_favorites_menu(self.favorites_menu)
+
+            log.info(f"Removed favorite: {path}")
+
+    def _load_favorites(self) -> list:
+        """
+        Load favorites from QSettings.
+
+        Returns:
+            List of Favorite objects
+        """
+        from models.settings import Favorite
+
+        settings.beginGroup("Favorites")
+        favorites = []
+
+        num_favorites = settings.beginReadArray("locations")
+        for i in range(num_favorites):
+            settings.setArrayIndex(i)
+            path = settings.value("path", type=str)
+            if path:
+                favorites.append(Favorite(path=path))
+        settings.endArray()
+
+        settings.endGroup()
+        return favorites
+
+    def _save_favorites(self, favorites: list):
+        """
+        Save favorites to QSettings.
+
+        Args:
+            favorites: List of Favorite objects to save
+        """
+        settings.beginGroup("Favorites")
+
+        settings.beginWriteArray("locations", len(favorites))
+        for i, favorite in enumerate(favorites):
+            settings.setArrayIndex(i)
+            settings.setValue("path", favorite.path)
+        settings.endArray()
+
+        settings.endGroup()
+
+    def _on_favorites_button_clicked(self):
+        """Handle favorites toolbar button click by refreshing and showing the menu."""
+        # Refresh the menu to reflect any changes
+        self._refresh_favorites_menu(self.favorites_menu)
+        self.favorites_button.showMenu()
+
+    def _refresh_favorites_menu(self, menu: QMenu):
+        """
+        Refresh the favorites menu to reflect current state.
+
+        Args:
+            menu: The menu to refresh
+        """
+        menu.clear()
+        self._populate_favorites_menu(menu)
 
     def open_properties_window(self):
         selected_indexes = self.files_view.selectionModel().selectedRows()

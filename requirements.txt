@@ -4,6 +4,7 @@ miniaudio==1.61
 pytest==8.4.1
 pytest-cov==4.1.0
 numpy==2.3.3
+filelock==3.17.0  # For resource download system cross-process file locking
 
 # packaging
 cx_Freeze==8.4.1

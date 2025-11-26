@@ -103,6 +103,9 @@ ALL_TAGS = { #display names for each tag
 
 #### END metadata model keys ####
 
+# UI constants
+LOADING_PLACEHOLDER = "⧖"  # Hourglass symbol for loading state
+
 #### COLUMN names for file list ####
 COL_MAIN_FILENAME = "filename"
 COL_MAIN_SIZE = "size"
@@ -153,3 +156,7 @@ MOD_TYPE_ANALYZER = "Analyzer"
 # Build mode configuration - patched by build system
 IS_DEBUG_BUILD = False  # Default to debug mode; build system patches this for release builds
 VERSION_STRING = None  # VERSION_STRING is updated dynamically by the build system; leave this set to None
+
+# Application identity for QSettings
+APP_ORGANIZATION_NAME = "Lyjia"
+APP_APPLICATION_NAME = "YAAMT"

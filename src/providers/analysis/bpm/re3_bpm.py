@@ -11,10 +11,10 @@ Reference: https://github.com/djqualia/RapidEvolution3
 from typing import Optional, Callable, List
 import numpy as np
 
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QSpinBox,
                                 QDoubleSpinBox, QFormLayout, QGroupBox)
 
+from models.settings import get_qsettings
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import register_analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
@@ -735,7 +735,7 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
                 )
 
             # Read BPM range from user preferences
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             min_bpm = settings.value("Analyzers/CategoryOptions/bpm/range_min", 80, type=int)
             max_bpm = settings.value("Analyzers/CategoryOptions/bpm/range_max", 200, type=int)
 
