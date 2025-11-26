@@ -45,6 +45,11 @@ class ResourceMetadata:
         checksum: SHA256 checksum for validation (optional)
         category: Resource category (e.g., "models", "data", "resources")
         version: Version identifier (optional)
+        display_name: Human-readable name for UI display
+        description: Brief description for tooltips
+        download_type: "direct" for HTTP download, "browser" to open URL in browser
+        subdirectory: Subdirectory within category
+        required_by: Component that requires this resource
     """
     resource_id: str
     url: str
@@ -53,6 +58,11 @@ class ResourceMetadata:
     checksum: Optional[str] = None
     category: str = "resources"
     version: Optional[str] = None
+    display_name: str = ""
+    description: str = ""
+    download_type: str = "direct"
+    subdirectory: str = ""
+    required_by: str = ""
 
 
 class ProgressReporter:
@@ -148,11 +158,46 @@ class ResourceManager:
         """
         self._registry: Dict[str, ResourceMetadata] = {}
         self._cache_root = cache_root or self._get_default_cache_root()
+        self._custom_locations: Dict[str, Path] = {}
+
+        # Load custom locations from settings
+        self._load_custom_locations()
 
         # Ensure cache root exists
         self._cache_root.mkdir(parents=True, exist_ok=True)
 
         log.debug(f"ResourceManager initialized with cache root: {self._cache_root}")
+
+    def _load_custom_locations(self) -> None:
+        """Load custom resource locations from QSettings on initialization."""
+        try:
+            from PySide6.QtCore import QSettings
+            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings.beginGroup("Resources/CustomLocations")
+            for key in settings.allKeys():
+                path_str = settings.value(key, "")
+                if path_str:
+                    path = Path(path_str)
+                    if path.exists():
+                        self._custom_locations[key] = path
+                        log.debug(f"Loaded custom location for {key}: {path}")
+            settings.endGroup()
+        except Exception as e:
+            log.warning(f"Error loading custom locations: {e}")
+
+    def _save_custom_location(self, resource_id: str, path: Optional[Path]) -> None:
+        """Save a custom location to QSettings."""
+        try:
+            from PySide6.QtCore import QSettings
+            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings.beginGroup("Resources/CustomLocations")
+            if path:
+                settings.setValue(resource_id, str(path))
+            else:
+                settings.remove(resource_id)
+            settings.endGroup()
+        except Exception as e:
+            log.warning(f"Error saving custom location: {e}")
 
     def _get_default_cache_root(self) -> Path:
         """
@@ -332,13 +377,24 @@ class ResourceManager:
         """
         Get the path where a resource should be cached.
 
+        Checks custom locations first, then falls back to standard cache location.
+
         Args:
             metadata: Resource metadata
 
         Returns:
             Path to cached resource file
         """
+        # Check for custom location override first
+        if metadata.resource_id in self._custom_locations:
+            custom = self._custom_locations[metadata.resource_id]
+            if custom.exists():
+                return custom
+
+        # Fall back to standard cache location
         category_dir = self._cache_root / metadata.category
+        if metadata.subdirectory:
+            category_dir = category_dir / metadata.subdirectory
         category_dir.mkdir(parents=True, exist_ok=True)
         return category_dir / metadata.filename
 
@@ -514,6 +570,90 @@ class ResourceManager:
                 metadata = self._registry[resource_id]
                 cached[resource_id] = self._get_resource_path(metadata)
         return cached
+
+    def get_resource_path(self, resource_id: str) -> Optional[Path]:
+        """
+        Get the path where a resource would be cached, regardless of whether it exists.
+
+        Args:
+            resource_id: Resource identifier
+
+        Returns:
+            Path to resource file, or None if resource_id is not registered
+        """
+        if resource_id not in self._registry:
+            return None
+        return self._get_resource_path(self._registry[resource_id])
+
+    def is_resource_loadable(self, resource_id: str) -> bool:
+        """
+        Check if a resource is found and can be loaded.
+
+        Alias for is_resource_cached() with clearer semantics for UI code.
+
+        Args:
+            resource_id: Resource identifier
+
+        Returns:
+            True if resource exists and passes validation
+        """
+        return self.is_resource_cached(resource_id)
+
+    def get_all_registered_resources(self) -> Dict[str, ResourceMetadata]:
+        """
+        Return all registered resources with their metadata.
+
+        Used by Resources preference pane to display status table.
+
+        Returns:
+            Dictionary mapping resource_id to ResourceMetadata
+        """
+        return dict(self._registry)
+
+    def set_custom_location(self, resource_id: str, path: Path) -> bool:
+        """
+        Set a custom location for a resource (user-specified via "Locate..." button).
+
+        Stores in internal override dict and persists to QSettings.
+
+        Args:
+            resource_id: Resource identifier
+            path: Path to the resource file
+
+        Returns:
+            True if path exists and was set successfully
+        """
+        if not path.exists():
+            return False
+
+        self._custom_locations[resource_id] = path
+        self._save_custom_location(resource_id, path)
+        log.info(f"Set custom location for {resource_id}: {path}")
+        return True
+
+    def get_custom_location(self, resource_id: str) -> Optional[Path]:
+        """
+        Get the custom location for a resource, if set.
+
+        Args:
+            resource_id: Resource identifier
+
+        Returns:
+            Path to custom location, or None if not set
+        """
+        return self._custom_locations.get(resource_id)
+
+    def clear_custom_location(self, resource_id: str) -> None:
+        """
+        Clear the custom location for a resource.
+
+        Args:
+            resource_id: Resource identifier
+        """
+        if resource_id in self._custom_locations:
+            del self._custom_locations[resource_id]
+            log.debug(f"Cleared custom location for {resource_id}")
+        self._save_custom_location(resource_id, None)
 
 
 # Global singleton instance

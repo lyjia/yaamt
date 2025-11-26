@@ -10,6 +10,7 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from windows.preferences.base import PreferencePaneBase
 from windows.preferences.general_pane import GeneralPane
 from windows.preferences.metadata_pane import MetadataPane
+from windows.preferences.resources_pane import ResourcesPane
 
 
 class PreferencesWindow(QDialog):
@@ -117,8 +118,9 @@ class PreferencesWindow(QDialog):
         # Create and register panes
         general_pane = GeneralPane()
         metadata_pane = MetadataPane()
+        resources_pane = ResourcesPane()
 
-        self.panes = [general_pane, metadata_pane]
+        self.panes = [general_pane, metadata_pane, resources_pane]
 
         # Add to UI
         for pane in self.panes:
@@ -181,3 +183,6 @@ class PreferencesWindow(QDialog):
         # Clear Analyzer settings
         self.settings.remove("Analyzers/Preferred")
         self.settings.remove("Analyzers/CategoryOptions")
+
+        # Clear Resources settings
+        self.settings.remove("Resources")

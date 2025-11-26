@@ -89,11 +89,25 @@ def register_analyzer(category: AnalyzerCategory, klass: Type[AnalyzerBase]):
     """
     Registers an Analyzer module to the Providers registry, under the given AnalyzerCategory.
 
+    Also registers any resources required by the analyzer with the global ResourceManager.
+
     :param category: The category under which the analyzer should be registered.
     :param klass: The class of the analyzer to be registered.
     :return: None
     """
     register_provider(ProviderType.ANALYZER, category, klass)
+
+    # Register required resources with global ResourceManager
+    try:
+        resources = klass.get_required_resources()
+        if resources:
+            from util.resource_manager import get_resource_manager
+            resource_manager = get_resource_manager()
+            for resource in resources:
+                resource_manager.register_resource(resource)
+            log.debug(f"Registered {len(resources)} resources for {klass.__name__}")
+    except Exception as e:
+        log.warning(f"Error registering resources for {klass.__name__}: {e}")
 
 def discover_providers():
     """

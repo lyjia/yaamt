@@ -358,3 +358,219 @@ class TestSingleton:
         # Get manager again and verify resource is still registered
         manager2 = get_resource_manager()
         assert "singleton_test" in manager2._registry
+
+
+class TestNewResourceMetadataFields:
+    """Test new fields added to ResourceMetadata."""
+
+    def test_display_name_field(self):
+        """Test display_name field."""
+        metadata = ResourceMetadata(
+            resource_id="test",
+            url="https://example.com/test.dat",
+            filename="test.dat",
+            expected_size=100,
+            display_name="Test Resource"
+        )
+        assert metadata.display_name == "Test Resource"
+
+    def test_display_name_default(self):
+        """Test display_name default value."""
+        metadata = ResourceMetadata(
+            resource_id="test",
+            url="https://example.com/test.dat",
+            filename="test.dat",
+            expected_size=100
+        )
+        assert metadata.display_name == ""
+
+    def test_download_type_default(self):
+        """Test download_type default value."""
+        metadata = ResourceMetadata(
+            resource_id="test",
+            url="https://example.com/test.dat",
+            filename="test.dat",
+            expected_size=100
+        )
+        assert metadata.download_type == "direct"
+
+    def test_download_type_browser(self):
+        """Test browser download type."""
+        metadata = ResourceMetadata(
+            resource_id="test",
+            url="https://example.com/test.dat",
+            filename="test.dat",
+            expected_size=100,
+            download_type="browser"
+        )
+        assert metadata.download_type == "browser"
+
+    def test_subdirectory_field(self):
+        """Test subdirectory field."""
+        metadata = ResourceMetadata(
+            resource_id="test",
+            url="https://example.com/test.dat",
+            filename="test.dat",
+            expected_size=100,
+            subdirectory="keynet"
+        )
+        assert metadata.subdirectory == "keynet"
+
+    def test_required_by_field(self):
+        """Test required_by field."""
+        metadata = ResourceMetadata(
+            resource_id="test",
+            url="https://example.com/test.dat",
+            filename="test.dat",
+            expected_size=100,
+            required_by="MusicalKeyCNNAnalyzer"
+        )
+        assert metadata.required_by == "MusicalKeyCNNAnalyzer"
+
+
+class TestCustomLocations:
+    """Test custom location functionality."""
+
+    def test_set_custom_location(self, resource_manager, sample_resource_metadata, temp_cache_dir):
+        """Test setting custom location for a resource."""
+        resource_manager.register_resource(sample_resource_metadata)
+
+        # Create a file at custom location
+        custom_file = temp_cache_dir / "custom_model.dat"
+        custom_file.write_bytes(b"test content")
+
+        result = resource_manager.set_custom_location(
+            sample_resource_metadata.resource_id,
+            custom_file
+        )
+        assert result is True
+
+        # Verify custom location is used
+        path = resource_manager.get_resource_path(sample_resource_metadata.resource_id)
+        assert path == custom_file
+
+    def test_set_custom_location_nonexistent(self, resource_manager, sample_resource_metadata, temp_cache_dir):
+        """Test setting custom location with nonexistent file."""
+        resource_manager.register_resource(sample_resource_metadata)
+
+        result = resource_manager.set_custom_location(
+            sample_resource_metadata.resource_id,
+            temp_cache_dir / "nonexistent.dat"
+        )
+        assert result is False
+
+    def test_get_custom_location(self, resource_manager, sample_resource_metadata, temp_cache_dir):
+        """Test getting custom location."""
+        resource_manager.register_resource(sample_resource_metadata)
+
+        # Create a file at custom location
+        custom_file = temp_cache_dir / "custom_model.dat"
+        custom_file.write_bytes(b"test content")
+
+        resource_manager.set_custom_location(
+            sample_resource_metadata.resource_id,
+            custom_file
+        )
+
+        location = resource_manager.get_custom_location(sample_resource_metadata.resource_id)
+        assert location == custom_file
+
+    def test_get_custom_location_not_set(self, resource_manager, sample_resource_metadata):
+        """Test getting custom location when not set."""
+        resource_manager.register_resource(sample_resource_metadata)
+
+        location = resource_manager.get_custom_location(sample_resource_metadata.resource_id)
+        assert location is None
+
+    def test_clear_custom_location(self, resource_manager, sample_resource_metadata, temp_cache_dir):
+        """Test clearing custom location."""
+        resource_manager.register_resource(sample_resource_metadata)
+
+        # Create a file at custom location
+        custom_file = temp_cache_dir / "custom_model.dat"
+        custom_file.write_bytes(b"test content")
+
+        resource_manager.set_custom_location(
+            sample_resource_metadata.resource_id,
+            custom_file
+        )
+
+        resource_manager.clear_custom_location(sample_resource_metadata.resource_id)
+
+        location = resource_manager.get_custom_location(sample_resource_metadata.resource_id)
+        assert location is None
+
+
+class TestGetAllRegisteredResources:
+    """Test get_all_registered_resources method."""
+
+    def test_returns_all_resources(self, resource_manager):
+        """Test that all registered resources are returned."""
+        metadata1 = ResourceMetadata(
+            resource_id="res1",
+            url="https://example.com/res1.dat",
+            filename="res1.dat",
+            expected_size=100
+        )
+        metadata2 = ResourceMetadata(
+            resource_id="res2",
+            url="https://example.com/res2.dat",
+            filename="res2.dat",
+            expected_size=200
+        )
+
+        resource_manager.register_resource(metadata1)
+        resource_manager.register_resource(metadata2)
+
+        all_resources = resource_manager.get_all_registered_resources()
+        assert len(all_resources) == 2
+        assert "res1" in all_resources
+        assert "res2" in all_resources
+        assert all_resources["res1"] == metadata1
+        assert all_resources["res2"] == metadata2
+
+    def test_returns_empty_dict_when_no_resources(self, resource_manager):
+        """Test that empty dict is returned when no resources registered."""
+        all_resources = resource_manager.get_all_registered_resources()
+        assert all_resources == {}
+
+
+class TestIsResourceLoadable:
+    """Test is_resource_loadable method (alias for is_resource_cached)."""
+
+    def test_resource_not_loadable_when_not_cached(self, resource_manager, sample_resource_metadata):
+        """Test resource is not loadable when not cached."""
+        resource_manager.register_resource(sample_resource_metadata)
+
+        assert resource_manager.is_resource_loadable(sample_resource_metadata.resource_id) is False
+
+    def test_resource_loadable_when_cached(self, resource_manager, sample_resource_metadata, temp_cache_dir):
+        """Test resource is loadable when cached."""
+        resource_manager.register_resource(sample_resource_metadata)
+
+        # Create the cached file
+        cache_file = temp_cache_dir / sample_resource_metadata.category / sample_resource_metadata.filename
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_bytes(b"test content")
+
+        assert resource_manager.is_resource_loadable(sample_resource_metadata.resource_id) is True
+
+
+class TestSubdirectorySupport:
+    """Test subdirectory support in resource paths."""
+
+    def test_subdirectory_in_path(self, resource_manager, temp_cache_dir):
+        """Test that subdirectory is included in resource path."""
+        metadata = ResourceMetadata(
+            resource_id="test",
+            url="https://example.com/test.dat",
+            filename="test.dat",
+            expected_size=100,
+            category="models",
+            subdirectory="keynet"
+        )
+        resource_manager.register_resource(metadata)
+
+        path = resource_manager.get_resource_path(metadata.resource_id)
+        expected_path = temp_cache_dir / "models" / "keynet" / "test.dat"
+        assert path == expected_path
