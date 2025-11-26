@@ -1,6 +1,6 @@
-import pyaudio
+import miniaudio
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
-from typing import Optional
+from typing import Optional, Generator
 
 from models.media_file import MediaFile
 from models.settings import settings
@@ -29,15 +29,15 @@ class PlaybackWorker(QObject):
         super().__init__()
         self.state = STOPPED
         self.audio_stream = None
-        self.pyaudio = None
-        self.output_stream = None
+        self.playback_device = None
         self.current_file = None
         self.duration = 0.0
         self.total_frames_read = 0
         self.chunk_size = 1024
+        self._playback_finished_flag = False
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self._playback_loop)
+        self.timer.timeout.connect(self._update_position)
 
     def _get_format_descriptor(self) -> Optional[AudioFormatDescriptor]:
         """
@@ -78,6 +78,56 @@ class PlaybackWorker(QObject):
             sample_format=sample_format
         )
 
+    def _audio_generator(self) -> Generator[bytes, int, None]:
+        """
+        Generator function that yields audio data for playback.
+        This is called by the miniaudio PlaybackDevice.
+
+        Yields:
+            Audio data as bytes.
+        """
+        try:
+            # Prime the generator
+            num_frames = yield b""
+
+            while True:
+                # Check if we should stop
+                if self._playback_finished_flag or self.state == STOPPED:
+                    break
+
+                # Wait if paused
+                if self.state == PAUSED:
+                    num_frames = yield b"\x00" * (num_frames * self.audio_stream.sample_width * self.audio_stream.channels_qty)
+                    continue
+
+                # Read audio data
+                data = self.audio_stream.read(num_frames)
+
+                if not data:
+                    # End of stream
+                    self._playback_finished_flag = True
+                    self.playback_finished.emit()
+                    break
+
+                # Track position
+                frames_read = len(data) // (self.audio_stream.sample_width * self.audio_stream.channels_qty)
+                self.total_frames_read += frames_read
+
+                # Yield the audio data and get next frame count request
+                num_frames = yield data
+
+        except Exception as e:
+            log.error(f"Error in audio generator: {str(e)}")
+            self.error_occurred.emit(f"Error during playback: {str(e)}")
+
+    def _update_position(self):
+        """
+        Timer callback to emit position updates during playback.
+        """
+        if self.state == PLAYING and self.audio_stream:
+            current_position = self.total_frames_read / self.audio_stream.sample_rate
+            self.position_changed.emit(current_position)
+
     @Slot(object)
     def start_playback(self, media_file: MediaFile):
         """
@@ -100,58 +150,46 @@ class PlaybackWorker(QObject):
 
             # Get audio stream with optional format adaptation
             self.audio_stream = media_file.get_audio_stream(format_descriptor)
-            self.pyaudio = pyaudio.PyAudio()
 
-            self.output_stream = self.pyaudio.open(
-                format=self.pyaudio.get_format_from_width(self.audio_stream.sample_width),
-                channels=self.audio_stream.channels_qty,
-                rate=self.audio_stream.sample_rate,
-                output=True
-            )
+            # Map sample width to miniaudio SampleFormat
+            if self.audio_stream.sample_width == 1:
+                sample_format = miniaudio.SampleFormat.UNSIGNED8
+            elif self.audio_stream.sample_width == 2:
+                sample_format = miniaudio.SampleFormat.SIGNED16
+            elif self.audio_stream.sample_width == 3:
+                sample_format = miniaudio.SampleFormat.SIGNED24
+            elif self.audio_stream.sample_width == 4:
+                sample_format = miniaudio.SampleFormat.SIGNED32
+            else:
+                raise ValueError(f"Unsupported sample width: {self.audio_stream.sample_width}")
 
             self.duration = self.audio_stream.duration_seconds
             self.total_frames_read = 0
+            self._playback_finished_flag = False
 
-            # Dynamically set timer interval
-            chunk_duration_ms = (self.chunk_size / self.audio_stream.sample_rate) * 1000
-            self.timer.setInterval(chunk_duration_ms / 2)  # Update at twice the speed of chunk playback
+            # Create playback device
+            self.playback_device = miniaudio.PlaybackDevice(
+                output_format=sample_format,
+                nchannels=self.audio_stream.channels_qty,
+                sample_rate=self.audio_stream.sample_rate
+            )
+
+            # Create and prime the generator before starting playback
+            generator = self._audio_generator()
+            next(generator)  # Prime the generator
+            self.playback_device.start(generator)
+
+            # Set up position update timer (update every 50ms)
+            self.timer.setInterval(50)
+            self.timer.start()
 
             self.state = PLAYING
             self.playback_started.emit(self.current_file, self.duration)
-            self.timer.start()
 
         except Exception as e:
             log.error(f"Error starting playback: {str(e)}")
             self.error_occurred.emit(f"Error starting playback: {str(e)}")
             self.cleanup()
-
-    def _playback_loop(self):
-        """
-        The main playback loop that reads from the audio stream and writes to the output device.
-        This is called by the QTimer.
-        """
-        if self.state != PLAYING:
-            return
-
-        try:
-            data = self.audio_stream.read(self.chunk_size)
-            
-            if not data:
-                self.playback_finished.emit()
-                self.stop()
-                return
-            
-            self.output_stream.write(data)
-
-            frames_read = len(data) / (self.audio_stream.sample_width * self.audio_stream.channels_qty)
-            self.total_frames_read += frames_read
-            current_position = self.total_frames_read / self.audio_stream.sample_rate
-            self.position_changed.emit(current_position)
-            
-        except Exception as e:
-            log.error(f"Error during playback: {str(e)}")
-            self.error_occurred.emit(f"Error during playback: {str(e)}")
-            self.stop()
 
     @Slot()
     def pause(self):
@@ -160,9 +198,7 @@ class PlaybackWorker(QObject):
         """
         if self.state == PLAYING:
             self.state = PAUSED
-            self.timer.stop()
-            if self.output_stream:
-                self.output_stream.stop_stream()
+            # The generator will output silence when paused
             self.playback_paused.emit(self.current_file, self.duration)
 
     @Slot()
@@ -172,9 +208,7 @@ class PlaybackWorker(QObject):
         """
         if self.state == PAUSED:
             self.state = PLAYING
-            if self.output_stream:
-                self.output_stream.start_stream()
-            self.timer.start()
+            # The generator will resume outputting audio data
             self.playback_resumed.emit(self.current_file, self.duration)
 
     @Slot()
@@ -211,18 +245,13 @@ class PlaybackWorker(QObject):
         Clean up resources used by the playback worker.
         """
         try:
-            if self.output_stream:
-                self.output_stream.stop_stream()
-                self.output_stream.close()
-                self.output_stream = None
-                
-            if self.pyaudio:
-                self.pyaudio.terminate()
-                self.pyaudio = None
-                
+            if self.playback_device:
+                self.playback_device.close()
+                self.playback_device = None
+
             if self.audio_stream:
                 self.audio_stream.close()
                 self.audio_stream = None
-                
+
         except Exception as e:
             log.error(f"Error during cleanup: {str(e)}")

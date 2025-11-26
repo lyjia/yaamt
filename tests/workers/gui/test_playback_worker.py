@@ -1,5 +1,5 @@
 import pytest
-import pyaudio
+import miniaudio
 from unittest.mock import MagicMock, patch, PropertyMock
 
 from util.const import IN_GITHUB_RUNNER
@@ -53,24 +53,22 @@ def playback_worker(qapp):
 
 
 @pytest.fixture
-def mock_pyaudio():
-    """Fixture to mock PyAudio."""
-    with patch('workers.gui.playback_worker.pyaudio') as mock_pa:
-        # Mock the PyAudio class
-        mock_pa_instance = MagicMock()
-        mock_pa.PyAudio.return_value = mock_pa_instance
-        
-        # Mock the output stream
-        mock_output_stream = MagicMock()
-        mock_pa_instance.open.return_value = mock_output_stream
-        
-        # Mock format_from_width
-        mock_pa_instance.get_format_from_width.return_value = pyaudio.paInt16
-        
+def mock_miniaudio():
+    """Fixture to mock miniaudio."""
+    with patch('workers.gui.playback_worker.miniaudio') as mock_ma:
+        # Mock the PlaybackDevice class
+        mock_device = MagicMock()
+        mock_ma.PlaybackDevice.return_value = mock_device
+
+        # Mock SampleFormat enum
+        mock_ma.SampleFormat.UNSIGNED8 = miniaudio.SampleFormat.UNSIGNED8
+        mock_ma.SampleFormat.SIGNED16 = miniaudio.SampleFormat.SIGNED16
+        mock_ma.SampleFormat.SIGNED24 = miniaudio.SampleFormat.SIGNED24
+        mock_ma.SampleFormat.SIGNED32 = miniaudio.SampleFormat.SIGNED32
+
         yield {
-            'pyaudio_mock': mock_pa,
-            'pyaudio_instance_mock': mock_pa_instance,
-            'output_stream_mock': mock_output_stream
+            'miniaudio_mock': mock_ma,
+            'device_mock': mock_device
         }
 
 
@@ -82,13 +80,12 @@ class TestPlaybackWorker:
         """Test that the worker initializes to the STOPPED state."""
         assert playback_worker.state == STOPPED
         assert playback_worker.audio_stream is None
-        assert playback_worker.pyaudio is None
-        assert playback_worker.output_stream is None
+        assert playback_worker.playback_device is None
         assert playback_worker.current_file is None
         assert playback_worker.duration == 0.0
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_start_playback_success(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_start_playback_success(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test successful start of playback."""
         # Connect a spy to the playback_started signal
         spy = MagicMock()
@@ -99,16 +96,15 @@ class TestPlaybackWorker:
         # Verify MediaFile.get_audio_stream was called
         mock_media_file.get_audio_stream.assert_called_once()
 
-        # Verify PyAudio was initialized
-        mock_pyaudio['pyaudio_mock'].PyAudio.assert_called_once()
+        # Verify PlaybackDevice was created with correct parameters
+        mock_miniaudio['miniaudio_mock'].PlaybackDevice.assert_called_once()
+        args, kwargs = mock_miniaudio['miniaudio_mock'].PlaybackDevice.call_args
+        assert kwargs['output_format'] == miniaudio.SampleFormat.SIGNED16
+        assert kwargs['nchannels'] == mock_audio_stream.channels_qty
+        assert kwargs['sample_rate'] == mock_audio_stream.sample_rate
 
-        # Verify output stream was opened with correct parameters
-        mock_pyaudio['pyaudio_instance_mock'].open.assert_called_once()
-        args, kwargs = mock_pyaudio['pyaudio_instance_mock'].open.call_args
-        assert kwargs['format'] == mock_pyaudio['pyaudio_instance_mock'].get_format_from_width(mock_audio_stream.sample_width)
-        assert kwargs['channels'] == mock_audio_stream.channels_qty
-        assert kwargs['rate'] == mock_audio_stream.sample_rate
-        assert kwargs['output'] is True
+        # Verify playback device was started
+        mock_miniaudio['device_mock'].start.assert_called_once()
 
         # Verify state is PLAYING
         assert playback_worker.state == PLAYING
@@ -136,16 +132,11 @@ class TestPlaybackWorker:
         assert "Error starting playback: Test error" in spy.call_args[0][0]
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    @patch('workers.gui.playback_worker.PlaybackWorker._playback_loop')
-    def test_playback_loop(self, mock_playback_loop, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
-        """Test the main playback loop."""
+    def test_position_update(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        """Test the position update mechanism."""
         # Connect spies to signals
         position_spy = MagicMock()
-        finished_spy = MagicMock()
-        stopped_spy = MagicMock()
         playback_worker.position_changed.connect(position_spy)
-        playback_worker.playback_finished.connect(finished_spy)
-        playback_worker.playback_stopped.connect(stopped_spy)
 
         # Start playback
         playback_worker.start_playback(mock_media_file)
@@ -156,66 +147,53 @@ class TestPlaybackWorker:
         # Verify position_changed signal was emitted during playback
         assert position_spy.call_count > 0
 
-        # Simulate end of file
-        mock_audio_stream.read.return_value = b''
-
-        # Since the real _playback_loop runs in a thread, we can't directly call it.
-        # Instead, we'll check the state after starting playback and emitting a signal.
-        # The assertions for finished_spy and stopped_spy are removed because they are not reliable in this mocked setup.
-
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_pause_resume(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_pause_resume(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test pause and resume functionality."""
         # Start playback
         playback_worker.start_playback(mock_media_file)
-        
+
         # Pause playback
         playback_worker.pause()
         assert playback_worker.state == PAUSED
-        mock_pyaudio['output_stream_mock'].stop_stream.assert_called_once()
-        
+
         # Resume playback
-        # We need to mock the _playback_loop to prevent it from actually running
-        with patch.object(playback_worker, '_playback_loop'):
-            playback_worker.resume()
-            assert playback_worker.state == PLAYING
-            mock_pyaudio['output_stream_mock'].start_stream.assert_called_once()
+        playback_worker.resume()
+        assert playback_worker.state == PLAYING
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_stop(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_stop(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test stop functionality."""
         # Start playback
         playback_worker.start_playback(mock_media_file)
-        
+
         # Connect a spy to the playback_stopped signal
         spy = MagicMock()
         playback_worker.playback_stopped.connect(spy)
-        
+
         # Stop playback
         playback_worker.stop()
-        
+
         # Verify state is STOPPED
         assert playback_worker.state == STOPPED
-        
+
         # Verify signal was emitted
         spy.assert_called_once()
-        
+
         # Verify cleanup was called
-        mock_pyaudio['output_stream_mock'].stop_stream.assert_called_once()
-        mock_pyaudio['output_stream_mock'].close.assert_called_once()
-        mock_pyaudio['pyaudio_instance_mock'].terminate.assert_called_once()
+        mock_miniaudio['device_mock'].close.assert_called_once()
         mock_audio_stream.close.assert_called_once()
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_seek(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_seek(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test seek functionality."""
         # Start playback
         playback_worker.start_playback(mock_media_file)
-        
+
         # Connect a spy to the position_changed signal
         spy = MagicMock()
         playback_worker.position_changed.connect(spy)
-        
+
         # Seek to a specific position
         seek_position = 5.0  # 5 seconds
         playback_worker.seek(seek_position)
@@ -223,131 +201,83 @@ class TestPlaybackWorker:
         # Verify audio stream seek was called with correct frame offset
         expected_frame_offset = int(seek_position * mock_audio_stream.sample_rate)
         mock_audio_stream.seek.assert_called_once_with(expected_frame_offset)
-        
+
         # Verify position_changed signal was emitted
         spy.assert_called_with(seek_position)
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_seek_error(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_seek_error(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test error handling during seek."""
         # Start playback
         playback_worker.start_playback(mock_media_file)
-        
+
         # Make seek raise an exception
         mock_audio_stream.seek.side_effect = Exception("Seek error")
-        
+
         # Connect a spy to the error_occurred signal
         spy = MagicMock()
         playback_worker.error_occurred.connect(spy)
-        
+
         # Attempt to seek
         playback_worker.seek(5.0)
-        
+
         # Verify error signal was emitted
         spy.assert_called_once()
         assert "Error seeking: Seek error" in spy.call_args[0][0]
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_cleanup_on_exception_during_playback(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
-        """Test that cleanup is called when an exception occurs during playback."""
-        # Make read raise an exception during playback
-        mock_audio_stream.read.side_effect = Exception("Playback error")
-
-        # Connect spies to signals
-        error_spy = MagicMock()
-        stopped_spy = MagicMock()
-        playback_worker.error_occurred.connect(error_spy)
-        playback_worker.playback_stopped.connect(stopped_spy)
-
-        # Start playback
-        playback_worker.start_playback(mock_media_file)
-
-        # Manually trigger the playback loop to simulate the timer
-        playback_worker._playback_loop()
-
-        # Verify error and stopped signals were emitted
-        error_spy.assert_called_once()
-        assert "Error during playback: Playback error" in error_spy.call_args[0][0]
-        stopped_spy.assert_called_once()
-
-        # Verify state is STOPPED
-        assert playback_worker.state == STOPPED
-
-        # Verify cleanup was called
-        mock_pyaudio['output_stream_mock'].stop_stream.assert_called()
-        mock_pyaudio['output_stream_mock'].close.assert_called()
-        mock_pyaudio['pyaudio_instance_mock'].terminate.assert_called()
-        mock_audio_stream.close.assert_called()
-
-    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_stop_when_already_stopped(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_stop_when_already_stopped(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test that stop() does nothing when already stopped."""
         # Start and then stop playback
         playback_worker.start_playback(mock_media_file)
         playback_worker.stop()
-        
+
         # Reset mocks
-        mock_pyaudio['output_stream_mock'].reset_mock()
-        mock_pyaudio['pyaudio_instance_mock'].reset_mock()
+        mock_miniaudio['device_mock'].reset_mock()
         mock_audio_stream.reset_mock()
-        
+
         # Connect a spy to the playback_stopped signal
         spy = MagicMock()
         playback_worker.playback_stopped.connect(spy)
-        
+
         # Call stop again
         playback_worker.stop()
-        
+
         # Verify no additional cleanup was performed
-        mock_pyaudio['output_stream_mock'].stop_stream.assert_not_called()
-        mock_pyaudio['output_stream_mock'].close.assert_not_called()
-        mock_pyaudio['pyaudio_instance_mock'].terminate.assert_not_called()
+        mock_miniaudio['device_mock'].close.assert_not_called()
         mock_audio_stream.close.assert_not_called()
-        
+
         # Verify signal was not emitted again
         spy.assert_not_called()
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_pause_when_not_playing(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_pause_when_not_playing(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test that pause() does nothing when not playing."""
         # Start and then stop playback
         playback_worker.start_playback(mock_media_file)
         playback_worker.stop()
-        
-        # Reset mocks
-        mock_pyaudio['output_stream_mock'].reset_mock()
-        
+
         # Call pause
         playback_worker.pause()
-        
+
         # Verify state is still STOPPED
         assert playback_worker.state == STOPPED
-        
-        # Verify no pause action was performed
-        mock_pyaudio['output_stream_mock'].stop_stream.assert_not_called()
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_resume_when_not_paused(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_resume_when_not_paused(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test that resume() does nothing when not paused."""
         # Start and then stop playback
         playback_worker.start_playback(mock_media_file)
         playback_worker.stop()
 
-        # Reset mocks
-        mock_pyaudio['output_stream_mock'].reset_mock()
-
         # Call resume
-        with patch.object(playback_worker, '_playback_loop'):
-            playback_worker.resume()
+        playback_worker.resume()
 
         # Verify state is still STOPPED
         assert playback_worker.state == STOPPED
 
-        # Verify no resume action was performed
-        mock_pyaudio['output_stream_mock'].start_stream.assert_not_called()
-
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_format_adaptation_disabled(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_format_adaptation_disabled(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test that format adaptation is disabled by default."""
         # Ensure format adaptation is disabled in settings
         settings.setValue("Debug/PlaybackFormatAdaptationEnabled", False)
@@ -359,7 +289,7 @@ class TestPlaybackWorker:
         mock_media_file.get_audio_stream.assert_called_once_with(None)
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_format_adaptation_enabled_with_settings(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_format_adaptation_enabled_with_settings(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test that format adaptation uses settings when enabled."""
         # Enable format adaptation with specific settings
         settings.setValue("Debug/PlaybackFormatAdaptationEnabled", True)
@@ -383,7 +313,7 @@ class TestPlaybackWorker:
         assert format_desc.sample_format == "int"
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_format_adaptation_partial_settings(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_format_adaptation_partial_settings(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test that format adaptation handles partial settings (some native, some custom)."""
         # Enable format adaptation with only some settings
         settings.setValue("Debug/PlaybackFormatAdaptationEnabled", True)
@@ -407,7 +337,7 @@ class TestPlaybackWorker:
         assert format_desc.sample_format is None  # Native
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-    def test_format_adaptation_all_native(self, playback_worker, mock_media_file, mock_audio_stream, mock_pyaudio):
+    def test_format_adaptation_all_native(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test that format adaptation with all native settings returns None."""
         # Enable format adaptation but set all to native
         settings.setValue("Debug/PlaybackFormatAdaptationEnabled", True)
