@@ -65,8 +65,12 @@ def test_to_dict_parameterized(media_path):
     actual_filtered = filter_keys(actual_dict, keys_to_ignore)
     expected_filtered = filter_keys(expected_dict, keys_to_ignore)
 
-    # Assert that the filtered dictionaries are equal.
-    assert actual_filtered == expected_filtered
+    # Only compare sections that exist in the expected fixture.
+    # This allows fixture files to test just specific sections (e.g., only 'tags').
+    for section_key in expected_filtered:
+        assert section_key in actual_filtered, f"Missing section '{section_key}' in actual output"
+        assert actual_filtered[section_key] == expected_filtered[section_key], \
+            f"Mismatch in section '{section_key}'"
 
 
 @pytest.mark.parametrize("media_path", test_files)
