@@ -10,6 +10,7 @@ Tests the core transformer functionality including:
 import pytest
 from PySide6.QtCore import QSettings
 
+from util.const import KEY_INITIAL_KEY
 from providers.metadata.tag_transformers import (
     TransformerBase,
     EmptyStringHandler,
@@ -399,7 +400,7 @@ class TestMusicalKeyFormatter:
 
     def test_applicable_tags(self):
         """Test that MusicalKeyFormatter declares applicable tags."""
-        assert 'initial_key' in MusicalKeyFormatter.applicable_tags
+        assert KEY_INITIAL_KEY in MusicalKeyFormatter.applicable_tags
 
     def test_priority(self):
         """Test that MusicalKeyFormatter has default priority 50."""
