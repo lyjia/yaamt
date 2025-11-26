@@ -1,17 +1,21 @@
 {
     "tags": {
         "album": {
-            "value": null,
+            "value": "For the love of testing",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "For the love of testing"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
         },
         "albumartist": {
-            "value": null,
+            "value": "Lyjia",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "Lyjia"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -95,9 +99,11 @@
             ]
         },
         "composer": {
-            "value": null,
+            "value": "Nobody",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "Nobody"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -137,9 +143,11 @@
             ]
         },
         "discnumber": {
-            "value": null,
+            "value": "01/10",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "01/10"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -163,9 +171,11 @@
             ]
         },
         "genre": {
-            "value": null,
+            "value": "Test Tones",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "Test Tones"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -179,9 +189,11 @@
             ]
         },
         "initialkey": {
-            "value": null,
+            "value": "5A",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "5A"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -242,10 +254,22 @@
                 "MutagenProvider"
             ]
         },
-        "title": {
-            "value": null,
+        "performer": {
+            "value": "Nothing",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "Nothing"
+            ],
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "title": {
+            "value": "i-v-VI-iv 5A Cmin",
+            "provider": "MutagenProvider",
+            "all_values": [
+                "i-v-VI-iv 5A Cmin"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
@@ -259,9 +283,11 @@
             ]
         },
         "tracknumber": {
-            "value": null,
+            "value": "01/10",
             "provider": "MutagenProvider",
-            "all_values": null,
+            "all_values": [
+                "01/10"
+            ],
             "all_providers": [
                 "MutagenProvider"
             ]
