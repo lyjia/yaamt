@@ -216,6 +216,11 @@ class MainWindow(QMainWindow):
         self.start_playback_signal.connect(self.playback_worker.start_playback)
 
     def closeEvent(self, event):
+        log.info("MainWindow close event received!") # Commenting-out or removing this line causes playback to freeze for some reason
+
+        # Stop playback and clean up the playback thread
+        self._cleanup_playback()  # Commenting-out or removing this line fixes the playback bug mentioned above, but then the program won't exit cleanly
+
         # Cancel any running file loading worker
         if self._current_load_worker is not None:
             log.debug("Cancelling file loading worker on window close")
@@ -1490,6 +1495,33 @@ class MainWindow(QMainWindow):
         """
         self.playback_panel.setVisible(checked)
         self.action_show_playback_panel.setChecked(checked)
+
+    def _cleanup_playback(self):
+        """
+        Clean up playback resources before closing.
+        Stops playback, disconnects signals, and terminates the thread.
+        """
+        log.debug("Cleaning up playback resources")
+
+        # Stop any active playback
+        if self.playback_worker.state != "stopped":
+            self.playback_worker.stop()
+
+        # Disconnect signals to prevent callbacks to destroyed objects
+        try:
+            self.playback_worker.position_changed.disconnect(self.playback_panel.update_playback_position)
+        except RuntimeError:
+            pass  # Signal was not connected
+
+        # Stop the thread
+        if self.playback_thread.isRunning():
+            self.playback_thread.quit()
+            if not self.playback_thread.wait(2000):  # Wait up to 2 seconds
+                log.warning("Playback thread did not terminate gracefully, forcing termination")
+                self.playback_thread.terminate()
+                self.playback_thread.wait()
+
+        log.debug("Playback cleanup complete")
 
     def _show_preferences(self):
         """Show the preferences window."""
