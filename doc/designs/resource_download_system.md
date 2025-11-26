@@ -104,21 +104,47 @@ Protection is achieved through:
 
 ### Analyzer Integration
 
-Analyzers request resources during analysis:
-1. Check if resource required
-2. Call resource_manager.ensure_resource()
-3. Handle download progress if in GUI
-4. Use returned path to load resource
-5. Continue with analysis
+Analyzers use a "fail fast" approach - resources must be available before analysis:
+
+1. Analyzer implements `get_required_resources()` to declare dependencies
+2. Resources are registered automatically during provider discovery
+3. At analysis time, analyzer checks `is_resource_loadable()`
+4. If resource not found, raise RuntimeError with helpful message directing user to Preferences > Resources
+5. NO auto-download during analysis (avoids thread synchronization complexity)
+
+Users download resources via:
+- Preferences > Resources pane (centralized management)
+- Analyzer's settings widget (Download/Locate buttons)
+
+### Analyzer Settings Widget Pattern
+
+Analyzer settings widgets should include a "Model Status" section:
+- Status indicator: "OK!" (green) or "Not found" (red)
+- Download button (triggers threaded download with progress dialog)
+- Locate button (file picker for manual location)
 
 ### Settings Integration
 
 User-configurable options:
 - Cache directory location
-- Auto-download preference
 - Download timeout
-- Maximum cache size
 - Proxy configuration
+
+### Resources Preference Pane
+
+A dedicated "Resources" pane in Preferences provides centralized resource management:
+
+**Table columns:**
+- Resource (display_name with description tooltip)
+- Required By (component name)
+- Status ("OK!" in green or "Not found" in red)
+- Actions (Download and Locate buttons)
+
+**Behavior:**
+- Download button: Initiates threaded download with QProgressDialog
+- Locate button: Opens file picker for manual path specification
+- Custom locations are saved immediately to QSettings
+- Table refreshes after each action
 
 ### Progress Reporting
 
@@ -136,13 +162,56 @@ User-configurable options:
 
 ## Resource Registration
 
-Resources are registered with metadata:
-- Unique identifier
-- Download URL
-- Expected file size
-- SHA256 checksum
-- Version information
-- Optional dependencies
+### ResourceMetadata Fields
+
+Resources are registered with metadata via `ResourceMetadata` dataclass:
+
+**Core fields:**
+- `resource_id` - Unique identifier (e.g., "keynet_model")
+- `url` - Download URL
+- `filename` - Target filename
+- `expected_size` - Expected file size in bytes
+- `checksum` - SHA256 checksum for validation (optional)
+- `category` - Category folder (e.g., "models", "data")
+- `version` - Version string (optional)
+
+**UI fields:**
+- `display_name` - Human-readable name for UI (e.g., "KeyNet CNN Model")
+- `description` - Brief description for tooltips
+- `required_by` - Component that requires this resource (e.g., "MusicalKeyCNNAnalyzer")
+
+**Behavior fields:**
+- `download_type` - "direct" for HTTP download, "browser" to open URL in browser
+- `subdirectory` - Subdirectory within category (e.g., "keynet")
+
+### Analyzer Resource Declaration
+
+Analyzers declare required resources by implementing `get_required_resources()`:
+
+```
+class MyAnalyzer(AnalyzerBase):
+    @classmethod
+    def get_required_resources(cls) -> List[ResourceMetadata]:
+        return [
+            ResourceMetadata(
+                resource_id="my_model",
+                url="https://example.com/model.pt",
+                filename="model.pt",
+                expected_size=50_000_000,
+                display_name="My Model",
+                required_by="MyAnalyzer"
+            )
+        ]
+```
+
+Resources are automatically registered when providers are discovered via `discover_providers()`.
+
+### Custom Locations
+
+Users can specify custom file locations for resources (e.g., when downloading manually). Custom locations:
+- Are persisted to QSettings under `Resources/CustomLocations/{resource_id}`
+- Take priority over cached locations
+- Are managed via the Resources preference pane
 
 ## Error Handling
 

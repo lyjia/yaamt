@@ -20,7 +20,9 @@ from PySide6.QtWidgets import (
     QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox, QSlider,
     QPushButton, QLineEdit, QFileDialog
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt
+
+from models.settings import get_qsettings
 
 
 @dataclass
@@ -58,7 +60,7 @@ class AnalyzerOption:
 
     def __post_init__(self):
         """Validate option configuration."""
-        valid_types = {'int', 'float', 'bool', 'choice', 'slider', 'file'}
+        valid_types = {'int', 'float', 'bool', 'choice', 'slider', 'file', 'directory'}
         if self.type not in valid_types:
             raise ValueError(f"Invalid option type '{self.type}'. Must be one of {valid_types}")
 
@@ -100,7 +102,7 @@ def build_widget_from_option(option: AnalyzerOption,
     # Load saved value from QSettings if available
     saved_value = option.default
     if settings_group:
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
+        settings = get_qsettings()
         settings.beginGroup(settings_group)
 
         # Type-appropriate retrieval
@@ -137,6 +139,9 @@ def build_widget_from_option(option: AnalyzerOption,
     elif option.type == 'file':
         return _build_file_input(option, saved_value, settings_group)
 
+    elif option.type == 'directory':
+        return _build_directory_input(option, saved_value, settings_group)
+
     else:
         raise ValueError(f"Cannot build widget for option type: {option.type}")
 
@@ -152,7 +157,7 @@ def _build_checkbox(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(checked: bool):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, checked)
             settings.endGroup()
@@ -198,7 +203,7 @@ def _build_combobox(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(index: int):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, combo.itemData(index))
             settings.endGroup()
@@ -253,7 +258,7 @@ def _build_spinbox(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(new_value: Union[int, float]):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, new_value)
             settings.endGroup()
@@ -339,7 +344,7 @@ def _build_slider_spinbox(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(new_value: Union[int, float]):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, new_value)
             settings.endGroup()
@@ -413,7 +418,64 @@ def _build_file_input(option: AnalyzerOption,
     # Save to QSettings on change
     if settings_group:
         def save_value(text: str):
-            settings = QSettings("Lyjia", "Audio Metadata Tool")
+            settings = get_qsettings()
+            settings.beginGroup(settings_group)
+            settings.setValue(option.name, text)
+            settings.endGroup()
+
+        line_edit.textChanged.connect(save_value)
+
+    container.setLayout(main_layout)
+    return container
+
+
+def _build_directory_input(option: AnalyzerOption,
+                           value: str,
+                           settings_group: Optional[str]) -> QWidget:
+    """Build a directory input widget with QLineEdit and Browse button."""
+    container = QWidget()
+    main_layout = QVBoxLayout()
+    main_layout.setContentsMargins(0, 0, 0, 0)
+
+    # Add label
+    label = QLabel(option.help + ":")
+    main_layout.addWidget(label)
+
+    # Horizontal layout for line edit and button
+    h_layout = QHBoxLayout()
+
+    # Create line edit
+    line_edit = QLineEdit()
+    line_edit.setObjectName(option.name)
+    line_edit.setText(str(value) if value else '')
+    line_edit.setPlaceholderText("Select a directory..." if not value else "")
+
+    h_layout.addWidget(line_edit)
+
+    # Create browse button
+    browse_button = QPushButton("Browse...")
+    browse_button.setMaximumWidth(100)
+
+    # Define directory dialog function
+    def open_directory_dialog():
+        directory_path = QFileDialog.getExistingDirectory(
+            container,
+            f"Select {option.help}",
+            line_edit.text() if line_edit.text() else ""
+        )
+
+        if directory_path:
+            line_edit.setText(directory_path)
+
+    browse_button.clicked.connect(open_directory_dialog)
+    h_layout.addWidget(browse_button)
+
+    main_layout.addLayout(h_layout)
+
+    # Save to QSettings on change
+    if settings_group:
+        def save_value(text: str):
+            settings = get_qsettings()
             settings.beginGroup(settings_group)
             settings.setValue(option.name, text)
             settings.endGroup()
@@ -510,6 +572,11 @@ def add_option_to_argparse(parser: ArgumentParser,
         kwargs['type'] = str
         kwargs['metavar'] = 'PATH'
         kwargs['help'] += ' (file path)'
+
+    elif option.type == 'directory':
+        kwargs['type'] = str
+        kwargs['metavar'] = 'DIR'
+        kwargs['help'] += ' (directory path)'
 
     parser.add_argument(arg_name, **kwargs)
 

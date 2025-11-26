@@ -9,9 +9,10 @@ from typing import List, Type, Optional, Dict, Any
 import time
 import concurrent.futures
 import os
-from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot, QSettings
+from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot
 
 from models.media_file import MediaFile
+from models.settings import get_qsettings
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
 from providers.audio.base import AudioStreamBase
 from util.const import KEY_TAG_GENERIC, KEY_COMMENT, KEY_INITIAL_KEY, KEY_DIATONIC_MODE
@@ -167,7 +168,7 @@ class AnalyzerWorker(QRunnable):
 
             # Check if we should use multiprocessing
             # For thread_pool_size=1, run directly in this thread (no process pool overhead)
-            qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+            qsettings = get_qsettings()
             thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
 
             if thread_pool_size == 1:
@@ -279,7 +280,7 @@ class AnalyzerDispatcher(QObject):
         self._initialized = True
 
         # Load thread pool size from settings
-        qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+        qsettings = get_qsettings()
         self.thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
 
         self.thread_pool = QThreadPool.globalInstance()
@@ -356,7 +357,7 @@ class AnalyzerDispatcher(QObject):
         Called at the start of each analysis run to pick up any changes
         the user made to the thread pool size setting.
         """
-        qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+        qsettings = get_qsettings()
         new_thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
 
         if new_thread_pool_size != self.thread_pool_size:
@@ -615,7 +616,7 @@ class AnalyzerDispatcher(QObject):
                 # Temporarily override key notation format if specified in options
                 saved_key_format = None
                 if 'key_notation_format' in task.options:
-                    qsettings = QSettings("Lyjia", "Audio Metadata Tool")
+                    qsettings = get_qsettings()
                     saved_key_format = qsettings.value("Analyzers/CategoryOptions/key/notation_format")
                     qsettings.setValue("Analyzers/CategoryOptions/key/notation_format", task.options['key_notation_format'])
                     log.debug(f"Temporarily overriding key notation format to: {task.options['key_notation_format']}")

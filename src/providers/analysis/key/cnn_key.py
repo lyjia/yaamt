@@ -24,6 +24,7 @@ from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.const import KEY_INITIAL_KEY
 from util.logging import log
+from util.resource_manager import get_resource_manager, ResourceMetadata
 
 # Camelot Wheel mapping (from MusicalKeyCNN dataset.py)
 # Maps key names to indices 0-23 (0-11 = minor, 12-23 = major)
@@ -62,6 +63,15 @@ INDEX_TO_KEY = {
     18: 'F', 19: 'C', 20: 'G', 21: 'D', 22: 'A', 23: 'E'
 }
 
+# Resource constants for KeyNet model
+KEYNET_RESOURCE_ID = "keynet_model"
+KEYNET_MODEL_FILENAME = "keynet.pt"
+# Note: The model URL and checksum should be configured by the user or provided
+# by the application maintainer. For now, we support local-only mode.
+KEYNET_MODEL_URL = "https://github.com/a1ex90/MusicalKeyCNN/blob/main/checkpoints/keynet.pt"
+KEYNET_MODEL_SIZE = "1874533" # Used only for progress display on downloader
+KEYNET_MODEL_CHECKSUM = "fc92072f1b9b19552ce3b74a9c8ce0cecb97633a12ae524ac0d93c05800e354e"  # SHA256 for validation
+
 
 class MusicalKeyCNNAnalyzer(AnalyzerBase):
     """
@@ -83,8 +93,11 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
     - RekordBox 7.12: 65.53%
 
     Analyzer-specific options:
-        - 'model_path' (str): Path to model checkpoint file (default: auto-detect)
         - 'device' (str): Computation device ("auto", "cpu", or "cuda")
+
+    Model management:
+        The KeyNet model is managed via Preferences > Resources. Users can
+        download the model or specify a custom location there.
     """
 
     name = "MusicalKeyCNN Key Analyzer"
@@ -247,21 +260,30 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         """
         Get the path to the model checkpoint.
 
+        Checks if the KeyNet model resource is available (cached or custom location).
+        Does NOT attempt to download - user must download via Preferences > Resources.
+
         Returns:
             Path to the model checkpoint file
+
+        Raises:
+            RuntimeError: If model cannot be found
         """
-        # Check if user specified a custom model path
-        model_path_str = self.options.get('model_path', None)
-        if model_path_str:
-            return Path(model_path_str)
+        resource_manager = get_resource_manager()
 
-        # Default: look in references/MusicalKeyCNN/checkpoints/keynet.pt
-        # Get project root (go up from src/providers/analysis/key/)
-        current_file = Path(__file__)
-        project_root = current_file.parent.parent.parent.parent.parent
+        # Check if resource is available (cached or custom location)
+        if resource_manager.is_resource_loadable(KEYNET_RESOURCE_ID):
+            path = resource_manager.get_resource_path(KEYNET_RESOURCE_ID)
+            if path:
+                log.debug(f"Using KeyNet model at: {path}")
+                return path
 
-        default_path = project_root / "references" / "MusicalKeyCNN" / "checkpoints" / "keynet.pt"
-        return default_path
+        # Model not found - raise error immediately (no auto-download)
+        raise RuntimeError(
+            "KeyNet model not found. Please download it via:\n"
+            "  Preferences > Resources > KeyNet CNN Model > Download\n"
+            "Or use 'Locate...' to specify a custom model path."
+        )
 
     def _load_model(self, model_path: Path, device):
         """
@@ -341,9 +363,36 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         return spec_tensor
 
     @classmethod
+    def get_required_resources(cls) -> List[ResourceMetadata]:
+        """
+        Return resources required by this analyzer.
+
+        Returns:
+            List containing KeyNet model resource metadata
+        """
+        return [
+            ResourceMetadata(
+                resource_id=KEYNET_RESOURCE_ID,
+                url=KEYNET_MODEL_URL,
+                filename=KEYNET_MODEL_FILENAME,
+                expected_size=KEYNET_MODEL_SIZE,
+                checksum=KEYNET_MODEL_CHECKSUM if KEYNET_MODEL_CHECKSUM else None,
+                category="models",
+                subdirectory="keynet",
+                display_name="KeyNet CNN Model",
+                description="Deep learning model for musical key detection (Korzeniowski & Widmer 2018)",
+                download_type="direct",
+                required_by="MusicalKeyCNNAnalyzer"
+            )
+        ]
+
+    @classmethod
     def get_options_metadata(cls) -> List[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
+
+        Note: Model path options have been removed. Model management
+        is now handled via Preferences > Resources.
 
         Returns:
             List of AnalyzerOption instances for MusicalKeyCNN analyzer options
@@ -359,13 +408,6 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
                     ('cpu', 'CPU only'),
                     ('cuda', 'GPU (CUDA)')
                 ]
-            ),
-            AnalyzerOption(
-                name='model_path',
-                type='file',
-                default='',
-                help='Custom path to model checkpoint file (leave empty for default)',
-                choices=['PyTorch Models (*.pth *.pt)', 'ONNX Models (*.onnx)']
             )
         ]
 
@@ -374,10 +416,20 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         """
         Return a QWidget for configuring MusicalKeyCNN analyzer parameters.
 
+        Includes:
+        - Device selection dropdown
+        - Model status indicator (OK!/Not found)
+        - Download and Locate buttons for model management
+
         Returns:
             QWidget with controls for CNN key detection parameters
         """
-        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+        from PySide6.QtWidgets import (
+            QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+            QGroupBox, QPushButton, QFileDialog, QMessageBox,
+            QProgressDialog
+        )
+        from PySide6.QtCore import Qt, QThread, Signal
 
         widget = QWidget()
         main_layout = QVBoxLayout()
@@ -398,16 +450,186 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         options = cls.get_options_metadata()
         settings_group = f"analyzers/{cls.__name__}"
 
-        # Add device option
+        # Device settings group
+        device_group = QGroupBox("Device Settings")
+        device_layout = QVBoxLayout()
         for option in options:
             if option.name == 'device':
                 option_widget = build_widget_from_option(option, settings_group)
-                main_layout.addWidget(option_widget)
+                device_layout.addWidget(option_widget)
+        device_group.setLayout(device_layout)
+        main_layout.addWidget(device_group)
+
+        # Model Status group
+        model_group = QGroupBox("Model Status")
+        model_layout = QVBoxLayout()
+
+        # Status row
+        status_row = QHBoxLayout()
+        status_label = QLabel("KeyNet Model:")
+        status_row.addWidget(status_label)
+
+        status_indicator = QLabel()
+        status_indicator.setObjectName("status_indicator")
+        status_row.addWidget(status_indicator)
+        status_row.addStretch()
+        model_layout.addLayout(status_row)
+
+        # Action buttons row
+        button_row = QHBoxLayout()
+
+        download_button = QPushButton("Download")
+        download_button.setObjectName("download_button")
+        button_row.addWidget(download_button)
+
+        locate_button = QPushButton("Locate...")
+        locate_button.setObjectName("locate_button")
+        button_row.addWidget(locate_button)
+
+        button_row.addStretch()
+        model_layout.addLayout(button_row)
+
+        model_group.setLayout(model_layout)
+        main_layout.addWidget(model_group)
 
         main_layout.addStretch()
-
         widget.setLayout(main_layout)
+
+        # Setup signals and initial state
+        cls._setup_model_status_widget(widget)
+
         return widget
+
+    @classmethod
+    def _setup_model_status_widget(cls, widget: "QWidget") -> None:
+        """Set up signals and initial state for model status widget."""
+        from PySide6.QtWidgets import (
+            QLabel, QPushButton, QFileDialog, QMessageBox, QProgressDialog
+        )
+        from PySide6.QtCore import Qt, QThread, Signal
+        from pathlib import Path
+
+        status_indicator = widget.findChild(QLabel, "status_indicator")
+        download_button = widget.findChild(QPushButton, "download_button")
+        locate_button = widget.findChild(QPushButton, "locate_button")
+
+        def update_status():
+            rm = get_resource_manager()
+            is_available = rm.is_resource_loadable(KEYNET_RESOURCE_ID)
+
+            if is_available:
+                status_indicator.setText("OK!")
+                status_indicator.setStyleSheet("color: green; font-weight: bold;")
+                download_button.setEnabled(False)
+            else:
+                status_indicator.setText("Not found")
+                status_indicator.setStyleSheet("color: red; font-weight: bold;")
+                download_button.setEnabled(bool(KEYNET_MODEL_URL))
+
+        def on_download():
+            """Handle download button click with threaded download."""
+            rm = get_resource_manager()
+
+            # Create progress dialog
+            progress = QProgressDialog(
+                "Downloading KeyNet model...",
+                "Cancel",
+                0, 100,
+                widget
+            )
+            progress.setWindowTitle("Downloading Model")
+            progress.setWindowModality(Qt.WindowModality.WindowModal)
+            progress.setMinimumDuration(0)
+
+            # Create download worker thread
+            class DownloadWorker(QThread):
+                finished = Signal(bool, str)
+                progress_update = Signal(int)
+
+                def run(self):
+                    try:
+                        # Create a progress reporter that emits signals
+                        class QtProgressReporter:
+                            def __init__(self, signal):
+                                self._signal = signal
+                                self._total = 0
+
+                            def start(self, resource_name: str, total_size: int):
+                                self._total = total_size
+
+                            def update(self, bytes_downloaded: int, total_size: int):
+                                if total_size > 0:
+                                    percent = int((bytes_downloaded / total_size) * 100)
+                                    self._signal.emit(percent)
+
+                            def complete(self):
+                                self._signal.emit(100)
+
+                            def error(self, message: str):
+                                pass
+
+                        reporter = QtProgressReporter(self.progress_update)
+                        rm.ensure_resource(KEYNET_RESOURCE_ID, progress_reporter=reporter)
+                        self.finished.emit(True, "")
+                    except Exception as e:
+                        self.finished.emit(False, str(e))
+
+            worker = DownloadWorker()
+
+            def on_progress(value):
+                progress.setValue(value)
+
+            def on_finished(success, error):
+                progress.close()
+                if success:
+                    update_status()
+                    QMessageBox.information(
+                        widget,
+                        "Download Complete",
+                        "KeyNet model downloaded successfully."
+                    )
+                else:
+                    QMessageBox.critical(
+                        widget,
+                        "Download Failed",
+                        f"Failed to download model:\n{error}"
+                    )
+
+            def on_cancelled():
+                worker.terminate()
+                progress.close()
+
+            worker.progress_update.connect(on_progress)
+            worker.finished.connect(on_finished)
+            progress.canceled.connect(on_cancelled)
+
+            # Store worker reference to prevent garbage collection
+            widget._download_worker = worker
+            worker.start()
+
+        def on_locate():
+            file_path, _ = QFileDialog.getOpenFileName(
+                widget,
+                "Locate KeyNet Model",
+                "",
+                "PyTorch Models (*.pt *.pth);;All Files (*.*)"
+            )
+            if file_path:
+                rm = get_resource_manager()
+                if rm.set_custom_location(KEYNET_RESOURCE_ID, Path(file_path)):
+                    update_status()
+                else:
+                    QMessageBox.warning(
+                        widget,
+                        "Invalid Model",
+                        "The selected file could not be found."
+                    )
+
+        download_button.clicked.connect(on_download)
+        locate_button.clicked.connect(on_locate)
+
+        # Set initial status
+        update_status()
 
 
 # Register this analyzer with the Key category

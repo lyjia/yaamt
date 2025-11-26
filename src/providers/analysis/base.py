@@ -193,3 +193,21 @@ class AnalyzerBase(ABC):
             or a string explaining why the file is incompatible.
         """
         return (True, None)
+
+    @classmethod
+    def get_required_resources(cls) -> List:
+        """
+        Return list of resources required by this analyzer.
+
+        Subclasses that require external resources (models, databases, etc.)
+        should override this method to return their requirements as a list
+        of ResourceMetadata instances.
+
+        These resources are registered with the global ResourceManager
+        when providers are discovered via discover_providers().
+
+        Returns:
+            List of ResourceMetadata instances describing required resources.
+            Default implementation returns an empty list (no resources required).
+        """
+        return []
