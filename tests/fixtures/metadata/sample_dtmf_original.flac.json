@@ -1,34 +1,4 @@
 {
-    "stream_info": {
-        "bitrate": {
-            "value": 272440,
-            "provider": "MutagenProvider"
-        },
-        "length": {
-            "value": 1.2,
-            "provider": "MutagenProvider"
-        },
-        "sample_rate": {
-            "value": 44100,
-            "provider": "MutagenProvider"
-        },
-        "channels": {
-            "value": 2,
-            "provider": "MutagenProvider"
-        },
-        "bits_per_sample": {
-            "value": 16,
-            "provider": "MutagenProvider"
-        },
-        "total_samples": {
-            "value": 2.4,
-            "provider": "MutagenProvider"
-        },
-        "format": {
-            "value": "FLAC",
-            "provider": "MutagenProvider"
-        }
-    },
     "tags": {
         "album": {
             "value": "pytest",
@@ -196,6 +166,14 @@
                 "MutagenProvider"
             ]
         },
+        "initialkey": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "isrc": {
             "value": null,
             "provider": "MutagenProvider",
@@ -237,14 +215,6 @@
             ]
         },
         "mood": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "initial_key": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -294,14 +264,5 @@
                 "MutagenProvider"
             ]
         }
-    },
-    "internal": {
-        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\sample_dtmf_original.flac",
-        "ftype": "flac",
-        "fsize": 41118,
-        "fmtime": 1755451193.9155762,
-        "fctime": 1755406704.160587,
-        "ismedia": true,
-        "iswritable": true
     }
 }

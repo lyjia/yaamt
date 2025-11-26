@@ -1,34 +1,4 @@
 {
-    "stream_info": {
-        "bitrate": {
-            "value": 320000,
-            "provider": "MutagenProvider"
-        },
-        "length": {
-            "value": 1.256,
-            "provider": "MutagenProvider"
-        },
-        "sample_rate": {
-            "value": 44100,
-            "provider": "MutagenProvider"
-        },
-        "channels": {
-            "value": 2,
-            "provider": "MutagenProvider"
-        },
-        "bits_per_sample": {
-            "value": null,
-            "provider": "MutagenProvider"
-        },
-        "total_samples": {
-            "value": 2.512,
-            "provider": "MutagenProvider"
-        },
-        "format": {
-            "value": "MPEG 1 layer 3",
-            "provider": "MutagenProvider"
-        }
-    },
     "tags": {
         "album": {
             "value": "pytest",
@@ -200,6 +170,14 @@
                 "MutagenProvider"
             ]
         },
+        "initialkey": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "isrc": {
             "value": null,
             "provider": "MutagenProvider",
@@ -241,14 +219,6 @@
             ]
         },
         "mood": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "initial_key": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -300,14 +270,5 @@
                 "MutagenProvider"
             ]
         }
-    },
-    "internal": {
-        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\sample_dtmf_unicode_bigendian.mp3",
-        "ftype": "mp3",
-        "fsize": 51264,
-        "fmtime": 1753305021.5232985,
-        "fctime": 1755406704.167587,
-        "ismedia": true,
-        "iswritable": true
     }
 }

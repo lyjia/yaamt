@@ -1,34 +1,4 @@
 {
-    "stream_info": {
-        "bitrate": {
-            "value": 272440,
-            "provider": "MutagenProvider"
-        },
-        "length": {
-            "value": 1.2,
-            "provider": "MutagenProvider"
-        },
-        "sample_rate": {
-            "value": 44100,
-            "provider": "MutagenProvider"
-        },
-        "channels": {
-            "value": 2,
-            "provider": "MutagenProvider"
-        },
-        "bits_per_sample": {
-            "value": 16,
-            "provider": "MutagenProvider"
-        },
-        "total_samples": {
-            "value": 2.4,
-            "provider": "MutagenProvider"
-        },
-        "format": {
-            "value": "FLAC",
-            "provider": "MutagenProvider"
-        }
-    },
     "tags": {
         "album": {
             "value": "pytest",
@@ -256,14 +226,6 @@
                 "MutagenProvider"
             ]
         },
-        "initial_key": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
         "organization": {
             "value": null,
             "provider": "MutagenProvider",
@@ -386,14 +348,5 @@
                 "MutagenProvider"
             ]
         }
-    },
-    "internal": {
-        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\sample_dtmf_with_bpm_and_key_from_serato.flac",
-        "ftype": "flac",
-        "fsize": 51747,
-        "fmtime": 1755454545.8938007,
-        "fctime": 1755454487.2579448,
-        "ismedia": true,
-        "iswritable": true
     }
 }

@@ -1,34 +1,4 @@
 {
-    "stream_info": {
-        "bitrate": {
-            "value": 320000,
-            "provider": "MutagenProvider"
-        },
-        "length": {
-            "value": 2.7951,
-            "provider": "MutagenProvider"
-        },
-        "sample_rate": {
-            "value": 44100,
-            "provider": "MutagenProvider"
-        },
-        "channels": {
-            "value": 2,
-            "provider": "MutagenProvider"
-        },
-        "bits_per_sample": {
-            "value": null,
-            "provider": "MutagenProvider"
-        },
-        "total_samples": {
-            "value": 5.5902,
-            "provider": "MutagenProvider"
-        },
-        "format": {
-            "value": "MPEG 1 layer 3",
-            "provider": "MutagenProvider"
-        }
-    },
     "tags": {
         "album": {
             "value": null,
@@ -208,6 +178,14 @@
                 "MutagenProvider"
             ]
         },
+        "initialkey": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "isrc": {
             "value": null,
             "provider": "MutagenProvider",
@@ -256,14 +234,6 @@
                 "MutagenProvider"
             ]
         },
-        "initial_key": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
         "organization": {
             "value": null,
             "provider": "MutagenProvider",
@@ -304,14 +274,5 @@
                 "MutagenProvider"
             ]
         }
-    },
-    "internal": {
-        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\Cmin_5A_i-v-VI-iv.mp3",
-        "ftype": "mp3",
-        "fsize": 111948,
-        "fmtime": 1761018280.5678236,
-        "fctime": 1761018278.144986,
-        "ismedia": true,
-        "iswritable": true
     }
 }
