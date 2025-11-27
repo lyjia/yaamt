@@ -151,9 +151,14 @@ class SubBandSeparator:
         # Adjust decimation size and threshold based on track length
         segments = seconds / threshold_time
         actual_segments = np.floor(segments)
-        overflow = segments - actual_segments
-        overflow /= actual_segments
-        overflow += 1.0
+
+        if actual_segments > 0:
+            overflow = segments - actual_segments
+            overflow /= actual_segments
+            overflow += 1.0
+        else:
+            # Audio shorter than threshold_time, use single segment
+            overflow = 1.0
 
         if seconds > threshold_time:
             threshold_time *= overflow
@@ -215,51 +220,22 @@ class SubBandSeparator:
         # Helper to setup filter
         def setup_filter(band_coeffs):
             re3_a, re3_b = band_coeffs
-            # In RE3: newval += b[k] * past_b[k] (input) + a[k] * past_a[k] (output)
-            # This means 'b' are feedforward (numerator) and 'a' are feedback (denominator).
-            # However, standard IIR difference equation is:
-            # a[0]*y[n] = b[0]*x[n] + ... + b[M]*x[n-M] - a[1]*y[n-1] - ... - a[N]*y[n-N]
-            # RE3's loop was: newval += a[k] * past_a[k]. This implies positive feedback coefficients?
-            # Let's look at the values.
-            # Lowpass 44.1k:
-            # re3_a (in_a): [0.0099, -0.0596, ...] (Small values)
-            # re3_b (in_b): [1.0000, -5.9824, ...] (Large values, typical of denominator with a[0]=1)
+            # Java EllipticalFilter applies coefficients as:
+            #   y[n] = sum(b[k] * x[n-k]) + sum(a[k] * y[n-k-1])
+            # Where b = re3_b (large values like [1.0, -5.9...]) applied to INPUT
+            # And a = re3_a (small values like [0.0099...]) applied to OUTPUT
             #
-            # WAIT. The Java code says:
-            # lowpassfilter = new EllipticalFilter(new double[] { 0.0099... }, new double[] { 1.0000... });
-            # Java EllipticalFilter constructor: (in_a, in_b) -> a=in_a, b=in_b.
-            # Java process(): newval += b[k] * past_b[k] (input history) + a[k] * past_a[k] (output history)
-            # So 'b' (large values) is applied to INPUT. 'a' (small values) is applied to OUTPUT.
-            # This is completely backwards for a stable filter if 'b' contains the poles (1, -5.9...).
-            # Applying [1, -5.9...] to input would cause massive gain.
-            # Applying [0.0099...] to output would be fine.
+            # scipy.signal.lfilter uses the standard IIR equation:
+            #   a[0]*y[n] = sum(b[k] * x[n-k]) - sum(a[k] * y[n-k]) for k>=1
+            # Note: scipy uses SUBTRACTION for feedback, Java uses ADDITION
             #
-            # BUT, if we look at standard Elliptic filter design (e.g. Matlab ellip):
-            # [b, a] = ellip(...)
-            # b are numerator (zeros), a are denominator (poles).
-            # Usually a[0] = 1.
-            # Here re3_b starts with 1.0000. re3_a starts with 0.0099.
-            # So re3_b looks like 'a' (denominator) and re3_a looks like 'b' (numerator).
-            #
-            # If RE3 applies re3_b (denominator-like) to INPUT, that's wrong.
-            # UNLESS the Java code variable names are misleading or I misread the loop.
-            # Java loop:
-            # for (int k = 0; k < b.length; ++k) newval += b[k] * past_b[k]; (past_b is input history)
-            # for (int k = 0; k < a.length; ++k) newval += a[k] * past_a[k]; (past_a is output history)
-            #
-            # So yes, it applies re3_b (denominator-like) to input.
-            # This explains why the Python port (which copied this logic) was unstable/overflowing.
-            # The fix is to use standard filtering: apply numerator (re3_a) to input, denominator (re3_b) to output.
-            # So for lfilter(b, a, x):
-            # b = re3_a
-            # a = re3_b
-            
-            b = np.array(re3_a, dtype=np.float64)
-            a = np.array(re3_b, dtype=np.float64)
-            
-            # Normalize by a[0] if needed (scipy handles this, but good practice)
-            # a[0] is 1.0 in all cases here.
-            
+            # To match Java's behavior with scipy:
+            #   scipy_b = re3_b (feedforward coefficients, applied to input)
+            #   scipy_a = [1, -re3_a[0], -re3_a[1], ...] (feedback negated, prepend 1)
+
+            b = np.array(re3_b, dtype=np.float64)
+            a = np.concatenate([[1.0], -np.array(re3_a, dtype=np.float64)])
+
             zi = lfilter_zi(b, a)
             return b, a, zi
 
@@ -317,7 +293,12 @@ class SubBandSeparator:
             # Energy calculation: sum(max(0, val)^2) per decimation block
             # Rectify (max(0, val))
             rectified = np.maximum(0, filtered)
-            
+
+            # Clip to prevent overflow when squaring
+            # Max value of 1e10 gives 1e20 when squared, well within float64 range
+            # while preserving plenty of dynamic range for energy calculations
+            rectified = np.clip(rectified, 0, 1e10)
+
             # Square
             squared = rectified ** 2
             
