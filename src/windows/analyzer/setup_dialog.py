@@ -22,6 +22,7 @@ from models.settings import settings
 from models.media_file import MediaFile
 from util.logging import log
 from util.diatonic_key import get_notation_format_display_list
+from util.analyzer_options import get_bpm_category_options, build_widget_from_option
 
 
 class AnalyzerSetupDialog(QDialog):
@@ -211,6 +212,44 @@ class AnalyzerSetupDialog(QDialog):
 
         output_group.setLayout(output_layout)
         layout.addWidget(output_group)
+
+        # BPM Detection Range group (only shown for 'bpm' category)
+        self.bpm_range_group = QGroupBox("BPM Detection Range")
+        bpm_range_layout = QVBoxLayout()
+
+        # Info label explaining the feature
+        bpm_range_info = QLabel(
+            "Set the expected BPM range. Results outside this range "
+            "will be doubled or halved to fit. Set to 0 to disable."
+        )
+        bpm_range_info.setWordWrap(True)
+        bpm_range_info.setStyleSheet("QLabel { color: #666; font-style: italic; }")
+        bpm_range_layout.addWidget(bpm_range_info)
+
+        # Create widgets for BPM range options
+        bpm_options = get_bpm_category_options()
+        self.bpm_range_widgets = {}
+        bpm_range_row = QHBoxLayout()
+
+        for option in bpm_options:
+            option_widget = build_widget_from_option(
+                option,
+                settings_group=None  # Don't auto-save to QSettings, we handle it
+            )
+            bpm_range_row.addWidget(option_widget)
+            # Store reference for value extraction
+            self.bpm_range_widgets[option.name] = option_widget
+
+        bpm_range_row.addStretch()
+        bpm_range_layout.addLayout(bpm_range_row)
+
+        self.bpm_range_group.setLayout(bpm_range_layout)
+
+        # Only show for BPM category
+        if self.category == AnalyzerCategory.BPM:
+            layout.addWidget(self.bpm_range_group)
+        else:
+            self.bpm_range_group.hide()
 
         # Performance Settings group
         perf_group = QGroupBox("Performance Settings")
@@ -440,6 +479,16 @@ class AnalyzerSetupDialog(QDialog):
         # Add key format override if applicable and checked
         if self.category == AnalyzerCategory.KEY and self.key_format_override_checkbox.isChecked():
             self.analyzer_options['key_notation_format'] = self.key_format_combo.currentData()
+
+        # Add BPM range options if applicable
+        if self.category == AnalyzerCategory.BPM and self.bpm_range_widgets:
+            for name, widget in self.bpm_range_widgets.items():
+                # Extract value from the spinbox inside the widget container
+                spinbox = widget.findChild(QSpinBox)
+                if spinbox:
+                    value = spinbox.value()
+                    # Convert 0 to None (disabled)
+                    self.analyzer_options[name] = value if value > 0 else None
 
         # Validate report options if report generation is enabled
         if self.analyzer_options['generate_report'] and not self.analyzer_options['report_file']:

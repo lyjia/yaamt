@@ -17,6 +17,7 @@ from providers import register_analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
+from providers.analysis.bpm.util import adjust_bpm_to_range
 
 
 class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
@@ -156,13 +157,21 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
             else:
                 bpm = float(tempo)
 
-            log.info(f"Librosa analyzer detected BPM: {bpm:.2f} ({len(beat_frames)} beats) "
+            log.info(f"Librosa analyzer detected raw BPM: {bpm:.2f} ({len(beat_frames)} beats) "
                     f"for {self.media_file.file_path}")
 
-            # Return raw float BPM value (Tag Transformations system handles formatting)
+            # Apply BPM range adjustment if range is specified
+            min_bpm = self.options.get('bpm_range_min')
+            max_bpm = self.options.get('bpm_range_max')
+            adjusted_bpm = adjust_bpm_to_range(bpm, min_bpm, max_bpm)
+
+            if adjusted_bpm != bpm:
+                log.info(f"  Adjusted BPM from {bpm:.2f} to {adjusted_bpm:.2f} (range: {min_bpm}-{max_bpm})")
+
+            # Return float BPM value (Tag Transformations system handles formatting)
             return AnalyzerResult(
                 success=True,
-                data={'bpm': bpm}
+                data={'bpm': adjusted_bpm}
             )
 
         except ImportError as e:
