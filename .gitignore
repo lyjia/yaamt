@@ -575,6 +575,7 @@ venv/*
 *.onefile-build
 *.exe
 build/
+dist/
 nuitka-crash-report.xml
 nul
 tmp/*
