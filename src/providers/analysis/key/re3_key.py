@@ -4,7 +4,9 @@ Musical Key Analyzer using RapidEvolution3 algorithm.
 This analyzer implements the wavelet-based key detection from RapidEvolution3,
 using Continuous Wavelet Transform and modal template matching.
 
-Reference: https://github.com/djqualia/RapidEvolution3
+Reference:
+    https://github.com/djqualia/RapidEvolution3
+    references/RapidEvolution3/src/com/mixshare/rapid_evolution/audio/detection/key/KeyDetector.java
 """
 
 from typing import Optional, List

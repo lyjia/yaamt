@@ -5,7 +5,10 @@ This analyzer implements the multi-band spectral analysis algorithm from
 RapidEvolution3, using 6 frequency bands, elliptical IIR filters, and
 FFT-based periodicity detection.
 
-Reference: https://github.com/djqualia/RapidEvolution3
+Reference:
+    https://github.com/djqualia/RapidEvolution3
+    references/RapidEvolution3/src/com/mixshare/rapid_evolution/audio/detection/bpm/BpmDetector.java
+
 """
 
 from typing import Optional, Callable, List
