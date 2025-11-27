@@ -148,16 +148,23 @@ class SubBandSeparator:
         if abs(closest_rate - sample_rate) > 100:
             raise ValueError(f"Unsupported sample rate: {sample_rate}Hz. Closest supported: {closest_rate}Hz")
 
-        # Adjust decimation size and threshold based on track length
+        # Adjust decimation size and threshold based on track length.
+        # The algorithm processes audio in fixed-length segments (threshold_time).
+        # For tracks that don't divide evenly, we distribute the "overflow" (partial
+        # segment) across all segments by scaling the threshold_time and decimation_size.
+        # This ensures consistent frequency resolution across the entire track.
         segments = seconds / threshold_time
         actual_segments = np.floor(segments)
 
         if actual_segments > 0:
+            # Calculate how much extra time per segment to absorb the partial segment
+            # Example: 150s track with 60s threshold = 2.5 segments
+            #   overflow = (2.5 - 2) / 2 + 1 = 1.25 scale factor
             overflow = segments - actual_segments
             overflow /= actual_segments
             overflow += 1.0
         else:
-            # Audio shorter than threshold_time, use single segment
+            # Audio shorter than threshold_time - process as single segment
             overflow = 1.0
 
         if seconds > threshold_time:
@@ -217,10 +224,11 @@ class SubBandSeparator:
         # Note: The original python code had EllipticalFilter(in_a, in_b) where in_a=re3_a, in_b=re3_b.
         coeffs = self.FILTER_COEFFICIENTS[closest_rate]
         
-        # Helper to setup filter
+        # Helper to setup filter coefficients for scipy.signal.lfilter
+        # Reference: RapidEvolution3/src/com/mixshare/rapid_evolution/audio/dsp/EllipticalFilter.java
         def setup_filter(band_coeffs):
             re3_a, re3_b = band_coeffs
-            # Java EllipticalFilter applies coefficients as:
+            # Java EllipticalFilter.process() applies coefficients as:
             #   y[n] = sum(b[k] * x[n-k]) + sum(a[k] * y[n-k-1])
             # Where b = re3_b (large values like [1.0, -5.9...]) applied to INPUT
             # And a = re3_a (small values like [0.0099...]) applied to OUTPUT
@@ -294,9 +302,11 @@ class SubBandSeparator:
             # Rectify (max(0, val))
             rectified = np.maximum(0, filtered)
 
-            # Clip to prevent overflow when squaring
-            # Max value of 1e10 gives 1e20 when squared, well within float64 range
-            # while preserving plenty of dynamic range for energy calculations
+            # Defensive clipping to prevent numeric overflow when squaring.
+            # With correct filter coefficients, values should stay reasonable, but
+            # edge cases (unusual audio, filter ringing) could produce extreme values.
+            # Clipping at 1e10 (squared = 1e20) is far above normal audio energy
+            # while staying well within float64 range (~1.8e308).
             rectified = np.clip(rectified, 0, 1e10)
 
             # Square
