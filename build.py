@@ -2,8 +2,8 @@
 """
 Build script for YAAMT (Yet Another Audio Metadata Tool)
 
-This script builds the application for the current platform using either Nuitka or cx_Freeze.
-Extracted from GitHub Actions workflow to allow local builds.
+This script builds the application for the current platform using PyInstaller (default),
+Nuitka, or cx_Freeze. Extracted from GitHub Actions workflow to allow local builds.
 
 Usage:
     python build.py [options]
@@ -11,9 +11,11 @@ Usage:
 Options:
     --platform <platform>   Override platform detection (windows, linux, macos)
     --arch <arch>          Override architecture detection (x64, arm64)
+    --tool <tool>          Build tool to use: pyinstaller (default), nuitka, cx_freeze
     --output-dir <dir>     Output directory for build artifacts (default: build)
-    --archive             Create archive of build artifacts
-    --help                Show this help message
+    --release              Build in release mode (default is debug mode)
+    --archive              Create archive of build artifacts
+    --help                 Show this help message
 """
 
 import sys
@@ -24,6 +26,7 @@ import argparse
 import shutil
 import tempfile
 import re
+from abc import ABC, abstractmethod
 from pathlib import Path
 from datetime import datetime
 
@@ -36,14 +39,19 @@ MACOS_HOMEBREW_DEPS = ["portaudio", "ccache"]
 
 WINDOWS_CHOCO_DEPS = ["ccache"]
 
+FILENAME_SRC_CLI = "src/yaamt.py"
+FILENAME_SRC_GUI = "src/yaamt-gui.py"
+FILENAME_SRC_EVAL = "src/yaamt-eval.py"
+
 
 class BuildConfig:
     """Configuration for building YAAMT"""
 
-    def __init__(self, platform_name=None, arch=None, output_dir=None, build_mode='debug'):
+    def __init__(self, platform_name=None, arch=None, output_dir=None, build_mode='debug', build_tool=None):
         self.platform = platform_name or self._detect_platform()
         self.arch = arch or self._detect_arch()
         self.build_mode = build_mode  # 'debug' or 'release'
+        self._build_tool = build_tool  # None means use default (pyinstaller)
         self.project_root = Path(__file__).parent.resolve()
 
         # Create build-mode-specific output directory with timestamp
@@ -79,11 +87,11 @@ class BuildConfig:
 
     def get_build_tool(self):
         """Determine which build tool to use"""
-        # macOS still uses cx_Freeze (Nuitka not working yet)
-        if self.platform == "macos":
-            return "cx_freeze"
-        else:
-            return "nuitka"
+        # If explicitly set, use that
+        if self._build_tool:
+            return self._build_tool
+        # Default to pyinstaller for all platforms
+        return "pyinstaller"
 
     def get_nuitka_dist_dir(self):
         """Get the Nuitka distribution directory"""
@@ -96,6 +104,295 @@ class BuildConfig:
         if exe_dirs:
             return exe_dirs[0]
         return None
+
+
+# ============================================================================
+# Build Backends
+# ============================================================================
+
+class BuildBackend(ABC):
+    """Abstract base class for build backends"""
+
+    def __init__(self, config: BuildConfig):
+        self.config = config
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Return backend name for logging"""
+        pass
+
+    @abstractmethod
+    def build(self, dist_dir: Path) -> None:
+        """Build CLI and GUI executables into dist_dir"""
+        pass
+
+
+class PyInstallerBuilder(BuildBackend):
+    """Build backend using PyInstaller"""
+
+    @property
+    def name(self) -> str:
+        return "pyinstaller"
+
+    def build(self, dist_dir: Path) -> None:
+        """Build both CLI and GUI executables using PyInstaller"""
+        dist_dir.mkdir(parents=True, exist_ok=True)
+
+        # Platform-specific separator for --add-data
+        data_sep = ";" if self.config.platform == "windows" else ":"
+
+        # Base options shared by both builds
+        base_opts = [
+            sys.executable, "-m", "PyInstaller",
+            "--onedir",
+            "--paths=src",
+            f"--distpath={dist_dir}",
+            "--noconfirm",  # Don't ask for confirmation
+        ]
+
+        # Build GUI first (has more dependencies, creates the base folder)
+        print("=== Building GUI with PyInstaller... ===")
+        gui_opts = base_opts + [
+            "--name=yaamt-gui",
+            f"--add-data=resources{data_sep}resources",
+        ]
+
+        # Add windowed mode for GUI (no console window)
+        if self.config.platform in ("windows", "macos"):
+            gui_opts.append("--windowed")
+
+        # Add icon if available
+        icon_path = self._get_icon_path()
+        if icon_path:
+            gui_opts.append(f"--icon={icon_path}")
+
+        gui_opts.append(FILENAME_SRC_GUI)
+        subprocess.run(gui_opts, check=True)
+
+        # Build CLI into a separate folder first
+        print("=== Building CLI with PyInstaller... ===")
+        cli_opts = [
+            sys.executable, "-m", "PyInstaller",
+            "--onedir",
+            "--paths=src",
+            f"--distpath={dist_dir}",
+            "--noconfirm",
+            "--name=yaamt",
+        ]
+
+        # Add icon if available
+        if icon_path:
+            cli_opts.append(f"--icon={icon_path}")
+
+        cli_opts.append(FILENAME_SRC_CLI)
+        subprocess.run(cli_opts, check=True)
+
+        # Move CLI executable into the GUI folder
+        gui_dir = dist_dir / "yaamt-gui"
+        cli_dir = dist_dir / "yaamt"
+        cli_exe = "yaamt.exe" if self.config.platform == "windows" else "yaamt"
+
+        shutil.copy2(cli_dir / cli_exe, gui_dir / cli_exe)
+
+        # Remove the separate CLI folder (the _internal is shared from GUI)
+        shutil.rmtree(cli_dir)
+
+        print(f"=== PyInstaller build complete. Output in {gui_dir} ===")
+
+    def _get_icon_path(self) -> str | None:
+        """Get the appropriate icon path for the current platform"""
+        if self.config.platform == "windows":
+            ico_path = Path("resources/icons/app-icon-gui.ico")
+            if ico_path.exists():
+                return str(ico_path)
+            print("Warning: No .ico icon file found. Windows executable will use default icon.")
+        elif self.config.platform == "macos":
+            icns_path = Path("resources/icons/app-icon-gui.icns")
+            if icns_path.exists():
+                return str(icns_path)
+            print("Warning: No .icns icon file found. macOS app will use default icon.")
+        else:  # Linux
+            png_path = Path("resources/icons/app-icon-gui.png")
+            if png_path.exists():
+                return str(png_path)
+        return None
+
+
+class NuitkaBuilder(BuildBackend):
+    """Build backend using Nuitka"""
+
+    # Nuitka options shared across all platforms
+    UNIVERSAL_OPTS = [
+        "--assume-yes-for-downloads",
+        "--onefile",
+        "--standalone",
+        "--lto=no",
+
+        # Explicitly allowed dependencies to include
+        "--nofollow-imports",
+        "--follow-import-to=models",
+        "--follow-import-to=providers",
+        "--follow-import-to=util",
+        "--follow-import-to=workers",
+
+        # Explicitly disabled dependencies (skip compilation, save as bytecode)
+        "--nofollow-import-to=aubio",
+        "--nofollow-import-to=audioread",
+        "--nofollow-import-to=charset_normalizer",
+        "--nofollow-import-to=jinja2",
+        "--nofollow-import-to=joblib",
+        "--nofollow-import-to=librosa",
+        "--nofollow-import-to=numba",
+        "--nofollow-import-to=numpy",
+        "--nofollow-import-to=scipy",
+        "--nofollow-import-to=soundfile",
+        "--nofollow-import-to=torch",
+        "--nofollow-import-to=torchaudio",
+
+        # Anti-bloat settings
+        "--noinclude-pytest-mode=nofollow",
+        "--noinclude-setuptools-mode=nofollow",
+        "--noinclude-custom-mode=torch:nofollow",
+
+        # Suppress warnings
+        "--module-parameter=numba-disable-jit=yes",
+        "--enable-plugin=pyside6"
+    ]
+
+    GUI_OPTS = [
+        "--follow-import-to=windows",
+    ]
+
+    @property
+    def name(self) -> str:
+        return "nuitka"
+
+    def build(self, dist_dir: Path) -> None:
+        """Build both CLI and GUI executables using Nuitka"""
+        dist_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.config.platform == "windows":
+            self._build_windows(dist_dir)
+        else:
+            self._build_linux(dist_dir)
+
+    def _build_windows(self, dist_dir: Path) -> None:
+        """Build with Nuitka on Windows"""
+        windows_opts = [
+            "--mingw64",
+            "--clang",
+            "--nofollow-import-to=cffi",
+            f"--output-dir={dist_dir}"
+        ]
+
+        # Add icon if available
+        icon_path = Path("resources/icons/app-icon-gui.ico")
+        if icon_path.exists():
+            windows_opts.append(f"--windows-icon-from-ico={icon_path}")
+        else:
+            print("Warning: No .ico icon file found. Windows executable will use default icon.")
+
+        print("=== Building CLI with Nuitka (Windows)... ===")
+        cmd_args = [sys.executable, "-m", "nuitka"] + self.UNIVERSAL_OPTS + windows_opts + [FILENAME_SRC_CLI]
+        subprocess.run(cmd_args, check=True)
+
+        print("=== Building GUI with Nuitka (Windows)... ===")
+        gui_opts = self.GUI_OPTS + ["--windows-console-mode=attach", FILENAME_SRC_GUI]
+        gui_args = [sys.executable, "-m", "nuitka"] + self.UNIVERSAL_OPTS + windows_opts + gui_opts
+        subprocess.run(gui_args, check=True)
+
+    def _build_linux(self, dist_dir: Path) -> None:
+        """Build with Nuitka on Linux"""
+        linux_opts = [f"--output-dir={dist_dir}"]
+
+        # Add icon if available
+        icon_path = Path("resources/icons/app-icon-gui.png")
+        if icon_path.exists():
+            linux_opts.append(f"--linux-icon={icon_path}")
+        else:
+            print("Warning: Icon file not found at resources/icons/app-icon-gui.png")
+
+        print("=== Building CLI with Nuitka (Linux)... ===")
+        cmd_args = ["nuitka"] + self.UNIVERSAL_OPTS + linux_opts + [FILENAME_SRC_CLI]
+        subprocess.run(cmd_args, check=True)
+
+        print("=== Building GUI with Nuitka (Linux)... ===")
+        gui_args = ["nuitka"] + self.UNIVERSAL_OPTS + linux_opts + self.GUI_OPTS + [FILENAME_SRC_GUI]
+        subprocess.run(gui_args, check=True)
+
+
+class CxFreezeBuilder(BuildBackend):
+    """Build backend using cx_Freeze"""
+
+    @property
+    def name(self) -> str:
+        return "cx_freeze"
+
+    def build(self, dist_dir: Path) -> None:
+        """Build both CLI and GUI executables using cx_Freeze"""
+        from cx_Freeze import setup, Executable
+
+        dist_dir.mkdir(parents=True, exist_ok=True)
+
+        # Build options
+        build_exe_options = {
+            "packages": [
+                "os", "sys", "subprocess", "json", "pathlib", "logging",
+                "cffi", "PySide6", "PySide6.QtCore", "PySide6.QtGui",
+                "PySide6.QtWidgets", "mutagen", "pytest"
+            ],
+            "excludes": [
+                "tkinter", "unittest", "email", "xml", "xmlrpc",
+                "PySide6.QtSql"  # Causes macOS libiodbc errors
+            ],
+            "include_files": [
+                ("resources", "resources"),
+                ("src", "src")
+            ],
+            "optimize": 2,
+            "include_msvcr": True,
+            "build_exe": str(dist_dir)
+        }
+
+        # GUI base depends on platform
+        gui_base = "Win32GUI" if self.config.platform == "windows" else "gui"
+
+        # Icon path
+        icon_path = "resources/icons/app-icon-gui.png"
+
+        executables = [
+            Executable(
+                FILENAME_SRC_GUI,
+                base=gui_base,
+                target_name="yaamt-gui",
+                icon=icon_path
+            ),
+            Executable(
+                FILENAME_SRC_CLI,
+                base=None,  # Console application
+                target_name="yaamt",
+                icon=icon_path
+            )
+        ]
+
+        print("=== Building with cx_Freeze... ===")
+
+        # cx_Freeze needs to be run via setup() with sys.argv manipulation
+        old_argv = sys.argv
+        try:
+            sys.argv = [sys.argv[0], "build_exe"]
+            setup(
+                name="YAAMT",
+                version="0.0.0",
+                description="Yet Another Audio Metadata Tool",
+                options={"build_exe": build_exe_options},
+                executables=executables
+            )
+        finally:
+            sys.argv = old_argv
+
+        print(f"=== cx_Freeze build complete. Output in {dist_dir} ===")
 
 
 class DependencyInstaller:
@@ -176,7 +473,6 @@ def create_build_workspace(build_mode: str, project_root: Path) -> Path:
     Only copies:
     - src/ directory (source code)
     - resources/ directory (for GUI assets)
-    - setup.py (for cx_Freeze builds)
 
     Args:
         build_mode: 'debug' or 'release'
@@ -210,12 +506,6 @@ def create_build_workspace(build_mode: str, project_root: Path) -> Path:
         if (project_root / 'resources').exists():
             shutil.copytree(project_root / 'resources', resources_dest)
             print(f"  Copied resources/")
-
-        # Copy setup.py (needed for cx_Freeze)
-        setup_src = project_root / 'setup.py'
-        if setup_src.exists():
-            shutil.copy2(setup_src, workspace_root / 'setup.py')
-            print(f"  Copied setup.py")
 
         print(f"Build workspace created")
         return workspace_root
@@ -367,10 +657,10 @@ def cleanup_build_directories(output_dir: str = "build") -> None:
     for directory in directories_found:
         try:
             shutil.rmtree(directory)
-            print(f"  ✓ Deleted: {directory}")
+            print(f"  [OK] Deleted: {directory}")
             deleted += 1
         except Exception as e:
-            print(f"  ✗ Failed to delete {directory}: {e}")
+            print(f"  [FAILED] Failed to delete {directory}: {e}")
             failed += 1
 
     print(f"\nCleanup complete: {deleted} deleted, {failed} failed")
@@ -381,19 +671,26 @@ class Builder:
 
     def __init__(self, config: BuildConfig):
         self.config = config
-        self.universal_nuitka_opts = [
-            "--assume-yes-for-downloads",
-            "--onefile",  # omitting this triggers antivirus
-            "--standalone"
-        ]
+
+    def _get_backend(self) -> BuildBackend:
+        """Factory method to create the appropriate build backend"""
+        tool = self.config.get_build_tool()
+        if tool == "pyinstaller":
+            return PyInstallerBuilder(self.config)
+        elif tool == "nuitka":
+            return NuitkaBuilder(self.config)
+        elif tool == "cx_freeze":
+            return CxFreezeBuilder(self.config)
+        else:
+            raise ValueError(f"Unknown build tool: {tool}")
 
     def build(self):
         """Execute the build process using temporary workspace"""
-        build_tool = self.config.get_build_tool()
+        backend = self._get_backend()
 
         print(f"\nBuilding YAAMT for {self.config.platform}-{self.config.arch}")
         print(f"Build mode: {self.config.build_mode}")
-        print(f"Using build tool: {build_tool}\n")
+        print(f"Using build tool: {backend.name}\n")
 
         # Get version string from git in original repo (before copying)
         try:
@@ -424,11 +721,11 @@ class Builder:
                 # Change to temp workspace for build
                 os.chdir(temp_workspace)
 
-                # Build from temp workspace (artifacts go to temp_workspace/build/{mode}-{timestamp}/)
-                if build_tool == "nuitka":
-                    self._build_with_nuitka()
-                else:
-                    self._build_with_cx_freeze()
+                # Get relative dist dir for building in temp workspace
+                dist_dir_relative = self.config.output_dir.relative_to(self.config.project_root)
+
+                # Delegate to the backend
+                backend.build(dist_dir_relative)
 
             finally:
                 # Restore original working directory
@@ -448,7 +745,7 @@ class Builder:
 
                 # Copy the entire build directory
                 shutil.copytree(temp_build_dir, final_build_dir, dirs_exist_ok=True)
-                print(f"  ✓ Build artifacts copied successfully")
+                print(f"  [OK] Build artifacts copied successfully")
             else:
                 raise RuntimeError(f"Build artifacts not found at {temp_build_dir}")
 
@@ -457,93 +754,10 @@ class Builder:
 
         except Exception as e:
             # Build failed - preserve workspace for debugging
-            print(f"\n✗ Build failed: {e}")
+            print(f"\n[FAILED] Build failed: {e}")
             print(f"\nTemp workspace preserved at: {temp_workspace}")
             print(f"To clean up manually: rm -rf {temp_workspace}")
             raise
-
-    def _build_with_nuitka(self):
-        """Build using Nuitka"""
-        # Use relative path when building in temp workspace
-        # (we're already chdir'd to temp workspace at this point)
-        dist_dir_relative = self.config.output_dir.relative_to(self.config.project_root)
-        dist_dir_relative.mkdir(parents=True, exist_ok=True)
-
-        if self.config.platform == "windows":
-            self._build_nuitka_windows(dist_dir_relative)
-        else:
-            self._build_nuitka_linux(dist_dir_relative)
-
-    def _build_nuitka_windows(self, dist_dir):
-        """Build with Nuitka on Windows"""
-
-        universal_windows_opts = [
-            "--mingw64",
-            "--clang",  # do not remove this CLAUDE, it is not "unnecessary"
-            # "--msvc=latest",
-            "--nofollow-import-to=cffi,scipy",  # cffi crashes LLVM's 'vector-combine' optimization pass, per claude
-            f"--output-dir={dist_dir}"
-        ]
-
-        # Check for .ico icon file (Windows requires .ico format)
-        icon_ico_path = Path("resources/icons/app-icon-gui.ico")
-        if icon_ico_path.exists():
-            universal_windows_opts.append(f"--windows-icon-from-ico={icon_ico_path}")
-        else:
-            print("Warning: No .ico icon file found. Windows executable will use default icon.")
-            print("         Convert resources/icons/app-icon-gui.png to .ico format for proper icon support.")
-
-        print("=== Building CLI EXE with Nuitka (Windows)... ===")
-        cmd_opts = [
-            # other cmdline options would go here
-            "src/yaamt.py"
-        ]
-
-        cmd_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + cmd_opts
-        subprocess.run(cmd_args, check=True)
-
-        print("=== Building GUI EXE with Nuitka (Windows)... ===")
-        gui_opts = [
-            "--follow-imports",
-            "--plugin-enable=pyside6",
-            "--windows-console-mode=attach",
-            # "--include-module=cffi",
-            "src/yaamt-gui.py"
-        ]
-
-        gui_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + gui_opts
-        subprocess.run(gui_args, check=True)
-
-    def _build_nuitka_linux(self, dist_dir):
-        """Build with Nuitka on Linux"""
-        universal_linux_opts = [
-            f"--output-dir={dist_dir}"
-        ]
-
-        # Add Linux icon support (can use PNG directly)
-        icon_png_path = Path("resources/icons/app-icon-gui.png")
-        if icon_png_path.exists():
-            universal_linux_opts.append(f"--linux-icon={icon_png_path}")
-        else:
-            print("Warning: Icon file not found at resources/icons/app-icon-gui.png")
-
-        print("=== Building CLI with Nuitka (Linux)... ===")
-        cmd_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + ["src/yaamt.py"]
-        subprocess.run(cmd_args, check=True)
-
-        print("=== Building GUI with Nuitka (Linux)... ===")
-        gui_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + [
-            "--include-module=cffi",
-            "--plugin-enable=pyside6",
-            "--follow-imports",
-            "src/yaamt-gui.py"
-        ]
-        subprocess.run(gui_args, check=True)
-
-    def _build_with_cx_freeze(self):
-        """Build using cx_Freeze"""
-        print("=== Building with cx_Freeze (macOS)... ===")
-        subprocess.run([sys.executable, "setup.py", "build"], check=True)
 
 
 class Archiver:
@@ -554,11 +768,17 @@ class Archiver:
 
     def create_archive(self, version_name=None, platform_override=None, arch_override=None):
         """Create an archive of the build artifacts"""
-        # Determine build directory
-        if self.config.get_build_tool() == "nuitka":
+        # Determine build directory based on tool
+        tool = self.config.get_build_tool()
+        if tool == "pyinstaller":
+            # PyInstaller outputs to dist_dir/yaamt-gui/ (contains both executables)
+            build_dir = self.config.output_dir / "yaamt-gui"
+        elif tool == "nuitka":
             build_dir = self.config.get_nuitka_dist_dir()
-        else:
+        elif tool == "cx_freeze":
             build_dir = self.config.get_cx_freeze_dist_dir()
+        else:
+            build_dir = self.config.output_dir
 
         if not build_dir or not build_dir.exists():
             raise RuntimeError(f"Build directory not found: {build_dir}")
@@ -633,6 +853,13 @@ def main():
     )
 
     parser.add_argument(
+        "--tool",
+        choices=["pyinstaller", "nuitka", "cx_freeze"],
+        default=None,
+        help="Build tool to use (default: pyinstaller)"
+    )
+
+    parser.add_argument(
         "--archive",
         action="store_true",
         help="Create archive of build artifacts"
@@ -681,7 +908,8 @@ def main():
             platform_name=args.platform,
             arch=args.arch,
             output_dir=args.output_dir,
-            build_mode=build_mode
+            build_mode=build_mode,
+            build_tool=args.tool
         )
 
         print(f"YAAMT Build Script")
@@ -698,14 +926,14 @@ def main():
             installer = DependencyInstaller(config)
             installer.install_system_deps()
             installer.install_python_deps()
-            print("\n✓ Dependencies installed successfully!")
+            print("\n[OK] Dependencies installed successfully!")
             return
 
         # Build
         builder = Builder(config)
         builder.build()
 
-        print("\n✓ Build completed successfully!")
+        print("\n[OK] Build completed successfully!")
 
         # Create archive if requested
         if args.archive:
@@ -717,7 +945,7 @@ def main():
             )
 
     except Exception as e:
-        print(f"\n✗ Build failed: {e}", file=sys.stderr)
+        print(f"\n[FAILED] Build failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 

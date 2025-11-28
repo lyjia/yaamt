@@ -46,4 +46,8 @@ def run_gui():
     sys.exit(app.exec())
 
 if __name__ == "__main__":
+    # Required for multiprocessing to work in PyInstaller frozen builds on Windows
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     run_gui()

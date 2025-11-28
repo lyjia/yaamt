@@ -211,10 +211,11 @@ class AnalyzerWorker(QRunnable):
                             pass
                         _process_pool_executor = None
 
-                    self.task.result = AnalyzerResult(
+                    result = AnalyzerResult(
                         success=False,
                         error=f"Analysis worker process crashed unexpectedly"
                     )
+                    self.task.result = result
 
             log.debug(f"Analysis complete: {analyzer_name} on {file_path} - "
                      f"Success: {result.success}, Skipped: {result.skipped}")
