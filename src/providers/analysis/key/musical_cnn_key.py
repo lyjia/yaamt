@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QWidget
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
-from providers import register_analyzer
+from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.const import KEY_INITIAL_KEY
@@ -73,6 +73,7 @@ KEYNET_MODEL_SIZE = 1874533  # Used only for progress display on downloader
 KEYNET_MODEL_CHECKSUM = "fc92072f1b9b19552ce3b74a9c8ce0cecb97633a12ae524ac0d93c05800e354e"  # SHA256 for validation
 
 
+@analyzer(AnalyzerCategory.KEY, debug_only=True)
 class MusicalKeyCNNAnalyzer(AnalyzerBase):
     """
     Musical key analyzer using a Convolutional Neural Network.
@@ -104,7 +105,6 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
     description = "Deep learning key detector using CNN (Korzeniowski & Widmer 2018)"
     category = "key"
     version = "1.0.0"
-    debug_only = True  # PyTorch cannot be compiled with nuitka
 
     def analyze(self) -> AnalyzerResult:
         """
@@ -630,7 +630,3 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
 
         # Set initial status
         update_status()
-
-
-# Register this analyzer with the Key category
-register_analyzer(AnalyzerCategory.KEY, MusicalKeyCNNAnalyzer)

@@ -265,21 +265,44 @@ def prepare_source_for_build(temp_src_path: Path, build_mode: str, version_strin
     print(f"  Patched IS_DEBUG_BUILD = {is_debug_value}")
     print(f"  Patched VERSION_STRING = {version_string}")
 
-    # For release builds, remove DEBUG_ONLY lines from _manifest.py
+    # For release builds, remove debug-only analyzers from _manifest.py
     if build_mode == 'release':
         manifest_file = temp_src_path / 'src' / 'providers' / 'analysis' / '_manifest.py'
+        src_dir = temp_src_path / 'src'
 
         with open(manifest_file, 'r') as f:
             lines = f.readlines()
 
-        # Filter out lines with DEBUG_ONLY marker
-        filtered_lines = [line for line in lines if '# DEBUG_ONLY' not in line]
+        # Filter out imports of modules that have @analyzer(..., debug_only=True)
+        filtered_lines = []
+        removed_count = 0
+
+        for line in lines:
+            # Check if this is an import line (e.g., "from providers.analysis.bpm import stub_bpm")
+            import_match = re.match(r'^from\s+(providers\.analysis\.\w+)\s+import\s+(\w+)', line)
+            if import_match:
+                package_path = import_match.group(1)  # e.g., "providers.analysis.bpm"
+                module_name = import_match.group(2)   # e.g., "stub_bpm"
+
+                # Convert to file path
+                module_file = src_dir / package_path.replace('.', '/') / f"{module_name}.py"
+
+                if module_file.exists():
+                    with open(module_file, 'r') as f:
+                        module_content = f.read()
+
+                    # Check for @analyzer(..., debug_only=True) pattern
+                    if re.search(r'@analyzer\s*\([^)]*debug_only\s*=\s*True[^)]*\)', module_content):
+                        removed_count += 1
+                        print(f"    Excluding debug-only analyzer: {module_name}")
+                        continue  # Skip this import
+
+            filtered_lines.append(line)
 
         with open(manifest_file, 'w') as f:
             f.writelines(filtered_lines)
 
-        removed_count = len(lines) - len(filtered_lines)
-        print(f"  Removed {removed_count} DEBUG_ONLY analyzer(s) from manifest")
+        print(f"  Removed {removed_count} debug-only analyzer(s) from manifest")
 
 
 def cleanup_build_workspace(temp_path: Path) -> None:

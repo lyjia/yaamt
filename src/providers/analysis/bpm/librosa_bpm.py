@@ -13,12 +13,13 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QWidget
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
-from providers import register_analyzer
+from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
 
 
+@analyzer(AnalyzerCategory.BPM, debug_only=True)
 class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using librosa's beat tracking algorithm.
@@ -39,7 +40,6 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
     description = "Detects tempo using librosa's beat tracking algorithm"
     category = "bpm"
     version = "1.0.0"
-    debug_only = True
 
     def analyze(self) -> AnalyzerResult:
         """
@@ -290,7 +290,3 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
 
         widget.setLayout(main_layout)
         return widget
-
-
-# Register this analyzer with the BPM category
-register_analyzer(AnalyzerCategory.BPM, LibrosaBeatTrackingBPMAnalyzer)
