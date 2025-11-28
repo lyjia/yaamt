@@ -397,26 +397,25 @@ def cmd_analyze(args):
 
     # Add BPM category options for BPM analyzers
     if analyzer_class.category == 'bpm':
-        bpm_category_options = get_bpm_category_options()
-        for option in bpm_category_options:
-            value = getattr(args, option.name, None)
-            if value is not None:
-                # Convert 0 to None (disabled)
-                analyzer_options[option.name] = value if value > 0 else None
-            elif args.use_saved_prefs:
-                # Load from QSettings using the standard BPM preference keys
-                if option.name == 'bpm_range_min':
-                    saved_value = qsettings.value(BPM_RANGE_MIN_KEY, BPM_RANGE_MIN_DEFAULT, type=int)
-                elif option.name == 'bpm_range_max':
-                    saved_value = qsettings.value(BPM_RANGE_MAX_KEY, BPM_RANGE_MAX_DEFAULT, type=int)
-                else:
-                    saved_value = option.default
-                # Convert 0 to None (disabled)
-                analyzer_options[option.name] = saved_value if saved_value > 0 else None
-            else:
-                # Use default (which already loaded from QSettings in get_bpm_category_options)
-                # Convert 0 to None (disabled)
-                analyzer_options[option.name] = option.default if option.default > 0 else None
+        if args.use_saved_prefs:
+            # Load from QSettings using the standard BPM preference keys
+            bpm_min = qsettings.value(BPM_RANGE_MIN_KEY, BPM_RANGE_MIN_DEFAULT, type=int)
+            bpm_max = qsettings.value(BPM_RANGE_MAX_KEY, BPM_RANGE_MAX_DEFAULT, type=int)
+            analyzer_options['bpm_min'] = bpm_min if bpm_min > 0 else None
+            analyzer_options['bpm_max'] = bpm_max if bpm_max > 0 else None
+        else:
+            # Use CLI args (default is 0 = disabled)
+            bpm_min = getattr(args, 'bpm_min', 0) or 0
+            bpm_max = getattr(args, 'bpm_max', 0) or 0
+            analyzer_options['bpm_min'] = bpm_min if bpm_min > 0 else None
+            analyzer_options['bpm_max'] = bpm_max if bpm_max > 0 else None
+
+        # Warn if BPM range is unbounded
+        if analyzer_options['bpm_min'] is None and analyzer_options['bpm_max'] is None:
+            log.warning(
+                "BPM range is unbounded. Results may be half or double the expected tempo. "
+                "Consider using --bpm-min/--bpm-max or --use-saved-prefs to set a range."
+            )
 
     # Run analysis
     print(f"Analyzing {len(media_files)} file(s) with {analyzer_class.name}...")

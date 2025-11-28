@@ -11,7 +11,7 @@ import os
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QPushButton, QGroupBox, QCheckBox, QWidget, QSpinBox, QDoubleSpinBox, QSlider,
-    QFileDialog, QLineEdit
+    QFileDialog, QLineEdit, QToolButton, QStyle, QApplication
 )
 from PySide6.QtCore import Qt
 
@@ -22,7 +22,11 @@ from models.settings import settings
 from models.media_file import MediaFile
 from util.logging import log
 from util.diatonic_key import get_notation_format_display_list
-from util.analyzer_options import get_bpm_category_options, build_widget_from_option
+from util.analyzer_options import (
+    BPM_RANGE_MIN_KEY, BPM_RANGE_MAX_KEY,
+    BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT
+)
+from util.const import BPM_RANGE_PRESETS
 
 
 class AnalyzerSetupDialog(QDialog):
@@ -215,35 +219,65 @@ class AnalyzerSetupDialog(QDialog):
 
         # BPM Detection Range group (only shown for 'bpm' category)
         self.bpm_range_group = QGroupBox("BPM Detection Range")
-        bpm_range_layout = QVBoxLayout()
+        bpm_range_layout = QHBoxLayout()
+        bpm_range_layout.setContentsMargins(6, 6, 6, 6)
 
-        # Info label explaining the feature
-        bpm_range_info = QLabel(
-            "Set the expected BPM range. Results outside this range "
-            "will be doubled or halved to fit. Set to 0 to disable."
+        # Load default values from preferences
+        qsettings = get_qsettings()
+        self._bpm_pref_min = qsettings.value(BPM_RANGE_MIN_KEY, BPM_RANGE_MIN_DEFAULT, type=int)
+        self._bpm_pref_max = qsettings.value(BPM_RANGE_MAX_KEY, BPM_RANGE_MAX_DEFAULT, type=int)
+
+        # Preset dropdown
+        self.bpm_preset_combo = QComboBox()
+        self.bpm_preset_combo.setMinimumWidth(140)
+        for preset_name, _ in BPM_RANGE_PRESETS:
+            self.bpm_preset_combo.addItem(preset_name)
+        bpm_range_layout.addWidget(self.bpm_preset_combo)
+
+        # Min spinbox
+        self.bpm_min_spin = QSpinBox()
+        self.bpm_min_spin.setRange(0, 999)
+        self.bpm_min_spin.setFixedWidth(60)
+        self.bpm_min_spin.setValue(self._bpm_pref_min)
+        bpm_range_layout.addWidget(self.bpm_min_spin)
+
+        # "to" label
+        bpm_range_layout.addWidget(QLabel("to"))
+
+        # Max spinbox
+        self.bpm_max_spin = QSpinBox()
+        self.bpm_max_spin.setRange(0, 999)
+        self.bpm_max_spin.setFixedWidth(60)
+        self.bpm_max_spin.setValue(self._bpm_pref_max)
+        bpm_range_layout.addWidget(self.bpm_max_spin)
+
+        # Enabled checkbox
+        self.bpm_range_enabled_checkbox = QCheckBox("Enabled")
+        self.bpm_range_enabled_checkbox.setChecked(True)  # Enabled by default in GUI
+        bpm_range_layout.addWidget(self.bpm_range_enabled_checkbox)
+
+        # Revert to default button (icon only)
+        self.bpm_revert_button = QToolButton()
+        self.bpm_revert_button.setIcon(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
         )
-        bpm_range_info.setWordWrap(True)
-        bpm_range_info.setStyleSheet("QLabel { color: #666; font-style: italic; }")
-        bpm_range_layout.addWidget(bpm_range_info)
+        self.bpm_revert_button.setToolTip("Revert to preference defaults")
+        self.bpm_revert_button.setAutoRaise(True)
+        bpm_range_layout.addWidget(self.bpm_revert_button)
 
-        # Create widgets for BPM range options
-        bpm_options = get_bpm_category_options()
-        self.bpm_range_widgets = {}
-        bpm_range_row = QHBoxLayout()
-
-        for option in bpm_options:
-            option_widget = build_widget_from_option(
-                option,
-                settings_group=None  # Don't auto-save to QSettings, we handle it
-            )
-            bpm_range_row.addWidget(option_widget)
-            # Store reference for value extraction
-            self.bpm_range_widgets[option.name] = option_widget
-
-        bpm_range_row.addStretch()
-        bpm_range_layout.addLayout(bpm_range_row)
+        bpm_range_layout.addStretch()
 
         self.bpm_range_group.setLayout(bpm_range_layout)
+
+        # Connect signals
+        self.bpm_preset_combo.currentIndexChanged.connect(self._on_bpm_preset_changed)
+        self.bpm_min_spin.valueChanged.connect(self._on_bpm_range_changed)
+        self.bpm_max_spin.valueChanged.connect(self._on_bpm_range_changed)
+        self.bpm_range_enabled_checkbox.toggled.connect(self._on_bpm_enabled_toggled)
+        self.bpm_revert_button.clicked.connect(self._on_bpm_revert_clicked)
+
+        # Set initial preset based on default values
+        self._update_bpm_preset_from_values()
 
         # Only show for BPM category
         if self.category == AnalyzerCategory.BPM:
@@ -481,14 +515,16 @@ class AnalyzerSetupDialog(QDialog):
             self.analyzer_options['key_notation_format'] = self.key_format_combo.currentData()
 
         # Add BPM range options if applicable
-        if self.category == AnalyzerCategory.BPM and self.bpm_range_widgets:
-            for name, widget in self.bpm_range_widgets.items():
-                # Extract value from the spinbox inside the widget container
-                spinbox = widget.findChild(QSpinBox)
-                if spinbox:
-                    value = spinbox.value()
-                    # Convert 0 to None (disabled)
-                    self.analyzer_options[name] = value if value > 0 else None
+        if self.category == AnalyzerCategory.BPM:
+            if self.bpm_range_enabled_checkbox.isChecked():
+                bpm_min = self.bpm_min_spin.value()
+                bpm_max = self.bpm_max_spin.value()
+                self.analyzer_options['bpm_min'] = bpm_min if bpm_min > 0 else None
+                self.analyzer_options['bpm_max'] = bpm_max if bpm_max > 0 else None
+            else:
+                # Disabled - set both to None
+                self.analyzer_options['bpm_min'] = None
+                self.analyzer_options['bpm_max'] = None
 
         # Validate report options if report generation is enabled
         if self.analyzer_options['generate_report'] and not self.analyzer_options['report_file']:
@@ -630,6 +666,59 @@ class AnalyzerSetupDialog(QDialog):
         )
 
         settings.endGroup()
+
+    def _on_bpm_preset_changed(self, index: int):
+        """Handle BPM preset dropdown change."""
+        if index < 0 or index >= len(BPM_RANGE_PRESETS):
+            return
+
+        preset_name, preset_range = BPM_RANGE_PRESETS[index]
+        if preset_range[0] is not None:
+            # Block signals to avoid recursion
+            self.bpm_min_spin.blockSignals(True)
+            self.bpm_max_spin.blockSignals(True)
+            self.bpm_min_spin.setValue(preset_range[0])
+            self.bpm_max_spin.setValue(preset_range[1])
+            self.bpm_min_spin.blockSignals(False)
+            self.bpm_max_spin.blockSignals(False)
+
+    def _on_bpm_range_changed(self):
+        """Handle BPM min/max spinbox value change."""
+        self._update_bpm_preset_from_values()
+
+    def _update_bpm_preset_from_values(self):
+        """Update the preset dropdown based on current min/max values."""
+        min_val = self.bpm_min_spin.value()
+        max_val = self.bpm_max_spin.value()
+
+        # Find matching preset
+        matching_index = -1
+        for i, (_, preset_range) in enumerate(BPM_RANGE_PRESETS):
+            if preset_range[0] == min_val and preset_range[1] == max_val:
+                matching_index = i
+                break
+
+        # Block signals and update combo
+        self.bpm_preset_combo.blockSignals(True)
+        if matching_index >= 0:
+            self.bpm_preset_combo.setCurrentIndex(matching_index)
+        else:
+            # Set to "Custom" (last item)
+            self.bpm_preset_combo.setCurrentIndex(len(BPM_RANGE_PRESETS) - 1)
+        self.bpm_preset_combo.blockSignals(False)
+
+    def _on_bpm_enabled_toggled(self, enabled: bool):
+        """Handle BPM range enabled checkbox toggle."""
+        self.bpm_preset_combo.setEnabled(enabled)
+        self.bpm_min_spin.setEnabled(enabled)
+        self.bpm_max_spin.setEnabled(enabled)
+        self.bpm_revert_button.setEnabled(enabled)
+
+    def _on_bpm_revert_clicked(self):
+        """Handle BPM revert to defaults button click."""
+        self.bpm_min_spin.setValue(self._bpm_pref_min)
+        self.bpm_max_spin.setValue(self._bpm_pref_max)
+        self._update_bpm_preset_from_values()
 
     def get_analyzer_class(self) -> Optional[Type[AnalyzerBase]]:
         """

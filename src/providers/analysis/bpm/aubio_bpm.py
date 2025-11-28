@@ -186,8 +186,8 @@ class AubioBPMAnalyzer(AnalyzerBase):
             log.info(f"Aubio analyzer detected raw BPM: {bpm:.2f} for {self.media_file.file_path}")
 
             # Apply BPM range adjustment if range is specified
-            min_bpm = self.options.get('bpm_range_min')
-            max_bpm = self.options.get('bpm_range_max')
+            min_bpm = self.options.get('bpm_min')
+            max_bpm = self.options.get('bpm_max')
             adjusted_bpm = adjust_bpm_to_range(bpm, min_bpm, max_bpm)
 
             if adjusted_bpm != bpm:

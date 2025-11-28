@@ -609,15 +609,14 @@ BPM_RANGE_MAX_DEFAULT = 200
 
 def get_bpm_category_options() -> List[AnalyzerOption]:
     """
-    Return BPM-specific category options.
+    Return BPM-specific category options for CLI.
 
-    These options are displayed in the AnalyzerSetupDialog for BPM analyzers
-    and can be passed via CLI. The defaults are loaded from QSettings if
-    available.
+    These options can be passed via CLI. By default, BPM range is disabled
+    (no min/max constraint). Use --use-saved-prefs to load from preferences.
 
     Options:
-        - bpm_range_min: Minimum BPM for range enforcement (0 = disabled)
-        - bpm_range_max: Maximum BPM for range enforcement (0 = disabled)
+        - bpm_min: Minimum BPM for range enforcement (default: None/disabled)
+        - bpm_max: Maximum BPM for range enforcement (default: None/disabled)
 
     The BPM range is used in two ways:
     1. As a hint to analyzers that support it (e.g., RE3 uses it to filter
@@ -628,28 +627,21 @@ def get_bpm_category_options() -> List[AnalyzerOption]:
     Returns:
         List of AnalyzerOption instances for BPM category options
     """
-    # Load defaults from QSettings
-    settings = get_qsettings()
-    default_min = settings.value(BPM_RANGE_MIN_KEY, BPM_RANGE_MIN_DEFAULT, type=int)
-    default_max = settings.value(BPM_RANGE_MAX_KEY, BPM_RANGE_MAX_DEFAULT, type=int)
-
     return [
         AnalyzerOption(
-            name='bpm_range_min',
+            name='bpm_min',
             type='int',
-            default=default_min,
+            default=0,  # 0 means disabled
             min=0,
             max=999,
-            help='Minimum BPM for detection range (0 to disable)',
-            suffix=' BPM'
+            help='Minimum BPM for detection range (0 = disabled)'
         ),
         AnalyzerOption(
-            name='bpm_range_max',
+            name='bpm_max',
             type='int',
-            default=default_max,
+            default=0,  # 0 means disabled
             min=0,
             max=999,
-            help='Maximum BPM for detection range (0 to disable)',
-            suffix=' BPM'
+            help='Maximum BPM for detection range (0 = disabled)'
         )
     ]

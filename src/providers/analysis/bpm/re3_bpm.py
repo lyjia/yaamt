@@ -738,8 +738,8 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
                 )
 
             # Read BPM range from options (passed from CLI/GUI) or fall back to QSettings
-            min_bpm = self.options.get('bpm_range_min')
-            max_bpm = self.options.get('bpm_range_max')
+            min_bpm = self.options.get('bpm_min')
+            max_bpm = self.options.get('bpm_max')
 
             # Fall back to QSettings if not in options (backwards compatibility)
             if min_bpm is None:
