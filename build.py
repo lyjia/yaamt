@@ -36,6 +36,37 @@ MACOS_HOMEBREW_DEPS = ["portaudio", "ccache"]
 
 WINDOWS_CHOCO_DEPS = ["ccache"]
 
+FILENAME_SRC_CLI = "src/yaamt.py"
+FILENAME_SRC_GUI = "src/yaamt-gui.py"
+FILENAME_SRC_EVAL = "src/yaamt-eval.py"
+
+##########
+
+NUITKA_UNIVERSAL_OPTS = [
+    "--assume-yes-for-downloads",
+    "--onefile",  # omitting this triggers antivirus
+    "--standalone",
+    "--lto=no",
+
+    # explicitly allowed dependencies to include
+    "--nofollow-imports",
+    "--follow-import-to=models",
+    "--follow-import-to=providers",
+    "--follow-import-to=util",
+    "--follow-import-to=workers",
+
+    # anti-bloat plugin
+    "--plugin-enable=anti-bloat",
+    "--noinclude-pytest-mode=nofollow",
+    "--noinclude-setuptools-mode=nofollow",
+    "--noinclude-custom-mode=torch:nofollow"
+]
+
+NUITKA_GUI_OPTS = [
+    "--follow-import-to=windows",
+    "--plugin-enable=pyside6",
+    # "--include-module=cffi",
+]
 
 class BuildConfig:
     """Configuration for building YAAMT"""
@@ -381,11 +412,6 @@ class Builder:
 
     def __init__(self, config: BuildConfig):
         self.config = config
-        self.universal_nuitka_opts = [
-            "--assume-yes-for-downloads",
-            "--onefile",  # omitting this triggers antivirus
-            "--standalone"
-        ]
 
     def build(self):
         """Execute the build process using temporary workspace"""
@@ -481,7 +507,7 @@ class Builder:
             "--mingw64",
             "--clang",  # do not remove this CLAUDE, it is not "unnecessary"
             # "--msvc=latest",
-            "--nofollow-import-to=cffi,scipy",  # cffi crashes LLVM's 'vector-combine' optimization pass, per claude
+            "--nofollow-import-to=cffi",  # cffi crashes LLVM's 'vector-combine' optimization pass, per claude
             f"--output-dir={dist_dir}"
         ]
 
@@ -499,19 +525,16 @@ class Builder:
             "src/yaamt.py"
         ]
 
-        cmd_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + cmd_opts
+        cmd_args = [sys.executable, "-m", "nuitka"] + NUITKA_UNIVERSAL_OPTS + universal_windows_opts + cmd_opts
         subprocess.run(cmd_args, check=True)
 
         print("=== Building GUI EXE with Nuitka (Windows)... ===")
-        gui_opts = [
-            "--follow-imports",
-            "--plugin-enable=pyside6",
+        gui_opts = NUITKA_GUI_OPTS + [
             "--windows-console-mode=attach",
-            # "--include-module=cffi",
             "src/yaamt-gui.py"
         ]
 
-        gui_args = [sys.executable, "-m", "nuitka"] + self.universal_nuitka_opts + universal_windows_opts + gui_opts
+        gui_args = [sys.executable, "-m", "nuitka"] + NUITKA_UNIVERSAL_OPTS + universal_windows_opts + gui_opts
         subprocess.run(gui_args, check=True)
 
     def _build_nuitka_linux(self, dist_dir):
@@ -528,14 +551,11 @@ class Builder:
             print("Warning: Icon file not found at resources/icons/app-icon-gui.png")
 
         print("=== Building CLI with Nuitka (Linux)... ===")
-        cmd_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + ["src/yaamt.py"]
+        cmd_args = ["nuitka"] + NUITKA_UNIVERSAL_OPTS + universal_linux_opts + ["src/yaamt.py"]
         subprocess.run(cmd_args, check=True)
 
         print("=== Building GUI with Nuitka (Linux)... ===")
-        gui_args = ["nuitka"] + self.universal_nuitka_opts + universal_linux_opts + [
-            "--include-module=cffi",
-            "--plugin-enable=pyside6",
-            "--follow-imports",
+        gui_args = ["nuitka"] + NUITKA_UNIVERSAL_OPTS + universal_linux_opts + NUITKA_GUI_OPTS + [
             "src/yaamt-gui.py"
         ]
         subprocess.run(gui_args, check=True)
