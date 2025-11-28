@@ -11,11 +11,12 @@ from typing import Optional, List
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSpinBox, QFormLayout
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
-from providers import register_analyzer
+from providers import analyzer
 from util.analyzer_options import AnalyzerOption
 from util.logging import log
 
 
+@analyzer(AnalyzerCategory.BPM, debug_only=True)
 class StubBPMAnalyzer(AnalyzerBase):
     """
     A stub analyzer for testing purposes.
@@ -31,7 +32,6 @@ class StubBPMAnalyzer(AnalyzerBase):
     description = "Test analyzer that returns a fixed BPM value"
     category = "bpm"
     version = "0.1.0"
-    debug_only = True
 
     def analyze(self) -> AnalyzerResult:
         """
@@ -89,5 +89,3 @@ class StubBPMAnalyzer(AnalyzerBase):
 
     # Note: get_settings_widget() is inherited from AnalyzerBase
     # and will auto-generate from get_options_metadata() (returns None since no options)
-
-register_analyzer(AnalyzerCategory.BPM, StubBPMAnalyzer)

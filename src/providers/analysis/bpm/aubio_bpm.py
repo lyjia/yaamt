@@ -12,13 +12,14 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QComboBox,
                                 QSpinBox, QGroupBox, QLabel)
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
-from providers import register_analyzer
+from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
 from providers.analysis.bpm.util import adjust_bpm_to_range
 
 
+@analyzer(AnalyzerCategory.BPM)
 class AubioBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using aubio's tempo detection algorithm.
@@ -327,7 +328,3 @@ class AubioBPMAnalyzer(AnalyzerBase):
 
         widget.setLayout(main_layout)
         return widget
-
-
-# Register this analyzer with the BPM category
-register_analyzer(AnalyzerCategory.BPM, AubioBPMAnalyzer)

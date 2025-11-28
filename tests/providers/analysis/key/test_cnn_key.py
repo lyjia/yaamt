@@ -11,7 +11,7 @@ from pathlib import Path
 
 from util.const import IN_GITHUB_RUNNER, KEY_INITIAL_KEY
 from providers.analysis.base import AnalyzerResult
-from providers.analysis.key.cnn_key import MusicalKeyCNNAnalyzer, KEYNET_RESOURCE_ID
+from providers.analysis.key.musical_cnn_key import MusicalKeyCNNAnalyzer, KEYNET_RESOURCE_ID
 from providers import get_analyzers_by_category
 from providers.analysis import AnalyzerCategory
 from models.media_file import MediaFile
@@ -171,7 +171,7 @@ class TestMusicalKeyCNNAnalyzerBasicBehavior:
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
         # Mock resource manager to simulate missing model
-        with patch('providers.analysis.key.cnn_key.get_resource_manager') as mock_rm:
+        with patch('providers.analysis.key.musical_cnn_key.get_resource_manager') as mock_rm:
             mock_rm.return_value.is_resource_loadable.return_value = False
             analyzer = MusicalKeyCNNAnalyzer(media_file)
             result = analyzer.analyze()

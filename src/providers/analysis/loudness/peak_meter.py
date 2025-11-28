@@ -11,11 +11,12 @@ from typing import Optional, List
 
 from providers.audio import AudioStreamBase
 from providers.analysis import AnalyzerCategory, AnalyzerBase, AnalyzerResult
-from providers import register_analyzer
+from providers import analyzer
 from util.const import KEY_COMMENT
 from util.logging import log
 
 
+@analyzer(AnalyzerCategory.LOUDNESS)
 class PeakMeterAnalyzer(AnalyzerBase):
     """
     Analyzer that measures peak loudness (maximum sample value) in dBFS.
@@ -296,5 +297,3 @@ class PeakMeterAnalyzer(AnalyzerBase):
             return (False, "File is not readable")
 
         return (True, None)
-
-register_analyzer(AnalyzerCategory.LOUDNESS, PeakMeterAnalyzer)

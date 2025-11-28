@@ -16,7 +16,7 @@ import numpy as np
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGroupBox
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
-from providers import register_analyzer
+from providers import analyzer
 from util.const import KEY_INITIAL_KEY, KEY_DIATONIC_MODE
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
@@ -29,6 +29,7 @@ from providers.analysis.key.support.wavelet import (
 )
 
 
+@analyzer(AnalyzerCategory.KEY, debug_only=True)
 class RE3WaveletKeyAnalyzer(AnalyzerBase):
     """
     Musical key analyzer adapted from the RapidEvolution3 CWT algorithm.
@@ -49,7 +50,6 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
     name = "RE3 Wavelet Key Analyzer"
     description = "Continuous Wavelet Transform-based key detection algorithm adapted from RapidEvolution3 by DJ Qualia."
     category = "key"
-    debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"
 
     def analyze(self) -> AnalyzerResult:
@@ -531,7 +531,3 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
         layout.addStretch()
         widget.setLayout(layout)
         return widget
-
-
-# Register this analyzer with the Key category
-register_analyzer(AnalyzerCategory.KEY, RE3WaveletKeyAnalyzer)
