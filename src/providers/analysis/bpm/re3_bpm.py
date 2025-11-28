@@ -25,8 +25,8 @@ from util.analyzer_options import (
     AnalyzerOption, build_widget_from_option,
     BPM_RANGE_MIN_KEY, BPM_RANGE_MAX_KEY, BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT
 )
+from util.bpm import BpmCandidate
 from util.logging import log
-from providers.analysis.bpm.util import adjust_bpm_to_range
 
 
 from scipy.signal import lfilter, lfilter_zi
@@ -858,19 +858,14 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
                     error="Could not detect BPM - no clear tempo found"
                 )
 
-            log.info(f"RE3 detected raw BPM: {result.bpm:.2f} for {self.media_file.file_path}")
+            log.info(f"RE3 detected raw BPM: {result.bpm:.2f} (accuracy: {result.accuracy:.2f}) "
+                    f"for {self.media_file.file_path}")
 
-            # Apply BPM range postprocessor for consistency (RE3 already uses range as hint,
-            # but postprocessor provides an extra layer of assurance)
-            adjusted_bpm = adjust_bpm_to_range(result.bpm, min_bpm, max_bpm)
-
-            if adjusted_bpm != result.bpm:
-                log.info(f"  Adjusted BPM from {result.bpm:.2f} to {adjusted_bpm:.2f} (range: {min_bpm}-{max_bpm})")
-
-            # Return float BPM (Tag Transformation system handles formatting)
+            # Return BPM candidate with RE3's accuracy as certainty
+            # Range adjustment is handled by the dispatcher
             return AnalyzerResult(
                 success=True,
-                data={'bpm': float(adjusted_bpm)}
+                data={'bpm_candidates': [BpmCandidate(bpm=float(result.bpm), certainty=result.accuracy)]}
             )
 
         except InterruptedError:

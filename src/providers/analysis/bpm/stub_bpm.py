@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSpinBox, QFormLayou
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from util.analyzer_options import AnalyzerOption
+from util.bpm import BpmCandidate
 from util.logging import log
 
 
@@ -59,13 +60,13 @@ class StubBPMAnalyzer(AnalyzerBase):
                     error="BPM already set"
                 )
 
-            # Return a fixed BPM value with specified decimal places
+            # Return a fixed BPM value as a candidate
             bpm_value = 120.25
 
             log.debug(f"Stub analyzer returning BPM={bpm_value} for {self.media_file.file_path}")
             return AnalyzerResult(
                 success=True,
-                data={'bpm': bpm_value}
+                data={'bpm_candidates': [BpmCandidate(bpm=bpm_value, certainty=0.0)]}
             )
 
         except Exception as e:

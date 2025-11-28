@@ -16,8 +16,8 @@ from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.bpm import BpmCandidate
 from util.logging import log
-from providers.analysis.bpm.util import adjust_bpm_to_range
 
 
 @analyzer(AnalyzerCategory.BPM)
@@ -160,18 +160,11 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
             log.info(f"Librosa analyzer detected raw BPM: {bpm:.2f} ({len(beat_frames)} beats) "
                     f"for {self.media_file.file_path}")
 
-            # Apply BPM range adjustment if range is specified
-            min_bpm = self.options.get('bpm_min')
-            max_bpm = self.options.get('bpm_max')
-            adjusted_bpm = adjust_bpm_to_range(bpm, min_bpm, max_bpm)
-
-            if adjusted_bpm != bpm:
-                log.info(f"  Adjusted BPM from {bpm:.2f} to {adjusted_bpm:.2f} (range: {min_bpm}-{max_bpm})")
-
-            # Return float BPM value (Tag Transformations system handles formatting)
+            # Return BPM candidate (librosa doesn't provide confidence scores)
+            # Range adjustment is handled by the dispatcher
             return AnalyzerResult(
                 success=True,
-                data={'bpm': adjusted_bpm}
+                data={'bpm_candidates': [BpmCandidate(bpm=bpm, certainty=0.0)]}
             )
 
         except ImportError as e:

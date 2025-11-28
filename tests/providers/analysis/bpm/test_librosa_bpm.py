@@ -245,9 +245,9 @@ class TestLibrosaBPMAnalyzerIntegration:
         # We just verify the analyzer runs without errors
         if result.success and not result.skipped:
             # If it somehow detects a BPM, verify it's reasonable
-            assert 'bpm' in result.data
-            assert isinstance(result.data['bpm'], float)
-            assert result.data['bpm'] > 0
+            assert 'bpm_candidates' in result.data
+            assert len(result.data['bpm_candidates']) > 0
+            assert result.data['bpm_candidates'][0].bpm > 0
 
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
@@ -321,8 +321,8 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
 
         # Should successfully detect BPM on a clear drum loop
         if result.success and not result.skipped:
-            assert 'bpm' in result.data
-            detected_bpm = result.data['bpm']
+            assert 'bpm_candidates' in result.data
+            detected_bpm = result.data['bpm_candidates'][0].bpm
             # Accept 120 BPM or common multiples/divisions (60, 240)
             assert detected_bpm > 0, f"BPM should be positive, got {detected_bpm}"
             # Librosa should detect something reasonable for a drum loop
@@ -343,8 +343,8 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
 
         # Should successfully detect BPM on a clear drum loop
         if result.success and not result.skipped:
-            assert 'bpm' in result.data
-            detected_bpm = result.data['bpm']
+            assert 'bpm_candidates' in result.data
+            detected_bpm = result.data['bpm_candidates'][0].bpm
             # Accept 128 BPM or common multiples/divisions (64, 256)
             assert detected_bpm > 0, f"BPM should be positive, got {detected_bpm}"
             # Librosa should detect something reasonable for a drum loop
@@ -365,8 +365,8 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
 
         # DNB may be challenging - accept any valid result
         if result.success and not result.skipped:
-            assert 'bpm' in result.data
-            detected_bpm = result.data['bpm']
+            assert 'bpm_candidates' in result.data
+            detected_bpm = result.data['bpm_candidates'][0].bpm
             assert detected_bpm > 0, f"BPM should be positive, got {detected_bpm}"
             # Accept a wide range for DNB (may detect half or double tempo)
             assert 60 <= detected_bpm <= 200, f"BPM should be reasonable, got {detected_bpm}"
@@ -385,8 +385,8 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
         assert isinstance(result, AnalyzerResult)
 
         if result.success and not result.skipped:
-            assert 'bpm' in result.data
-            assert result.data['bpm'] > 0
+            assert 'bpm_candidates' in result.data
+            assert result.data['bpm_candidates'][0].bpm > 0
 
     def test_analyze_with_median_aggregation(self, house_120bpm_file):
         """Test analysis with median aggregation."""
@@ -402,8 +402,8 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
         assert isinstance(result, AnalyzerResult)
 
         if result.success and not result.skipped:
-            assert 'bpm' in result.data
-            assert result.data['bpm'] > 0
+            assert 'bpm_candidates' in result.data
+            assert result.data['bpm_candidates'][0].bpm > 0
 
     def test_analyze_with_mean_aggregation(self, house_120bpm_file):
         """Test analysis with mean aggregation."""
@@ -419,8 +419,8 @@ class TestLibrosaBPMAnalyzerWithDrumLoops:
         assert isinstance(result, AnalyzerResult)
 
         if result.success and not result.skipped:
-            assert 'bpm' in result.data
-            assert result.data['bpm'] > 0
+            assert 'bpm_candidates' in result.data
+            assert result.data['bpm_candidates'][0].bpm > 0
 
 
 if __name__ == '__main__':

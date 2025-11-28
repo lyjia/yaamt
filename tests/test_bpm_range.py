@@ -2,12 +2,13 @@
 Tests for BPM range adjustment logic.
 
 This module tests the adjust_bpm_to_range() function which adjusts BPM values
-to fit within a user-specified range by doubling or halving.
+to fit within a user-specified range by doubling or halving, and the
+select_best_bpm() function for selecting from multiple BPM candidates.
 """
 
 import pytest
 
-from providers.analysis.bpm.util import adjust_bpm_to_range
+from util.bpm import adjust_bpm_to_range, select_best_bpm, BpmCandidate
 
 
 class TestAdjustBpmToRange:
@@ -134,3 +135,105 @@ class TestAdjustBpmToRange:
         # Both 0: min check says 120 >= 0 (ok), max check says 120 > 0 (needs halving)
         # Halved: 60 >= 0 (ok), so 60 is returned
         assert result == 60.0
+
+
+class TestBpmCandidate:
+    """Tests for the BpmCandidate dataclass."""
+
+    def test_creation_with_defaults(self):
+        """Test creating a BpmCandidate with default certainty."""
+        candidate = BpmCandidate(bpm=120.0)
+        assert candidate.bpm == 120.0
+        assert candidate.certainty == 0.0
+
+    def test_creation_with_certainty(self):
+        """Test creating a BpmCandidate with explicit certainty."""
+        candidate = BpmCandidate(bpm=128.5, certainty=0.95)
+        assert candidate.bpm == 128.5
+        assert candidate.certainty == 0.95
+
+    def test_repr(self):
+        """Test string representation of BpmCandidate."""
+        candidate = BpmCandidate(bpm=120.0, certainty=0.85)
+        repr_str = repr(candidate)
+        assert "120.00" in repr_str
+        assert "0.8500" in repr_str
+
+
+class TestSelectBestBpm:
+    """Tests for the select_best_bpm function."""
+
+    def test_empty_candidates_returns_none(self):
+        """Empty candidates list should return None."""
+        result = select_best_bpm([], min_bpm=80, max_bpm=200)
+        assert result is None
+
+    def test_single_candidate_in_range(self):
+        """Single candidate in range should be returned unchanged."""
+        candidates = [BpmCandidate(bpm=120.0, certainty=0.9)]
+        result = select_best_bpm(candidates, min_bpm=80, max_bpm=200)
+        assert result == 120.0
+
+    def test_single_candidate_needs_doubling(self):
+        """Single candidate below range should be doubled."""
+        candidates = [BpmCandidate(bpm=65.0, certainty=0.9)]
+        result = select_best_bpm(candidates, min_bpm=80, max_bpm=200)
+        assert result == 130.0  # 65 * 2
+
+    def test_single_candidate_needs_halving(self):
+        """Single candidate above range should be halved."""
+        candidates = [BpmCandidate(bpm=240.0, certainty=0.9)]
+        result = select_best_bpm(candidates, min_bpm=80, max_bpm=200)
+        assert result == 120.0  # 240 / 2
+
+    def test_selects_highest_certainty(self):
+        """Should select candidate with highest certainty."""
+        candidates = [
+            BpmCandidate(bpm=100.0, certainty=0.5),
+            BpmCandidate(bpm=120.0, certainty=0.9),  # Highest certainty
+            BpmCandidate(bpm=140.0, certainty=0.7),
+        ]
+        result = select_best_bpm(candidates, min_bpm=80, max_bpm=200)
+        assert result == 120.0
+
+    def test_highest_certainty_adjusted(self):
+        """Highest certainty candidate should be adjusted if out of range."""
+        candidates = [
+            BpmCandidate(bpm=120.0, certainty=0.5),  # In range, lower certainty
+            BpmCandidate(bpm=65.0, certainty=0.9),   # Out of range, highest certainty
+        ]
+        result = select_best_bpm(candidates, min_bpm=80, max_bpm=200)
+        # Should select 65 (highest certainty) and double to 130
+        assert result == 130.0
+
+    def test_no_constraints(self):
+        """With no constraints, highest certainty candidate is returned as-is."""
+        candidates = [
+            BpmCandidate(bpm=65.0, certainty=0.9),
+            BpmCandidate(bpm=120.0, certainty=0.5),
+        ]
+        result = select_best_bpm(candidates, min_bpm=None, max_bpm=None)
+        assert result == 65.0  # No adjustment
+
+    def test_zero_certainty_candidates(self):
+        """Candidates with zero certainty should still work (use first by sort order)."""
+        candidates = [
+            BpmCandidate(bpm=100.0, certainty=0.0),
+            BpmCandidate(bpm=120.0, certainty=0.0),
+            BpmCandidate(bpm=140.0, certainty=0.0),
+        ]
+        result = select_best_bpm(candidates, min_bpm=80, max_bpm=200)
+        # All have same certainty (0.0), should pick first in stable sort order
+        assert result in [100.0, 120.0, 140.0]
+
+    def test_multiple_candidates_various_certainties(self):
+        """Test with various candidates and certainties."""
+        candidates = [
+            BpmCandidate(bpm=85.0, certainty=0.6),
+            BpmCandidate(bpm=170.0, certainty=0.8),  # Second highest
+            BpmCandidate(bpm=128.0, certainty=0.95), # Highest
+            BpmCandidate(bpm=64.0, certainty=0.4),
+        ]
+        result = select_best_bpm(candidates, min_bpm=100, max_bpm=160)
+        # Highest certainty is 128.0 - already in range
+        assert result == 128.0
