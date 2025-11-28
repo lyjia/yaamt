@@ -631,6 +631,10 @@ def main():
 
 
 if __name__ == "__main__":
+    # Required for multiprocessing to work in PyInstaller frozen builds on Windows
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     try:
         exit_code = main()
         sys.exit(exit_code)
