@@ -22,7 +22,7 @@ from providers.analysis.bpm import librosa_bpm # DEBUG_ONLY
 # Key analyzers
 from providers.analysis.key import re3_key   # DEBUG_ONLY
 from providers.analysis.key import librosa_key # DEBUG_ONLY
-from providers.analysis.key import cnn_key # DEBUG_ONLY
+from providers.analysis.key import musical_cnn_key # DEBUG_ONLY
 
 # Fingerprint analyzers
 # (none yet)

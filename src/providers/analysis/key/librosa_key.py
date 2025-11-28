@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QWidget
 
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
-from providers import register_analyzer
+from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.const import KEY_INITIAL_KEY
@@ -29,6 +29,7 @@ MINOR_PROFILE = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 
 PITCH_CLASSES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 
+@analyzer(AnalyzerCategory.KEY)
 class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
     """
     Musical key analyzer using librosa chromagram and Krumhansl-Schmuckler algorithm.
@@ -340,7 +341,3 @@ class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
 
         widget.setLayout(main_layout)
         return widget
-
-
-# Register this analyzer with the Key category
-register_analyzer(AnalyzerCategory.KEY, LibrosaChromagramKeyAnalyzer)

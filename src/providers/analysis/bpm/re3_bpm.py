@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QSpinBox,
 
 from models.settings import get_qsettings
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
-from providers import register_analyzer
+from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
@@ -682,6 +682,7 @@ class SubBandSeparator:
         return returnval
 
 
+@analyzer(AnalyzerCategory.BPM)
 class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using the RapidEvolution3 algorithm.
@@ -947,7 +948,3 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
 
         widget.setLayout(main_layout)
         return widget
-
-
-# Register this analyzer with the BPM category
-register_analyzer(AnalyzerCategory.BPM, RE3MultibandSpectralBPMAnalyzer)
