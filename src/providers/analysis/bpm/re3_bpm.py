@@ -21,7 +21,11 @@ from models.settings import get_qsettings
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import (
+    AnalyzerOption, build_widget_from_option,
+    BPM_RANGE_MIN_KEY, BPM_RANGE_MAX_KEY, BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT
+)
+from util.bpm import BpmCandidate
 from util.logging import log
 
 
@@ -682,7 +686,7 @@ class SubBandSeparator:
         return returnval
 
 
-@analyzer(AnalyzerCategory.BPM, debug_only=True)
+@analyzer(AnalyzerCategory.BPM)
 class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using the RapidEvolution3 algorithm.
@@ -733,10 +737,17 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
                     error="BPM already set"
                 )
 
-            # Read BPM range from user preferences
-            settings = get_qsettings()
-            min_bpm = settings.value("Analyzers/CategoryOptions/bpm/range_min", 80, type=int)
-            max_bpm = settings.value("Analyzers/CategoryOptions/bpm/range_max", 200, type=int)
+            # Read BPM range from options (passed from CLI/GUI) or fall back to QSettings
+            min_bpm = self.options.get('bpm_min')
+            max_bpm = self.options.get('bpm_max')
+
+            # Fall back to QSettings if not in options (backwards compatibility)
+            if min_bpm is None:
+                settings = get_qsettings()
+                min_bpm = settings.value(BPM_RANGE_MIN_KEY, BPM_RANGE_MIN_DEFAULT, type=int)
+            if max_bpm is None:
+                settings = get_qsettings()
+                max_bpm = settings.value(BPM_RANGE_MAX_KEY, BPM_RANGE_MAX_DEFAULT, type=int)
 
             # Get analyzer-specific options
             decimation_size = self.options.get('decimation_size', 64)
@@ -847,12 +858,14 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
                     error="Could not detect BPM - no clear tempo found"
                 )
 
-            log.info(f"RE3 detected BPM: {result.bpm:.2f} for {self.media_file.file_path}")
+            log.info(f"RE3 detected raw BPM: {result.bpm:.2f} (accuracy: {result.accuracy:.2f}) "
+                    f"for {self.media_file.file_path}")
 
-            # Return raw float BPM (Tag Transformation system handles formatting)
+            # Return BPM candidate with RE3's accuracy as certainty
+            # Range adjustment is handled by the dispatcher
             return AnalyzerResult(
                 success=True,
-                data={'bpm': float(result.bpm)}
+                data={'bpm_candidates': [BpmCandidate(bpm=float(result.bpm), certainty=result.accuracy)]}
             )
 
         except InterruptedError:

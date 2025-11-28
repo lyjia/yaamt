@@ -33,7 +33,15 @@ from util.cli_formatters import (
     format_metadata_output,
     write_output
 )
-from util.analyzer_options import add_option_to_argparse, get_common_analyzer_options
+from util.analyzer_options import (
+    add_option_to_argparse,
+    get_common_analyzer_options,
+    get_bpm_category_options,
+    BPM_RANGE_MIN_KEY,
+    BPM_RANGE_MAX_KEY,
+    BPM_RANGE_MIN_DEFAULT,
+    BPM_RANGE_MAX_DEFAULT
+)
 
 # Exit codes
 SYS_RETURN_SUCCESS = 0
@@ -387,6 +395,28 @@ def cmd_analyze(args):
             # Use default
             analyzer_options[option.name] = option.default
 
+    # Add BPM category options for BPM analyzers
+    if analyzer_class.category == 'bpm':
+        if args.use_saved_prefs:
+            # Load from QSettings using the standard BPM preference keys
+            bpm_min = qsettings.value(BPM_RANGE_MIN_KEY, BPM_RANGE_MIN_DEFAULT, type=int)
+            bpm_max = qsettings.value(BPM_RANGE_MAX_KEY, BPM_RANGE_MAX_DEFAULT, type=int)
+            analyzer_options['bpm_min'] = bpm_min if bpm_min > 0 else None
+            analyzer_options['bpm_max'] = bpm_max if bpm_max > 0 else None
+        else:
+            # Use CLI args (default is 0 = disabled)
+            bpm_min = getattr(args, 'bpm_min', 0) or 0
+            bpm_max = getattr(args, 'bpm_max', 0) or 0
+            analyzer_options['bpm_min'] = bpm_min if bpm_min > 0 else None
+            analyzer_options['bpm_max'] = bpm_max if bpm_max > 0 else None
+
+        # Warn if BPM range is unbounded
+        if analyzer_options['bpm_min'] is None and analyzer_options['bpm_max'] is None:
+            log.warning(
+                "BPM range is unbounded. Results may be half or double the expected tempo. "
+                "Consider using --bpm-min/--bpm-max or --use-saved-prefs to set a range."
+            )
+
     # Run analysis
     print(f"Analyzing {len(media_files)} file(s) with {analyzer_class.name}...")
 
@@ -566,6 +596,11 @@ def main():
             # Add common analyzer options
             for option in get_common_analyzer_options():
                 add_option_to_argparse(analyze_parser, option)
+
+            # Add category-specific options (e.g., BPM range for BPM analyzers)
+            if analyzer_class.category == 'bpm':
+                for option in get_bpm_category_options():
+                    add_option_to_argparse(analyze_parser, option)
 
             # Add analyzer-specific options
             for option in analyzer_class.get_options_metadata():

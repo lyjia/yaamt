@@ -598,3 +598,50 @@ def get_common_analyzer_options() -> List[AnalyzerOption]:
             help='Skip analysis if tag already has a value (analyze all files by default)'
         )
     ]
+
+
+# BPM range preference keys in QSettings
+BPM_RANGE_MIN_KEY = "Analyzers/CategoryOptions/bpm/range_min"
+BPM_RANGE_MAX_KEY = "Analyzers/CategoryOptions/bpm/range_max"
+BPM_RANGE_MIN_DEFAULT = 80
+BPM_RANGE_MAX_DEFAULT = 200
+
+
+def get_bpm_category_options() -> List[AnalyzerOption]:
+    """
+    Return BPM-specific category options for CLI.
+
+    These options can be passed via CLI. By default, BPM range is disabled
+    (no min/max constraint). Use --use-saved-prefs to load from preferences.
+
+    Options:
+        - bpm_min: Minimum BPM for range enforcement (default: None/disabled)
+        - bpm_max: Maximum BPM for range enforcement (default: None/disabled)
+
+    The BPM range is used in two ways:
+    1. As a hint to analyzers that support it (e.g., RE3 uses it to filter
+       candidates during analysis)
+    2. As a postprocessing constraint that adjusts the result by doubling
+       or halving to fit within the range
+
+    Returns:
+        List of AnalyzerOption instances for BPM category options
+    """
+    return [
+        AnalyzerOption(
+            name='bpm_min',
+            type='int',
+            default=0,  # 0 means disabled
+            min=0,
+            max=999,
+            help='Minimum BPM for detection range (0 = disabled)'
+        ),
+        AnalyzerOption(
+            name='bpm_max',
+            type='int',
+            default=0,  # 0 means disabled
+            min=0,
+            max=999,
+            help='Maximum BPM for detection range (0 = disabled)'
+        )
+    ]

@@ -160,3 +160,14 @@ VERSION_STRING = None  # VERSION_STRING is updated dynamically by the build syst
 # Application identity for QSettings
 APP_ORGANIZATION_NAME = "Lyjia"
 APP_APPLICATION_NAME = "YAAMT"
+
+# BPM range presets: (display_name, (min, max))
+# Used by both preferences and analyzer setup dialog
+BPM_RANGE_PRESETS = [
+    ("Hip Hop / Trap (55-118)", (55, 118)),
+    ("House / Techno (98-138)", (98, 138)),
+    ("Trance / Dance (117-151)", (117, 151)),
+    ("Drum & Bass (149-181)", (149, 181)),
+    ("Hardstyle / Hardcore (95-198)", (95, 198)),
+    ("Custom", (None, None)),
+]

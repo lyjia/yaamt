@@ -171,8 +171,8 @@ class TestStubBPMAnalyzer:
 
         assert result.success is True
         assert result.skipped is False
-        assert 'bpm' in result.data
-        assert result.data['bpm'] == 120.25
+        assert 'bpm_candidates' in result.data
+        assert result.data['bpm_candidates'][0].bpm == 120.25
 
     def test_analyze_skip_existing(self, mock_media_file):
         """Test that analyzer skips when BPM exists and skip_if_tag_exists is True."""
@@ -192,7 +192,7 @@ class TestStubBPMAnalyzer:
 
         assert result.success is True
         assert result.skipped is False
-        assert result.data['bpm'] == 120.25
+        assert result.data['bpm_candidates'][0].bpm == 120.25
 
     def test_analyze_cancellation(self, mock_media_file):
         """Test that cancellation is respected."""

@@ -15,6 +15,7 @@ from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.bpm import BpmCandidate
 from util.logging import log
 
 
@@ -183,12 +184,13 @@ class AubioBPMAnalyzer(AnalyzerBase):
             bpms = 60.0 / valid_intervals
             bpm = np.mean(bpms)
 
-            log.info(f"Aubio analyzer detected BPM: {bpm:.2f} for {self.media_file.file_path}")
+            log.info(f"Aubio analyzer detected raw BPM: {bpm:.2f} for {self.media_file.file_path}")
 
-            # Return raw float BPM value (Tag Transformations system handles formatting)
+            # Return BPM candidate (aubio doesn't provide confidence scores)
+            # Range adjustment is handled by the dispatcher
             return AnalyzerResult(
                 success=True,
-                data={'bpm': float(bpm)}
+                data={'bpm_candidates': [BpmCandidate(bpm=float(bpm), certainty=0.0)]}
             )
 
         except ImportError as e:

@@ -12,6 +12,7 @@ from windows.preferences.base import PreferencePaneBase
 from providers import get_analyzers_by_category, get_all_categories, ProviderType
 from providers.analysis import AnalyzerCategory
 from util.diatonic_key import get_notation_format_display_list
+from util.const import BPM_RANGE_PRESETS
 
 
 class ValidatedLineEdit(QLineEdit):
@@ -66,16 +67,6 @@ class ValidatedLineEdit(QLineEdit):
 class MetadataPane(PreferencePaneBase):
     """Preference pane for metadata and analyzer settings."""
 
-    # BPM range presets: (display_name, (min, max))
-    BPM_PRESETS = [
-        ("Hip Hop / Trap (55-118)", (55, 118)),
-        ("House / Techno (98-138)", (98, 138)),
-        ("Trance / Dance (117-151)", (117, 151)),
-        ("Drum & Bass (149-181)", (149, 181)),
-        ("Hardstyle / Hardcore (95-198)", (95, 198)),
-        ("Custom", (None, None)),
-    ]
-
     # Key notation formats are now retrieved from util.diatonic_key to maintain consistency
 
     def __init__(self, parent=None):
@@ -112,7 +103,7 @@ class MetadataPane(PreferencePaneBase):
         preset_row = QHBoxLayout()
         preset_row.addWidget(QLabel("Detection range:"))
         self.bpm_preset_combo = QComboBox()
-        for preset_name, _ in self.BPM_PRESETS:
+        for preset_name, _ in BPM_RANGE_PRESETS:
             self.bpm_preset_combo.addItem(preset_name)
         preset_row.addWidget(self.bpm_preset_combo)
         preset_row.addStretch()
@@ -181,7 +172,7 @@ class MetadataPane(PreferencePaneBase):
         if index < 0:
             return
 
-        preset_name, preset_range = self.BPM_PRESETS[index]
+        preset_name, preset_range = BPM_RANGE_PRESETS[index]
         if preset_range[0] is not None:
             # Block signals to avoid recursion
             self.bpm_min_edit.blockSignals(True)
@@ -203,7 +194,7 @@ class MetadataPane(PreferencePaneBase):
 
             # Find matching preset
             matching_index = -1
-            for i, (_, preset_range) in enumerate(self.BPM_PRESETS):
+            for i, (_, preset_range) in enumerate(BPM_RANGE_PRESETS):
                 if preset_range[0] == min_val and preset_range[1] == max_val:
                     matching_index = i
                     break
@@ -214,12 +205,12 @@ class MetadataPane(PreferencePaneBase):
                 self.bpm_preset_combo.setCurrentIndex(matching_index)
             else:
                 # Set to "Custom"
-                self.bpm_preset_combo.setCurrentIndex(len(self.BPM_PRESETS) - 1)
+                self.bpm_preset_combo.setCurrentIndex(len(BPM_RANGE_PRESETS) - 1)
             self.bpm_preset_combo.blockSignals(False)
         except (ValueError, AttributeError):
             # Invalid input - set to Custom
             self.bpm_preset_combo.blockSignals(True)
-            self.bpm_preset_combo.setCurrentIndex(len(self.BPM_PRESETS) - 1)
+            self.bpm_preset_combo.setCurrentIndex(len(BPM_RANGE_PRESETS) - 1)
             self.bpm_preset_combo.blockSignals(False)
 
     def _validate_bpm_range(self) -> None:
