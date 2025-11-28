@@ -686,7 +686,7 @@ class SubBandSeparator:
         return returnval
 
 
-@analyzer(AnalyzerCategory.BPM, debug_only=True)
+@analyzer(AnalyzerCategory.BPM)
 class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using the RapidEvolution3 algorithm.

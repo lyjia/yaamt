@@ -20,7 +20,7 @@ from util.logging import log
 from providers.analysis.bpm.util import adjust_bpm_to_range
 
 
-@analyzer(AnalyzerCategory.BPM, debug_only=True)
+@analyzer(AnalyzerCategory.BPM)
 class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using librosa's beat tracking algorithm.
