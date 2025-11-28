@@ -19,7 +19,7 @@ from util.analyzer_options import AnalyzerOption, build_widget_from_option
 from util.logging import log
 
 
-@analyzer(AnalyzerCategory.BPM)
+@analyzer(AnalyzerCategory.BPM, debug_only=True)
 class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using librosa's beat tracking algorithm.
@@ -40,7 +40,6 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
     description = "Detects tempo using librosa's beat tracking algorithm"
     category = "bpm"
     version = "1.0.0"
-    debug_only = True
 
     def analyze(self) -> AnalyzerResult:
         """

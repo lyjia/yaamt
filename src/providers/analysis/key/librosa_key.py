@@ -29,7 +29,7 @@ MINOR_PROFILE = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 
 PITCH_CLASSES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 
-@analyzer(AnalyzerCategory.KEY)
+@analyzer(AnalyzerCategory.KEY, debug_only=True)
 class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
     """
     Musical key analyzer using librosa chromagram and Krumhansl-Schmuckler algorithm.
@@ -51,7 +51,6 @@ class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
     description = "Detects musical key using librosa's chromagram and Krumhansl-Schmuckler algorithm"
     category = "key"
     version = "1.0.0"
-    debug_only = True
 
     def analyze(self) -> AnalyzerResult:
         """

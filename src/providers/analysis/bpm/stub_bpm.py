@@ -16,7 +16,7 @@ from util.analyzer_options import AnalyzerOption
 from util.logging import log
 
 
-@analyzer(AnalyzerCategory.BPM)
+@analyzer(AnalyzerCategory.BPM, debug_only=True)
 class StubBPMAnalyzer(AnalyzerBase):
     """
     A stub analyzer for testing purposes.
@@ -32,7 +32,6 @@ class StubBPMAnalyzer(AnalyzerBase):
     description = "Test analyzer that returns a fixed BPM value"
     category = "bpm"
     version = "0.1.0"
-    debug_only = True
 
     def analyze(self) -> AnalyzerResult:
         """

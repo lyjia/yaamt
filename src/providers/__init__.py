@@ -110,7 +110,7 @@ def register_analyzer(category: AnalyzerCategory, klass: Type[AnalyzerBase]):
         log.warning(f"Error registering resources for {klass.__name__}: {e}")
 
 
-def analyzer(category: AnalyzerCategory) -> Callable[[Type[AnalyzerBase]], Type[AnalyzerBase]]:
+def analyzer(category: AnalyzerCategory, debug_only: bool = False) -> Callable[[Type[AnalyzerBase]], Type[AnalyzerBase]]:
     """
     Class decorator that registers an analyzer with the provider registry.
 
@@ -119,10 +119,17 @@ def analyzer(category: AnalyzerCategory) -> Callable[[Type[AnalyzerBase]], Type[
         class MyBPMAnalyzer(AnalyzerBase):
             ...
 
+        @analyzer(AnalyzerCategory.BPM, debug_only=True)
+        class ExperimentalAnalyzer(AnalyzerBase):
+            ...
+
     :param category: The category under which the analyzer should be registered.
+    :param debug_only: If True, analyzer is only available in debug builds (default: False).
     :return: A decorator function that registers the class and returns it unchanged.
     """
     def decorator(klass: Type[AnalyzerBase]) -> Type[AnalyzerBase]:
+        if debug_only:
+            klass.debug_only = True
         register_analyzer(category, klass)
         return klass
     return decorator

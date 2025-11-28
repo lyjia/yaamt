@@ -682,7 +682,7 @@ class SubBandSeparator:
         return returnval
 
 
-@analyzer(AnalyzerCategory.BPM)
+@analyzer(AnalyzerCategory.BPM, debug_only=True)
 class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
     """
     BPM analyzer using the RapidEvolution3 algorithm.
@@ -703,7 +703,6 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
     name = "RE3 Spectral BPM Analyzer"
     description = "Multi-band spectral analysis algorithm adapted from RapidEvolution3 by DJ Qualia."
     category = "bpm"
-    debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"
 
     def analyze(self) -> AnalyzerResult:

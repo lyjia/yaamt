@@ -29,7 +29,7 @@ from providers.analysis.key.support.wavelet import (
 )
 
 
-@analyzer(AnalyzerCategory.KEY)
+@analyzer(AnalyzerCategory.KEY, debug_only=True)
 class RE3WaveletKeyAnalyzer(AnalyzerBase):
     """
     Musical key analyzer adapted from the RapidEvolution3 CWT algorithm.
@@ -50,7 +50,6 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
     name = "RE3 Wavelet Key Analyzer"
     description = "Continuous Wavelet Transform-based key detection algorithm adapted from RapidEvolution3 by DJ Qualia."
     category = "key"
-    debug_only = True  # Heavy computation, excluded from release builds
     version = "1.0.0"
 
     def analyze(self) -> AnalyzerResult:
