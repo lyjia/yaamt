@@ -1,5 +1,9 @@
 import pytest
 import os
+import shutil
+import tempfile
+from unittest import mock
+import miniaudio
 from providers.audio.factory import AudioStreamFactory
 from providers.audio.miniaudio_stream import MiniaudioStream
 from util.const import PROJECT_ROOT
@@ -100,3 +104,85 @@ class TestAudioStreamBase:
             stream.seek(0)
         # Closing again should not raise an error, typically.
         stream.close()
+
+
+class TestSpecialCharacterFilenames:
+    """Tests for handling files with special characters in their names."""
+
+    def test_memory_mode_fallback_for_special_characters(self, tmp_path):
+        """
+        Verify that the stream falls back to memory-based loading when
+        file-based loading fails (simulating Windows Unicode path issues).
+        """
+        # Create a copy of the test file with special characters in the name
+        special_name = "Zookëper - Verano.flac"
+        special_path = tmp_path / special_name
+        shutil.copy(AUDIO_FILE_PATH, special_path)
+
+        # Mock get_file_info to raise DecodeError (simulating Windows behavior)
+        original_get_file_info = miniaudio.get_file_info
+        with mock.patch.object(
+            miniaudio, 'get_file_info',
+            side_effect=miniaudio.DecodeError("could not open/decode file")
+        ):
+            # The stream should fall back to memory mode
+            stream = MiniaudioStream(str(special_path))
+
+            # Verify memory mode is active
+            assert stream._memory_mode is True
+
+            # Verify the stream works correctly
+            assert stream.sample_rate == EXPECTED_SAMPLERATE
+            assert stream.channels_qty == EXPECTED_NCHANNELS
+            assert stream.sample_width == EXPECTED_SAMPLE_WIDTH
+
+            # Verify reading works
+            data = stream.read(1024)
+            assert isinstance(data, bytes)
+            assert len(data) > 0
+
+            # Verify seeking works in memory mode
+            initial_data = stream.read(512)
+            stream.seek(1000)
+            data_after_seek = stream.read(512)
+            stream.seek(0)
+            data_from_start = stream.read(512)
+
+            # The data after seeking back should match initial data
+            # (we need to account for the first read that advanced the position)
+            assert len(data_from_start) > 0
+            assert len(data_after_seek) > 0
+
+            stream.close()
+
+    def test_memory_mode_releases_resources_on_close(self, tmp_path):
+        """
+        Verify that memory-mode resources are properly released when closed.
+        """
+        special_name = "tëst_filé.flac"
+        special_path = tmp_path / special_name
+        shutil.copy(AUDIO_FILE_PATH, special_path)
+
+        with mock.patch.object(
+            miniaudio, 'get_file_info',
+            side_effect=miniaudio.DecodeError("could not open/decode file")
+        ):
+            stream = MiniaudioStream(str(special_path))
+            assert stream._file_data is not None  # Data loaded
+            stream.close()
+            assert stream._file_data is None  # Data released
+
+    def test_unsupported_format_in_memory_mode_raises_error(self, tmp_path):
+        """
+        Verify that an unsupported file extension raises an appropriate error
+        when falling back to memory mode.
+        """
+        unsupported_file = tmp_path / "tëst.xyz"
+        unsupported_file.write_bytes(b"fake audio data")
+
+        with mock.patch.object(
+            miniaudio, 'get_file_info',
+            side_effect=miniaudio.DecodeError("could not open/decode file")
+        ):
+            with pytest.raises(miniaudio.DecodeError, match="Unsupported audio format"):
+                MiniaudioStream(str(unsupported_file))

@@ -5,8 +5,18 @@ This module provides the MiniaudioStream class, which uses miniaudio
 to read and seek within audio files.
 """
 
+import os
 import miniaudio
 from .base import AudioStreamBase
+
+
+# Mapping of file extensions to miniaudio info functions for memory-based loading
+_EXTENSION_INFO_FUNCTIONS = {
+    '.mp3': miniaudio.mp3_get_info,
+    '.wav': miniaudio.wav_get_info,
+    '.flac': miniaudio.flac_get_info,
+    '.ogg': miniaudio.vorbis_get_info,
+}
 
 
 class MiniaudioStream(AudioStreamBase):
@@ -16,6 +26,10 @@ class MiniaudioStream(AudioStreamBase):
     This class uses miniaudio.stream_file() to open an audio file and provides
     methods to read, seek, and close the stream, as well as properties to
     access audio format information.
+
+    When file-based loading fails (e.g., due to special characters in the
+    filename on Windows), it falls back to memory-based loading using Python's
+    file I/O which correctly handles Unicode paths on all platforms.
     """
 
     def __init__(self, file_path: str):
@@ -26,10 +40,101 @@ class MiniaudioStream(AudioStreamBase):
             file_path: The path to the audio file to stream.
         """
         self.file_path = file_path
-        self.info = miniaudio.get_file_info(file_path)
-        self.stream_generator = miniaudio.stream_file(self.file_path)
         self._is_closed = False
         self._buffer = bytearray()  # Buffer for handling variable frame requests
+        self._memory_mode = False  # Whether we're using memory-based streaming
+        self._file_data: bytes | None = None  # File data for memory-based streaming
+        self._seek_frame_offset = 0  # Current seek position for memory mode
+
+        try:
+            # Try file-based loading first (efficient for ASCII paths)
+            self.info = miniaudio.get_file_info(file_path)
+            self.stream_generator = miniaudio.stream_file(self.file_path)
+        except miniaudio.DecodeError:
+            # Fall back to memory-based loading for Unicode path issues
+            self._init_memory_mode()
+
+    def _init_memory_mode(self) -> None:
+        """
+        Initializes memory-based streaming by reading the file using Python's I/O.
+
+        This method is used as a fallback when file-based loading fails, typically
+        due to special characters in the filename on Windows. Python's file I/O
+        correctly handles Unicode paths on all platforms.
+        """
+        self._memory_mode = True
+
+        # Read file using Python's I/O (handles Unicode paths correctly)
+        with open(self.file_path, 'rb') as f:
+            self._file_data = f.read()
+
+        # Determine file format from extension
+        ext = os.path.splitext(self.file_path)[1].lower()
+        info_func = _EXTENSION_INFO_FUNCTIONS.get(ext)
+
+        if info_func is None:
+            raise miniaudio.DecodeError(
+                f"Unsupported audio format for memory-based loading: {ext}"
+            )
+
+        # Get file info from memory data
+        self.info = info_func(self._file_data)
+
+        # Create memory-based stream with native format
+        self._create_memory_stream()
+
+    def _create_memory_stream(self, seek_frame: int = 0) -> None:
+        """
+        Creates a memory-based stream generator.
+
+        Args:
+            seek_frame: The frame offset to start streaming from.
+        """
+        self._seek_frame_offset = seek_frame
+        self.stream_generator = miniaudio.stream_memory(
+            self._file_data,
+            output_format=self.info.sample_format,
+            nchannels=self.info.nchannels,
+            sample_rate=self.info.sample_rate,
+        )
+
+        # Reset generator state
+        if hasattr(self, '_generator_primed'):
+            delattr(self, '_generator_primed')
+        self._buffer.clear()
+
+        # Skip frames to reach seek position
+        if seek_frame > 0:
+            self._skip_frames(seek_frame)
+
+    def _skip_frames(self, n_frames: int) -> None:
+        """
+        Skips a specified number of frames in the stream.
+
+        Used for seeking in memory mode since stream_memory doesn't support seek_frame.
+
+        Args:
+            n_frames: Number of frames to skip.
+        """
+        bytes_per_frame = self.info.nchannels * self.info.sample_width
+        bytes_to_skip = n_frames * bytes_per_frame
+        bytes_skipped = 0
+
+        try:
+            while bytes_skipped < bytes_to_skip:
+                if not hasattr(self, '_generator_primed'):
+                    chunk = self.stream_generator.send(None)
+                    self._generator_primed = True
+                else:
+                    # Request frames in chunks
+                    frames_remaining = (bytes_to_skip - bytes_skipped) // bytes_per_frame
+                    chunk = self.stream_generator.send(min(frames_remaining, 4096))
+
+                if chunk is None or len(chunk) == 0:
+                    break
+                bytes_skipped += len(chunk) * chunk.itemsize
+        except StopIteration:
+            pass  # Reached end of stream while seeking
 
     def read(self, n_frames: int) -> bytes:
         """
@@ -91,11 +196,18 @@ class MiniaudioStream(AudioStreamBase):
         if self._is_closed:
             raise ValueError("Stream is closed.")
 
-        self.stream_generator = miniaudio.stream_file(self.file_path, seek_frame=frame_offset)
-        # Reset the generator priming flag and buffer since we have a new generator
-        if hasattr(self, '_generator_primed'):
-            delattr(self, '_generator_primed')
-        self._buffer.clear()
+        if self._memory_mode:
+            # Memory mode: recreate stream and skip frames
+            self._create_memory_stream(seek_frame=frame_offset)
+        else:
+            # File mode: use miniaudio's native seek
+            self.stream_generator = miniaudio.stream_file(
+                self.file_path, seek_frame=frame_offset
+            )
+            # Reset the generator priming flag and buffer since we have a new generator
+            if hasattr(self, '_generator_primed'):
+                delattr(self, '_generator_primed')
+            self._buffer.clear()
 
 
     def close(self) -> None:
@@ -108,6 +220,7 @@ class MiniaudioStream(AudioStreamBase):
             # We can mark it as closed and set references to None.
             self.stream_generator = None
             self.info = None
+            self._file_data = None  # Release memory buffer if in memory mode
             self._is_closed = True
 
     @property
