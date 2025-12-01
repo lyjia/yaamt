@@ -553,7 +553,9 @@ def write_output(content: str, output_file: Optional[str] = None) -> None:
     """
     if output_file:
         output_path = Path(output_file)
-        with open(output_path, 'w', encoding='utf-8') as f:
+        # Use newline='' to prevent double newline translation on Windows
+        # (csv module already produces appropriate line endings)
+        with open(output_path, 'w', encoding='utf-8', newline='') as f:
             f.write(content)
             f.write('\n')
     else:

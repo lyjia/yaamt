@@ -231,6 +231,52 @@ class AnalyzerWorker(QRunnable):
         self.signals.worker_finished.emit(self.worker_id, self.task)
 
 
+def _postprocess_result_data(result_data: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Postprocess analyzer result data, converting raw outputs to final values.
+
+    This handles conversions like BPM candidates to final BPM values with range
+    adjustment. Used by both tag writing and report generation to ensure
+    consistent output.
+
+    Args:
+        result_data: Raw result data dictionary from analyzer
+        options: Analyzer options dictionary (may contain bpm_min, bpm_max)
+
+    Returns:
+        Processed result data dictionary with converted values
+    """
+    if not result_data:
+        return {}
+
+    processed = result_data.copy()
+
+    # Handle BPM candidates: convert to final BPM value using range selection
+    if 'bpm_candidates' in processed:
+        candidates = processed.pop('bpm_candidates')
+        if candidates:
+            # Get BPM range from options or settings
+            min_bpm = options.get('bpm_min')
+            max_bpm = options.get('bpm_max')
+
+            # Fall back to QSettings if not in options
+            if min_bpm is None:
+                qsettings = get_qsettings()
+                min_bpm = qsettings.value(BPM_RANGE_MIN_KEY, BPM_RANGE_MIN_DEFAULT, type=int)
+            if max_bpm is None:
+                qsettings = get_qsettings()
+                max_bpm = qsettings.value(BPM_RANGE_MAX_KEY, BPM_RANGE_MAX_DEFAULT, type=int)
+
+            # Select best BPM from candidates
+            final_bpm = select_best_bpm(candidates, min_bpm, max_bpm)
+            if final_bpm is not None:
+                processed['bpm'] = final_bpm
+                log.debug(f"Selected BPM {final_bpm:.2f} from {len(candidates)} candidates "
+                         f"(range: {min_bpm}-{max_bpm})")
+
+    return processed
+
+
 class WorkerSignals(QObject):
     """
     Signals emitted by analyzer workers.
@@ -577,32 +623,8 @@ class AnalyzerDispatcher(QObject):
 
         if task.result.success and not task.result.skipped and task.result.data:
             try:
-                # Handle special case: mode field from key analyzer
-                # Mode should be appended to comments in format "Key: C (ionian)"
-                result_data = task.result.data.copy()
-
-                # Handle BPM candidates: convert to final BPM value using range selection
-                if 'bpm_candidates' in result_data:
-                    candidates = result_data.pop('bpm_candidates')
-                    if candidates:
-                        # Get BPM range from options or settings
-                        min_bpm = task.options.get('bpm_min')
-                        max_bpm = task.options.get('bpm_max')
-
-                        # Fall back to QSettings if not in options
-                        if min_bpm is None:
-                            qsettings = get_qsettings()
-                            min_bpm = qsettings.value(BPM_RANGE_MIN_KEY, BPM_RANGE_MIN_DEFAULT, type=int)
-                        if max_bpm is None:
-                            qsettings = get_qsettings()
-                            max_bpm = qsettings.value(BPM_RANGE_MAX_KEY, BPM_RANGE_MAX_DEFAULT, type=int)
-
-                        # Select best BPM from candidates
-                        final_bpm = select_best_bpm(candidates, min_bpm, max_bpm)
-                        if final_bpm is not None:
-                            result_data['bpm'] = final_bpm
-                            log.debug(f"Selected BPM {final_bpm:.2f} from {len(candidates)} candidates "
-                                     f"(range: {min_bpm}-{max_bpm})")
+                # Apply standard postprocessing (BPM candidate selection, etc.)
+                result_data = _postprocess_result_data(task.result.data, task.options)
 
                 # Note: There isn't a standard way to store diatonic mode so we're just gonna put it in comments
                 # if it exists
@@ -695,9 +717,13 @@ class AnalyzerDispatcher(QObject):
             # Build results list in the format expected by format_analysis_results
             results = []
             for task in self.completed_tasks:
+                # Apply same postprocessing as tag writing (BPM candidate selection, etc.)
+                raw_data = task.result.data if task.result and task.result.success else {}
+                processed_data = _postprocess_result_data(raw_data, task.options) if raw_data else {}
+
                 result_dict = {
                     'filepath': task.media_file.file_path,
-                    'results': task.result.data if task.result and task.result.success else {},
+                    'results': processed_data,
                     'status': 'success' if (task.result and task.result.success) else (
                         'skipped' if (task.result and task.result.skipped) else 'error'
                     ),
