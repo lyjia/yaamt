@@ -71,11 +71,17 @@ These automatically use the virtual environment and are shorthand for running th
 
 ### GUI Mode
 
-To launch the graphical user interface:
+To launch the graphical user interface, you can use the convenience scripts:
 
 ```bash
 ./yaamt-gui.sh      # Linux/macOS
 .\yaamt-gui.bat     # Windows
+```
+
+Or start `yaamt-gui.py` directly, from this project's root folder:
+
+```bash
+python src/yaamt-gui.py
 ```
 
 ### Command-Line Usage
