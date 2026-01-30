@@ -34,7 +34,7 @@ Binary builds are currently a work-in-progress. Check back soon for updates!
 
 This project currently requires a working Python 3.12 (or greater) installation. It is recommended to use a virtual environment.
 
-The following commands will install the project and its dependencies on Linux or macOS:
+The following commands will install the project and its dependencies on Linux or macOS (assuming Python is installed):
 ```bash
 git clone git@github.com:lyjia/yaamt.git
 cd yaamt
@@ -71,11 +71,17 @@ These automatically use the virtual environment and are shorthand for running th
 
 ### GUI Mode
 
-To launch the graphical user interface:
+To launch the graphical user interface, you can use the convenience scripts:
 
 ```bash
 ./yaamt-gui.sh      # Linux/macOS
 .\yaamt-gui.bat     # Windows
+```
+
+Or start `yaamt-gui.py` directly, from this project's root folder:
+
+```bash
+python src/yaamt-gui.py
 ```
 
 ### Command-Line Usage
