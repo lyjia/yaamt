@@ -69,7 +69,6 @@ excludes = [
     'imageio',
     'PIL',
     'tkinter',
-    'unittest',
     # yaamt-eval only (not shipped in GUI/CLI builds)
     'pandas',
     'mingus',

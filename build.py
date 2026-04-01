@@ -129,87 +129,39 @@ class PyInstallerBuilder(BuildBackend):
         return "pyinstaller"
 
     def build(self, dist_dir: Path) -> None:
-        """Build both CLI and GUI executables using PyInstaller"""
+        """Build both CLI and GUI executables using the unified .spec file."""
         dist_dir.mkdir(parents=True, exist_ok=True)
 
-        # Platform-specific separator for --add-data
-        data_sep = ";" if self.config.platform == "windows" else ":"
+        # Set environment variables read by yaamt.spec
+        env = os.environ.copy()
+        env['BUILD_MODE'] = self.config.build_mode
+        env['YAAMT_ICON_DIR'] = str(Path('resources/icons'))
+        if self.config.arch == "arm64":
+            env['TARGET_ARCH'] = 'arm64'
+        elif self.config.arch == "x64":
+            env['TARGET_ARCH'] = 'x86_64'
 
-        # Base options shared by both builds
-        base_opts = [
+        print("=== Building with PyInstaller (unified spec)... ===")
+        cmd = [
             sys.executable, "-m", "PyInstaller",
-            "--onedir",
-            "--paths=src",
-            f"--distpath={dist_dir}",
-            "--noconfirm",  # Don't ask for confirmation
-        ]
-
-        # Build GUI first (has more dependencies, creates the base folder)
-        print("=== Building GUI with PyInstaller... ===")
-        gui_opts = base_opts + [
-            "--name=yaamt-gui",
-            f"--add-data=resources{data_sep}resources",
-        ]
-
-        # Add windowed mode for GUI (no console window)
-        if self.config.platform in ("windows", "macos"):
-            gui_opts.append("--windowed")
-
-        # Add icon if available
-        icon_path = self._get_icon_path()
-        if icon_path:
-            gui_opts.append(f"--icon={icon_path}")
-
-        gui_opts.append(FILENAME_SRC_GUI)
-        subprocess.run(gui_opts, check=True)
-
-        # Build CLI into a separate folder first
-        print("=== Building CLI with PyInstaller... ===")
-        cli_opts = [
-            sys.executable, "-m", "PyInstaller",
-            "--onedir",
-            "--paths=src",
+            "yaamt.spec",
             f"--distpath={dist_dir}",
             "--noconfirm",
-            "--name=yaamt",
         ]
+        subprocess.run(cmd, env=env, check=True)
 
-        # Add icon if available
-        if icon_path:
-            cli_opts.append(f"--icon={icon_path}")
+        # Run post-build cleanup
+        yaamt_dir = dist_dir / "yaamt"
+        if yaamt_dir.exists():
+            print("\n=== Running post-build cleanup... ===")
+            cleanup_cmd = [
+                sys.executable,
+                str(Path('scripts/cleanup_release.py')),
+                str(yaamt_dir),
+            ]
+            subprocess.run(cleanup_cmd, check=True)
 
-        cli_opts.append(FILENAME_SRC_CLI)
-        subprocess.run(cli_opts, check=True)
-
-        # Move CLI executable into the GUI folder
-        gui_dir = dist_dir / "yaamt-gui"
-        cli_dir = dist_dir / "yaamt"
-        cli_exe = "yaamt.exe" if self.config.platform == "windows" else "yaamt"
-
-        shutil.copy2(cli_dir / cli_exe, gui_dir / cli_exe)
-
-        # Remove the separate CLI folder (the _internal is shared from GUI)
-        shutil.rmtree(cli_dir)
-
-        print(f"=== PyInstaller build complete. Output in {gui_dir} ===")
-
-    def _get_icon_path(self) -> str | None:
-        """Get the appropriate icon path for the current platform"""
-        if self.config.platform == "windows":
-            ico_path = Path("resources/icons/app-icon-gui.ico")
-            if ico_path.exists():
-                return str(ico_path)
-            print("Warning: No .ico icon file found. Windows executable will use default icon.")
-        elif self.config.platform == "macos":
-            icns_path = Path("resources/icons/app-icon-gui.icns")
-            if icns_path.exists():
-                return str(icns_path)
-            print("Warning: No .icns icon file found. macOS app will use default icon.")
-        else:  # Linux
-            png_path = Path("resources/icons/app-icon-gui.png")
-            if png_path.exists():
-                return str(png_path)
-        return None
+        print(f"=== PyInstaller build complete. Output in {yaamt_dir} ===")
 
 
 class NuitkaBuilder(BuildBackend):
@@ -429,6 +381,22 @@ def create_build_workspace(build_mode: str, project_root: Path) -> Path:
             shutil.copytree(project_root / 'resources', resources_dest)
             print(f"  Copied resources/")
 
+        # Copy PyInstaller spec file
+        spec_file = project_root / 'yaamt.spec'
+        if spec_file.exists():
+            shutil.copy2(spec_file, workspace_root / 'yaamt.spec')
+            print(f"  Copied yaamt.spec")
+
+        # Copy scripts/ directory (contains runtime hooks and cleanup script)
+        scripts_src = project_root / 'scripts'
+        if scripts_src.exists():
+            shutil.copytree(
+                scripts_src,
+                workspace_root / 'scripts',
+                ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo')
+            )
+            print(f"  Copied scripts/")
+
         print(f"Build workspace created")
         return workspace_root
     except Exception as e:
@@ -476,45 +444,6 @@ def prepare_source_for_build(temp_src_path: Path, build_mode: str, version_strin
 
     print(f"  Patched IS_DEBUG_BUILD = {is_debug_value}")
     print(f"  Patched VERSION_STRING = {version_string}")
-
-    # For release builds, remove debug-only analyzers from _manifest.py
-    if build_mode == 'release':
-        manifest_file = temp_src_path / 'src' / 'providers' / 'analysis' / '_manifest.py'
-        src_dir = temp_src_path / 'src'
-
-        with open(manifest_file, 'r') as f:
-            lines = f.readlines()
-
-        # Filter out imports of modules that have @analyzer(..., debug_only=True)
-        filtered_lines = []
-        removed_count = 0
-
-        for line in lines:
-            # Check if this is an import line (e.g., "from providers.analysis.bpm import stub_bpm")
-            import_match = re.match(r'^from\s+(providers\.analysis\.\w+)\s+import\s+(\w+)', line)
-            if import_match:
-                package_path = import_match.group(1)  # e.g., "providers.analysis.bpm"
-                module_name = import_match.group(2)   # e.g., "stub_bpm"
-
-                # Convert to file path
-                module_file = src_dir / package_path.replace('.', '/') / f"{module_name}.py"
-
-                if module_file.exists():
-                    with open(module_file, 'r') as f:
-                        module_content = f.read()
-
-                    # Check for @analyzer(..., debug_only=True) pattern
-                    if re.search(r'@analyzer\s*\([^)]*debug_only\s*=\s*True[^)]*\)', module_content):
-                        removed_count += 1
-                        print(f"    Excluding debug-only analyzer: {module_name}")
-                        continue  # Skip this import
-
-            filtered_lines.append(line)
-
-        with open(manifest_file, 'w') as f:
-            f.writelines(filtered_lines)
-
-        print(f"  Removed {removed_count} debug-only analyzer(s) from manifest")
 
 
 def cleanup_build_workspace(temp_path: Path) -> None:
@@ -691,8 +620,8 @@ class Archiver:
         # Determine build directory based on tool
         tool = self.config.get_build_tool()
         if tool == "pyinstaller":
-            # PyInstaller outputs to dist_dir/yaamt-gui/ (contains both executables)
-            build_dir = self.config.output_dir / "yaamt-gui"
+            # PyInstaller outputs to dist_dir/yaamt/ (contains both executables)
+            build_dir = self.config.output_dir / "yaamt"
         elif tool == "nuitka":
             build_dir = self.config.get_nuitka_dist_dir()
         else:
