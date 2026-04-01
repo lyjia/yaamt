@@ -42,8 +42,9 @@ jobs:
       run: |
         pytest
 
-  # DISABLED: Build job temporarily disabled to conserve GitHub Actions minutes
-  # To re-enable, uncomment this entire build job section
+  # DISABLED: Build job temporarily disabled to conserve GitHub Actions minutes.
+  # To re-enable, uncomment this entire build job section.
+  # Uses PyInstaller via build.py with unified yaamt.spec.
   #build:
   #  needs: test
   #  strategy:
@@ -51,53 +52,34 @@ jobs:
   #      include:
   #        - os: ubuntu-latest
   #          arch: x64
-  #        - os: ubuntu-latest
-  #          arch: arm64
   #        - os: windows-latest
   #          arch: x64
-  #        - os: macos-latest # x64 runner
+  #        - os: macos-latest
   #          arch: x64
-  #        - os: macos-14 # arm64 runner for Apple Silicon
+  #        - os: macos-14
   #          arch: arm64
   #  runs-on: ${{ matrix.os }}
   #
   #  steps:
   #  - uses: actions/checkout@v4
   #
-  #  - name: Set up Python ${{ matrix.python-version }}
+  #  - name: Set up Python 3.12
   #    uses: actions/setup-python@v5
   #    with:
   #      python-version: '3.12'
   #
-  #  - name: Set up QEMU
-  #    if: matrix.arch == 'arm64' && startsWith(matrix.os, 'ubuntu')
-  #    uses: docker/setup-qemu-action@v3
-  #
-  #  - name: Create Release
-  #    id: create_release
-  #    if: ${{ startsWith(github.ref, 'refs/tags/') }}
-  #    uses: actions/create-release@v1
-  #    env:
-  #      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #    with:
-  #      tag_name: ${{ github.ref_name }}
-  #      release_name: Release ${{ github.ref_name }}
-  #      draft: false
-  #      prerelease: false
-  #
   #  - uses: ./.github/actions/setup-deps
   #
-  #  - name: Install build-specific dependencies
-  #    run: |
-  #      pip install cx_freeze nuitka ordered-set zstandard
+  #  - name: Install Inno Setup (Windows only)
+  #    if: runner.os == 'Windows'
+  #    run: choco install innosetup -y
   #
-  #  - name: Determine version name for archive
+  #  - name: Determine version name
   #    id: version_info
   #    shell: bash
   #    run: |
   #      ref_name="${{ github.ref_name }}"
   #      ref_name_sanitized="${ref_name//\//-}"
-  #
   #      if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
   #        VERSION_NAME="$ref_name_sanitized"
   #      else
@@ -105,10 +87,16 @@ jobs:
   #      fi
   #      echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
   #
-  #  - name: Build and archive with build.py script
-  #    run: python build.py --archive --version-name ${{ steps.version_info.outputs.VERSION_NAME }} --archive-platform ${{ matrix.os }} --archive-arch ${{ matrix.arch }}
+  #  - name: Build, archive, and create installer
+  #    shell: bash
+  #    run: |
+  #      BUILD_ARGS="--release --archive --version-name ${{ steps.version_info.outputs.VERSION_NAME }} --archive-platform ${{ matrix.os }} --archive-arch ${{ matrix.arch }}"
+  #      if [[ "${{ runner.os }}" == "Windows" ]]; then
+  #        BUILD_ARGS="$BUILD_ARGS --installer"
+  #      fi
+  #      python build.py $BUILD_ARGS
   #
-  #  - name: Determine archive name and content type
+  #  - name: Determine archive name
   #    id: archive_info
   #    shell: bash
   #    run: |
@@ -121,83 +109,19 @@ jobs:
   #      fi
   #      echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
   #
-  #      # Display archive size for monitoring
-  #      if [[ -f "$ARCHIVE_NAME" ]]; then
-  #        ARCHIVE_SIZE=$(du -h "$ARCHIVE_NAME" | cut -f1)
-  #        echo "Archive created: $ARCHIVE_NAME (size: $ARCHIVE_SIZE)"
-  #      fi
-  #
-  #  - name: Upload Build Artifact
-  #    if: ${{ !startsWith(github.ref, 'refs/tags/') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/development') }}
+  #  - name: Upload archive artifact
+  #    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/development'
   #    uses: actions/upload-artifact@v4
   #    with:
   #      name: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
   #      path: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
-  #      retention-days: 2
+  #      retention-days: 7
   #      compression-level: 9
   #
-  #  - name: Upload Release Asset
-  #    if: ${{ startsWith(github.ref, 'refs/tags/') }}
-  #    uses: actions/upload-release-asset@v1
-  #    env:
-  #      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #  - name: Upload installer artifact (Windows)
+  #    if: runner.os == 'Windows' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/development')
+  #    uses: actions/upload-artifact@v4
   #    with:
-  #      upload_url: ${{ steps.create_release.outputs.upload_url }}
-  #      asset_path: ./${{ steps.archive_info.outputs.ARCHIVE_NAME }}
-  #      asset_name: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
-  #      asset_content_type: ${{ steps.archive_info.outputs.ASSET_CONTENT_TYPE }}
-  #
-  #  # TODO: Installer builds are currently disabled during Nuitka transition
-  #  # Windows MSI installers need alternative solution (not supported by Nuitka)
-  #  # Linux .deb packages can be assembled manually with a custom script
-  #  # macOS .dmg creation pending Nuitka compatibility fixes
-  #  #
-  #  # - name: Build Installer
-  #  #   shell: bash
-  #  #   run: |
-  #  #     if [[ "${{ runner.os }}" == "Windows" ]]; then
-  #  #       python setup.py bdist_msi
-  #  #     elif [[ "${{ runner.os }}" == "macOS" ]]; then
-  #  #       python setup.py bdist_dmg
-  #  #     elif [[ "${{ runner.os }}" == "Linux" ]]; then
-  #  #       python setup.py bdist_deb
-  #  #     fi
-  #  #
-  #  # - name: Determine Installer Info
-  #  #   id: installer_info
-  #  #   shell: bash
-  #  #   run: |
-  #  #     INSTALLER_PATH=$(find dist -type f -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -print -quit)
-  #  #     if [[ -z "$INSTALLER_PATH" ]]; then
-  #  #       echo "Installer not found!"
-  #  #       exit 1
-  #  #     fi
-  #  #     echo "INSTALLER_PATH=$INSTALLER_PATH" >> $GITHUB_OUTPUT
-  #  #     INSTALLER_NAME=$(basename "$INSTALLER_PATH")
-  #  #     echo "INSTALLER_NAME=$INSTALLER_NAME" >> $GITHUB_OUTPUT
-  #  #
-  #  #     if [[ "${{ runner.os }}" == "Windows" ]]; then
-  #  #       echo "ASSET_CONTENT_TYPE=application/x-msi" >> $GITHUB_OUTPUT
-  #  #     elif [[ "${{ runner.os }}" == "macOS" ]]; then
-  #  #       echo "ASSET_CONTENT_TYPE=application/x-apple-diskimage" >> $GITHUB_OUTPUT
-  #  #     elif [[ "${{ runner.os }}" == "Linux" ]]; then
-  #  #       echo "ASSET_CONTENT_TYPE=application/vnd.debian.binary-package" >> $GITHUB_OUTPUT
-  #  #     fi
-  #  #
-  #  # - name: Upload Build Artifact (Installer)
-  #  #   if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-  #  #   uses: actions/upload-artifact@v4
-  #  #   with:
-  #  #     name: ${{ steps.installer_info.outputs.INSTALLER_NAME }}
-  #  #     path: ${{ steps.installer_info.outputs.INSTALLER_PATH }}
-  #  #
-  #  # - name: Upload Release Asset (Installer)
-  #  #   if: ${{ startsWith(github.ref, 'refs/tags/') }}
-  #  #   uses: actions/upload-release-asset@v1
-  #  #   env:
-  #  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #  #   with:
-  #  #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-  #  #     asset_path: ${{ steps.installer_info.outputs.INSTALLER_PATH }}
-  #  #     asset_name: ${{ steps.installer_info.outputs.INSTALLER_NAME }}
-  #  #     asset_content_type: ${{ steps.installer_info.outputs.ASSET_CONTENT_TYPE }}
+  #      name: yaamt-${{ steps.version_info.outputs.VERSION_NAME }}-windows-${{ matrix.arch }}-setup.exe
+  #      path: build/release-*/yaamt-*-setup.exe
+  #      retention-days: 7
