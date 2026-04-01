@@ -7,7 +7,6 @@ numpy==2.3.3
 filelock==3.17.0  # For resource download system cross-process file locking
 
 # packaging
-cx_Freeze==8.4.1
 nuitka==2.8.10
 pyinstaller==6.17.0
 imageio==2.37.0

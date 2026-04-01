@@ -2,8 +2,8 @@
 """
 Build script for YAAMT (Yet Another Audio Metadata Tool)
 
-This script builds the application for the current platform using PyInstaller (default),
-Nuitka, or cx_Freeze. Extracted from GitHub Actions workflow to allow local builds.
+This script builds the application for the current platform using PyInstaller (default)
+or Nuitka. Extracted from GitHub Actions workflow to allow local builds.
 
 Usage:
     python build.py [options]
@@ -11,7 +11,7 @@ Usage:
 Options:
     --platform <platform>   Override platform detection (windows, linux, macos)
     --arch <arch>          Override architecture detection (x64, arm64)
-    --tool <tool>          Build tool to use: pyinstaller (default), nuitka, cx_freeze
+    --tool <tool>          Build tool to use: pyinstaller (default), nuitka
     --output-dir <dir>     Output directory for build artifacts (default: build)
     --release              Build in release mode (default is debug mode)
     --archive              Create archive of build artifacts
@@ -97,13 +97,6 @@ class BuildConfig:
         """Get the Nuitka distribution directory"""
         return self.output_dir
 
-    def get_cx_freeze_dist_dir(self):
-        """Get the cx_Freeze distribution directory"""
-        # cx_Freeze creates directories like "exe.linux-x86_64-3.12"
-        exe_dirs = list(self.output_dir.glob("exe.*"))
-        if exe_dirs:
-            return exe_dirs[0]
-        return None
 
 
 # ============================================================================
@@ -322,77 +315,6 @@ class NuitkaBuilder(BuildBackend):
         subprocess.run(gui_args, check=True)
 
 
-class CxFreezeBuilder(BuildBackend):
-    """Build backend using cx_Freeze"""
-
-    @property
-    def name(self) -> str:
-        return "cx_freeze"
-
-    def build(self, dist_dir: Path) -> None:
-        """Build both CLI and GUI executables using cx_Freeze"""
-        from cx_Freeze import setup, Executable
-
-        dist_dir.mkdir(parents=True, exist_ok=True)
-
-        # Build options
-        build_exe_options = {
-            "packages": [
-                "os", "sys", "subprocess", "json", "pathlib", "logging",
-                "cffi", "PySide6", "PySide6.QtCore", "PySide6.QtGui",
-                "PySide6.QtWidgets", "mutagen", "pytest"
-            ],
-            "excludes": [
-                "tkinter", "unittest", "email", "xml", "xmlrpc",
-                "PySide6.QtSql"  # Causes macOS libiodbc errors
-            ],
-            "include_files": [
-                ("resources", "resources"),
-                ("src", "src")
-            ],
-            "optimize": 2,
-            "include_msvcr": True,
-            "build_exe": str(dist_dir)
-        }
-
-        # GUI base depends on platform
-        gui_base = "Win32GUI" if self.config.platform == "windows" else "gui"
-
-        # Icon path
-        icon_path = "resources/icons/app-icon-gui.png"
-
-        executables = [
-            Executable(
-                FILENAME_SRC_GUI,
-                base=gui_base,
-                target_name="yaamt-gui",
-                icon=icon_path
-            ),
-            Executable(
-                FILENAME_SRC_CLI,
-                base=None,  # Console application
-                target_name="yaamt",
-                icon=icon_path
-            )
-        ]
-
-        print("=== Building with cx_Freeze... ===")
-
-        # cx_Freeze needs to be run via setup() with sys.argv manipulation
-        old_argv = sys.argv
-        try:
-            sys.argv = [sys.argv[0], "build_exe"]
-            setup(
-                name="YAAMT",
-                version="0.0.0",
-                description="Yet Another Audio Metadata Tool",
-                options={"build_exe": build_exe_options},
-                executables=executables
-            )
-        finally:
-            sys.argv = old_argv
-
-        print(f"=== cx_Freeze build complete. Output in {dist_dir} ===")
 
 
 class DependencyInstaller:
@@ -458,7 +380,7 @@ class DependencyInstaller:
         subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], check=True)
 
         # Install build dependencies
-        build_deps = ["cx_freeze", "nuitka", "ordered-set", "zstandard"]
+        build_deps = ["nuitka", "ordered-set", "zstandard"]
         subprocess.run([sys.executable, "-m", "pip", "install"] + build_deps, check=True)
 
 
@@ -679,8 +601,6 @@ class Builder:
             return PyInstallerBuilder(self.config)
         elif tool == "nuitka":
             return NuitkaBuilder(self.config)
-        elif tool == "cx_freeze":
-            return CxFreezeBuilder(self.config)
         else:
             raise ValueError(f"Unknown build tool: {tool}")
 
@@ -775,8 +695,6 @@ class Archiver:
             build_dir = self.config.output_dir / "yaamt-gui"
         elif tool == "nuitka":
             build_dir = self.config.get_nuitka_dist_dir()
-        elif tool == "cx_freeze":
-            build_dir = self.config.get_cx_freeze_dist_dir()
         else:
             build_dir = self.config.output_dir
 
@@ -854,7 +772,7 @@ def main():
 
     parser.add_argument(
         "--tool",
-        choices=["pyinstaller", "nuitka", "cx_freeze"],
+        choices=["pyinstaller", "nuitka"],
         default=None,
         help="Build tool to use (default: pyinstaller)"
     )

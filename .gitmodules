@@ -7,3 +7,6 @@
 [submodule "references/MusicalKeyCNN"]
 	path = references/MusicalKeyCNN
 	url = https://github.com/a1ex90/MusicalKeyCNN
+[submodule "references/openkeyscan-analyzer"]
+	path = references/openkeyscan-analyzer
+	url = https://github.com/rekordcloud/openkeyscan-analyzer
