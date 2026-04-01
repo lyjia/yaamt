@@ -41,7 +41,12 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred. This is a python 3.12+ project, so avoid pulling in `typing` unless absolutely necessary.
 * Libraries brought in must be able to be compiled into a standalone executable using `nuitka`. If binaries cannot be built because of a dependency, code using that dependency must be gated with `debug_only=True` so that it is not included in the build process.
 * Avoid "magic" strings or values. Use enums or constants (defined in the same file or `src/util/const.py`) in their place. Make sure they are named descriptively. Exceptions to this are 0, 1, None, and "", if their purpose is obvious. 
-* Don't Repeat Yourself (DRY). If you find yourself writing the same code in multiple places, consider extracting it into a function.
+* Don't Repeat Yourself (DRY)! This is THE MOST IMPORTANT RULE. If you are writing the same code in multiple places, or duplicating existing code, prefer extracting that logic into a reusable function so that it only has to be specified once. Not following this rule has caused the most headaches. Duplicated code...
+  * bloats linecount, which burns through limited LLM context windows, which makes the LLM act stupider, and
+  * causes weird behavioral differences between different endpoints (like CLI and API behaving differently), and
+  * pisses off your developers, who have to spend time debugging and maintaining more code.
+* Boolean CLI arguments should be neutrally-worded and should accept a true|false or yes|no value (see `orchestrate.py`), rather than the wording of the option suggesting one default over another. (Use '--security-sanitization=yes|no' instead of '--enable-security-sanitization')
+* Always, ALWAYS simplify your work. (Keeping in mind the other code conventions.)
 
 ### Media Handling Conventions
 
@@ -95,13 +100,14 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * Do not make assumptions about the interfaces -- look them up! Either by reading the file directly or referencing documentation.
 * Break large edits up into smaller, bite-size chunks.
 * At the end of a task:
-    * Run the test suite to make sure that you did not break anything (if applicable).
-    * If all tests pass, ask to create a git commit if you are able to do so.
-    * It is OK to leaves tests broken if your current changes are part of a larger task, but you need to make sure that all tests pass and changes have test coverage before the large task can be considered done.
+  * Run the test suite to make sure that you did not break anything (if applicable).
+  * If all tests pass, ask to create a git commit if you are able to do so.
+  * It is OK to leaves tests broken if your current changes are part of a larger task, but you need to make sure that all tests pass and changes have test coverage before the large task can be considered done.
 * Make sure to use the Python virtual environment in `.venv` before running any python commands. The correct way to run a python command:
     * on WINDOWS (Poweshell): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py` (don't use backslashes they break things)
     * on WINDOWS (WSL): `.venv/Scripts/python -m pytest tests/test_analyzer_system.py`
-* When planning or generating a design document, avoid including code examples unless they are essential to the design. Always prefer pseudocode or a diagram. 
+* When planning or generating a design document, avoid including code examples unless they are essential to the design. Always prefer pseudocode or a diagram.
+* At the end of each phase in a multiphase plan, always perform a git commit. Your branch should have (at least) one commit per phase.
 
 ## Project Structure
 Adhere to the following structured project layout to ensure maintainability and scalability:
