@@ -668,6 +668,53 @@ class Archiver:
             tar.add(build_dir, arcname='.')
 
 
+def _create_installer(config: BuildConfig, version_name: str | None = None):
+    """Create a platform-native installer from the build output."""
+    if config.platform != "windows":
+        print(f"Installer generation not yet implemented for {config.platform}")
+        return
+
+    # Check for Inno Setup compiler
+    iscc = shutil.which("iscc")
+    if not iscc:
+        # Try common install locations
+        for candidate in [
+            Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"),
+            Path(r"C:\Program Files\Inno Setup 6\ISCC.exe"),
+        ]:
+            if candidate.exists():
+                iscc = str(candidate)
+                break
+
+    if not iscc:
+        print("Warning: Inno Setup (ISCC.exe) not found. Skipping installer creation.")
+        print("Install from: https://jrsoftware.org/isdl.php")
+        return
+
+    # Determine source directory (where PyInstaller output lives)
+    source_dir = config.output_dir / "yaamt"
+    if not source_dir.exists():
+        raise RuntimeError(f"Build output not found at {source_dir}")
+
+    version = version_name or "local"
+    iss_file = config.project_root / "installer" / "yaamt.iss"
+
+    if not iss_file.exists():
+        raise RuntimeError(f"Inno Setup script not found: {iss_file}")
+
+    print(f"\n=== Creating Windows installer with Inno Setup... ===")
+    cmd = [
+        iscc,
+        str(iss_file),
+        f"/DAppVersion={version}",
+        f"/DSourceDir={source_dir}",
+        f"/DOutputDir={config.output_dir}",
+        f"/DArch={config.arch}",
+    ]
+    subprocess.run(cmd, check=True)
+    print(f"=== Installer created in {config.output_dir} ===")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Build YAAMT for the current platform",
@@ -739,6 +786,12 @@ def main():
         help="Architecture name to use in archive filename (overrides detected arch)"
     )
 
+    parser.add_argument(
+        "--installer",
+        action="store_true",
+        help="Create a platform-native installer (Windows: Inno Setup)"
+    )
+
     args = parser.parse_args()
 
     try:
@@ -790,6 +843,10 @@ def main():
                 platform_override=args.archive_platform,
                 arch_override=args.archive_arch
             )
+
+        # Create installer if requested
+        if args.installer:
+            _create_installer(config, args.version_name)
 
     except Exception as e:
         print(f"\n[FAILED] Build failed: {e}", file=sys.stderr)
