@@ -138,12 +138,13 @@ class PlaybackWorker(QObject):
             self.position_changed.emit(current_position)
 
     @Slot(object)
-    def start_playback(self, media_file: MediaFile):
+    def start_playback(self, media_file: MediaFile, start_position: float = 0.0):
         """
         Start playback of the specified audio file.
 
         Args:
             media_file: MediaFile instance to play.
+            start_position: Position in seconds to begin playback from (default 0.0).
         """
         try:
             if self.state != STOPPED:
@@ -176,12 +177,23 @@ class PlaybackWorker(QObject):
             self.total_frames_read = 0
             self._playback_finished_flag = False
 
+            # Seek the stream before creating the device so playback starts
+            # at the requested position without briefly playing from the beginning.
+            if start_position > 0:
+                frame_offset = int(start_position * self.audio_stream.sample_rate)
+                self.audio_stream.seek(frame_offset)
+                self.total_frames_read = frame_offset
+
             # Create playback device
             self.playback_device = miniaudio.PlaybackDevice(
                 output_format=sample_format,
                 nchannels=self.audio_stream.channels_qty,
                 sample_rate=self.audio_stream.sample_rate
             )
+
+            # Set state to PLAYING before starting the device so the audio generator
+            # does not see STOPPED and exit immediately on its first callback.
+            self.state = PLAYING
 
             # Create and prime the generator before starting playback
             generator = self._audio_generator()
@@ -192,11 +204,11 @@ class PlaybackWorker(QObject):
             self.timer.setInterval(50)
             self.timer.start()
 
-            self.state = PLAYING
             self.playback_started.emit(self.current_file, self.duration)
 
         except Exception as e:
             log.error(f"Error starting playback: {str(e)}")
+            self.state = STOPPED
             self.error_occurred.emit(f"Error starting playback: {str(e)}")
             self.cleanup()
 
@@ -326,13 +338,10 @@ class PlaybackWorker(QObject):
         self._release_saved_position = 0.0
         self._release_was_playing = False
 
-        log.info(f"Reacquiring file after write: {file_path}")
+        log.info(f"Reacquiring file after write: {file_path} at position {saved_position:.2f}s")
 
         media_file = MediaFile(file_path)
-        self.start_playback(media_file)
-
-        if saved_position > 0:
-            self.seek(saved_position)
+        self.start_playback(media_file, start_position=saved_position)
 
         if not was_playing:
             self.pause()
