@@ -580,5 +580,6 @@ nuitka-crash-report.xml
 nul
 tmp/*
 
-# PyInstaller
+# PyInstaller (keep yaamt.spec - our unified build spec)
 *.spec
+!yaamt.spec
