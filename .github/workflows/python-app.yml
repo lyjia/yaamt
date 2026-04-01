@@ -42,86 +42,11 @@ jobs:
       run: |
         pytest
 
-  # DISABLED: Build job temporarily disabled to conserve GitHub Actions minutes.
-  # To re-enable, uncomment this entire build job section.
-  # Uses PyInstaller via build.py with unified yaamt.spec.
-  #build:
-  #  needs: test
-  #  strategy:
-  #    matrix:
-  #      include:
-  #        - os: ubuntu-latest
-  #          arch: x64
-  #        - os: windows-latest
-  #          arch: x64
-  #        - os: macos-latest
-  #          arch: x64
-  #        - os: macos-14
-  #          arch: arm64
-  #  runs-on: ${{ matrix.os }}
+  # Build and release are done locally, not in CI.
+  # Build artifacts (~700MB) are too large for GitHub Actions storage (500MB free plan).
   #
-  #  steps:
-  #  - uses: actions/checkout@v4
+  # To build and release manually:
+  #   python build.py --release --archive
+  #   python build.py --release --installer   (Windows, requires Inno Setup)
   #
-  #  - name: Set up Python 3.12
-  #    uses: actions/setup-python@v5
-  #    with:
-  #      python-version: '3.12'
-  #
-  #  - uses: ./.github/actions/setup-deps
-  #
-  #  - name: Install Inno Setup (Windows only)
-  #    if: runner.os == 'Windows'
-  #    run: choco install innosetup -y
-  #
-  #  - name: Determine version name
-  #    id: version_info
-  #    shell: bash
-  #    run: |
-  #      ref_name="${{ github.ref_name }}"
-  #      ref_name_sanitized="${ref_name//\//-}"
-  #      if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-  #        VERSION_NAME="$ref_name_sanitized"
-  #      else
-  #        VERSION_NAME="$ref_name_sanitized-${{ github.sha }}"
-  #      fi
-  #      echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
-  #
-  #  - name: Build, archive, and create installer
-  #    shell: bash
-  #    run: |
-  #      BUILD_ARGS="--release --archive --version-name ${{ steps.version_info.outputs.VERSION_NAME }} --archive-platform ${{ matrix.os }} --archive-arch ${{ matrix.arch }}"
-  #      if [[ "${{ runner.os }}" == "Windows" ]]; then
-  #        BUILD_ARGS="$BUILD_ARGS --installer"
-  #      fi
-  #      python build.py $BUILD_ARGS
-  #
-  #  - name: Determine archive name
-  #    id: archive_info
-  #    shell: bash
-  #    run: |
-  #      if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-  #        ARCHIVE_NAME="yaamt-${{ steps.version_info.outputs.VERSION_NAME }}-${{ matrix.os }}-${{ matrix.arch }}.zip"
-  #        echo "ASSET_CONTENT_TYPE=application/zip" >> $GITHUB_OUTPUT
-  #      else
-  #        ARCHIVE_NAME="yaamt-${{ steps.version_info.outputs.VERSION_NAME }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
-  #        echo "ASSET_CONTENT_TYPE=application/gzip" >> $GITHUB_OUTPUT
-  #      fi
-  #      echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
-  #
-  #  - name: Upload archive artifact
-  #    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/development'
-  #    uses: actions/upload-artifact@v4
-  #    with:
-  #      name: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
-  #      path: ${{ steps.archive_info.outputs.ARCHIVE_NAME }}
-  #      retention-days: 7
-  #      compression-level: 9
-  #
-  #  - name: Upload installer artifact (Windows)
-  #    if: runner.os == 'Windows' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/development')
-  #    uses: actions/upload-artifact@v4
-  #    with:
-  #      name: yaamt-${{ steps.version_info.outputs.VERSION_NAME }}-windows-${{ matrix.arch }}-setup.exe
-  #      path: build/release-*/yaamt-*-setup.exe
-  #      retention-days: 7
+  # Then create a GitHub Release and attach the archive/installer manually.
