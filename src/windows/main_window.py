@@ -128,6 +128,11 @@ class MainWindow(QMainWindow):
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
         self.edit_manager.autosave_changed.connect(self.on_autosave_changed)
 
+        # Coordinate playback pause/resume around file writes
+        from workers.gui.playback_coordinator import PlaybackCoordinator
+        self.playback_coordinator = PlaybackCoordinator(self.playback_worker)
+        self.edit_manager.set_playback_coordinator(self.playback_coordinator)
+
         # Right Pane (File List)
         self.files_view = QTreeView()
         self.file_model = MetadataTableModel(self.file_list_settings.columns, self.edit_manager)

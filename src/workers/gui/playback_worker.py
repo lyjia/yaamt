@@ -1,3 +1,6 @@
+import os
+import threading
+
 import miniaudio
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 from typing import Optional, Generator
@@ -24,6 +27,7 @@ class PlaybackWorker(QObject):
     playback_paused = Signal(str, float)
     playback_resumed = Signal(str, float)
     error_occurred = Signal(str)
+    file_released = Signal()               # emitted after file lock released for writing
 
     def __init__(self):
         super().__init__()
@@ -35,6 +39,11 @@ class PlaybackWorker(QObject):
         self.total_frames_read = 0
         self.chunk_size = 1024
         self._playback_finished_flag = False
+
+        # State for release/reacquire coordination during file writes
+        self._release_saved_position: float = 0.0
+        self._release_was_playing: bool = False
+        self._release_file_path: str | None = None
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_position)
@@ -218,6 +227,7 @@ class PlaybackWorker(QObject):
         """
         if self.state != STOPPED:
             self.state = STOPPED
+            self._release_file_path = None  # Cancel any pending reacquire
             self.timer.stop()
             self.playback_stopped.emit()
             self.cleanup()
@@ -255,3 +265,74 @@ class PlaybackWorker(QObject):
 
         except Exception as e:
             log.error(f"Error during cleanup: {str(e)}")
+
+    @Slot(str, object)
+    def release_for_write(self, file_path: str, event: threading.Event) -> None:
+        """
+        Temporarily release the currently playing file so it can be written to.
+        Called via signal from PlaybackCoordinator (executes on the playback thread).
+
+        Args:
+            file_path: The file path that needs to be released.
+            event: A threading.Event to set once the file is released, unblocking the save thread.
+        """
+        normalized_request = os.path.normcase(os.path.abspath(file_path))
+        normalized_current = (
+            os.path.normcase(os.path.abspath(self.current_file))
+            if self.current_file else None
+        )
+
+        if normalized_current != normalized_request:
+            event.set()
+            return
+
+        log.info(f"Releasing file for write: {file_path}")
+
+        # Save playback state for later reacquire
+        self._release_was_playing = (self.state == PLAYING)
+        self._release_saved_position = (
+            self.total_frames_read / self.audio_stream.sample_rate
+            if self.audio_stream and self.audio_stream.sample_rate
+            else 0.0
+        )
+        self._release_file_path = self.current_file
+
+        # Release the file: stop timer, close device and stream
+        self.timer.stop()
+        self.state = STOPPED
+        self.cleanup()
+
+        log.debug(f"File released (was_playing={self._release_was_playing}, "
+                   f"position={self._release_saved_position:.2f}s)")
+
+        self.file_released.emit()
+        event.set()
+
+    @Slot()
+    def reacquire_after_write(self) -> None:
+        """
+        Reopen and resume playback of a file that was temporarily released for writing.
+        Called via signal from PlaybackCoordinator (executes on the playback thread).
+        """
+        if self._release_file_path is None:
+            return  # Nothing to reacquire (user stopped playback during save)
+
+        file_path = self._release_file_path
+        saved_position = self._release_saved_position
+        was_playing = self._release_was_playing
+
+        # Clear release state before reacquiring
+        self._release_file_path = None
+        self._release_saved_position = 0.0
+        self._release_was_playing = False
+
+        log.info(f"Reacquiring file after write: {file_path}")
+
+        media_file = MediaFile(file_path)
+        self.start_playback(media_file)
+
+        if saved_position > 0:
+            self.seek(saved_position)
+
+        if not was_playing:
+            self.pause()

@@ -64,6 +64,7 @@ class EditManager(QObject):
         self._media_files: Dict[str, MediaFile] = {}
         self._autosave = True #always enable for now
         self._commit_thread = None
+        self._playback_coordinator = None
         self._initialized = True
 
     @property
@@ -87,6 +88,13 @@ class EditManager(QObject):
             self._autosave = enabled
             log.debug(f"Autosave set to: {enabled}")
             self.autosave_changed.emit(self._autosave)
+
+    def set_playback_coordinator(self, coordinator) -> None:
+        """
+        Set the PlaybackCoordinator used to pause/resume playback around file writes.
+        In CLI mode this is never called, leaving the coordinator as None (no-op).
+        """
+        self._playback_coordinator = coordinator
 
     def register_media_files(self, media_files: List[MediaFile], force_replace: bool = False):
         """
@@ -153,12 +161,16 @@ class EditManager(QObject):
                     media_file = self._media_files.get(file_id)
                     if media_file:
                         try:
-                            # log.debug(f"Saving changes for {media_file.file_path}")
+                            if self._playback_coordinator:
+                                self._playback_coordinator.acquire_file(media_file.file_path)
                             media_file.save(changes)
                             saved_file_ids.append(file_id)
                         except Exception as e:
                             log.error(f"Error saving file {media_file.file_path}: {e}")
                             errors.append(f"{media_file.file_path}: {e}")
+                        finally:
+                            if self._playback_coordinator:
+                                self._playback_coordinator.release_file(media_file.file_path)
 
                 self._staged_changes.clear()
                 self.staged_changes_exist.emit(False)
