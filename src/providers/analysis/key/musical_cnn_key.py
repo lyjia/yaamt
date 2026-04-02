@@ -12,7 +12,6 @@ Paper: "Genre-Agnostic Key Classification With Convolutional Neural Networks"
 
 from typing import Optional, List, TYPE_CHECKING
 from pathlib import Path
-import sys
 import numpy as np
 
 if TYPE_CHECKING:
@@ -298,16 +297,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         """
         import torch
 
-        # Add MusicalKeyCNN to Python path so we can import the model
-        current_file = Path(__file__)
-        project_root = current_file.parent.parent.parent.parent.parent
-        musical_key_cnn_path = project_root / "references" / "MusicalKeyCNN"
-
-        if str(musical_key_cnn_path) not in sys.path:
-            sys.path.insert(0, str(musical_key_cnn_path))
-
-        # Import KeyNet model
-        from model import KeyNet
+        from providers.analysis.key.support.keynet_model import KeyNet
 
         # Create model and load weights
         model = KeyNet(num_classes=24, in_channels=1, Nf=20).to(device)
