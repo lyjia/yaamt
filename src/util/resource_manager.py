@@ -240,7 +240,6 @@ class ResourceManager:
             log.warning(f"Error getting QStandardPaths cache location: {e}")
 
         # Fallback to user's home directory
-        from pathlib import Path
         fallback = Path.home() / ".cache" / "YAAMT"
         log.debug(f"Using fallback cache directory: {fallback}")
         return fallback

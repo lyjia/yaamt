@@ -216,7 +216,35 @@ Each adapter wraps an AudioStreamBase and presents the same interface:
 - Clip values to prevent overflow
 - No dithering in Phase 1 (future enhancement)
 
-### 6. AudioStreamFactory Enhancement
+### 6. MiniaudioStream Format Invariant
+
+**Location**: `src/providers/audio/miniaudio_stream.py`
+
+**Invariant**: The `sample_rate`, `channels_qty`, and `sample_width` properties
+must exactly describe the bytes returned by `read()`.
+
+MiniaudioStream is the single raw audio source for both playback and analysis.
+It delivers audio as close to the source file's native format as possible:
+
+- **Sample rate**: Native (passed explicitly to `miniaudio.stream_file()`).
+- **Channels**: Native (passed explicitly to `miniaudio.stream_file()`).
+- **Sample format**: Mapped to a streamable output format since not all native
+  formats are streamable by miniaudio. The mapping preserves the codebase-wide
+  convention that `sample_width == 4` implies float32:
+
+| Source format | Stream output | Reported `sample_width` | Reason                             |
+|---------------|---------------|-------------------------|------------------------------------|
+| UNSIGNED8     | SIGNED16      | 2                       | Unsigned/signed mismatch in adapters |
+| SIGNED16      | SIGNED16      | 2                       | Pass-through                       |
+| SIGNED24      | FLOAT32       | 4                       | SIGNED24 not streamable by miniaudio |
+| SIGNED32      | FLOAT32       | 4                       | Avoids width=4 int/float ambiguity |
+| FLOAT32       | FLOAT32       | 4                       | Pass-through                       |
+
+Consumers that need a different format (e.g., mono, different sample rate, int16)
+request it via `AudioFormatDescriptor`, and the adapter chain handles conversion.
+MiniaudioStream itself performs no conversion beyond the format mapping above.
+
+### 7. AudioStreamFactory Enhancement
 
 **Location**: `src/providers/audio/factory.py`
 
@@ -263,7 +291,7 @@ function get_stream(filepath, format_descriptor):
 - Order matters: resample first, then mix, then convert bit depth
 - Only creates adapters when needed (efficient)
 
-### 7. MediaFile Integration
+### 8. MediaFile Integration
 
 **Location**: `src/models/media_file.py`
 

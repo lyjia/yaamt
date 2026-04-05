@@ -468,3 +468,63 @@ class TestPerformanceCharacteristics:
 
             # Should have successfully read some chunks
             assert chunks_read > 0
+
+
+class TestFormatAdaptation24Bit:
+    """
+    Regression tests for 24-bit source files through the adapter chain.
+
+    These reproduce the reshape crash that occurred when MiniaudioStream
+    misreported its sample format, causing ChannelMixingAdapter to
+    misinterpret bytes at EOF.
+    """
+
+    AUDIO_FILE_24BIT = os.path.join(TEST_FIXTURE_DIR, "lyjia_dnb019_175bpm.wav")
+
+    def test_24bit_to_mono_float32_full_read(self):
+        """
+        Read an entire 24-bit stereo file through the adapter chain requesting
+        mono float32 at 44100 Hz — the exact configuration that triggered the
+        original 'cannot reshape array of size 10281 into shape (2)' crash.
+        """
+        format_desc = AudioFormatDescriptor(
+            channels=1,
+            sample_width=4,
+            sample_format='float',
+            sample_rate=44100,
+        )
+
+        with AudioStreamFactory.get_stream(self.AUDIO_FILE_24BIT, format_desc) as stream:
+            assert stream.channels_qty == 1
+            assert stream.sample_width == 4
+
+            total_bytes = 0
+            frame_size = stream.channels_qty * stream.sample_width
+
+            while True:
+                data = stream.read(4096)
+                if not data:
+                    break
+                # Every chunk must be frame-aligned
+                assert len(data) % frame_size == 0
+                total_bytes += len(data)
+
+            # Sanity: should have read a meaningful amount of audio
+            total_frames = total_bytes // frame_size
+            duration = total_frames / stream.sample_rate
+            assert duration > 1.0, (
+                f"Expected >1s of audio, got {duration:.2f}s"
+            )
+
+    def test_24bit_native_format_read(self):
+        """
+        Read a 24-bit file in native format (no descriptor) — verifies that
+        MiniaudioStream's reported properties are consistent with its bytes.
+        """
+        with AudioStreamFactory.get_stream(self.AUDIO_FILE_24BIT) as stream:
+            # 24-bit sources are promoted to float32 (width=4)
+            assert stream.sample_width == 4
+
+            frame_size = stream.channels_qty * stream.sample_width
+            data = stream.read(1024)
+            assert len(data) == 1024 * frame_size

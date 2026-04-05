@@ -8,6 +8,19 @@ to read and seek within audio files.
 import miniaudio
 from .base import AudioStreamBase
 
+# Maps the source file's native sample_format (from get_file_info) to a
+# (streamable_output_format, reported_sample_width_bytes) pair. SIGNED24 is
+# not streamable by miniaudio, and we never stream as SIGNED32, so int sources
+# wider than 16 bits are promoted to FLOAT32. This keeps the codebase-wide
+# "width 4 == float" heuristic valid.
+_SOURCE_FORMAT_TO_STREAM = {
+    miniaudio.SampleFormat.UNSIGNED8: (miniaudio.SampleFormat.SIGNED16, 2),
+    miniaudio.SampleFormat.SIGNED16:  (miniaudio.SampleFormat.SIGNED16, 2),
+    miniaudio.SampleFormat.SIGNED24:  (miniaudio.SampleFormat.FLOAT32,  4),
+    miniaudio.SampleFormat.SIGNED32:  (miniaudio.SampleFormat.FLOAT32,  4),
+    miniaudio.SampleFormat.FLOAT32:   (miniaudio.SampleFormat.FLOAT32,  4),
+}
+
 
 class MiniaudioStream(AudioStreamBase):
     """
@@ -22,12 +35,35 @@ class MiniaudioStream(AudioStreamBase):
         """
         Initializes the MiniaudioStream with a file path.
 
+        The stream decodes at the source file's native sample rate and channel
+        count. The sample format is mapped to a streamable output format that
+        preserves the codebase-wide "width 4 == float" heuristic — see
+        _SOURCE_FORMAT_TO_STREAM for the mapping.
+
         Args:
             file_path: The path to the audio file to stream.
+
+        Raises:
+            ValueError: If the source file's sample format is not supported.
         """
         self.file_path = file_path
         self.info = miniaudio.get_file_info(file_path)
-        self.stream_generator = miniaudio.stream_file(self.file_path)
+
+        # Determine streamable output format from source's native format
+        mapping = _SOURCE_FORMAT_TO_STREAM.get(self.info.sample_format)
+        if mapping is None:
+            raise ValueError(
+                f"Unsupported sample format: {self.info.sample_format} "
+                f"in {file_path}"
+            )
+        self._stream_output_format, self._stream_sample_width = mapping
+
+        self.stream_generator = miniaudio.stream_file(
+            self.file_path,
+            output_format=self._stream_output_format,
+            nchannels=self.info.nchannels,
+            sample_rate=self.info.sample_rate,
+        )
         self._is_closed = False
         self._buffer = bytearray()  # Buffer for handling variable frame requests
 
@@ -46,7 +82,7 @@ class MiniaudioStream(AudioStreamBase):
             raise ValueError("Stream is closed.")
 
         try:
-            bytes_per_frame = self.info.nchannels * self.info.sample_width
+            bytes_per_frame = self.channels_qty * self.sample_width
             bytes_needed = n_frames * bytes_per_frame
 
             # Use buffered data first
@@ -91,7 +127,13 @@ class MiniaudioStream(AudioStreamBase):
         if self._is_closed:
             raise ValueError("Stream is closed.")
 
-        self.stream_generator = miniaudio.stream_file(self.file_path, seek_frame=frame_offset)
+        self.stream_generator = miniaudio.stream_file(
+            self.file_path,
+            output_format=self._stream_output_format,
+            nchannels=self.info.nchannels,
+            sample_rate=self.info.sample_rate,
+            seek_frame=frame_offset,
+        )
         # Reset the generator priming flag and buffer since we have a new generator
         if hasattr(self, '_generator_primed'):
             delattr(self, '_generator_primed')
@@ -132,11 +174,15 @@ class MiniaudioStream(AudioStreamBase):
     @property
     def sample_width(self) -> int:
         """
-        The width of each sample in bytes.
+        The width of each sample in bytes, matching the streamed output format.
+
+        This returns the width of the format actually being streamed, which may
+        differ from the source file's native width (e.g., 24-bit sources are
+        promoted to float32, so sample_width returns 4 instead of 3).
         """
         if self._is_closed:
             raise ValueError("Stream is closed.")
-        return self.info.sample_width
+        return self._stream_sample_width
 
     @property
     def duration_seconds(self) -> float:

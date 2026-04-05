@@ -169,7 +169,7 @@ class PlaybackWorker(QObject):
             elif self.audio_stream.sample_width == 3:
                 sample_format = miniaudio.SampleFormat.SIGNED24
             elif self.audio_stream.sample_width == 4:
-                sample_format = miniaudio.SampleFormat.SIGNED32
+                sample_format = miniaudio.SampleFormat.FLOAT32
             else:
                 raise ValueError(f"Unsupported sample width: {self.audio_stream.sample_width}")
 
