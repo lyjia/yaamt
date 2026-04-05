@@ -161,17 +161,25 @@ class PlaybackWorker(QObject):
             # Get audio stream with optional format adaptation
             self.audio_stream = media_file.get_audio_stream(format_descriptor)
 
-            # Map sample width to miniaudio SampleFormat
-            if self.audio_stream.sample_width == 1:
+            # Map stream width to miniaudio SampleFormat for the PlaybackDevice.
+            # Width 4 is ambiguous (int32 vs float32). When the debug format
+            # descriptor explicitly requests int at width 4, honour that;
+            # otherwise default to FLOAT32 (the MiniaudioStream invariant).
+            stream_width = self.audio_stream.sample_width
+            if stream_width == 1:
                 sample_format = miniaudio.SampleFormat.UNSIGNED8
-            elif self.audio_stream.sample_width == 2:
+            elif stream_width == 2:
                 sample_format = miniaudio.SampleFormat.SIGNED16
-            elif self.audio_stream.sample_width == 3:
+            elif stream_width == 3:
                 sample_format = miniaudio.SampleFormat.SIGNED24
-            elif self.audio_stream.sample_width == 4:
-                sample_format = miniaudio.SampleFormat.FLOAT32
+            elif stream_width == 4:
+                if (format_descriptor
+                        and format_descriptor.sample_format == 'int'):
+                    sample_format = miniaudio.SampleFormat.SIGNED32
+                else:
+                    sample_format = miniaudio.SampleFormat.FLOAT32
             else:
-                raise ValueError(f"Unsupported sample width: {self.audio_stream.sample_width}")
+                raise ValueError(f"Unsupported sample width: {stream_width}")
 
             self.duration = self.audio_stream.duration_seconds
             self.total_frames_read = 0
