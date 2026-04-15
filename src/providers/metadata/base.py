@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from typing import Any, Optional
+
 from models.tag_info import TagInfo
 
 
@@ -7,16 +9,16 @@ class MetadataProviderBase(ABC):
     An abstract base class that defines the interface for metadata providers.
     """
     @abstractmethod
-    def get_tag(self, key):
+    def get_tag(self, key: str) -> Optional[list]:
         '''Abstract method to get a tag value.'''
         pass
 
     @abstractmethod
-    def set_tag(self, key, value):
+    def set_tag(self, key: str, value: list) -> None:
         pass
 
     @abstractmethod
-    def get_stream_info(self, key):
+    def get_stream_info(self, key: str) -> Any:
         pass
 
     @abstractmethod
@@ -24,7 +26,7 @@ class MetadataProviderBase(ABC):
         pass
 
     @abstractmethod
-    def available_stream_info_keys(self):
+    def available_stream_info_keys(self) -> list[str]:
         pass
 
 
@@ -101,6 +103,6 @@ class MetadataProviderBase(ABC):
     #     pass
 
     @abstractmethod
-    def save(self):
+    def save(self) -> None:
         """Abstract method to save changes to the file."""
         pass

@@ -5,12 +5,14 @@ This dialog shows real-time progress during analysis operations, including
 the current file being analyzed and overall progress.
 """
 
+from typing import Any, Optional
+
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton,
-    QMessageBox, QListWidget, QHBoxLayout
+    QMessageBox, QListWidget, QHBoxLayout, QWidget
 )
 from PySide6.QtCore import Qt, Slot, QTimer
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QCloseEvent
 import os
 
 from workers.analyzer_dispatcher import AnalyzerDispatcher
@@ -28,7 +30,7 @@ class AnalyzerProgressDialog(QDialog):
     - Cancel button with option to keep/discard partial results
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         """
         Initialize the progress dialog.
 
@@ -56,7 +58,7 @@ class AnalyzerProgressDialog(QDialog):
         # Defer sizing until the dialog is shown
         QTimer.singleShot(0, self._initial_resize)
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Set up the dialog UI."""
         layout = QVBoxLayout()
 
@@ -105,7 +107,7 @@ class AnalyzerProgressDialog(QDialog):
 
         self.setLayout(layout)
 
-    def _connect_signals(self):
+    def _connect_signals(self) -> None:
         """Connect to dispatcher signals."""
         self.dispatcher.task_started.connect(self._on_task_started)
         self.dispatcher.task_completed.connect(self._on_task_completed)
@@ -114,7 +116,7 @@ class AnalyzerProgressDialog(QDialog):
         self.dispatcher.active_tasks_updated.connect(self._on_active_tasks_updated)
 
     @Slot(str, str)
-    def _on_task_started(self, file_path: str, analyzer_name: str):
+    def _on_task_started(self, file_path: str, analyzer_name: str) -> None:
         """
         Handle task started signal.
 
@@ -125,7 +127,7 @@ class AnalyzerProgressDialog(QDialog):
         self.analyzer_label.setText(f"Analyzer: {analyzer_name}")
         # Active files are now handled by active_tasks_updated signal
 
-    def _initial_resize(self):
+    def _initial_resize(self) -> None:
         """
         Perform initial window sizing based on screen size.
 
@@ -164,7 +166,7 @@ class AnalyzerProgressDialog(QDialog):
                     screen_geometry.y() + (screen_height - self.height()) // 2
                 )
 
-    def _size_for_content(self):
+    def _size_for_content(self) -> None:
         """
         Resize dialog to fit all list items on first display.
 
@@ -215,7 +217,7 @@ class AnalyzerProgressDialog(QDialog):
         self._has_sized = True
 
     @Slot(list)
-    def _on_active_tasks_updated(self, active_tasks: list):
+    def _on_active_tasks_updated(self, active_tasks: list) -> None:
         """
         Update the active files list.
 
@@ -234,7 +236,7 @@ class AnalyzerProgressDialog(QDialog):
             QTimer.singleShot(10, self._size_for_content)
 
     @Slot(str, object)
-    def _on_task_completed(self, file_path: str, result):
+    def _on_task_completed(self, file_path: str, result: Any) -> None:
         """
         Handle task completed signal.
 
@@ -246,7 +248,7 @@ class AnalyzerProgressDialog(QDialog):
         pass
 
     @Slot(int, int)
-    def _on_progress_updated(self, completed: int, total: int):
+    def _on_progress_updated(self, completed: int, total: int) -> None:
         """
         Handle progress update signal.
 
@@ -263,13 +265,13 @@ class AnalyzerProgressDialog(QDialog):
             self.progress_text_label.setText(f"{completed}/{total}")
 
     @Slot()
-    def _on_analysis_completed(self):
+    def _on_analysis_completed(self) -> None:
         """Handle analysis completion."""
         if not self._is_cancelled:
             # Analysis finished normally
             self.accept()
 
-    def _on_cancel_clicked(self):
+    def _on_cancel_clicked(self) -> None:
         """Handle cancel button click."""
         # Prompt user about keeping partial results
         reply = QMessageBox.question(
@@ -297,7 +299,7 @@ class AnalyzerProgressDialog(QDialog):
             self._is_cancelled = True
             self.reject()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Handle dialog close event."""
         # Treat close button same as cancel
         if not self._is_cancelled and self.dispatcher._is_running:

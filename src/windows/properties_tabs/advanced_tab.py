@@ -1,11 +1,16 @@
+from typing import Any, Optional
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton, QHeaderView, QSizePolicy
 )
 from models.edit_manager import EditManager
+from models.media_file import MediaFile
+from providers.metadata.base import MetadataProviderBase
 from util.const import KEY_TAGS
 
 class AdvancedTab(QWidget):
-    def __init__(self, media_files, edit_manager, parent=None):
+    def __init__(self, media_files: list[MediaFile], edit_manager: EditManager,
+                 parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.media_files = media_files
         self.edit_manager = edit_manager
@@ -20,7 +25,7 @@ class AdvancedTab(QWidget):
 
         self.refresh()
 
-    def refresh(self):
+    def refresh(self) -> None:
         self.tree.clear()
 
         if not self.media_files or len(self.media_files) > 1:
@@ -73,14 +78,14 @@ class AdvancedTab(QWidget):
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
-    def _format_value(self, value):
+    def _format_value(self, value: Any) -> str:
         if isinstance(value, list) or isinstance(value, tuple):
             return "; ".join(map(str, value))
         elif isinstance(value, bytes):
             return "(binary data)"
         return str(value)
 
-    def on_item_changed(self, item, column):
+    def on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
         if column == 1 and item.parent():
             tag_name = item.text(0)
             new_value = item.text(1)
@@ -93,7 +98,7 @@ class AdvancedTab(QWidget):
                 item.setFont(1, font)
                 self._add_revert_button(item, tag_name)
 
-    def _get_provider_for_tag(self, tag_name):
+    def _get_provider_for_tag(self, tag_name: str) -> Optional[MetadataProviderBase]:
         if self.media_files:
             metadata = self.media_files[0].metadata
             if KEY_TAGS in metadata and tag_name in metadata[KEY_TAGS]:
@@ -104,13 +109,13 @@ class AdvancedTab(QWidget):
                         return provider
         return None
 
-    def _add_revert_button(self, item, tag_name):
+    def _add_revert_button(self, item: QTreeWidgetItem, tag_name: str) -> None:
         revert_button = QPushButton("Revert")
         revert_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
         revert_button.clicked.connect(lambda: self.revert_change(tag_name))
         self.tree.setItemWidget(item, 2, revert_button)
 
-    def revert_change(self, tag_name):
+    def revert_change(self, tag_name: str) -> None:
         self.tree.blockSignals(True)
         original_value = self.media_files[0].get_tag_simple(tag_name, is_internal_tag_key=True)
         provider = self._get_provider_for_tag(tag_name)

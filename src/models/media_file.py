@@ -1,4 +1,5 @@
 import os
+from typing import Any, Optional
 
 from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
     KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
@@ -35,7 +36,7 @@ class MediaFile:
     ** It is the provider's responsibility to accept generic tag names and route them to whatever internal name that provider uses.
     ** Mapping between these two is handled by `get_internal_tag_name_for_generic()`
     """
-    def __init__(self, file_path: str, enable_write=False):
+    def __init__(self, file_path: str, enable_write: bool = False) -> None:
         self._file_path = os.path.abspath(file_path)
         self._file_id = hash(self._file_path)
         self._file_name = os.path.basename(file_path)
@@ -121,7 +122,7 @@ class MediaFile:
         # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
         #     self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
-    def get_tag_all_values(self, key, is_internal_tag_key=False):
+    def get_tag_all_values(self, key: str, is_internal_tag_key: bool = False) -> Optional[list]:
         actual_key = key
         if not is_internal_tag_key and key in self._generic_to_internal_map:
             actual_key = self._generic_to_internal_map[key]
@@ -130,13 +131,13 @@ class MediaFile:
             self.load_meta_for_tag(actual_key)
         return self._combined_metadata[KEY_TAGS].get(actual_key, {}).get(KEY_VALUE)
 
-    def get_tag_simple(self, key, is_internal_tag_key=False):
+    def get_tag_simple(self, key: str, is_internal_tag_key: bool = False) -> Any:
         grab = self.get_tag_all_values(key, is_internal_tag_key)
         if grab:
             return grab[0]
         return None
 
-    def load_meta_for_tag(self, key):
+    def load_meta_for_tag(self, key: str) -> None:
         providers = self._tag_provider_lookup[KEY_TAGS].get(key, [])
         if len(providers) > 0:
             provider_to_use = providers[0]
@@ -147,14 +148,14 @@ class MediaFile:
         else:
             self._combined_metadata[KEY_TAGS][key] = {}
 
-    def get_stream_info_value(self, key):
+    def get_stream_info_value(self, key: str) -> Any:
         if not self._combined_metadata[KEY_STREAM_INFO].get(key):
             self.load_meta_for_stream_info(key)
         if key in self._combined_metadata[KEY_STREAM_INFO]:
             return self._combined_metadata[KEY_STREAM_INFO][key].get(KEY_VALUE)  # only return first value in array of values
         return None
 
-    def load_meta_for_stream_info(self, key):
+    def load_meta_for_stream_info(self, key: str) -> None:
         if key in self._tag_provider_lookup[KEY_STREAM_INFO]:
             provider_to_use = self._tag_provider_lookup[KEY_STREAM_INFO][key][0]
             self._combined_metadata[KEY_STREAM_INFO][key] = {
@@ -162,10 +163,10 @@ class MediaFile:
                 KEY_PROVIDER: provider_to_use
             }
 
-    def get_internal_data(self, key):
+    def get_internal_data(self, key: str) -> Any:
         return self._combined_metadata[KEY_INTERNAL].get(key)
 
-    def save(self, changes=None, bypass_transformations=False):
+    def save(self, changes: Optional[dict] = None, bypass_transformations: bool = False) -> None:
         """
         Save changes to the media file.
 
@@ -234,7 +235,7 @@ class MediaFile:
                 del self._combined_metadata[KEY_TAGS][tag]
 
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """
         Returns a dictionary representation of the media file's metadata.
         """
@@ -264,19 +265,19 @@ class MediaFile:
 
         return to_ret
 
-    def is_readable(self):
+    def is_readable(self) -> bool:
         return self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA]
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict:
         return self.to_dict()
 
     @property
-    def file_path(self):
+    def file_path(self) -> str:
         return self._file_path
 
     @property
-    def file_id(self):
+    def file_id(self) -> int:
         return self._file_id
 
     @property
@@ -291,13 +292,13 @@ class MediaFile:
         length = self.get_stream_info_value(KEY_LENGTH)
         return float(length) if length is not None else 0.0
 
-    def get_internal_tag_name_for_generic(self, generic_tag_name):
+    def get_internal_tag_name_for_generic(self, generic_tag_name: str) -> Optional[str]:
         return self._generic_to_internal_map.get(generic_tag_name)
 
-    def get_generic_tag_name_for_internal(self, internal_tag_name):
+    def get_generic_tag_name_for_internal(self, internal_tag_name: str) -> Optional[str]:
         return self._internal_to_generic_map.get(internal_tag_name)
 
-    def get_audio_stream(self, format_descriptor=None):
+    def get_audio_stream(self, format_descriptor: Optional[Any] = None) -> Any:
         """
         Get an audio stream for reading audio data from this file.
 
@@ -315,11 +316,9 @@ class MediaFile:
         from providers.audio.factory import AudioStreamFactory
         return AudioStreamFactory.get_stream(self._file_path, format_descriptor)
 
-    def _get_providers_for_file(self):
+    def _get_providers_for_file(self) -> list:
         """
         Get the MetadataProvider instance(s) most appropriate for the given file in order of preference.
-        :param file_path:
-        :return:
         """
         potential_providers = [ MutagenProvider ]
         to_ret = []

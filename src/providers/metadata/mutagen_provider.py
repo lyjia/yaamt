@@ -1,5 +1,6 @@
 import traceback
 from argparse import ArgumentError
+from typing import Any, Optional
 
 import mutagen
 from mutagen.easyid3 import EasyID3
@@ -50,7 +51,7 @@ from .base import MetadataProviderBase
 # }.items():
 
 # Register comment field with proper COMM frame handling
-def comment_get(id3, key):
+def comment_get(id3: Any, key: str) -> list:
     """Get comment from COMM frame(s) with empty description."""
     from mutagen.id3 import COMM
     for frame in id3.values():
@@ -59,7 +60,7 @@ def comment_get(id3, key):
             return list(frame.text) if frame.text else []
     return []
 
-def comment_set(id3, key, value):
+def comment_set(id3: Any, key: str, value: Any) -> None:
     """Set comment in COMM frame with empty description."""
     from mutagen.id3 import COMM, Encoding
     # Remove all existing COMM frames with empty description
@@ -70,7 +71,7 @@ def comment_set(id3, key, value):
         if text_value:  # Only add if not empty
             id3.add(COMM(encoding=Encoding.UTF8, lang='eng', desc='', text=text_value))
 
-def comment_delete(id3, key):
+def comment_delete(id3: Any, key: str) -> None:
     """Delete COMM frame with empty description."""
     id3.delall('COMM:')
 
@@ -180,7 +181,7 @@ class MutagenProvider(MetadataProviderBase):
             log.error(f"{e.__class__.__name__} loading file {file_path}: {e}")
             raise
 
-    def get_tag(self, key):
+    def get_tag(self, key: str) -> Optional[list]:
         if not self._audio:
             return None
 
@@ -189,10 +190,10 @@ class MutagenProvider(MetadataProviderBase):
 
         return None
 
-    def set_tag(self, key, value):
+    def set_tag(self, key: str, value: list) -> None:
         self._audio[key] = value
 
-    def get_stream_info(self, key):
+    def get_stream_info(self, key: str) -> Any:
         if not self._audio:
             return None
         if key == KEY_BITRATE:
@@ -224,21 +225,20 @@ class MutagenProvider(MetadataProviderBase):
 
         return tag_infos
 
-    def available_stream_info_keys(self):
+    def available_stream_info_keys(self) -> list[str]:
         return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES,
                 KEY_FORMAT]
 
-    def is_readable(self):
+    def is_readable(self) -> bool:
         """
         Should we attempt to read tags from this provider?
-        :return: 
         """
         return self._audio is not None
 
-    def is_writable(self):
+    def is_writable(self) -> bool:
         return self._write_enabled
 
-    def save(self):
+    def save(self) -> None:
         # log.debug(f"Saving file: {self._file_path}")
         if self._write_enabled and self._audio:
             try:

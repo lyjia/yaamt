@@ -1,6 +1,9 @@
-import os
-from PySide6.QtWidgets import QStyledItemDelegate, QLineEdit
-from PySide6.QtCore import QModelIndex, Qt
+from typing import Optional
+
+from PySide6.QtWidgets import (
+    QStyledItemDelegate, QLineEdit, QWidget, QStyleOptionViewItem,
+)
+from PySide6.QtCore import QModelIndex, QAbstractItemModel, Qt
 
 from util.logging import log
 
@@ -12,10 +15,10 @@ class EditableMetadataDelegate(QStyledItemDelegate):
     This delegate handles double-clicking to activate editing mode, creates QLineEdit
     widgets for text editing, and ensures the text is fully selected for easy replacement.
     """
-    def __init__(self,  parent=None):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
-    def createEditor(self, parent, option, index):
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QLineEdit:
         """
         Create and return a QLineEdit widget for editing the cell content.
 
@@ -30,7 +33,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
         editor = QLineEdit(parent)
         return editor
 
-    def setEditorData(self, editor, index):
+    def setEditorData(self, editor: QLineEdit, index: QModelIndex) -> None:
         """
         Set the editor's data to the current value of the cell.
         The text will be fully selected for easy replacement.
@@ -41,7 +44,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
         """
         if isinstance(editor, QLineEdit):
             # Get the current value from the model
-            value = index.model().data(index, role=0)  # Qt.ItemDataRole.DisplayRole is 0
+            value = index.model().data(index, role=Qt.ItemDataRole.DisplayRole)
             if value is not None:
                 editor.setText(str(value))
             else:
@@ -51,7 +54,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
             editor.selectAll()
             editor.setFocus()
 
-    def setModelData(self, editor, model, index):
+    def setModelData(self, editor: QLineEdit, model: QAbstractItemModel, index: QModelIndex) -> None:
         """
         Set the model data from the editor when editing is finished.
         This is called when the user presses Enter or the editor loses focus.
@@ -81,7 +84,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
                 source_model.setData(source_index, new_value, role=role)
                 source_model.finished_with_edits()
 
-    def updateEditorGeometry(self, editor, option, index):
+    def updateEditorGeometry(self, editor: QLineEdit, option: QStyleOptionViewItem, index: QModelIndex) -> None:
         """
         Update the editor's geometry to match the cell geometry.
 

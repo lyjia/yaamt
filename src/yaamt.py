@@ -118,7 +118,7 @@ def load_media_files(file_paths: List[str], enable_write: bool = False) -> List[
 # Command Handlers
 # ============================================================================
 
-def cmd_help(args):
+def cmd_help(args: argparse.Namespace) -> int:
     """Handle the 'help' command."""
     print_program_header()
 
@@ -233,7 +233,7 @@ def print_program_header():
     print("=========================================================================================================")
     print()
 
-def cmd_list(args):
+def cmd_list(args: argparse.Namespace) -> int:
     """Handle the 'list' command."""
     if args.type is None:
         # List all listable things
@@ -253,7 +253,7 @@ def cmd_list(args):
         return SYS_RETURN_ERROR
 
 
-def cmd_read(args):
+def cmd_read(args: argparse.Namespace) -> int:
     """Handle the 'read' command."""
     # Collect files
     file_paths = get_files(args.paths, args.recursive)
@@ -288,7 +288,7 @@ def cmd_read(args):
     return SYS_RETURN_SUCCESS
 
 
-def cmd_write(args):
+def cmd_write(args: argparse.Namespace) -> int:
     """Handle the 'write' command."""
     # Collect files
     file_paths = get_files(args.paths, args.recursive)
@@ -344,7 +344,7 @@ def cmd_write(args):
     return SYS_RETURN_SUCCESS
 
 
-def cmd_analyze(args):
+def cmd_analyze(args: argparse.Namespace) -> int:
     """Handle the 'analyze' command."""
     # Get analyzer class
     analyzer_class = get_analyzer_by_name(args.analyzer)
@@ -491,7 +491,7 @@ def cmd_analyze(args):
 # Main Entry Point
 # ============================================================================
 
-def main():
+def main() -> int:
     """Main CLI entry point."""
     # Create main parser
     parser = argparse.ArgumentParser(
