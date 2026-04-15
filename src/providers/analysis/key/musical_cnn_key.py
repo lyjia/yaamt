@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import AnalyzerOption
 from util.const import KEY_INITIAL_KEY
 from util.logging import log
 from util.resource_manager import get_resource_manager, ResourceMetadata
@@ -410,6 +410,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
             QProgressDialog
         )
         from PySide6.QtCore import Qt, QThread, Signal
+        from windows.analyzer.option_widgets import build_widget_from_option
 
         widget = QWidget()
         main_layout = QVBoxLayout()

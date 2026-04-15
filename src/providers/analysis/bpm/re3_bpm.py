@@ -22,7 +22,7 @@ from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
 from util.analyzer_options import (
-    AnalyzerOption, build_widget_from_option,
+    AnalyzerOption,
     BPM_RANGE_MIN_KEY, BPM_RANGE_MAX_KEY, BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT
 )
 from util.bpm import BpmCandidate
@@ -917,6 +917,8 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
         Returns:
             QWidget with controls for algorithm parameters
         """
+        from windows.analyzer.option_widgets import build_widget_from_option
+
         widget = QWidget()
         main_layout = QVBoxLayout()
         main_layout.setSpacing(8)

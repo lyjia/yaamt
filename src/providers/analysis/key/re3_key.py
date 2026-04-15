@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGroupBox
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from util.const import KEY_INITIAL_KEY, KEY_DIATONIC_MODE
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import AnalyzerOption
 from util.logging import log
 
 # Import the wavelet key detection components

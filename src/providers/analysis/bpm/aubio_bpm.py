@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QComboBox,
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import AnalyzerOption
 from util.bpm import BpmCandidate
 from util.logging import log
 
@@ -279,6 +279,10 @@ class AubioBPMAnalyzer(AnalyzerBase):
         Returns:
             QWidget with controls for method, mode, and advanced parameters
         """
+        # Imported lazily so this provider module can be loaded in CLI /
+        # headless contexts without dragging in the GUI widget layer.
+        from windows.analyzer.option_widgets import build_widget_from_option
+
         widget = QWidget()
         main_layout = QVBoxLayout()
         main_layout.setSpacing(8)

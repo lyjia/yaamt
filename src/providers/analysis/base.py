@@ -205,7 +205,7 @@ class AnalyzerBase(ABC):
         Returns:
             QWidget instance or None if no options
         """
-        from util.analyzer_options import build_widget_from_option
+        from windows.analyzer.option_widgets import build_widget_from_option
 
         options = cls.get_options_metadata()
         if not options:
