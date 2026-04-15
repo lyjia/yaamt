@@ -51,21 +51,16 @@ class PeakMeterAnalyzer(AnalyzerBase):
             AnalyzerResult with peak level in dBFS
         """
         try:
-            # Check for cancellation
-            if self.is_cancelled:
-                return AnalyzerResult(
-                    success=False,
-                    error="Analysis cancelled by user"
-                )
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
 
-            # Check if we should skip existing results
-            skip_if_exists = self.options.get('skip_if_tag_exists', False)
-            if skip_if_exists and self._has_existing_result():
-                return AnalyzerResult(
-                    success=True,
-                    skipped=True,
-                    error="Peak level already measured"
-                )
+            skipped = self._check_skip_if(
+                self._has_existing_result(),
+                "Peak level already measured",
+            )
+            if skipped is not None:
+                return skipped
 
             # Get audio stream from MediaFile
             log.debug(f"Starting peak analysis for {self.media_file.file_path}")

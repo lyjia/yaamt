@@ -42,23 +42,13 @@ class StubBPMAnalyzer(AnalyzerBase):
             AnalyzerResult with a fixed BPM value
         """
         try:
-            # Check for cancellation
-            if self.is_cancelled:
-                return AnalyzerResult(
-                    success=False,
-                    error="Analysis cancelled by user"
-                )
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
 
-            # Check if BPM already exists (skip if requested)
-            skip_if_exists = self.options.get('skip_if_tag_exists', False)
-            existing_bpm = self.media_file.get_tag_simple('bpm')
-
-            if existing_bpm and skip_if_exists:
-                return AnalyzerResult(
-                    success=True,
-                    skipped=True,
-                    error="BPM already set"
-                )
+            skipped = self._check_skip_if_exists('bpm', "BPM already set")
+            if skipped is not None:
+                return skipped
 
             # Return a fixed BPM value as a candidate
             bpm_value = 120.25

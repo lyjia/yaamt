@@ -112,6 +112,69 @@ class AnalyzerBase(ABC):
         """Check if cancellation has been requested."""
         return self._cancelled
 
+    # Common guard-clause helpers used at the top of analyze() methods.
+    # Keeping them here eliminates the identical prologue that was previously
+    # duplicated across every AnalyzerBase subclass.
+
+    _CANCELLATION_MESSAGE = "Analysis cancelled by user"
+    _SKIP_IF_EXISTS_OPTION = 'skip_if_tag_exists'
+
+    def _check_cancellation(self) -> Optional['AnalyzerResult']:
+        """
+        Return a failure AnalyzerResult if cancellation was requested, else None.
+
+        Intended for use as a one-line guard at the top of ``analyze()``:
+
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
+        """
+        if self.is_cancelled:
+            return AnalyzerResult(success=False, error=self._CANCELLATION_MESSAGE)
+        return None
+
+    def _check_skip_if_exists(
+        self,
+        tag_name: str,
+        skipped_message: Optional[str] = None,
+    ) -> Optional['AnalyzerResult']:
+        """
+        Return a 'skipped' AnalyzerResult if the given tag already has a value
+        and the ``skip_if_tag_exists`` option is set, else None.
+
+        Args:
+            tag_name: Generic tag name to check via ``MediaFile.get_tag_simple``.
+            skipped_message: Optional explanatory string for the skip result.
+                             Defaults to ``f"{tag_name} already set"``.
+        """
+        if not self.options.get(self._SKIP_IF_EXISTS_OPTION, False):
+            return None
+        if not self.media_file.get_tag_simple(tag_name):
+            return None
+        return AnalyzerResult(
+            success=True,
+            skipped=True,
+            error=skipped_message or f"{tag_name} already set",
+        )
+
+    def _check_skip_if(
+        self,
+        value_exists: bool,
+        skipped_message: str,
+    ) -> Optional['AnalyzerResult']:
+        """
+        Variant of :meth:`_check_skip_if_exists` for analyzers that need a
+        custom existence check (e.g. scanning the comments field rather than
+        a single tag).
+
+        Args:
+            value_exists: Result of the analyzer-specific existence check.
+            skipped_message: Explanatory string for the skip result.
+        """
+        if value_exists and self.options.get(self._SKIP_IF_EXISTS_OPTION, False):
+            return AnalyzerResult(success=True, skipped=True, error=skipped_message)
+        return None
+
     @classmethod
     def get_options_metadata(cls) -> List:
         """
