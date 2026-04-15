@@ -10,6 +10,7 @@ from PySide6.QtGui import QIcon, QColor
 from PySide6.QtCore import Qt, QThread, Signal
 
 from models.settings import get_qsettings
+from util.const import SETTINGS_RESOURCES_CACHE_ROOT
 from windows.preferences.base import PreferencePaneBase
 from util.resource_manager import get_resource_manager, ResourceMetadata
 
@@ -132,7 +133,7 @@ class ResourcesPane(PreferencePaneBase):
             if result == QMessageBox.StandardButton.Yes:
                 rm.set_cache_root(Path(new_path))
                 # Persist the setting
-                self.settings.setValue("Resources/CacheRoot", new_path)
+                self.settings.setValue(SETTINGS_RESOURCES_CACHE_ROOT, new_path)
                 self._update_cache_path_display()
                 self._populate_table()
 
@@ -150,7 +151,7 @@ class ResourcesPane(PreferencePaneBase):
         if result == QMessageBox.StandardButton.Yes:
             rm = get_resource_manager()
             # Clear the custom setting and reset to default
-            self.settings.remove("Resources/CacheRoot")
+            self.settings.remove(SETTINGS_RESOURCES_CACHE_ROOT)
             rm.reset_cache_root()
             self._update_cache_path_display()
             self._populate_table()

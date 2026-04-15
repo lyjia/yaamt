@@ -20,7 +20,14 @@ from windows.analyzer import AnalyzerSetupDialog, AnalyzerProgressDialog, Analyz
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
-from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
+from util.const import (
+    KEY_IS_MEDIA, KEY_FILE_PATH,
+    SETTINGS_DEBUG_PLAYBACK_ADAPTATION, SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE,
+    SETTINGS_DEBUG_PLAYBACK_CHANNELS, SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH,
+    SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, SETTINGS_UI_SKIN,
+    SETTINGS_GROUP_FAVORITES, SETTINGS_ARRAY_FAVORITES_LOCATIONS,
+    SETTINGS_GROUP_FILE_LIST, SETTINGS_ARRAY_FILE_LIST_COLUMNS,
+)
 from util.debug import is_debug_mode
 from util.file_browser import open_in_file_browser
 from util.logging import log
@@ -685,7 +692,7 @@ class MainWindow(QMainWindow):
         self.debug_enable_adaptation = QAction("Enable Playback Format Adaptation", self)
         self.debug_enable_adaptation.setCheckable(True)
         self.debug_enable_adaptation.setChecked(
-            settings.value("Debug/PlaybackFormatAdaptationEnabled", False, type=bool)
+            settings.value(SETTINGS_DEBUG_PLAYBACK_ADAPTATION, False, type=bool)
         )
         self.debug_enable_adaptation.toggled.connect(self._on_debug_adaptation_toggled)
         debug_menu.addAction(self.debug_enable_adaptation)
@@ -704,7 +711,7 @@ class MainWindow(QMainWindow):
             ("96000 Hz", 96000),
         ]
 
-        current_sample_rate = settings.value("Debug/PlaybackSampleRate", 0, type=int)
+        current_sample_rate = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE, 0, type=int)
         for label, value in sample_rates:
             action = QAction(label, self)
             action.setCheckable(True)
@@ -729,7 +736,7 @@ class MainWindow(QMainWindow):
             ("Stereo (2 channels)", 2),
         ]
 
-        current_channels = settings.value("Debug/PlaybackChannels", 0, type=int)
+        current_channels = settings.value(SETTINGS_DEBUG_PLAYBACK_CHANNELS, 0, type=int)
         for label, value in channels_options:
             action = QAction(label, self)
             action.setCheckable(True)
@@ -755,7 +762,7 @@ class MainWindow(QMainWindow):
             ("32-bit (4 bytes)", 4),
         ]
 
-        current_bit_depth = settings.value("Debug/PlaybackSampleWidth", 0, type=int)
+        current_bit_depth = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH, 0, type=int)
         for label, value in bit_depth_options:
             action = QAction(label, self)
             action.setCheckable(True)
@@ -780,7 +787,7 @@ class MainWindow(QMainWindow):
             ("Float", "float"),
         ]
 
-        current_sample_format = settings.value("Debug/PlaybackSampleFormat", "", type=str)
+        current_sample_format = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, "", type=str)
         for label, value in sample_format_options:
             action = QAction(label, self)
             action.setCheckable(True)
@@ -805,28 +812,28 @@ class MainWindow(QMainWindow):
 
     def _on_debug_adaptation_toggled(self, enabled: bool):
         """Handle toggling of format adaptation."""
-        settings.setValue("Debug/PlaybackFormatAdaptationEnabled", enabled)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_ADAPTATION, enabled)
         self._update_debug_menu_state()
         log.info(f"Playback format adaptation {'enabled' if enabled else 'disabled'}")
 
     def _on_debug_sample_rate_changed(self, value: int):
         """Handle sample rate selection."""
-        settings.setValue("Debug/PlaybackSampleRate", value)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE, value)
         log.info(f"Debug playback sample rate set to: {value if value else 'Native'}")
 
     def _on_debug_channels_changed(self, value: int):
         """Handle channels selection."""
-        settings.setValue("Debug/PlaybackChannels", value)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_CHANNELS, value)
         log.info(f"Debug playback channels set to: {value if value else 'Native'}")
 
     def _on_debug_bit_depth_changed(self, value: int):
         """Handle bit depth selection."""
-        settings.setValue("Debug/PlaybackSampleWidth", value)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH, value)
         log.info(f"Debug playback bit depth set to: {value if value else 'Native'} bytes")
 
     def _on_debug_sample_format_changed(self, value: str):
         """Handle sample format selection."""
-        settings.setValue("Debug/PlaybackSampleFormat", value)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, value)
         log.info(f"Debug playback sample format set to: {value if value else 'Native'}")
 
     def _on_clear_resource_cache(self):
@@ -1141,10 +1148,10 @@ class MainWindow(QMainWindow):
         """
         from models.settings import Favorite
 
-        settings.beginGroup("Favorites")
+        settings.beginGroup(SETTINGS_GROUP_FAVORITES)
         favorites = []
 
-        num_favorites = settings.beginReadArray("locations")
+        num_favorites = settings.beginReadArray(SETTINGS_ARRAY_FAVORITES_LOCATIONS)
         for i in range(num_favorites):
             settings.setArrayIndex(i)
             path = settings.value("path", type=str)
@@ -1162,9 +1169,9 @@ class MainWindow(QMainWindow):
         Args:
             favorites: List of Favorite objects to save
         """
-        settings.beginGroup("Favorites")
+        settings.beginGroup(SETTINGS_GROUP_FAVORITES)
 
-        settings.beginWriteArray("locations", len(favorites))
+        settings.beginWriteArray(SETTINGS_ARRAY_FAVORITES_LOCATIONS, len(favorites))
         for i, favorite in enumerate(favorites):
             settings.setArrayIndex(i)
             settings.setValue("path", favorite.path)
@@ -1322,10 +1329,10 @@ class MainWindow(QMainWindow):
         return None
 
     def _load_column_settings(self):
-        settings.beginGroup("file_list")
+        settings.beginGroup(SETTINGS_GROUP_FILE_LIST)
         
         # Load column settings
-        num_columns = settings.beginReadArray("columns")
+        num_columns = settings.beginReadArray(SETTINGS_ARRAY_FILE_LIST_COLUMNS)
         if num_columns > 0:
             self.file_list_settings.columns = []
             for i in range(num_columns):
@@ -1373,7 +1380,7 @@ class MainWindow(QMainWindow):
         )
 
     def _save_column_settings(self):
-        settings.beginGroup("file_list")
+        settings.beginGroup(SETTINGS_GROUP_FILE_LIST)
         header = self.files_view.header()
         
         # Get current visual layout
@@ -1394,7 +1401,7 @@ class MainWindow(QMainWindow):
                 ))
 
         # Save column settings
-        settings.beginWriteArray("columns", len(columns_to_save))
+        settings.beginWriteArray(SETTINGS_ARRAY_FILE_LIST_COLUMNS, len(columns_to_save))
         for i, col in enumerate(columns_to_save):
             settings.setArrayIndex(i)
             settings.setValue("id", col.id)
@@ -1542,7 +1549,7 @@ class MainWindow(QMainWindow):
         """Apply preference changes that take effect immediately."""
         # Apply UI skin
         from PySide6.QtWidgets import QApplication, QStyleFactory
-        ui_skin = settings.value("General/UiSkin", "")
+        ui_skin = settings.value(SETTINGS_UI_SKIN, "")
 
         if ui_skin:
             # User selected a specific style

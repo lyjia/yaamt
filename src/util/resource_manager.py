@@ -29,6 +29,8 @@ import urllib.error
 import time
 from filelock import FileLock, Timeout
 
+from util.const import SETTINGS_RESOURCES_CACHE_ROOT, SETTINGS_RESOURCES_CUSTOM_LOCATIONS
+
 from util.logging import log
 
 
@@ -179,7 +181,7 @@ class ResourceManager:
         try:
             from models.settings import get_qsettings
             settings = get_qsettings()
-            cache_root_str = settings.value("Resources/CacheRoot", "")
+            cache_root_str = settings.value(SETTINGS_RESOURCES_CACHE_ROOT, "")
             if cache_root_str:
                 path = Path(cache_root_str)
                 log.debug(f"Loaded cache root setting: {path}")
@@ -193,7 +195,7 @@ class ResourceManager:
         try:
             from models.settings import get_qsettings
             settings = get_qsettings()
-            settings.beginGroup("Resources/CustomLocations")
+            settings.beginGroup(SETTINGS_RESOURCES_CUSTOM_LOCATIONS)
             for key in settings.allKeys():
                 path_str = settings.value(key, "")
                 if path_str:
@@ -210,7 +212,7 @@ class ResourceManager:
         try:
             from models.settings import get_qsettings
             settings = get_qsettings()
-            settings.beginGroup("Resources/CustomLocations")
+            settings.beginGroup(SETTINGS_RESOURCES_CUSTOM_LOCATIONS)
             if path:
                 settings.setValue(resource_id, str(path))
             else:

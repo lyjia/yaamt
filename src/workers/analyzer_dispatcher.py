@@ -15,9 +15,13 @@ from models.media_file import MediaFile
 from models.settings import get_qsettings
 from providers.analysis.base import AnalyzerBase, AnalyzerResult
 from providers.audio.base import AudioStreamBase
-from util.analyzer_options import BPM_RANGE_MIN_KEY, BPM_RANGE_MAX_KEY, BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT
 from util.bpm import BpmCandidate, select_best_bpm
-from util.const import KEY_TAG_GENERIC, KEY_COMMENT, KEY_INITIAL_KEY, KEY_DIATONIC_MODE
+from util.const import (
+    KEY_TAG_GENERIC, KEY_COMMENT, KEY_INITIAL_KEY, KEY_DIATONIC_MODE,
+    BPM_RANGE_MIN_KEY, BPM_RANGE_MAX_KEY,
+    BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT,
+    SETTINGS_ANALYZERS_THREAD_POOL_SIZE, SETTINGS_KEY_NOTATION_FORMAT,
+)
 from util.logging import log
 
 
@@ -171,7 +175,7 @@ class AnalyzerWorker(QRunnable):
             # Check if we should use multiprocessing
             # For thread_pool_size=1, run directly in this thread (no process pool overhead)
             qsettings = get_qsettings()
-            thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
+            thread_pool_size = qsettings.value(SETTINGS_ANALYZERS_THREAD_POOL_SIZE, 1, type=int)
 
             if thread_pool_size == 1:
                 # Single-threaded mode: run directly without process pool
@@ -330,7 +334,7 @@ class AnalyzerDispatcher(QObject):
 
         # Load thread pool size from settings
         qsettings = get_qsettings()
-        self.thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
+        self.thread_pool_size = qsettings.value(SETTINGS_ANALYZERS_THREAD_POOL_SIZE, 1, type=int)
 
         self.thread_pool = QThreadPool.globalInstance()
         # Set thread pool max to accommodate the requested thread pool size
@@ -407,7 +411,7 @@ class AnalyzerDispatcher(QObject):
         the user made to the thread pool size setting.
         """
         qsettings = get_qsettings()
-        new_thread_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
+        new_thread_pool_size = qsettings.value(SETTINGS_ANALYZERS_THREAD_POOL_SIZE, 1, type=int)
 
         if new_thread_pool_size != self.thread_pool_size:
             log.info(f"Thread pool size changed from {self.thread_pool_size} to {new_thread_pool_size}")
@@ -665,8 +669,8 @@ class AnalyzerDispatcher(QObject):
                 saved_key_format = None
                 if 'key_notation_format' in task.options:
                     qsettings = get_qsettings()
-                    saved_key_format = qsettings.value("Analyzers/CategoryOptions/key/notation_format")
-                    qsettings.setValue("Analyzers/CategoryOptions/key/notation_format", task.options['key_notation_format'])
+                    saved_key_format = qsettings.value(SETTINGS_KEY_NOTATION_FORMAT)
+                    qsettings.setValue(SETTINGS_KEY_NOTATION_FORMAT, task.options['key_notation_format'])
                     log.debug(f"Temporarily overriding key notation format to: {task.options['key_notation_format']}")
 
                 try:
@@ -675,7 +679,7 @@ class AnalyzerDispatcher(QObject):
                 finally:
                     # Restore original key notation format if it was overridden
                     if saved_key_format is not None:
-                        qsettings.setValue("Analyzers/CategoryOptions/key/notation_format", saved_key_format)
+                        qsettings.setValue(SETTINGS_KEY_NOTATION_FORMAT, saved_key_format)
                         log.debug(f"Restored key notation format to: {saved_key_format}")
 
                 log.info(f"Applied analysis results to {task.media_file.file_path}: {task.result.data}")

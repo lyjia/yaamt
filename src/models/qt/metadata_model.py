@@ -8,7 +8,8 @@ from models.edit_manager import EditManager
 from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA,
-    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
+    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, COL_MAIN_DATE_CREATED,
+    KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
     KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_FILE_ID, LOADING_PLACEHOLDER
 )
 from util.display import human_readable_size, human_readable_timestamp
@@ -66,7 +67,7 @@ class MetadataTableModel(QAbstractTableModel):
                 fmtime = row_data.get(KEY_FILE_MTIME)
                 return human_readable_timestamp(fmtime)
 
-            elif column.id == "date_created":
+            elif column.id == COL_MAIN_DATE_CREATED:
                 fctime = row_data.get(KEY_FILE_CTIME)
                 return human_readable_timestamp(fctime)
 
@@ -104,7 +105,7 @@ class MetadataTableModel(QAbstractTableModel):
             elif column.id == COL_MAIN_DATE_MODIFIED:
                 return row_data.get(KEY_FILE_MTIME)
 
-            elif column.id == "date_created":
+            elif column.id == COL_MAIN_DATE_CREATED:
                 return row_data.get(KEY_FILE_CTIME)
 
             # elif header == "Last Accessed":

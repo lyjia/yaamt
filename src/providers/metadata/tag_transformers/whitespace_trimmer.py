@@ -8,6 +8,8 @@ input for subsequent transformers.
 
 from typing import Any
 from PySide6.QtCore import QSettings
+
+from util.const import COMMON_WRITABLE_TAGS
 from .base import TransformerBase
 
 
@@ -26,13 +28,7 @@ class WhitespaceTrimmer(TransformerBase):
     name = "Whitespace Trimmer"
     description = "Remove leading and trailing whitespace from string values"
     version = "1.0.0"
-    # Applies to all string-based tags
-    applicable_tags = [
-        'title', 'artist', 'album', 'album_artist', 'composer', 'genre',
-        'comment', 'copyright', 'date', 'year', 'track_number', 'track_total',
-        'disc_number', 'disc_total', 'isrc', 'label', 'remixer', 'lyricist',
-        'conductor', 'publisher', 'grouping', 'bpm', 'key'
-    ]
+    applicable_tags = list(COMMON_WRITABLE_TAGS)
     priority = 10  # Run early (after empty string handler)
 
     def __init__(self, settings: QSettings):

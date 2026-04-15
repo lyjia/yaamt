@@ -8,7 +8,9 @@ Supports multiple notation formats including standard, Camelot, and Open Key.
 from typing import Any, Optional, Tuple
 from PySide6.QtCore import QSettings
 
-from util.const import KEY_INITIAL_KEY
+from util.const import (
+    KEY_INITIAL_KEY, KEY_NOTATION_FORMAT_DEFAULT, SETTINGS_KEY_NOTATION_FORMAT,
+)
 from util.logging import log
 from util.diatonic_key import CAMELOT_MAP, OPEN_KEY_MAP, NOTE_TO_PITCH, parse_key, format_key, NotationFormat
 from .base import TransformerBase
@@ -23,7 +25,7 @@ class MusicalKeyFormatter(TransformerBase):
     - "camelot": 6A, 8B, 2A, 7B
     - "open_key": 6m, 8d, 2m, 7d
 
-    Reads preference from: Analyzers/CategoryOptions/key/notation_format
+    Reads preference from the ``SETTINGS_KEY_NOTATION_FORMAT`` QSettings key.
     Default: "standard_abbrev"
     """
 
@@ -45,7 +47,9 @@ class MusicalKeyFormatter(TransformerBase):
         Returns:
             Notation format enum (default: NotationFormat.StandardAbbrev)
         """
-        value_str = self.settings.value("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
+        value_str = self.settings.value(
+            SETTINGS_KEY_NOTATION_FORMAT, KEY_NOTATION_FORMAT_DEFAULT
+        )
 
         # Convert string to enum by matching against enum values
         for fmt in NotationFormat:

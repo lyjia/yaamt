@@ -6,6 +6,8 @@ This transformer formats BPM values according to the user's decimal places prefe
 
 from typing import Any
 from PySide6.QtCore import QSettings
+
+from util.const import KEY_BPM, SETTINGS_BPM_DECIMAL_PLACES
 from .base import TransformerBase
 
 
@@ -13,8 +15,8 @@ class BPMFormatter(TransformerBase):
     """
     Transformer that formats BPM values according to user preferences.
 
-    Reads the user's preferred number of decimal places from:
-    Analyzers/CategoryOptions/bpm/decimal_places (default: 0, range: 0-3)
+    Reads the user's preferred number of decimal places from the
+    ``SETTINGS_BPM_DECIMAL_PLACES`` QSettings key (default: 0, range: 0-3).
 
     Examples:
     - 173.94 with 0 decimals → "174"
@@ -25,7 +27,7 @@ class BPMFormatter(TransformerBase):
     name = "BPM Formatter"
     description = "Format BPM values according to decimal places preference"
     version = "1.0.0"
-    applicable_tags = ['bpm']
+    applicable_tags = [KEY_BPM]
     priority = 50  # Default priority
 
     def __init__(self, settings: QSettings):
@@ -42,7 +44,7 @@ class BPMFormatter(TransformerBase):
             Number of decimal places (0-3, clamped to valid range)
         """
         # Read from settings with default of 0
-        value = self.settings.value("Analyzers/CategoryOptions/bpm/decimal_places", 0)
+        value = self.settings.value(SETTINGS_BPM_DECIMAL_PLACES, 0)
 
         # Convert to int and clamp to valid range
         try:

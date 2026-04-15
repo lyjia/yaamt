@@ -8,6 +8,11 @@ from typing import Optional, Generator
 from models.media_file import MediaFile
 from models.settings import settings
 from providers.audio.format_descriptor import AudioFormatDescriptor
+from util.const import (
+    SETTINGS_DEBUG_PLAYBACK_ADAPTATION, SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE,
+    SETTINGS_DEBUG_PLAYBACK_CHANNELS, SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH,
+    SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT,
+)
 from util.logging import log
 
 # Playback states
@@ -56,15 +61,15 @@ class PlaybackWorker(QObject):
             AudioFormatDescriptor if format adaptation is enabled, None otherwise
         """
         # Check if format adaptation is enabled in settings
-        enabled = settings.value("Debug/PlaybackFormatAdaptationEnabled", False, type=bool)
+        enabled = settings.value(SETTINGS_DEBUG_PLAYBACK_ADAPTATION, False, type=bool)
         if not enabled:
             return None
 
         # Read format settings from QSettings
-        sample_rate = settings.value("Debug/PlaybackSampleRate", None, type=int)
-        channels = settings.value("Debug/PlaybackChannels", None, type=int)
-        sample_width = settings.value("Debug/PlaybackSampleWidth", None, type=int)
-        sample_format = settings.value("Debug/PlaybackSampleFormat", None, type=str)
+        sample_rate = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE, None, type=int)
+        channels = settings.value(SETTINGS_DEBUG_PLAYBACK_CHANNELS, None, type=int)
+        sample_width = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH, None, type=int)
+        sample_format = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, None, type=str)
 
         # Convert empty strings or 0 to None
         if sample_rate == 0:

@@ -22,11 +22,12 @@ from models.settings import settings
 from models.media_file import MediaFile
 from util.logging import log
 from util.diatonic_key import get_notation_format_display_list
-from util.analyzer_options import (
+from util.const import (
+    BPM_RANGE_PRESETS,
     BPM_RANGE_MIN_KEY, BPM_RANGE_MAX_KEY,
-    BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT
+    BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT,
+    SETTINGS_ANALYZERS_THREAD_POOL_SIZE,
 )
-from util.const import BPM_RANGE_PRESETS
 
 
 class AnalyzerSetupDialog(QDialog):
@@ -299,7 +300,7 @@ class AnalyzerSetupDialog(QDialog):
 
         # Load saved value from settings
         qsettings = get_qsettings()
-        saved_pool_size = qsettings.value("Analyzers/thread_pool_size", 1, type=int)
+        saved_pool_size = qsettings.value(SETTINGS_ANALYZERS_THREAD_POOL_SIZE, 1, type=int)
         # Ensure saved value is within valid range
         saved_pool_size = max(1, min(saved_pool_size, cpu_count))
         self.thread_pool_slider.setValue(saved_pool_size)
@@ -542,7 +543,7 @@ class AnalyzerSetupDialog(QDialog):
 
         # Save thread pool size
         qsettings = get_qsettings()
-        qsettings.setValue("Analyzers/thread_pool_size", self.thread_pool_slider.value())
+        qsettings.setValue(SETTINGS_ANALYZERS_THREAD_POOL_SIZE, self.thread_pool_slider.value())
 
         # Save preferences
         self._save_preferences()

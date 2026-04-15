@@ -600,11 +600,15 @@ def get_common_analyzer_options() -> List[AnalyzerOption]:
     ]
 
 
-# BPM range preference keys in QSettings
-BPM_RANGE_MIN_KEY = "Analyzers/CategoryOptions/bpm/range_min"
-BPM_RANGE_MAX_KEY = "Analyzers/CategoryOptions/bpm/range_max"
-BPM_RANGE_MIN_DEFAULT = 80
-BPM_RANGE_MAX_DEFAULT = 200
+# BPM range preference keys in QSettings (re-exported from util.const so all
+# QSettings paths are centralised there). Kept at module level so existing
+# ``from util.analyzer_options import BPM_RANGE_*`` imports keep working.
+from util.const import (  # noqa: E402 - intentional: re-export
+    BPM_RANGE_MIN_KEY,
+    BPM_RANGE_MAX_KEY,
+    BPM_RANGE_MIN_DEFAULT,
+    BPM_RANGE_MAX_DEFAULT,
+)
 
 
 def get_bpm_category_options() -> List[AnalyzerOption]:
