@@ -1127,18 +1127,20 @@ class MainWindow(QMainWindow):
         """
         from models.settings import Favorite
 
-        settings.beginGroup(SETTINGS_GROUP_FAVORITES)
         favorites = []
-
-        num_favorites = settings.beginReadArray(SETTINGS_ARRAY_FAVORITES_LOCATIONS)
-        for i in range(num_favorites):
-            settings.setArrayIndex(i)
-            path = settings.value("path", type=str)
-            if path:
-                favorites.append(Favorite(path=path))
-        settings.endArray()
-
-        settings.endGroup()
+        settings.beginGroup(SETTINGS_GROUP_FAVORITES)
+        try:
+            num_favorites = settings.beginReadArray(SETTINGS_ARRAY_FAVORITES_LOCATIONS)
+            try:
+                for i in range(num_favorites):
+                    settings.setArrayIndex(i)
+                    path = settings.value("path", type=str)
+                    if path:
+                        favorites.append(Favorite(path=path))
+            finally:
+                settings.endArray()
+        finally:
+            settings.endGroup()
         return favorites
 
     def _save_favorites(self, favorites: list):
@@ -1149,14 +1151,16 @@ class MainWindow(QMainWindow):
             favorites: List of Favorite objects to save
         """
         settings.beginGroup(SETTINGS_GROUP_FAVORITES)
-
-        settings.beginWriteArray(SETTINGS_ARRAY_FAVORITES_LOCATIONS, len(favorites))
-        for i, favorite in enumerate(favorites):
-            settings.setArrayIndex(i)
-            settings.setValue("path", favorite.path)
-        settings.endArray()
-
-        settings.endGroup()
+        try:
+            settings.beginWriteArray(SETTINGS_ARRAY_FAVORITES_LOCATIONS, len(favorites))
+            try:
+                for i, favorite in enumerate(favorites):
+                    settings.setArrayIndex(i)
+                    settings.setValue("path", favorite.path)
+            finally:
+                settings.endArray()
+        finally:
+            settings.endGroup()
 
     def _on_favorites_button_clicked(self):
         """Handle favorites toolbar button click by refreshing and showing the menu."""
@@ -1309,28 +1313,30 @@ class MainWindow(QMainWindow):
 
     def _load_column_settings(self):
         settings.beginGroup(SETTINGS_GROUP_FILE_LIST)
-        
-        # Load column settings
-        num_columns = settings.beginReadArray(SETTINGS_ARRAY_FILE_LIST_COLUMNS)
-        if num_columns > 0:
-            self.file_list_settings.columns = []
-            for i in range(num_columns):
-                settings.setArrayIndex(i)
-                col_settings = ColumnSettings(
-                    id=settings.value("id"),
-                    label=settings.value("label"),
-                    group=settings.value("group"),
-                    width=int(settings.value("width")),
-                    is_visible=settings.value("is_visible", type=bool)
-                )
-                self.file_list_settings.columns.append(col_settings)
-        settings.endArray()
+        try:
+            # Load column settings
+            num_columns = settings.beginReadArray(SETTINGS_ARRAY_FILE_LIST_COLUMNS)
+            try:
+                if num_columns > 0:
+                    self.file_list_settings.columns = []
+                    for i in range(num_columns):
+                        settings.setArrayIndex(i)
+                        col_settings = ColumnSettings(
+                            id=settings.value("id"),
+                            label=settings.value("label"),
+                            group=settings.value("group"),
+                            width=int(settings.value("width")),
+                            is_visible=settings.value("is_visible", type=bool)
+                        )
+                        self.file_list_settings.columns.append(col_settings)
+            finally:
+                settings.endArray()
 
-        # Load sort settings
-        self.file_list_settings.sort_column = settings.value("sort_column", 0, type=int)
-        self.file_list_settings.sort_order = settings.value("sort_order", Qt.SortOrder.AscendingOrder, type=int)
-        
-        settings.endGroup()
+            # Load sort settings
+            self.file_list_settings.sort_column = settings.value("sort_column", 0, type=int)
+            self.file_list_settings.sort_order = settings.value("sort_order", Qt.SortOrder.AscendingOrder, type=int)
+        finally:
+            settings.endGroup()
 
         self._apply_column_settings()
 
@@ -1360,40 +1366,43 @@ class MainWindow(QMainWindow):
 
     def _save_column_settings(self):
         settings.beginGroup(SETTINGS_GROUP_FILE_LIST)
-        header = self.files_view.header()
-        
-        # Get current visual layout
-        columns_to_save = []
-        for visual_index in range(header.count()):
-            logical_index = header.logicalIndex(visual_index)
-            col_id = self._logical_column_ids[logical_index]
-            
-            # Find original column settings to get label
-            original_col = next((c for c in FileListSettings().columns if c.id == col_id), None)
-            if original_col:
-                columns_to_save.append(ColumnSettings(
-                    id=col_id,
-                    label=original_col.label,
-                    group=original_col.group,
-                    width=header.sectionSize(logical_index),
-                    is_visible=not header.isSectionHidden(logical_index)
-                ))
+        try:
+            header = self.files_view.header()
 
-        # Save column settings
-        settings.beginWriteArray(SETTINGS_ARRAY_FILE_LIST_COLUMNS, len(columns_to_save))
-        for i, col in enumerate(columns_to_save):
-            settings.setArrayIndex(i)
-            settings.setValue("id", col.id)
-            settings.setValue("label", col.label)
-            settings.setValue("width", col.width)
-            settings.setValue("is_visible", col.is_visible)
-        settings.endArray()
+            # Get current visual layout
+            columns_to_save = []
+            for visual_index in range(header.count()):
+                logical_index = header.logicalIndex(visual_index)
+                col_id = self._logical_column_ids[logical_index]
 
-        # Save sort settings
-        settings.setValue("sort_column", self.file_list_settings.sort_column)
-        settings.setValue("sort_order", self.file_list_settings.sort_order)
+                # Find original column settings to get label
+                original_col = next((c for c in FileListSettings().columns if c.id == col_id), None)
+                if original_col:
+                    columns_to_save.append(ColumnSettings(
+                        id=col_id,
+                        label=original_col.label,
+                        group=original_col.group,
+                        width=header.sectionSize(logical_index),
+                        is_visible=not header.isSectionHidden(logical_index)
+                    ))
 
-        settings.endGroup()
+            # Save column settings
+            settings.beginWriteArray(SETTINGS_ARRAY_FILE_LIST_COLUMNS, len(columns_to_save))
+            try:
+                for i, col in enumerate(columns_to_save):
+                    settings.setArrayIndex(i)
+                    settings.setValue("id", col.id)
+                    settings.setValue("label", col.label)
+                    settings.setValue("width", col.width)
+                    settings.setValue("is_visible", col.is_visible)
+            finally:
+                settings.endArray()
+
+            # Save sort settings
+            settings.setValue("sort_column", self.file_list_settings.sort_column)
+            settings.setValue("sort_order", self.file_list_settings.sort_order)
+        finally:
+            settings.endGroup()
 
     @Slot(str, float)
     def on_playback_started(self, filename: str, duration: float):
