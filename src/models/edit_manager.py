@@ -268,7 +268,6 @@ class EditManager(QObject):
             if file_changes[KEY_TAG_GENERIC] or file_changes[KEY_TAG_INTERNAL]:
                 result = True
                 break
-        # log.debug(f"has_staged_changes returning: {result}")
         return result
 
 

@@ -121,8 +121,6 @@ class MediaFile:
         # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
         #     self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
-        pass #for debugger attach
-
     def get_tag_all_values(self, key, is_internal_tag_key=False):
         actual_key = key
         if not is_internal_tag_key and key in self._generic_to_internal_map:

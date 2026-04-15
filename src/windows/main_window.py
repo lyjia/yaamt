@@ -454,27 +454,6 @@ class MainWindow(QMainWindow):
             self.cancel_button.hide()
             self._current_load_worker = None
 
-    # TODO: Re-enable these methods when dynamic priority queue is implemented
-    # def _on_viewport_changed(self):
-    #     """Called when the viewport scrolls or changes."""
-    #     self._update_viewport_priority()
-    #
-    # def _create_resize_event_wrapper(self, original_resize_event):
-    #     """
-    #     Create a wrapper for the resize event that also updates viewport priority.
-    #
-    #     Args:
-    #         original_resize_event: The original resizeEvent method
-    #
-    #     Returns:
-    #         Wrapped resize event handler
-    #     """
-    #     def wrapped_resize_event(event):
-    #         original_resize_event(event)
-    #         self._update_viewport_priority()
-    #
-    #     return wrapped_resize_event
-
     def _update_viewport_priority(self):
         """
         Calculate the visible row range and send it to the worker for priority loading.

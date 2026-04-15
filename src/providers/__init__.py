@@ -1,5 +1,3 @@
-import importlib
-import pkgutil
 from enum import Enum
 from typing import Callable, Dict, List, Type
 from providers.analysis import AnalyzerBase, AnalyzerCategory
@@ -146,32 +144,5 @@ def discover_providers():
     from providers.analysis import _manifest
     log.debug("Loaded providers from static manifest")
 
-
-# def _discover_providers_dynamic():
-#     """
-#     Dynamically discovers providers using pkgutil (development mode only).
-#
-#     This method does NOT work in compiled executables (Nuitka, PyInstaller, etc.)
-#     as it relies on filesystem access to discover modules.
-#
-#     NOTE: This function is no longer used. All provider modules must be explicitly
-#     listed in the static manifest at providers/analysis/_manifest.py
-#
-#     :return: None
-#     """
-#     scan_package = importlib.import_module(__package__)
-#     scan_path = scan_package.__path__
-#
-#     for typ in pkgutil.iter_modules(scan_path): # providers.<provider type>
-#         provider_type_module = importlib.import_module(scan_package.__name__ + "." + typ.name)
-#
-#         if typ.name == "analysis":
-#             for cat in pkgutil.iter_modules(provider_type_module.__path__): # providers.analysis.<analysis category>
-#                 # discover analysis providers
-#                 provider_category_module = importlib.import_module(provider_type_module.__name__ + "." + cat.name)
-#
-#                 if "base" not in provider_category_module.__name__:
-#                     for mod in pkgutil.iter_modules(provider_category_module.__path__):
-#                         importlib.import_module(provider_category_module.__name__ + "." + mod.name)
 
 discover_providers()
