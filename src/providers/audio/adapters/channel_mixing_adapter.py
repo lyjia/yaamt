@@ -6,9 +6,12 @@ streams between different channel counts (mono and stereo).
 """
 
 import numpy as np
-from typing import Dict
 from .base import AdapterBase
 from ..base import AudioStreamBase
+from util.audio_numpy import (
+    SAMPLE_WIDTH_24BIT,
+    bytes_to_int32_24bit, int32_to_bytes_24bit, get_numpy_dtype,
+)
 
 
 class ChannelMixingAdapter(AdapterBase):
@@ -61,35 +64,9 @@ class ChannelMixingAdapter(AdapterBase):
 
         self._target_channels = target_channels
 
-        # Determine numpy dtype based on sample width
-        self._dtype = self._get_dtype(source.sample_width)
-
-    def _get_dtype(self, sample_width: int) -> np.dtype:
-        """
-        Get the appropriate numpy dtype for the given sample width.
-
-        Args:
-            sample_width: Sample width in bytes
-
-        Returns:
-            NumPy dtype for audio data
-
-        Raises:
-            ValueError: If sample_width is not supported
-        """
-        dtype_map: Dict[int, np.dtype] = {
-            1: np.dtype('<i1'),   # 8-bit signed int
-            2: np.dtype('<i2'),   # 16-bit signed int
-            3: np.dtype('<i4'),   # 24-bit (stored as 32-bit int)
-            4: np.dtype('<f4'),   # 32-bit float
-        }
-
-        if sample_width not in dtype_map:
-            raise ValueError(
-                f"Unsupported sample width: {sample_width} bytes"
-            )
-
-        return dtype_map[sample_width]
+        # Determine numpy dtype based on sample width. 'auto' follows the
+        # convention that 4-byte samples are float32 (see util.audio_numpy).
+        self._dtype = get_numpy_dtype(source.sample_width, 'auto')
 
     def read(self, n_frames: int) -> bytes:
         """
@@ -111,29 +88,12 @@ class ChannelMixingAdapter(AdapterBase):
         if not source_data:
             return b''
 
-        # Convert bytes to numpy array
-        audio_array = np.frombuffer(source_data, dtype=self._dtype)
-
-        # Handle 24-bit audio specially (stored as 32-bit but only using 24 bits)
-        if self._source.sample_width == 3:
-            # Convert 24-bit data (in bytes) to proper int32 values
-            # This is needed because 24-bit audio is typically stored as 3 bytes
-            # but we need to work with proper int32 for calculations
-            audio_bytes = np.frombuffer(source_data, dtype=np.uint8)
-            audio_array = np.zeros(len(source_data) // 3, dtype=np.int32)
-
-            for i in range(len(audio_array)):
-                # Extract 3 bytes and convert to signed int32
-                byte_offset = i * 3
-                val = int(audio_bytes[byte_offset]) | \
-                      (int(audio_bytes[byte_offset + 1]) << 8) | \
-                      (int(audio_bytes[byte_offset + 2]) << 16)
-
-                # Sign extend if negative (bit 23 is set)
-                if val & 0x800000:
-                    val = val - 0x1000000  # Convert to negative by subtracting 2^24
-
-                audio_array[i] = val
+        # Convert bytes to numpy array. 24-bit audio is unpacked from its
+        # wire format (3 bytes per sample) into sign-extended int32.
+        if self._source.sample_width == SAMPLE_WIDTH_24BIT:
+            audio_array = bytes_to_int32_24bit(source_data)
+        else:
+            audio_array = np.frombuffer(source_data, dtype=self._dtype)
 
         # Reshape to (n_frames, n_channels)
         audio_array = audio_array.reshape(-1, self._source.channels_qty)
@@ -146,27 +106,10 @@ class ChannelMixingAdapter(AdapterBase):
             # Mono to stereo: duplicate channel
             converted = np.repeat(audio_array, 2, axis=1)
 
-        # Convert back to appropriate dtype if needed
-        if self._source.sample_width == 3:
-            # Convert int32 back to 24-bit bytes
-            converted = converted.astype(np.int32)
-            output_bytes = bytearray()
-
-            for val in converted.flat:
-                # Clamp to 24-bit range
-                val = np.clip(val, -8388608, 8388607)
-                # Write as 3 bytes (little-endian)
-                output_bytes.extend([
-                    val & 0xFF,
-                    (val >> 8) & 0xFF,
-                    (val >> 16) & 0xFF
-                ])
-
-            return bytes(output_bytes)
-        else:
-            # For other formats, convert back to original dtype
-            converted = converted.astype(self._dtype)
-            return converted.tobytes()
+        # Convert back to appropriate dtype / wire format
+        if self._source.sample_width == SAMPLE_WIDTH_24BIT:
+            return int32_to_bytes_24bit(converted)
+        return converted.astype(self._dtype).tobytes()
 
     def seek(self, frame_offset: int) -> None:
         """

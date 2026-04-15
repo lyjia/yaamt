@@ -10,6 +10,10 @@ from scipy.signal import resample_poly
 from typing import Tuple
 from .base import AdapterBase
 from ..base import AudioStreamBase
+from util.audio_numpy import (
+    SAMPLE_WIDTH_24BIT,
+    bytes_to_int32_24bit, int32_to_bytes_24bit, get_numpy_dtype,
+)
 
 
 class ResamplingAdapter(AdapterBase):
@@ -108,21 +112,13 @@ class ResamplingAdapter(AdapterBase):
         """
         Get the numpy dtype for audio data based on sample width.
 
+        Uses the 'auto' convention from :func:`util.audio_numpy.get_numpy_dtype`
+        where 4-byte samples are interpreted as float32.
+
         Returns:
             NumPy dtype for audio data
         """
-        if self._source.sample_width == 1:
-            return np.dtype('<i1')
-        elif self._source.sample_width == 2:
-            return np.dtype('<i2')
-        elif self._source.sample_width == 3:
-            return np.dtype('<i4')  # 24-bit stored as 32-bit
-        elif self._source.sample_width == 4:
-            return np.dtype('<f4')  # 32-bit float
-        else:
-            raise ValueError(
-                f"Unsupported sample width: {self._source.sample_width} bytes"
-            )
+        return get_numpy_dtype(self._source.sample_width, 'auto')
 
     def _bytes_to_array(self, data: bytes) -> np.ndarray:
         """
@@ -134,28 +130,9 @@ class ResamplingAdapter(AdapterBase):
         Returns:
             NumPy array with audio samples
         """
-        if self._source.sample_width == 3:
-            # Handle 24-bit audio: convert 3 bytes to int32
-            audio_bytes = np.frombuffer(data, dtype=np.uint8)
-            n_samples = len(audio_bytes) // 3
-            audio_array = np.zeros(n_samples, dtype=np.int32)
-
-            for i in range(n_samples):
-                byte_offset = i * 3
-                val = int(audio_bytes[byte_offset]) | \
-                      (int(audio_bytes[byte_offset + 1]) << 8) | \
-                      (int(audio_bytes[byte_offset + 2]) << 16)
-
-                # Sign extend if negative (bit 23 is set)
-                if val & 0x800000:
-                    val = val - 0x1000000  # Convert to negative by subtracting 2^24
-
-                audio_array[i] = val
-
-            return audio_array
-        else:
-            # Standard formats
-            return np.frombuffer(data, dtype=self._get_numpy_dtype())
+        if self._source.sample_width == SAMPLE_WIDTH_24BIT:
+            return bytes_to_int32_24bit(data)
+        return np.frombuffer(data, dtype=self._get_numpy_dtype())
 
     def _array_to_bytes(self, array: np.ndarray) -> bytes:
         """
@@ -167,25 +144,9 @@ class ResamplingAdapter(AdapterBase):
         Returns:
             Audio data as bytes
         """
-        if self._source.sample_width == 3:
-            # Handle 24-bit audio: convert int32 to 3 bytes
-            array = array.astype(np.int32)
-            output_bytes = bytearray()
-
-            for val in array.flat:
-                # Clamp to 24-bit range
-                val = np.clip(val, -8388608, 8388607)
-                # Write as 3 bytes (little-endian)
-                output_bytes.extend([
-                    val & 0xFF,
-                    (val >> 8) & 0xFF,
-                    (val >> 16) & 0xFF
-                ])
-
-            return bytes(output_bytes)
-        else:
-            # Standard formats
-            return array.astype(self._get_numpy_dtype()).tobytes()
+        if self._source.sample_width == SAMPLE_WIDTH_24BIT:
+            return int32_to_bytes_24bit(array)
+        return array.astype(self._get_numpy_dtype()).tobytes()
 
     def _resample_audio(self, audio_array: np.ndarray) -> np.ndarray:
         """
