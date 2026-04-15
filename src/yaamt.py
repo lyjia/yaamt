@@ -22,9 +22,9 @@ from models.settings import settings as qsettings
 from providers import get_analyzer_by_name, get_analyzers_by_category, AnalyzerCategory
 from providers.analysis.base import AnalyzerBase
 from workers.analyzer_dispatcher import AnalyzerDispatcher
-from util.const import ALL_TAGS, IS_DEBUG_BUILD
-from util.debug import set_debug_mode, is_debug_mode
-from util.logging import log, configure_logger
+from util.const import ALL_TAGS
+from util.debug import add_debug_argument, initialize_debug_and_logging
+from util.logging import log
 from util.version import get_version
 from util.cli_formatters import (
     format_analyzer_list,
@@ -502,8 +502,7 @@ def main():
     # Global options
     parser.add_argument('--version', action='store_true', help='Show version and exit')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
-    parser.add_argument('--debug', action='store_true', default=1,
-                        help=f'Enable debug mode (default)')
+    add_debug_argument(parser)
 
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
@@ -575,19 +574,8 @@ def main():
         print(get_version())
         return SYS_RETURN_SUCCESS
 
-    # Handle debug mode
-    # If --debug is not specified (None), use IS_DEBUG_BUILD default
-    debug_mode = args.debug if args.debug is not None else IS_DEBUG_BUILD
-    set_debug_mode(debug_mode)
-
-    # Determine log level based on debug mode (extensible for future --log-level flag)
-    log_level = 'debug' if is_debug_mode() else 'info'
-
-    # Configure logging
-    if args.verbose:
-        configure_logger(use_formatter=True, log_level=log_level)
-    else:
-        configure_logger(use_formatter=True, log_level=log_level)
+    # Initialize debug mode and logging in one place, shared with the GUI.
+    initialize_debug_and_logging(args)
 
     # Handle analyze command specially to add dynamic options
     if args.command == 'analyze' and hasattr(args, 'analyzer'):
