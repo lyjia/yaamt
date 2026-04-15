@@ -5,7 +5,7 @@ This dialog shows real-time progress during analysis operations, including
 the current file being analyzed and overall progress.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton,
@@ -30,7 +30,7 @@ class AnalyzerProgressDialog(QDialog):
     - Cancel button with option to keep/discard partial results
     """
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         """
         Initialize the progress dialog.
 

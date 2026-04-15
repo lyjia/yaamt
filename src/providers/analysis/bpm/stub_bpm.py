@@ -6,7 +6,6 @@ but demonstrates the analyzer interface and can be used for testing
 the auto-discovery and dispatcher systems.
 """
 
-from typing import Optional, List
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSpinBox, QFormLayout
 
@@ -67,7 +66,7 @@ class StubBPMAnalyzer(AnalyzerBase):
             )
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 

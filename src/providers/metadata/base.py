@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from models.tag_info import TagInfo
 
@@ -9,7 +9,7 @@ class MetadataProviderBase(ABC):
     An abstract base class that defines the interface for metadata providers.
     """
     @abstractmethod
-    def get_tag(self, key: str) -> Optional[list]:
+    def get_tag(self, key: str) -> list | None:
         '''Abstract method to get a tag value.'''
         pass
 

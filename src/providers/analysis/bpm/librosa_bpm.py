@@ -6,7 +6,7 @@ It loads the entire audio file into memory as a numpy array and returns
 raw float BPM values.
 """
 
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
@@ -178,7 +178,7 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -232,7 +232,7 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional["QWidget"]:
+    def get_settings_widget(cls) -> "QWidget | None":
         """
         Return a QWidget for configuring librosa BPM analyzer parameters.
 

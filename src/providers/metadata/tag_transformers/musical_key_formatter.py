@@ -5,7 +5,7 @@ This transformer converts musical key notation according to user preference.
 Supports multiple notation formats including standard, Camelot, and Open Key.
 """
 
-from typing import Any, Optional, Tuple
+from typing import Any
 from PySide6.QtCore import QSettings
 
 from util.const import (

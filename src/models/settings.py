@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import Any
 
 from PySide6.QtCore import QSettings, Qt
 from util.const import AVAILABLE_COLUMNS, APP_ORGANIZATION_NAME, APP_APPLICATION_NAME
@@ -30,7 +30,7 @@ class ColumnSettings:
     is_writable: bool = False
 
 
-def _create_default_columns() -> List[ColumnSettings]:
+def _create_default_columns() -> list[ColumnSettings]:
     """Creates a default set of columns for the file list view."""
     return [ColumnSettings(**settings) for settings in AVAILABLE_COLUMNS.values()]
 
@@ -38,7 +38,7 @@ def _create_default_columns() -> List[ColumnSettings]:
 @dataclass
 class FileListSettings:
     """Stores the settings for the file list view."""
-    columns: List[ColumnSettings] = field(default_factory=_create_default_columns)
+    columns: list[ColumnSettings] = field(default_factory=_create_default_columns)
     sort_column: int = 0
     sort_order: int = Qt.SortOrder.AscendingOrder
 
@@ -72,9 +72,9 @@ class AnalyzerSettings:
         category_options: Category-specific settings (e.g., key notation preference)
                          Example: {'key': {'notation': 'camelot'}}
     """
-    preferred_analyzers: Dict[str, str] = field(default_factory=dict)
+    preferred_analyzers: dict[str, str] = field(default_factory=dict)
     thread_pool_size: int = 1
-    category_options: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    category_options: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -86,7 +86,7 @@ class Favorite:
 @dataclass
 class FavoritesSettings:
     """Stores settings related to user favorites."""
-    locations: List[Favorite] = field(default_factory=list)
+    locations: list[Favorite] = field(default_factory=list)
 
 
 @dataclass

@@ -7,7 +7,6 @@ and functions to select the best BPM from candidates.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from util.logging import log
 
@@ -34,8 +33,8 @@ class BpmCandidate:
 
 def adjust_bpm_to_range(
     bpm: float,
-    min_bpm: Optional[int],
-    max_bpm: Optional[int]
+    min_bpm: int | None,
+    max_bpm: int | None
 ) -> float:
     """
     Adjust BPM value to fall within the specified range by doubling or halving.
@@ -116,9 +115,9 @@ def adjust_bpm_to_range(
 
 def select_best_bpm(
     candidates: list[BpmCandidate],
-    min_bpm: Optional[int] = None,
-    max_bpm: Optional[int] = None
-) -> Optional[float]:
+    min_bpm: int | None = None,
+    max_bpm: int | None = None
+) -> float | None:
     """
     Select the best BPM from a list of candidates, applying range adjustment.
 

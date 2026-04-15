@@ -1,6 +1,6 @@
 import traceback
 from argparse import ArgumentError
-from typing import Any, Optional
+from typing import Any
 
 import mutagen
 from mutagen.easyid3 import EasyID3
@@ -181,7 +181,7 @@ class MutagenProvider(MetadataProviderBase):
             log.error(f"{e.__class__.__name__} loading file {file_path}: {e}")
             raise
 
-    def get_tag(self, key: str) -> Optional[list]:
+    def get_tag(self, key: str) -> list | None:
         if not self._audio:
             return None
 

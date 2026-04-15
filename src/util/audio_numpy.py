@@ -10,7 +10,7 @@ dtype-mapping logic lives in exactly one place.
 """
 
 import numpy as np
-from typing import Literal, Optional, Tuple
+from typing import Literal
 from providers.audio.base import AudioStreamBase
 from util.logging import log
 
@@ -145,9 +145,9 @@ def int32_to_bytes_24bit(array: np.ndarray) -> bytes:
 
 def audio_stream_to_numpy(
     audio_stream: AudioStreamBase,
-    max_duration: Optional[float] = None,
+    max_duration: float | None = None,
     chunk_size: int = 8192
-) -> Tuple[np.ndarray, int]:
+) -> tuple[np.ndarray, int]:
     """
     Convert an AudioStreamBase to a numpy array suitable for librosa.
 

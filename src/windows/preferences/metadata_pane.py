@@ -1,5 +1,4 @@
 """Metadata preferences pane."""
-from typing import Tuple, Dict
 from PySide6.QtWidgets import (
     QVBoxLayout, QGroupBox, QLabel, QComboBox, QSpinBox,
     QHBoxLayout, QLineEdit, QFormLayout
@@ -78,7 +77,7 @@ class MetadataPane(PreferencePaneBase):
         """Initialize the MetadataPane."""
         super().__init__(parent)
         self.settings = get_qsettings()
-        self.analyzer_combos: Dict[AnalyzerCategory, QComboBox] = {}
+        self.analyzer_combos: dict[AnalyzerCategory, QComboBox] = {}
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -310,7 +309,7 @@ class MetadataPane(PreferencePaneBase):
         # Save key notation format
         self.settings.setValue(SETTINGS_KEY_NOTATION_FORMAT, self.key_format_combo.currentData())
 
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self) -> tuple[bool, str]:
         """Validate all settings in this pane."""
         # Validate BPM range
         self._validate_bpm_range()

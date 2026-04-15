@@ -7,7 +7,7 @@ RapidEvolution3, using Gaussian-modulated cosine wavelets and modal template mat
 Reference: https://github.com/djqualia/RapidEvolution3
 """
 from enum import Enum
-from typing import Optional, Callable, Tuple, List
+from typing import Callable
 import numpy as np
 
 from util.logging import log
@@ -299,7 +299,7 @@ class KeyProbabilitySet:
         #           total += normalizedProbabilities[i];
         return float(np.sum(self.normalized_probabilities))
 
-    def get_key_string(self, detect_advanced_modes: bool = False, index: Optional[int] = None) -> str:
+    def get_key_string(self, detect_advanced_modes: bool = False, index: int | None = None) -> str:
         """
         Get the key string for a specific index or the highest probability.
 
@@ -482,7 +482,7 @@ class MultiKeyProbabilityFilter:
     Reference: MultiKeyProbabilityFilter.java in RE3
     """
 
-    def __init__(self, is_major: bool, mode_type: str, probabilities_list: List[np.ndarray]):
+    def __init__(self, is_major: bool, mode_type: str, probabilities_list: list[np.ndarray]):
         """
         Initialize multi-template filter.
 
@@ -501,7 +501,7 @@ class MultiKeyProbabilityFilter:
         #           SingleKeyProbabilityFilter filter = new SingleKeyProbabilityFilter(major, type, probabilities[p]);
         #           filters.add(filter);
         #       }
-        self.filters: List[SingleKeyProbabilityFilter] = []
+        self.filters: list[SingleKeyProbabilityFilter] = []
         for template in probabilities_list:
             filter_instance = SingleKeyProbabilityFilter(is_major, mode_type, template)
             self.filters.append(filter_instance)
@@ -597,7 +597,7 @@ class KeyProbability:
 
         # Java: filters.add(new SingleKeyProbabilityFilter(true, "ionian",
         #           new double[] { 0.2, 0.0, 0.12, 0.0, 0.16, 0.12, 0.0, 0.16, 0.0, 0.12, 0.0, 0.12 }));
-        self.filters: List[SingleKeyProbabilityFilter | MultiKeyProbabilityFilter] = []
+        self.filters: list[SingleKeyProbabilityFilter | MultiKeyProbabilityFilter] = []
 
         # Major-type modes (ionian, lydian, mixolydian)
         self.filters.append(SingleKeyProbabilityFilter(
@@ -736,7 +736,7 @@ class KeyProbability:
             DetectedKey with best match and accuracy score
         """
         # Collect results from all filters
-        results: List[Tuple[str, float, str]] = []  # (key_string, probability, mode_type)
+        results: list[tuple[str, float, str]] = []  # (key_string, probability, mode_type)
         max_probability = 0.0
         min_probability = float('inf')
         total_probability = 0.0

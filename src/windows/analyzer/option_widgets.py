@@ -12,7 +12,7 @@ The non-GUI half of the system -- the ``AnalyzerOption`` dataclass,
 without pulling in PySide6.
 """
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -41,7 +41,7 @@ _BROWSE_BUTTON_MAX_WIDTH = 100
 
 
 def build_widget_from_option(option: AnalyzerOption,
-                             settings_group: Optional[str] = None) -> QWidget:
+                             settings_group: str | None = None) -> QWidget:
     """
     Auto-generate an appropriate Qt widget from option metadata.
 
@@ -104,7 +104,7 @@ def build_widget_from_option(option: AnalyzerOption,
 # -----------------------------------------------------------------------------
 
 def _load_saved_value(option: AnalyzerOption,
-                      settings_group: Optional[str]) -> Any:
+                      settings_group: str | None) -> Any:
     """Read this option's saved value from QSettings, or return its default."""
     if not settings_group:
         return option.default
@@ -145,7 +145,7 @@ def _make_settings_saver(option: AnalyzerOption, settings_group: str):
 
 def _build_checkbox(option: AnalyzerOption,
                     value: bool,
-                    settings_group: Optional[str]) -> QCheckBox:
+                    settings_group: str | None) -> QCheckBox:
     """Build a QCheckBox widget."""
     checkbox = QCheckBox(option.help)
     checkbox.setObjectName(option.name)
@@ -162,7 +162,7 @@ def _build_checkbox(option: AnalyzerOption,
 
 def _build_combobox(option: AnalyzerOption,
                     value: Any,
-                    settings_group: Optional[str]) -> QWidget:
+                    settings_group: str | None) -> QWidget:
     """Build a QComboBox widget with an associated label."""
     container = QWidget()
     layout = QVBoxLayout()
@@ -198,8 +198,8 @@ def _build_combobox(option: AnalyzerOption,
 
 
 def _build_spinbox(option: AnalyzerOption,
-                   value: Union[int, float],
-                   settings_group: Optional[str],
+                   value: int | float,
+                   settings_group: str | None,
                    is_float: bool) -> QWidget:
     """Build a labelled QSpinBox or QDoubleSpinBox."""
     container = QWidget()
@@ -234,8 +234,8 @@ def _build_spinbox(option: AnalyzerOption,
 
 
 def _build_slider_spinbox(option: AnalyzerOption,
-                          value: Union[int, float],
-                          settings_group: Optional[str]) -> QWidget:
+                          value: int | float,
+                          settings_group: str | None) -> QWidget:
     """Build a QSlider + QSpinBox/QDoubleSpinBox combo widget."""
     container = QWidget()
     main_layout = QVBoxLayout()
@@ -287,7 +287,7 @@ def _build_slider_spinbox(option: AnalyzerOption,
     def slider_to_spinbox(slider_value: int) -> None:
         spinbox.setValue(slider_value / scale_factor if is_float else slider_value)
 
-    def spinbox_to_slider(spinbox_value: Union[int, float]) -> None:
+    def spinbox_to_slider(spinbox_value: int | float) -> None:
         slider.setValue(int(spinbox_value * scale_factor) if is_float else int(spinbox_value))
 
     slider.valueChanged.connect(slider_to_spinbox)
@@ -303,7 +303,7 @@ def _build_slider_spinbox(option: AnalyzerOption,
 
 def _build_path_input(option: AnalyzerOption,
                       value: str,
-                      settings_group: Optional[str],
+                      settings_group: str | None,
                       placeholder: str,
                       open_dialog) -> QWidget:
     """
@@ -355,7 +355,7 @@ def _build_path_input(option: AnalyzerOption,
 
 def _build_file_input(option: AnalyzerOption,
                       value: str,
-                      settings_group: Optional[str]) -> QWidget:
+                      settings_group: str | None) -> QWidget:
     """Build a file-picker widget (line edit + Browse button)."""
 
     def open_file_dialog(parent: QWidget, current_text: str) -> str:
@@ -377,7 +377,7 @@ def _build_file_input(option: AnalyzerOption,
 
 def _build_directory_input(option: AnalyzerOption,
                            value: str,
-                           settings_group: Optional[str]) -> QWidget:
+                           settings_group: str | None) -> QWidget:
     """Build a directory-picker widget (line edit + Browse button)."""
 
     def open_directory_dialog(parent: QWidget, current_text: str) -> str:

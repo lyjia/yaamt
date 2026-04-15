@@ -5,7 +5,7 @@ This module provides the central registry for all tag transformers and the
 main entry point for applying transformations to tag values.
 """
 
-from typing import Dict, List, Any, Type
+from typing import Any
 from PySide6.QtCore import QSettings
 
 from .base import TransformerBase
@@ -18,10 +18,10 @@ from util.logging import log
 
 
 # Registry structure: {tag_name: [transformer_class, ...]}
-_transformer_registry: Dict[str, List[Type[TransformerBase]]] = {}
+_transformer_registry: dict[str, list[type[TransformerBase]]] = {}
 
 
-def register_transformer(transformer_class: Type[TransformerBase]) -> None:
+def register_transformer(transformer_class: type[TransformerBase]) -> None:
     """
     Register a transformer class for its applicable tags.
 
@@ -39,7 +39,7 @@ def register_transformer(transformer_class: Type[TransformerBase]) -> None:
     log.debug(f"Registered transformer '{transformer_class.name}' for tags: {transformer_class.applicable_tags}")
 
 
-def get_transformers_for_tag(tag_name: str) -> List[Type[TransformerBase]]:
+def get_transformers_for_tag(tag_name: str) -> list[type[TransformerBase]]:
     """
     Get all transformer classes that apply to a specific tag.
 

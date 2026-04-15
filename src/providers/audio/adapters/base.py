@@ -6,7 +6,6 @@ pattern to wrap AudioStreamBase instances and transform their output.
 """
 
 from abc import abstractmethod
-from typing import Optional
 from ..base import AudioStreamBase
 
 

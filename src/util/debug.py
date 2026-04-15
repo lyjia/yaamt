@@ -13,7 +13,6 @@ entrypoints can configure debug/logging identically in one call.
 """
 
 import argparse
-from typing import Optional
 
 from util.const import IS_DEBUG_BUILD
 
@@ -108,7 +107,7 @@ def initialize_debug_and_logging(args: argparse.Namespace) -> None:
     # Import lazily so the debug module stays cheap to import from tests.
     from util.logging import configure_logger
 
-    debug_mode: Optional[bool] = getattr(args, 'debug', None)
+    debug_mode: bool | None = getattr(args, 'debug', None)
     if debug_mode is None:
         debug_mode = IS_DEBUG_BUILD
     set_debug_mode(bool(debug_mode))

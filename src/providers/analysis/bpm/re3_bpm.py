@@ -11,7 +11,7 @@ Reference:
 
 """
 
-from typing import Optional, Callable, List
+from typing import Callable
 import numpy as np
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QSpinBox,
@@ -123,8 +123,8 @@ class SubBandSeparator:
 
     def __init__(self, sample_rate: float, min_bpm: float, max_bpm: float,
                  seconds: float, decimation_size: int = 64, threshold_time: float = 60.0,
-                 progress_callback: Optional[Callable[[float], None]] = None,
-                 cancel_check: Optional[Callable[[], bool]] = None):
+                 progress_callback: Callable[[float], None] | None = None,
+                 cancel_check: Callable[[], bool] | None = None):
         """
         Initialize SubBandSeparator.
 
@@ -878,7 +878,7 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -907,7 +907,7 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional[QWidget]:
+    def get_settings_widget(cls) -> QWidget | None:
         """
         Return a QWidget for configuring RE3 analyzer parameters.
 

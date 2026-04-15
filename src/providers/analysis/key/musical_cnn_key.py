@@ -10,7 +10,7 @@ Paper: "Genre-Agnostic Key Classification With Convolutional Neural Networks"
        by F. Korzeniowski and G. Widmer (ISMIR 2018)
 """
 
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from pathlib import Path
 import numpy as np
 
@@ -343,7 +343,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         return spec_tensor
 
     @classmethod
-    def get_required_resources(cls) -> List[ResourceMetadata]:
+    def get_required_resources(cls) -> list[ResourceMetadata]:
         """
         Return resources required by this analyzer.
 
@@ -367,7 +367,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -392,7 +392,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional["QWidget"]:
+    def get_settings_widget(cls) -> "QWidget | None":
         """
         Return a QWidget for configuring MusicalKeyCNN analyzer parameters.
 

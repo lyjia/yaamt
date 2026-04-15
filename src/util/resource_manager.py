@@ -19,7 +19,7 @@ Design:
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Dict, Callable
+from typing import Callable
 import hashlib
 import tempfile
 import os
@@ -57,9 +57,9 @@ class ResourceMetadata:
     url: str
     filename: str
     expected_size: int
-    checksum: Optional[str] = None
+    checksum: str | None = None
     category: str = "resources"
-    version: Optional[str] = None
+    version: str | None = None
     display_name: str = ""
     description: str = ""
     download_type: str = "direct"
@@ -150,7 +150,7 @@ class ResourceManager:
         )
     """
 
-    def __init__(self, cache_root: Optional[Path] = None):
+    def __init__(self, cache_root: Path | None = None):
         """
         Initialize the resource manager.
 
@@ -158,8 +158,8 @@ class ResourceManager:
             cache_root: Root directory for cached resources. If None, uses
                        platform-appropriate default location or saved setting.
         """
-        self._registry: Dict[str, ResourceMetadata] = {}
-        self._custom_locations: Dict[str, Path] = {}
+        self._registry: dict[str, ResourceMetadata] = {}
+        self._custom_locations: dict[str, Path] = {}
 
         # Determine cache root: explicit arg > saved setting > platform default
         if cache_root:
@@ -176,7 +176,7 @@ class ResourceManager:
 
         log.debug(f"ResourceManager initialized with cache root: {self._cache_root}")
 
-    def _load_cache_root_setting(self) -> Optional[Path]:
+    def _load_cache_root_setting(self) -> Path | None:
         """Load custom cache root from QSettings if previously set."""
         try:
             from models.settings import get_qsettings
@@ -207,7 +207,7 @@ class ResourceManager:
         except Exception as e:
             log.warning(f"Error loading custom locations: {e}")
 
-    def _save_custom_location(self, resource_id: str, path: Optional[Path]) -> None:
+    def _save_custom_location(self, resource_id: str, path: Path | None) -> None:
         """Save a custom location to QSettings."""
         try:
             from models.settings import get_qsettings
@@ -324,7 +324,7 @@ class ResourceManager:
     def ensure_resource(
         self,
         resource_id: str,
-        progress_reporter: Optional[ProgressReporter] = None,
+        progress_reporter: ProgressReporter | None = None,
         timeout: float = 300.0
     ) -> Path:
         """
@@ -433,7 +433,7 @@ class ResourceManager:
         self,
         metadata: ResourceMetadata,
         target_path: Path,
-        progress_reporter: Optional[ProgressReporter]
+        progress_reporter: ProgressReporter | None
     ):
         """
         Download a resource from URL to target path.
@@ -513,7 +513,7 @@ class ResourceManager:
         url: str,
         fd: int,
         expected_size: int,
-        progress_reporter: Optional[ProgressReporter]
+        progress_reporter: ProgressReporter | None
     ):
         """
         Download URL to file descriptor with progress reporting.
@@ -567,7 +567,7 @@ class ResourceManager:
 
         return sha256.hexdigest()
 
-    def clear_cache(self, category: Optional[str] = None):
+    def clear_cache(self, category: str | None = None):
         """
         Clear cached resources.
 
@@ -588,7 +588,7 @@ class ResourceManager:
                 self._cache_root.mkdir(parents=True, exist_ok=True)
                 log.info("Cleared entire cache")
 
-    def get_cached_resources(self) -> Dict[str, Path]:
+    def get_cached_resources(self) -> dict[str, Path]:
         """
         Get all currently cached resources.
 
@@ -602,7 +602,7 @@ class ResourceManager:
                 cached[resource_id] = self._get_resource_path(metadata)
         return cached
 
-    def get_resource_path(self, resource_id: str) -> Optional[Path]:
+    def get_resource_path(self, resource_id: str) -> Path | None:
         """
         Get the path where a resource would be cached, regardless of whether it exists.
 
@@ -630,7 +630,7 @@ class ResourceManager:
         """
         return self.is_resource_cached(resource_id)
 
-    def get_all_registered_resources(self) -> Dict[str, ResourceMetadata]:
+    def get_all_registered_resources(self) -> dict[str, ResourceMetadata]:
         """
         Return all registered resources with their metadata.
 
@@ -662,7 +662,7 @@ class ResourceManager:
         log.info(f"Set custom location for {resource_id}: {path}")
         return True
 
-    def get_custom_location(self, resource_id: str) -> Optional[Path]:
+    def get_custom_location(self, resource_id: str) -> Path | None:
         """
         Get the custom location for a resource, if set.
 
@@ -688,7 +688,7 @@ class ResourceManager:
 
 
 # Global singleton instance
-_resource_manager: Optional[ResourceManager] = None
+_resource_manager: ResourceManager | None = None
 
 
 def get_resource_manager() -> ResourceManager:

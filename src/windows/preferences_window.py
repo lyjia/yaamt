@@ -1,5 +1,4 @@
 """Main preferences window."""
-from typing import List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
     QStackedWidget, QMessageBox, QSplitter, QListWidgetItem
@@ -35,7 +34,7 @@ class PreferencesWindow(QDialog):
         """Initialize the PreferencesWindow."""
         super().__init__(parent)
         self.settings = get_qsettings()
-        self.panes: List[PreferencePaneBase] = []
+        self.panes: list[PreferencePaneBase] = []
 
         self._setup_window()
         self._setup_ui()

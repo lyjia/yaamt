@@ -11,7 +11,6 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional
 import pandas as pd
 
 # Add src directory to path for imports (since we're in src/)
@@ -31,8 +30,8 @@ class EvaluationResult:
 
     def __init__(self, filename: str):
         self.filename = filename
-        self.reference_value: Optional[str] = None
-        self.analyzed_value: Optional[str] = None
+        self.reference_value: str | None = None
+        self.analyzed_value: str | None = None
         self.score: float = 0.0
         self.category: str = ""
         self.notes: str = ""
@@ -45,7 +44,7 @@ class AnalyzerEvaluation:
     def __init__(self, analyzer_name: str, criteria: str):
         self.analyzer_name = analyzer_name
         self.criteria = criteria
-        self.results: List[EvaluationResult] = []
+        self.results: list[EvaluationResult] = []
         self.total_files = 0
         self.scored_files = 0
         self.skipped_files = 0
@@ -122,7 +121,7 @@ def load_reference_data(reference_path: Path, criteria: str) -> pd.DataFrame:
     return df
 
 
-def load_analysis_data(analysis_paths: List[Path], criteria: str) -> Dict[str, pd.DataFrame]:
+def load_analysis_data(analysis_paths: list[Path], criteria: str) -> dict[str, pd.DataFrame]:
     """
     Load and validate analysis CSV data.
 
@@ -172,7 +171,7 @@ def load_analysis_data(analysis_paths: List[Path], criteria: str) -> Dict[str, p
     return analysis_data
 
 
-def evaluate_key(ref_key_str: str, analyzed_key_str: str) -> Tuple[float, str, str, str, str]:
+def evaluate_key(ref_key_str: str, analyzed_key_str: str) -> tuple[float, str, str, str, str]:
     """
     Evaluate key detection for a single file.
 
@@ -211,7 +210,7 @@ def evaluate_key(ref_key_str: str, analyzed_key_str: str) -> Tuple[float, str, s
     return (score, category_enum.value, "", ref_standard, analyzed_standard)
 
 
-def evaluate_bpm(ref_bpm: float, analyzed_bpm: float) -> Tuple[float, str, str]:
+def evaluate_bpm(ref_bpm: float, analyzed_bpm: float) -> tuple[float, str, str]:
     """
     Evaluate BPM detection for a single file.
 
@@ -237,7 +236,7 @@ def evaluate_analyzer(
     analysis_df: pd.DataFrame,
     reference_df: pd.DataFrame,
     criteria: str,
-    audio_dir: Optional[Path]
+    audio_dir: Path | None
 ) -> AnalyzerEvaluation:
     """
     Evaluate a single analyzer against reference data.
@@ -349,7 +348,7 @@ def evaluate_analyzer(
 
 
 def write_summary_csv(
-    evaluations: List[AnalyzerEvaluation],
+    evaluations: list[AnalyzerEvaluation],
     output_dir: Path,
     criteria: str
 ) -> Path:

@@ -1,5 +1,4 @@
 """Resources preferences pane for managing external resources."""
-from typing import Tuple
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QPushButton,
@@ -367,7 +366,7 @@ class ResourcesPane(PreferencePaneBase):
         """No settings to save - custom locations are saved immediately."""
         pass
 
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self) -> tuple[bool, str]:
         """No validation needed."""
         return True, ""
 

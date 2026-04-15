@@ -1,5 +1,5 @@
 import os
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QFont, QColor
@@ -21,7 +21,7 @@ from util.logging import log
 
 class MetadataTableModel(QAbstractTableModel):
     def __init__(self, columns: list[ColumnSettings], edit_manager: EditManager,
-                 parent: Optional[QWidget] = None) -> None:
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._data: list[dict] = []
         self._columns = columns
@@ -192,7 +192,7 @@ class MetadataTableModel(QAbstractTableModel):
         log.debug("Finished with edits. Saving changes...")
         self.edit_manager.commit_changes()
 
-    def get_media_file_for_row(self, row: int) -> Optional[MediaFile]:
+    def get_media_file_for_row(self, row: int) -> MediaFile | None:
         """
         Get the MediaFile object for a given row index.
 

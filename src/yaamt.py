@@ -14,7 +14,7 @@ This module implements the CLI with verb-based commands:
 import argparse
 import sys
 import os
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 from models.edit_manager import EditManager
 from models.media_file import MediaFile
@@ -56,7 +56,7 @@ SUPPORTED_EXTENSIONS = ['.mp3', '.flac', '.wav']
 OUTPUT_FORMATS = ['list', 'table', 'csv', 'json']
 
 
-def get_files(paths: List[str], recursive: bool = False) -> List[str]:
+def get_files(paths: list[str], recursive: bool = False) -> list[str]:
     """
     Collect audio file paths from the given paths.
 
@@ -88,7 +88,7 @@ def get_files(paths: List[str], recursive: bool = False) -> List[str]:
     return files
 
 
-def load_media_files(file_paths: List[str], enable_write: bool = False) -> List[MediaFile]:
+def load_media_files(file_paths: list[str], enable_write: bool = False) -> list[MediaFile]:
     """
     Load MediaFile instances from file paths.
 

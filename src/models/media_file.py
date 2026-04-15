@@ -1,5 +1,5 @@
 import os
-from typing import Any, Optional
+from typing import Any
 
 from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
     KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
@@ -122,7 +122,7 @@ class MediaFile:
         # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
         #     self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
-    def get_tag_all_values(self, key: str, is_internal_tag_key: bool = False) -> Optional[list]:
+    def get_tag_all_values(self, key: str, is_internal_tag_key: bool = False) -> list | None:
         actual_key = key
         if not is_internal_tag_key and key in self._generic_to_internal_map:
             actual_key = self._generic_to_internal_map[key]
@@ -166,7 +166,7 @@ class MediaFile:
     def get_internal_data(self, key: str) -> Any:
         return self._combined_metadata[KEY_INTERNAL].get(key)
 
-    def save(self, changes: Optional[dict] = None, bypass_transformations: bool = False) -> None:
+    def save(self, changes: dict | None = None, bypass_transformations: bool = False) -> None:
         """
         Save changes to the media file.
 
@@ -292,13 +292,13 @@ class MediaFile:
         length = self.get_stream_info_value(KEY_LENGTH)
         return float(length) if length is not None else 0.0
 
-    def get_internal_tag_name_for_generic(self, generic_tag_name: str) -> Optional[str]:
+    def get_internal_tag_name_for_generic(self, generic_tag_name: str) -> str | None:
         return self._generic_to_internal_map.get(generic_tag_name)
 
-    def get_generic_tag_name_for_internal(self, internal_tag_name: str) -> Optional[str]:
+    def get_generic_tag_name_for_internal(self, internal_tag_name: str) -> str | None:
         return self._internal_to_generic_map.get(internal_tag_name)
 
-    def get_audio_stream(self, format_descriptor: Optional[Any] = None) -> Any:
+    def get_audio_stream(self, format_descriptor: Any | None = None) -> Any:
         """
         Get an audio stream for reading audio data from this file.
 

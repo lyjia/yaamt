@@ -14,7 +14,7 @@ import os
 import json
 import csv
 import io
-from typing import List, Dict, Any, Optional, Type, TextIO
+from typing import Any, TextIO
 from pathlib import Path
 
 from providers import get_analyzers_by_category, get_all_categories, get_analyzer_by_name, ProviderType
@@ -22,7 +22,7 @@ from providers.analysis import AnalyzerBase, AnalyzerCategory
 from util.analyzer_options import AnalyzerOption, get_common_analyzer_options
 
 
-def format_analyzer_list(category_filter: Optional[str] = None) -> str:
+def format_analyzer_list(category_filter: str | None = None) -> str:
     """
     Format a list of available analyzers for display.
 
@@ -73,7 +73,7 @@ def format_analyzer_list(category_filter: Optional[str] = None) -> str:
     return '\n'.join(output_lines)
 
 
-def format_help_for_analyzer(analyzer_class: Type[AnalyzerBase]) -> str:
+def format_help_for_analyzer(analyzer_class: type[AnalyzerBase]) -> str:
     """
     Generate comprehensive help text for a specific analyzer.
 
@@ -194,8 +194,8 @@ def _format_as_json(data: Any) -> str:
 
 
 def _format_as_csv(
-    rows: List[Dict[str, Any]],
-    columns: List[str],
+    rows: list[dict[str, Any]],
+    columns: list[str],
     filepath_key: str = 'filepath'
 ) -> str:
     """
@@ -239,8 +239,8 @@ def _format_as_csv(
 
 
 def _format_as_list(
-    rows: List[Dict[str, Any]],
-    columns: List[str],
+    rows: list[dict[str, Any]],
+    columns: list[str],
     filepath_key: str = 'filepath',
     title_prefix: str = "Data for"
 ) -> str:
@@ -287,8 +287,8 @@ def _format_as_list(
 
 
 def _format_as_table(
-    rows: List[Dict[str, Any]],
-    columns: List[str],
+    rows: list[dict[str, Any]],
+    columns: list[str],
     filepath_key: str = 'filepath'
 ) -> str:
     """
@@ -364,7 +364,7 @@ def _format_as_table(
 
 
 def format_analysis_results(
-    results: List[Dict[str, Any]],
+    results: list[dict[str, Any]],
     analyzer_name: str,
     output_format: str = 'table'
 ) -> str:
@@ -441,12 +441,12 @@ def format_analysis_results(
 
 
 def format_metadata_output(
-    media_files: List,
+    media_files: list,
     output_format: str = 'table',
     include_tags: bool = True,
     include_stream_info: bool = False,
     include_internal: bool = False,
-    tag_filter: Optional[List[str]] = None
+    tag_filter: list[str] | None = None
 ) -> str:
     """
     Format metadata for display.
@@ -543,7 +543,7 @@ def format_metadata_output(
         return _format_as_table(rows, columns, 'filepath')
 
 
-def write_output(content: str, output_file: Optional[str] = None) -> None:
+def write_output(content: str, output_file: str | None = None) -> None:
     """
     Write content to a file or stdout.
 

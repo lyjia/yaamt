@@ -5,7 +5,6 @@ This analyzer detects BPM using the aubio library's beat tracking system.
 It streams audio data and returns raw float BPM values.
 """
 
-from typing import Optional, List
 import numpy as np
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QComboBox,
@@ -204,7 +203,7 @@ class AubioBPMAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -270,7 +269,7 @@ class AubioBPMAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional[QWidget]:
+    def get_settings_widget(cls) -> QWidget | None:
         """
         Return a QWidget for configuring aubio analyzer parameters.
 

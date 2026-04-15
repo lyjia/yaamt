@@ -3,7 +3,7 @@ import threading
 
 import miniaudio
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
-from typing import Optional, Generator
+from typing import Generator
 
 from models.media_file import MediaFile
 from models.settings import settings
@@ -53,7 +53,7 @@ class PlaybackWorker(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_position)
 
-    def _get_format_descriptor(self) -> Optional[AudioFormatDescriptor]:
+    def _get_format_descriptor(self) -> AudioFormatDescriptor | None:
         """
         Get the format descriptor from settings for audio playback adaptation.
 

@@ -13,7 +13,7 @@ render an option as a Qt widget.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any
 from argparse import ArgumentParser
 
 
@@ -44,11 +44,11 @@ class AnalyzerOption:
     type: str
     default: Any
     help: str
-    choices: Optional[List[Union[Any, Tuple[Any, str]]]] = None
-    min: Optional[float] = None
-    max: Optional[float] = None
-    interval: Optional[float] = None
-    suffix: Optional[str] = None
+    choices: list[Any | tuple[Any, str]] | None = None
+    min: float | None = None
+    max: float | None = None
+    interval: float | None = None
+    suffix: str | None = None
 
     def __post_init__(self):
         """Validate option configuration."""
@@ -159,7 +159,7 @@ def add_option_to_argparse(parser: ArgumentParser,
     parser.add_argument(arg_name, **kwargs)
 
 
-def get_common_analyzer_options() -> List[AnalyzerOption]:
+def get_common_analyzer_options() -> list[AnalyzerOption]:
     """
     Return common options available for all analyzers.
 
@@ -189,7 +189,7 @@ from util.const import (  # noqa: E402 - intentional: re-export
 )
 
 
-def get_bpm_category_options() -> List[AnalyzerOption]:
+def get_bpm_category_options() -> list[AnalyzerOption]:
     """
     Return BPM-specific category options for CLI.
 

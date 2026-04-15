@@ -7,7 +7,7 @@ written to files.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, List
+from typing import Any
 from PySide6.QtCore import QSettings
 
 
@@ -34,7 +34,7 @@ class TransformerBase(ABC):
     name: str = "Base Transformer"
     description: str = "Base transformer class"
     version: str = "1.0.0"
-    applicable_tags: List[str] = []
+    applicable_tags: list[str] = []
     priority: int = 50
 
     def __init__(self, settings: QSettings):

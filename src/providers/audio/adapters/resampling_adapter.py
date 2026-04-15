@@ -7,7 +7,6 @@ between different sample rates using scipy.signal.resample_poly.
 
 import numpy as np
 from scipy.signal import resample_poly
-from typing import Tuple
 from .base import AdapterBase
 from ..base import AudioStreamBase
 from util.audio_numpy import (
@@ -86,7 +85,7 @@ class ResamplingAdapter(AdapterBase):
         self,
         source_rate: int,
         target_rate: int
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """
         Calculate simplified up/down factors for resampling.
 

@@ -5,7 +5,7 @@ This dialog allows users to select an analyzer from a category and configure
 analyzer-specific options before running the analysis.
 """
 
-from typing import List, Type, Optional, Dict, Any
+from typing import Any
 import os
 
 from PySide6.QtWidgets import (
@@ -41,7 +41,7 @@ class AnalyzerSetupDialog(QDialog):
     - File count to be analyzed
     """
 
-    def __init__(self, category: AnalyzerCategory, media_files: List[MediaFile], parent=None):
+    def __init__(self, category: AnalyzerCategory, media_files: list[MediaFile], parent=None):
         """
         Initialize the analyzer setup dialog.
 
@@ -53,9 +53,9 @@ class AnalyzerSetupDialog(QDialog):
         super().__init__(parent)
         self.category = category
         self.media_files = media_files
-        self.selected_analyzer: Optional[Type[AnalyzerBase]] = None
-        self.analyzer_options: Dict[str, Any] = {}
-        self.current_settings_widget: Optional[QWidget] = None  # Track current widget
+        self.selected_analyzer: type[AnalyzerBase] | None = None
+        self.analyzer_options: dict[str, Any] = {}
+        self.current_settings_widget: QWidget | None = None  # Track current widget
 
         self.setWindowTitle(f"Configure {category.value} Analysis")
         self.setMinimumWidth(450)
@@ -365,7 +365,7 @@ class AnalyzerSetupDialog(QDialog):
         if len(analyzers) > 0:
             self._on_analyzer_changed(0)
 
-    def _update_thread_info(self, value: Optional[int] = None):
+    def _update_thread_info(self, value: int | None = None):
         """
         Update thread pool and concurrency information labels.
 
@@ -721,7 +721,7 @@ class AnalyzerSetupDialog(QDialog):
         self.bpm_max_spin.setValue(self._bpm_pref_max)
         self._update_bpm_preset_from_values()
 
-    def get_analyzer_class(self) -> Optional[Type[AnalyzerBase]]:
+    def get_analyzer_class(self) -> type[AnalyzerBase] | None:
         """
         Get the selected analyzer class.
 
@@ -730,7 +730,7 @@ class AnalyzerSetupDialog(QDialog):
         """
         return self.selected_analyzer
 
-    def get_options(self) -> Dict[str, Any]:
+    def get_options(self) -> dict[str, Any]:
         """
         Get the configured options.
 

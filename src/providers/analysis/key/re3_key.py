@@ -9,7 +9,6 @@ Reference:
     references/RapidEvolution3/src/com/mixshare/rapid_evolution/audio/detection/key/KeyDetector.java
 """
 
-from typing import Optional, List
 import time
 import numpy as np
 
@@ -345,7 +344,7 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -378,7 +377,7 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional[QWidget]:
+    def get_settings_widget(cls) -> QWidget | None:
         """
         Return a QWidget for configuring key analyzer parameters.
 

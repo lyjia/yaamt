@@ -1,5 +1,4 @@
 """General preferences pane."""
-from typing import Tuple
 from PySide6.QtWidgets import (
     QVBoxLayout, QGroupBox, QRadioButton, QLineEdit, QPushButton,
     QLabel, QComboBox, QHBoxLayout, QFileDialog, QStyleFactory
@@ -164,7 +163,7 @@ class GeneralPane(PreferencePaneBase):
         skin = self.ui_skin_combo.currentData()
         self.settings.setValue(SETTINGS_UI_SKIN, skin)
 
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self) -> tuple[bool, str]:
         """Validate all settings in this pane."""
         # If "Always use this directory" is selected, path must not be empty
         if self.preferred_dir_radio.isChecked():

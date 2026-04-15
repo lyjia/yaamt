@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton, QHeaderView, QSizePolicy
@@ -10,7 +10,7 @@ from util.const import KEY_TAGS
 
 class AdvancedTab(QWidget):
     def __init__(self, media_files: list[MediaFile], edit_manager: EditManager,
-                 parent: Optional[QWidget] = None) -> None:
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.media_files = media_files
         self.edit_manager = edit_manager
@@ -98,7 +98,7 @@ class AdvancedTab(QWidget):
                 item.setFont(1, font)
                 self._add_revert_button(item, tag_name)
 
-    def _get_provider_for_tag(self, tag_name: str) -> Optional[MetadataProviderBase]:
+    def _get_provider_for_tag(self, tag_name: str) -> MetadataProviderBase | None:
         if self.media_files:
             metadata = self.media_files[0].metadata
             if KEY_TAGS in metadata and tag_name in metadata[KEY_TAGS]:

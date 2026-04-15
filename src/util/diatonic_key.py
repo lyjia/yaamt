@@ -5,7 +5,6 @@
 #   accidental: 0=natural, 1=sharp, -1=flat
 #   is_minor: True/False
 from enum import Enum
-from typing import Optional, Tuple
 
 # Camelot wheel mapping: (pitch_class, is_minor) -> Camelot notation
 CAMELOT_MAP = {
@@ -96,7 +95,7 @@ def get_notation_format_display_list():
         ("Open Key (1m, 12d)", NotationFormat.OpenKey.value),
     ]
 
-def parse_key(key_str: str) -> Optional[Tuple[int, bool]]:
+def parse_key(key_str: str) -> tuple[int, bool] | None:
     """
     Parse a key string into internal representation.
 

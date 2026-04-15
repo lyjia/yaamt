@@ -1,6 +1,5 @@
 """Base class for preference panes."""
 from abc import ABCMeta, abstractmethod
-from typing import Tuple
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QIcon
 from PySide6.QtCore import QObject
@@ -58,7 +57,7 @@ class PreferencePaneBase(QWidget, metaclass=ABCQWidgetMeta):
         pass
 
     @abstractmethod
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self) -> tuple[bool, str]:
         """
         Validate all settings in this pane.
 

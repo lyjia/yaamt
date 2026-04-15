@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, Dict, List, Type
+from typing import Callable
 from providers.analysis import AnalyzerBase, AnalyzerCategory
 from util.debug import is_debug_mode
 from util.logging import log
@@ -14,11 +14,11 @@ Providers relying on this discovery system should register themselves here using
 class ProviderType(Enum):
     ANALYZER = "ANALYZER"
 
-PROVIDER_REGISTRY: Dict[ ProviderType, Dict[ AnalyzerCategory, List[Type[AnalyzerBase]]]] = {}
+PROVIDER_REGISTRY: dict[ ProviderType, dict[ AnalyzerCategory, list[type[AnalyzerBase]]]] = {}
 for cat in ProviderType:
     PROVIDER_REGISTRY[cat] = {}
 
-def get_analyzers_by_category(category: AnalyzerCategory) -> List[Type[AnalyzerBase]]:
+def get_analyzers_by_category(category: AnalyzerCategory) -> list[type[AnalyzerBase]]:
     """
     Get all analyzers for a given category.
 
@@ -38,7 +38,7 @@ def get_analyzers_by_category(category: AnalyzerCategory) -> List[Type[AnalyzerB
     return analyzers
 
 
-def get_all_categories(provider_type: ProviderType) -> List[AnalyzerCategory]:
+def get_all_categories(provider_type: ProviderType) -> list[AnalyzerCategory]:
     """
     Get list of all analyzer categories.
 
@@ -48,7 +48,7 @@ def get_all_categories(provider_type: ProviderType) -> List[AnalyzerCategory]:
     return list(PROVIDER_REGISTRY[provider_type].keys())
 
 
-def get_analyzer_by_name(name: str) -> Type[AnalyzerBase] | None:
+def get_analyzer_by_name(name: str) -> type[AnalyzerBase] | None:
     """
     Get an analyzer class by its name.
 
@@ -65,7 +65,7 @@ def get_analyzer_by_name(name: str) -> Type[AnalyzerBase] | None:
                     return analyzer
     return None
 
-def register_provider(provider_type: ProviderType, provider_category: AnalyzerCategory, klass: Type[AnalyzerBase] ):
+def register_provider(provider_type: ProviderType, provider_category: AnalyzerCategory, klass: type[AnalyzerBase] ):
     """
     Registers a provider class to the provider registry under a specified type
     and category. If the class is already registered, a warning is logged and registration is skipped.
@@ -83,7 +83,7 @@ def register_provider(provider_type: ProviderType, provider_category: AnalyzerCa
     else:
         log.warn(f"{klass} Already registered, skipping!")
 
-def register_analyzer(category: AnalyzerCategory, klass: Type[AnalyzerBase]):
+def register_analyzer(category: AnalyzerCategory, klass: type[AnalyzerBase]):
     """
     Registers an Analyzer module to the Providers registry, under the given AnalyzerCategory.
 
@@ -108,7 +108,7 @@ def register_analyzer(category: AnalyzerCategory, klass: Type[AnalyzerBase]):
         log.warning(f"Error registering resources for {klass.__name__}: {e}")
 
 
-def analyzer(category: AnalyzerCategory, debug_only: bool = False) -> Callable[[Type[AnalyzerBase]], Type[AnalyzerBase]]:
+def analyzer(category: AnalyzerCategory, debug_only: bool = False) -> Callable[[type[AnalyzerBase]], type[AnalyzerBase]]:
     """
     Class decorator that registers an analyzer with the provider registry.
 
@@ -125,7 +125,7 @@ def analyzer(category: AnalyzerCategory, debug_only: bool = False) -> Callable[[
     :param debug_only: If True, analyzer is only available in debug builds (default: False).
     :return: A decorator function that registers the class and returns it unchanged.
     """
-    def decorator(klass: Type[AnalyzerBase]) -> Type[AnalyzerBase]:
+    def decorator(klass: type[AnalyzerBase]) -> type[AnalyzerBase]:
         if debug_only:
             klass.debug_only = True
         register_analyzer(category, klass)

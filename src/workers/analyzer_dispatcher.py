@@ -5,7 +5,7 @@ This module provides a singleton dispatcher that manages a queue of analysis
 tasks, executes them in worker threads, and emits Qt signals for progress updates.
 """
 
-from typing import List, Type, Optional, Dict, Any
+from typing import Any
 import time
 import concurrent.futures
 import os
@@ -26,7 +26,7 @@ from util.logging import log
 
 
 # Global process pool executor (module-level to be shared across instances)
-_process_pool_executor: Optional[concurrent.futures.ProcessPoolExecutor] = None
+_process_pool_executor: concurrent.futures.ProcessPoolExecutor | None = None
 
 
 def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecutor:
@@ -54,7 +54,7 @@ def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecuto
     return _process_pool_executor
 
 
-def _analyze_in_process(analyzer_class_name: str, file_path: str, options: Dict[str, Any]) -> AnalyzerResult:
+def _analyze_in_process(analyzer_class_name: str, file_path: str, options: dict[str, Any]) -> AnalyzerResult:
     """
     Worker function that runs in a separate process to perform analysis.
 
@@ -124,8 +124,8 @@ class AnalysisTask:
         result: The AnalyzerResult after execution (None before execution)
     """
 
-    def __init__(self, analyzer_class: Type[AnalyzerBase], media_file: MediaFile,
-                 options: Optional[Dict[str, Any]] = None):
+    def __init__(self, analyzer_class: type[AnalyzerBase], media_file: MediaFile,
+                 options: dict[str, Any] | None = None):
         """
         Initialize an analysis task.
 
@@ -137,8 +137,8 @@ class AnalysisTask:
         self.analyzer_class = analyzer_class
         self.media_file = media_file
         self.options = options or {}
-        self.result: Optional[AnalyzerResult] = None
-        self.analyzer_instance: Optional[AnalyzerBase] = None
+        self.result: AnalyzerResult | None = None
+        self.analyzer_instance: AnalyzerBase | None = None
 
 
 class AnalyzerWorker(QRunnable):
@@ -235,7 +235,7 @@ class AnalyzerWorker(QRunnable):
         self.signals.worker_finished.emit(self.worker_id, self.task)
 
 
-def _postprocess_result_data(result_data: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+def _postprocess_result_data(result_data: dict[str, Any], options: dict[str, Any]) -> dict[str, Any]:
     """
     Postprocess analyzer result data, converting raw outputs to final values.
 
@@ -344,15 +344,15 @@ class AnalyzerDispatcher(QObject):
         log.info(f"Analyzer dispatcher initialized with thread_pool_size={self.thread_pool_size}, "
                 f"Qt thread pool max={self.thread_pool.maxThreadCount()}")
 
-        self.queue: List[AnalysisTask] = []
-        self.completed_tasks: List[AnalysisTask] = []
-        self.current_task: Optional[AnalysisTask] = None  # Deprecated, kept for compatibility
+        self.queue: list[AnalysisTask] = []
+        self.completed_tasks: list[AnalysisTask] = []
+        self.current_task: AnalysisTask | None = None  # Deprecated, kept for compatibility
         self._is_running = False
         self._active_workers = 0
-        self._batch_start_time: Optional[float] = None
+        self._batch_start_time: float | None = None
 
         # New fields for parallel processing
-        self.active_tasks: Dict[int, tuple[AnalysisTask, int]] = {}  # worker_id -> (task, thread_count)
+        self.active_tasks: dict[int, tuple[AnalysisTask, int]] = {}  # worker_id -> (task, thread_count)
         self.threads_in_use = 0
         self._next_worker_id = 0  # Counter for worker IDs
 
@@ -366,9 +366,9 @@ class AnalyzerDispatcher(QObject):
         self.report_format = 'csv'  # Default: CSV format
         self.report_file = None  # Report output file path
 
-    def enqueue(self, analyzer_class: Type[AnalyzerBase],
-                media_files: List[MediaFile],
-                options: Optional[Dict[str, Any]] = None) -> None:
+    def enqueue(self, analyzer_class: type[AnalyzerBase],
+                media_files: list[MediaFile],
+                options: dict[str, Any] | None = None) -> None:
         """
         Add analysis tasks to the queue.
 
@@ -460,7 +460,7 @@ class AnalyzerDispatcher(QObject):
         log.info(f"Cancelled {cancelled_count} pending tasks")
         self._is_running = False
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """
         Get summary of completed analysis run.
 

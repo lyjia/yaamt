@@ -7,7 +7,6 @@ all channels. The result is reported in dBFS (decibels relative to full scale).
 """
 
 import struct
-from typing import Optional, List
 
 from providers.audio import AudioStreamBase
 from providers.analysis import AnalyzerCategory, AnalyzerBase, AnalyzerResult
@@ -212,7 +211,7 @@ class PeakMeterAnalyzer(AnalyzerBase):
         chunk_bytes: bytes,
         sample_width: int,
         nchannels: int,
-        format_char: Optional[str],
+        format_char: str | None,
         max_value: float,
         is_unsigned: bool
     ) -> float:
@@ -277,7 +276,7 @@ class PeakMeterAnalyzer(AnalyzerBase):
         return chunk_peak
 
     @classmethod
-    def validate_file(cls, media_file) -> tuple[bool, Optional[str]]:
+    def validate_file(cls, media_file) -> tuple[bool, str | None]:
         """
         Check if this analyzer can process the given file.
 

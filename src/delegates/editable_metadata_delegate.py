@@ -1,4 +1,3 @@
-from typing import Optional
 
 from PySide6.QtWidgets import (
     QStyledItemDelegate, QLineEdit, QWidget, QStyleOptionViewItem,
@@ -15,7 +14,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
     This delegate handles double-clicking to activate editing mode, creates QLineEdit
     widgets for text editing, and ensures the text is fully selected for easy replacement.
     """
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
     def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QLineEdit:
