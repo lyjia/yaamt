@@ -2,9 +2,13 @@
 from PySide6.QtWidgets import (
     QStyledItemDelegate, QLineEdit, QWidget, QStyleOptionViewItem,
 )
-from PySide6.QtCore import QModelIndex, QAbstractItemModel, Qt
+from PySide6.QtCore import (
+    QModelIndex, QAbstractItemModel, QAbstractProxyModel, QItemSelectionModel, Qt,
+)
 
 from util.logging import log
+
+PLACEHOLDER_MULTIPLE_VALUES = "<< multiple values >>"
 
 
 class EditableMetadataDelegate(QStyledItemDelegate):
@@ -13,9 +17,34 @@ class EditableMetadataDelegate(QStyledItemDelegate):
 
     This delegate handles double-clicking to activate editing mode, creates QLineEdit
     widgets for text editing, and ensures the text is fully selected for easy replacement.
+
+    When multiple rows are selected, the delegate applies the edit to all selected rows
+    via the source model's setDataForRows() method.
     """
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._selection_model: QItemSelectionModel | None = None
+        self._proxy_model: QAbstractProxyModel | None = None
+
+    def set_selection_model(self, selection_model: QItemSelectionModel) -> None:
+        self._selection_model = selection_model
+
+    def set_proxy_model(self, proxy_model: QAbstractProxyModel) -> None:
+        self._proxy_model = proxy_model
+
+    def _get_selected_source_rows(self, column: int) -> list[int]:
+        """
+        Returns a list of source-model row indices for the current selection at the given column.
+        Returns an empty list if selection info is unavailable.
+        """
+        if not self._selection_model or not self._proxy_model:
+            return []
+
+        selected_indexes = self._selection_model.selectedRows(column)
+        if len(selected_indexes) <= 1:
+            return []
+
+        return [self._proxy_model.mapToSource(idx).row() for idx in selected_indexes]
 
     def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QLineEdit:
         """
@@ -35,50 +64,77 @@ class EditableMetadataDelegate(QStyledItemDelegate):
     def setEditorData(self, editor: QLineEdit, index: QModelIndex) -> None:
         """
         Set the editor's data to the current value of the cell.
-        The text will be fully selected for easy replacement.
+        For multi-select, shows a placeholder if values differ across selected rows.
 
         Args:
             editor: The QLineEdit editor widget
             index: The model index being edited
         """
-        if isinstance(editor, QLineEdit):
-            # Get the current value from the model
+        if not isinstance(editor, QLineEdit):
+            return
+
+        source_rows = self._get_selected_source_rows(index.column())
+
+        if source_rows:
+            # Multi-selection: collect values across all selected rows for this column
+            values = set()
+            for sel_index in self._selection_model.selectedRows(index.column()):
+                val = sel_index.data(Qt.ItemDataRole.EditRole)
+                values.add(val if val is not None else "")
+
+            if len(values) == 1:
+                editor.setText(str(values.pop()))
+            else:
+                editor.setText("")
+                editor.setPlaceholderText(PLACEHOLDER_MULTIPLE_VALUES)
+        else:
+            # Single selection: existing behavior
             value = index.model().data(index, role=Qt.ItemDataRole.DisplayRole)
             if value is not None:
                 editor.setText(str(value))
             else:
                 editor.setText("")
 
-            # Select all text for easy replacement
-            editor.selectAll()
-            editor.setFocus()
+        editor.selectAll()
+        editor.setFocus()
 
     def setModelData(self, editor: QLineEdit, model: QAbstractItemModel, index: QModelIndex) -> None:
         """
         Set the model data from the editor when editing is finished.
-        This is called when the user presses Enter or the editor loses focus.
+        For multi-select, applies the change to all selected rows via setDataForRows().
 
         Args:
             editor: The QLineEdit editor widget
             model: The model to set data on
             index: The model index being edited
         """
+        if not isinstance(editor, QLineEdit):
+            return
+
         role = Qt.ItemDataRole.EditRole
+        new_value = editor.text().strip()
+        source_model = model.sourceModel()
+        source_index = model.mapToSource(index)
 
-        if isinstance(editor, QLineEdit):
-            new_value = editor.text().strip()
+        source_rows = self._get_selected_source_rows(index.column())
 
-            # Get the original value for comparison
+        if source_rows:
+            # Multi-row edit
+            if new_value == "" and editor.placeholderText() == PLACEHOLDER_MULTIPLE_VALUES:
+                return  # User didn't change anything
+
+            log.debug(f"Multi-edit: applying '{new_value}' to {len(source_rows)} rows, column {source_index.column()}")
+            if source_model.setDataForRows(source_rows, source_index.column(), new_value, role=role):
+                source_model.finished_with_edits()
+        else:
+            # Single-row edit (existing behavior)
             original_value = model.data(index, role=role)
             if original_value is not None:
                 original_value = str(original_value)
             else:
                 original_value = ""
 
-            # Only set data if the value has actually changed
             if new_value != original_value:
-                source_model = model.sourceModel()
-                source_index = model.mapToSource(index)
                 log.debug(f"Updating source index {source_index} with new value '{new_value}'")
                 source_model.setData(source_index, new_value, role=role)
                 source_model.finished_with_edits()

@@ -188,6 +188,63 @@ class MetadataTableModel(QAbstractTableModel):
 
         return True
 
+    def setDataForRows(self, rows: list[int], column: int, value: Any,
+                       role: int = Qt.ItemDataRole.EditRole) -> bool:
+        """
+        Stage a change for multiple rows at once. Does NOT call finished_with_edits();
+        the caller must do that separately.
+
+        Args:
+            rows: List of source model row indices
+            column: The column index
+            value: The new value to set
+            role: The data role
+
+        Returns:
+            bool: True if at least one row was updated
+        """
+        if role != Qt.ItemDataRole.EditRole:
+            return False
+
+        column_settings = self._columns[column]
+        if not column_settings.is_writable:
+            log.error(f"Column {column_settings.id} is not writable! Save aborted!")
+            return False
+
+        media_files = []
+        updated_rows = []
+
+        for row in rows:
+            if row < 0 or row >= len(self._data):
+                log.error(f"Invalid row index for setDataForRows: {row}")
+                continue
+
+            row_data = self._data[row]
+            file_path = row_data.get(KEY_FILE_PATH)
+            if not file_path or not row_data.get(KEY_IS_MEDIA):
+                continue
+
+            media_file = MediaFile(file_path, enable_write=True)
+            media_files.append(media_file)
+
+            # Update internal data immediately for UI responsiveness
+            row_data[column_settings.id] = value
+            self._data[row] = row_data
+            updated_rows.append(row)
+
+        if not media_files:
+            return False
+
+        self.edit_manager.register_media_files(media_files)
+        self.edit_manager.stage_change(media_files, column_settings.id, value)
+
+        for row in updated_rows:
+            idx = self.createIndex(row, column)
+            self.dataChanged.emit(idx, idx, [role])
+
+        log.debug(f"setDataForRows: staged '{column_settings.id}' = '{value}' for {len(media_files)} files")
+        return True
+
     def finished_with_edits(self) -> None:
         log.debug("Finished with edits. Saving changes...")
         self.edit_manager.commit_changes()

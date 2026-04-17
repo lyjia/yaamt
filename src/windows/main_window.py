@@ -20,6 +20,7 @@ from windows.analyzer import AnalyzerSetupDialog, AnalyzerProgressDialog, Analyz
 from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
+from views.multi_select_preserving_tree_view import MultiSelectPreservingTreeView
 from util.const import (
     KEY_IS_MEDIA, KEY_FILE_PATH,
     SETTINGS_DEBUG_PLAYBACK_ADAPTATION, SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE,
@@ -141,7 +142,7 @@ class MainWindow(QMainWindow):
         self.edit_manager.set_playback_coordinator(self.playback_coordinator)
 
         # Right Pane (File List)
-        self.files_view = QTreeView()
+        self.files_view = MultiSelectPreservingTreeView()
         self.file_model = MetadataTableModel(self.file_list_settings.columns, self.edit_manager)
 
         self.proxy_model = QSortFilterProxyModel()
@@ -155,6 +156,10 @@ class MainWindow(QMainWindow):
         self.files_view.setItemDelegate(self.editable_delegate)
         self.files_view.setSortingEnabled(True)
         self.files_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
+        # Give the delegate access to selection context for multi-file inline editing
+        self.editable_delegate.set_selection_model(self.files_view.selectionModel())
+        self.editable_delegate.set_proxy_model(self.proxy_model)
         self.files_view.header().setContextMenuPolicy(Qt.CustomContextMenu)
         self.files_view.header().customContextMenuRequested.connect(self.on_header_context_menu)
         self.files_view.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -1199,16 +1204,9 @@ class MainWindow(QMainWindow):
             self.properties_window.show()
 
     def on_files_view_double_clicked(self, index):
-        log.debug(f"on_files_view_double_clicked called with index: {index}")
-        selected_indexes = self.files_view.selectionModel().selectedRows()
-        log.debug(f"Double-click: selected_indexes from selectionModel: {selected_indexes} (type: {type(selected_indexes)})")
-        if len(selected_indexes) > 1:
-            # this may not ever get called because the UI doesnt let you double-click multiple selected files
-            log.debug("Multiple files selected, calling open_properties_window.")
-            self.open_properties_window()
-        else:
-            log.debug("Single or no file selected by double-click, PropertiesWindow will not be opened by this handler.")
-        # If a single row is selected, the default in-place editing will occur.
+        # Inline editing is handled by the delegate for both single and multi-select.
+        # The delegate applies changes to all selected rows via setDataForRows().
+        pass
 
     def on_column_resized(self, logical_index, old_size, new_size):
         # This is now handled by _save_column_settings, which reads the visual layout
