@@ -4,6 +4,7 @@ from typing import Any
 
 import mutagen
 from mutagen.easyid3 import EasyID3
+from mutagen.easymp4 import EasyMP4Tags
 
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
@@ -11,7 +12,8 @@ from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, K
     KEY_LYRICIST, KEY_LENGTH as KEY_LENGTH_TAG, KEY_MEDIA, KEY_MOOD, KEY_GROUPING, KEY_TITLE, KEY_VERSION, KEY_ARTIST, \
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
     KEY_ALBUM_ARTIST_SORT, KEY_ALBUM_SORT, KEY_COMPOSER_SORT, KEY_ARTIST_SORT, KEY_TITLE_SORT, KEY_ISRC, \
-    KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE, KEY_COMMENT
+    KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE, KEY_COMMENT, KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN, \
+    KEY_REPLAYGAIN_TRACK_PEAK, KEY_REPLAYGAIN_ALBUM_PEAK
 from util.exceptions import SomethingsReallyFuckedUpException, InvalidFileError
 from util.logging import log
 from .base import MetadataProviderBase
@@ -78,6 +80,21 @@ def comment_delete(id3: Any, key: str) -> None:
 EasyID3.RegisterTextKey(KEY_INITIAL_KEY, 'TKEY')
 EasyID3.RegisterKey(KEY_COMMENT, comment_get, comment_set, comment_delete)
 
+# Register canonical ReplayGain tag bindings for the file formats we write to.
+# ID3: lowercase TXXX description matches foobar2000 / r128gain / rsgain
+# convention. MP4: iTunes-style freeform atom under com.apple.iTunes mean.
+# FLAC/Vorbis need no registration — lowercase Vorbis comment keys work directly
+# with mutagen's native FLAC tag interface.
+_REPLAYGAIN_TAGS = (
+    KEY_REPLAYGAIN_TRACK_GAIN,
+    KEY_REPLAYGAIN_ALBUM_GAIN,
+    KEY_REPLAYGAIN_TRACK_PEAK,
+    KEY_REPLAYGAIN_ALBUM_PEAK,
+)
+for _rg_key in _REPLAYGAIN_TAGS:
+    EasyID3.RegisterTXXXKey(_rg_key, _rg_key)
+    EasyMP4Tags.RegisterFreeformKey(_rg_key, _rg_key)
+
 MUT_EASY_TAG_NAMES = ['album',
                       'bpm',
                       'compilation',
@@ -111,7 +128,14 @@ MUT_EASY_TAG_NAMES = ['album',
                       KEY_INITIAL_KEY,
                       KEY_COMMENT,
                       # doesnt appear in above comment for some reason?
-                      'genre'] #TODO: figure out why
+                      'genre', #TODO: figure out why
+                      # ReplayGain tags (registered with EasyID3 and EasyMP4Tags
+                      # at module load). Included here so MediaFile recognises
+                      # them as writable even on files that don't yet have them.
+                      KEY_REPLAYGAIN_TRACK_GAIN,
+                      KEY_REPLAYGAIN_ALBUM_GAIN,
+                      KEY_REPLAYGAIN_TRACK_PEAK,
+                      KEY_REPLAYGAIN_ALBUM_PEAK]
 
 # This dictionary maps 'easy' mutagen tag names to the generic KEY_ constants.
 # This is used to populate the `generic_tag_name` field in the TagInfo objects.
@@ -148,6 +172,12 @@ MUTAGEN_TO_GENERIC_MAP = {
     KEY_INITIAL_KEY: KEY_INITIAL_KEY,
     KEY_COMMENT: KEY_COMMENT,
     'genre': KEY_GENRE,
+    # ReplayGain tags (ID3 TXXX, MP4 freeform, or Vorbis comment — all map
+    # identically to the same lowercase generic name).
+    KEY_REPLAYGAIN_TRACK_GAIN: KEY_REPLAYGAIN_TRACK_GAIN,
+    KEY_REPLAYGAIN_ALBUM_GAIN: KEY_REPLAYGAIN_ALBUM_GAIN,
+    KEY_REPLAYGAIN_TRACK_PEAK: KEY_REPLAYGAIN_TRACK_PEAK,
+    KEY_REPLAYGAIN_ALBUM_PEAK: KEY_REPLAYGAIN_ALBUM_PEAK,
 }
 
 
