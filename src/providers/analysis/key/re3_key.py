@@ -28,7 +28,7 @@ from providers.analysis.key.support.wavelet import (
 )
 
 
-@analyzer(AnalyzerCategory.KEY, debug_only=True)
+@analyzer(AnalyzerCategory.KEY)
 class RE3WaveletKeyAnalyzer(AnalyzerBase):
     """
     Musical key analyzer adapted from the RapidEvolution3 CWT algorithm.
