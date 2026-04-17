@@ -127,7 +127,7 @@ class PlaybackPanel(QWidget):
         self.playback_slider.setRange(0, 0)  # Disabled until a file is loaded
         self.pause_button.setEnabled(False)  # Disabled initially
     
-    @Slot(str, float, float)
+    @Slot(str, str, float, float)
     def update_ui(self, state: str, filename: str = "", duration: float = 0.0, position: float = 0.0):
         """
         Update the UI elements based on the current playback state.

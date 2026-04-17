@@ -1,5 +1,4 @@
 """Metadata preferences pane."""
-from typing import Tuple, Dict
 from PySide6.QtWidgets import (
     QVBoxLayout, QGroupBox, QLabel, QComboBox, QSpinBox,
     QHBoxLayout, QLineEdit, QFormLayout
@@ -12,7 +11,12 @@ from windows.preferences.base import PreferencePaneBase
 from providers import get_analyzers_by_category, get_all_categories, ProviderType
 from providers.analysis import AnalyzerCategory
 from util.diatonic_key import get_notation_format_display_list
-from util.const import BPM_RANGE_PRESETS
+from util.const import (
+    BPM_RANGE_PRESETS, SETTINGS_ANALYZERS_PREFERRED_PREFIX,
+    SETTINGS_BPM_RANGE_MIN, SETTINGS_BPM_RANGE_MAX,
+    SETTINGS_BPM_DECIMAL_PLACES, SETTINGS_KEY_NOTATION_FORMAT,
+    BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT, KEY_NOTATION_FORMAT_DEFAULT,
+)
 
 
 class ValidatedLineEdit(QLineEdit):
@@ -73,7 +77,7 @@ class MetadataPane(PreferencePaneBase):
         """Initialize the MetadataPane."""
         super().__init__(parent)
         self.settings = get_qsettings()
-        self.analyzer_combos: Dict[AnalyzerCategory, QComboBox] = {}
+        self.analyzer_combos: dict[AnalyzerCategory, QComboBox] = {}
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -263,23 +267,27 @@ class MetadataPane(PreferencePaneBase):
         """Read from QSettings and populate all widgets."""
         # Load preferred analyzers
         for category, combo in self.analyzer_combos.items():
-            analyzer_name = self.settings.value(f"Analyzers/Preferred/{category.value.lower()}", "")
+            analyzer_name = self.settings.value(
+                f"{SETTINGS_ANALYZERS_PREFERRED_PREFIX}/{category.value.lower()}", ""
+            )
             if analyzer_name:
                 index = combo.findData(analyzer_name)
                 if index >= 0:
                     combo.setCurrentIndex(index)
 
         # Load BPM options
-        bpm_min = self.settings.value("Analyzers/CategoryOptions/bpm/range_min", 80, type=int)
-        bpm_max = self.settings.value("Analyzers/CategoryOptions/bpm/range_max", 200, type=int)
-        bpm_decimals = self.settings.value("Analyzers/CategoryOptions/bpm/decimal_places", 0, type=int)
+        bpm_min = self.settings.value(SETTINGS_BPM_RANGE_MIN, BPM_RANGE_MIN_DEFAULT, type=int)
+        bpm_max = self.settings.value(SETTINGS_BPM_RANGE_MAX, BPM_RANGE_MAX_DEFAULT, type=int)
+        bpm_decimals = self.settings.value(SETTINGS_BPM_DECIMAL_PLACES, 0, type=int)
 
         self.bpm_min_edit.setText(str(bpm_min))
         self.bpm_max_edit.setText(str(bpm_max))
         self.bpm_decimal_spin.setValue(bpm_decimals)
 
         # Load key notation format
-        key_format = self.settings.value("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
+        key_format = self.settings.value(
+            SETTINGS_KEY_NOTATION_FORMAT, KEY_NOTATION_FORMAT_DEFAULT
+        )
         index = self.key_format_combo.findData(key_format)
         if index >= 0:
             self.key_format_combo.setCurrentIndex(index)
@@ -289,17 +297,19 @@ class MetadataPane(PreferencePaneBase):
         # Save preferred analyzers
         for category, combo in self.analyzer_combos.items():
             analyzer_name = combo.currentData()
-            self.settings.setValue(f"Analyzers/Preferred/{category.value.lower()}", analyzer_name)
+            self.settings.setValue(
+                f"{SETTINGS_ANALYZERS_PREFERRED_PREFIX}/{category.value.lower()}", analyzer_name
+            )
 
         # Save BPM options
-        self.settings.setValue("Analyzers/CategoryOptions/bpm/range_min", int(self.bpm_min_edit.text()))
-        self.settings.setValue("Analyzers/CategoryOptions/bpm/range_max", int(self.bpm_max_edit.text()))
-        self.settings.setValue("Analyzers/CategoryOptions/bpm/decimal_places", self.bpm_decimal_spin.value())
+        self.settings.setValue(SETTINGS_BPM_RANGE_MIN, int(self.bpm_min_edit.text()))
+        self.settings.setValue(SETTINGS_BPM_RANGE_MAX, int(self.bpm_max_edit.text()))
+        self.settings.setValue(SETTINGS_BPM_DECIMAL_PLACES, self.bpm_decimal_spin.value())
 
         # Save key notation format
-        self.settings.setValue("Analyzers/CategoryOptions/key/notation_format", self.key_format_combo.currentData())
+        self.settings.setValue(SETTINGS_KEY_NOTATION_FORMAT, self.key_format_combo.currentData())
 
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self) -> tuple[bool, str]:
         """Validate all settings in this pane."""
         # Validate BPM range
         self._validate_bpm_range()

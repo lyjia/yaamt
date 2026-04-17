@@ -1,5 +1,4 @@
 """General preferences pane."""
-from typing import Tuple
 from PySide6.QtWidgets import (
     QVBoxLayout, QGroupBox, QRadioButton, QLineEdit, QPushButton,
     QLabel, QComboBox, QHBoxLayout, QFileDialog, QStyleFactory
@@ -7,6 +6,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QIcon
 
 from models.settings import get_qsettings
+from util.const import (
+    SETTINGS_STARTUP_DIR_MODE, SETTINGS_PREFERRED_DIRECTORY,
+    SETTINGS_PREFERRED_AUDIO_DEVICE, SETTINGS_UI_SKIN,
+    STARTUP_DIR_MODE_DEFAULT,
+)
 from windows.preferences.base import PreferencePaneBase
 
 
@@ -116,18 +120,18 @@ class GeneralPane(PreferencePaneBase):
     def load_from_settings(self) -> None:
         """Read from QSettings and populate all widgets."""
         # Load startup directory mode
-        mode = self.settings.value("General/StartupDirectoryMode", "last")
+        mode = self.settings.value(SETTINGS_STARTUP_DIR_MODE, STARTUP_DIR_MODE_DEFAULT)
         if mode == "preferred":
             self.preferred_dir_radio.setChecked(True)
         else:
             self.last_dir_radio.setChecked(True)
 
         # Load preferred directory
-        preferred_dir = self.settings.value("General/PreferredDirectory", "")
+        preferred_dir = self.settings.value(SETTINGS_PREFERRED_DIRECTORY, "")
         self.dir_path_edit.setText(preferred_dir)
 
         # Load preferred audio device
-        device_id = self.settings.value("General/PreferredAudioDevice", "")
+        device_id = self.settings.value(SETTINGS_PREFERRED_AUDIO_DEVICE, "")
         index = self.audio_device_combo.findData(device_id)
         if index >= 0:
             self.audio_device_combo.setCurrentIndex(index)
@@ -135,7 +139,7 @@ class GeneralPane(PreferencePaneBase):
             self.audio_device_combo.setCurrentIndex(0)  # Default to system default
 
         # Load UI skin
-        skin = self.settings.value("General/UiSkin", "")
+        skin = self.settings.value(SETTINGS_UI_SKIN, "")
         index = self.ui_skin_combo.findData(skin)
         if index >= 0:
             self.ui_skin_combo.setCurrentIndex(index)
@@ -146,20 +150,20 @@ class GeneralPane(PreferencePaneBase):
         """Write widget values to QSettings."""
         # Save startup directory mode
         mode = "preferred" if self.preferred_dir_radio.isChecked() else "last"
-        self.settings.setValue("General/StartupDirectoryMode", mode)
+        self.settings.setValue(SETTINGS_STARTUP_DIR_MODE, mode)
 
         # Save preferred directory
-        self.settings.setValue("General/PreferredDirectory", self.dir_path_edit.text())
+        self.settings.setValue(SETTINGS_PREFERRED_DIRECTORY, self.dir_path_edit.text())
 
         # Save preferred audio device
         device_id = self.audio_device_combo.currentData()
-        self.settings.setValue("General/PreferredAudioDevice", device_id)
+        self.settings.setValue(SETTINGS_PREFERRED_AUDIO_DEVICE, device_id)
 
         # Save UI skin
         skin = self.ui_skin_combo.currentData()
-        self.settings.setValue("General/UiSkin", skin)
+        self.settings.setValue(SETTINGS_UI_SKIN, skin)
 
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self) -> tuple[bool, str]:
         """Validate all settings in this pane."""
         # If "Always use this directory" is selected, path must not be empty
         if self.preferred_dir_radio.isChecked():

@@ -40,7 +40,6 @@ class TestMusicalKeyCNNAnalyzerMetadata:
         assert MusicalKeyCNNAnalyzer.name is not None
         assert MusicalKeyCNNAnalyzer.category == "key"
         assert MusicalKeyCNNAnalyzer.version is not None
-        assert MusicalKeyCNNAnalyzer.debug_only is True  # Should be debug-only due to PyTorch
 
     def test_analyzer_discovered(self):
         """Test that MusicalKeyCNNAnalyzer is discovered by registry."""

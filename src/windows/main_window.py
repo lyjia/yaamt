@@ -21,7 +21,14 @@ from models.settings import settings, FileListSettings, ColumnSettings
 from models.edit_manager import EditManager
 from delegates.editable_metadata_delegate import EditableMetadataDelegate
 from views.multi_select_preserving_tree_view import MultiSelectPreservingTreeView
-from util.const import KEY_IS_MEDIA, KEY_FILE_PATH
+from util.const import (
+    KEY_IS_MEDIA, KEY_FILE_PATH,
+    SETTINGS_DEBUG_PLAYBACK_ADAPTATION, SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE,
+    SETTINGS_DEBUG_PLAYBACK_CHANNELS, SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH,
+    SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, SETTINGS_UI_SKIN,
+    SETTINGS_GROUP_FAVORITES, SETTINGS_ARRAY_FAVORITES_LOCATIONS,
+    SETTINGS_GROUP_FILE_LIST, SETTINGS_ARRAY_FILE_LIST_COLUMNS,
+)
 from util.debug import is_debug_mode
 from util.file_browser import open_in_file_browser
 from util.logging import log
@@ -452,27 +459,6 @@ class MainWindow(QMainWindow):
             self.cancel_button.hide()
             self._current_load_worker = None
 
-    # TODO: Re-enable these methods when dynamic priority queue is implemented
-    # def _on_viewport_changed(self):
-    #     """Called when the viewport scrolls or changes."""
-    #     self._update_viewport_priority()
-    #
-    # def _create_resize_event_wrapper(self, original_resize_event):
-    #     """
-    #     Create a wrapper for the resize event that also updates viewport priority.
-    #
-    #     Args:
-    #         original_resize_event: The original resizeEvent method
-    #
-    #     Returns:
-    #         Wrapped resize event handler
-    #     """
-    #     def wrapped_resize_event(event):
-    #         original_resize_event(event)
-    #         self._update_viewport_priority()
-    #
-    #     return wrapped_resize_event
-
     def _update_viewport_priority(self):
         """
         Calculate the visible row range and send it to the worker for priority loading.
@@ -690,7 +676,7 @@ class MainWindow(QMainWindow):
         self.debug_enable_adaptation = QAction("Enable Playback Format Adaptation", self)
         self.debug_enable_adaptation.setCheckable(True)
         self.debug_enable_adaptation.setChecked(
-            settings.value("Debug/PlaybackFormatAdaptationEnabled", False, type=bool)
+            settings.value(SETTINGS_DEBUG_PLAYBACK_ADAPTATION, False, type=bool)
         )
         self.debug_enable_adaptation.toggled.connect(self._on_debug_adaptation_toggled)
         debug_menu.addAction(self.debug_enable_adaptation)
@@ -709,7 +695,7 @@ class MainWindow(QMainWindow):
             ("96000 Hz", 96000),
         ]
 
-        current_sample_rate = settings.value("Debug/PlaybackSampleRate", 0, type=int)
+        current_sample_rate = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE, 0, type=int)
         for label, value in sample_rates:
             action = QAction(label, self)
             action.setCheckable(True)
@@ -734,7 +720,7 @@ class MainWindow(QMainWindow):
             ("Stereo (2 channels)", 2),
         ]
 
-        current_channels = settings.value("Debug/PlaybackChannels", 0, type=int)
+        current_channels = settings.value(SETTINGS_DEBUG_PLAYBACK_CHANNELS, 0, type=int)
         for label, value in channels_options:
             action = QAction(label, self)
             action.setCheckable(True)
@@ -760,7 +746,7 @@ class MainWindow(QMainWindow):
             ("32-bit (4 bytes)", 4),
         ]
 
-        current_bit_depth = settings.value("Debug/PlaybackSampleWidth", 0, type=int)
+        current_bit_depth = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH, 0, type=int)
         for label, value in bit_depth_options:
             action = QAction(label, self)
             action.setCheckable(True)
@@ -785,7 +771,7 @@ class MainWindow(QMainWindow):
             ("Float", "float"),
         ]
 
-        current_sample_format = settings.value("Debug/PlaybackSampleFormat", "", type=str)
+        current_sample_format = settings.value(SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, "", type=str)
         for label, value in sample_format_options:
             action = QAction(label, self)
             action.setCheckable(True)
@@ -810,28 +796,28 @@ class MainWindow(QMainWindow):
 
     def _on_debug_adaptation_toggled(self, enabled: bool):
         """Handle toggling of format adaptation."""
-        settings.setValue("Debug/PlaybackFormatAdaptationEnabled", enabled)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_ADAPTATION, enabled)
         self._update_debug_menu_state()
         log.info(f"Playback format adaptation {'enabled' if enabled else 'disabled'}")
 
     def _on_debug_sample_rate_changed(self, value: int):
         """Handle sample rate selection."""
-        settings.setValue("Debug/PlaybackSampleRate", value)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE, value)
         log.info(f"Debug playback sample rate set to: {value if value else 'Native'}")
 
     def _on_debug_channels_changed(self, value: int):
         """Handle channels selection."""
-        settings.setValue("Debug/PlaybackChannels", value)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_CHANNELS, value)
         log.info(f"Debug playback channels set to: {value if value else 'Native'}")
 
     def _on_debug_bit_depth_changed(self, value: int):
         """Handle bit depth selection."""
-        settings.setValue("Debug/PlaybackSampleWidth", value)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH, value)
         log.info(f"Debug playback bit depth set to: {value if value else 'Native'} bytes")
 
     def _on_debug_sample_format_changed(self, value: str):
         """Handle sample format selection."""
-        settings.setValue("Debug/PlaybackSampleFormat", value)
+        settings.setValue(SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, value)
         log.info(f"Debug playback sample format set to: {value if value else 'Native'}")
 
     def _on_clear_resource_cache(self):
@@ -1146,18 +1132,20 @@ class MainWindow(QMainWindow):
         """
         from models.settings import Favorite
 
-        settings.beginGroup("Favorites")
         favorites = []
-
-        num_favorites = settings.beginReadArray("locations")
-        for i in range(num_favorites):
-            settings.setArrayIndex(i)
-            path = settings.value("path", type=str)
-            if path:
-                favorites.append(Favorite(path=path))
-        settings.endArray()
-
-        settings.endGroup()
+        settings.beginGroup(SETTINGS_GROUP_FAVORITES)
+        try:
+            num_favorites = settings.beginReadArray(SETTINGS_ARRAY_FAVORITES_LOCATIONS)
+            try:
+                for i in range(num_favorites):
+                    settings.setArrayIndex(i)
+                    path = settings.value("path", type=str)
+                    if path:
+                        favorites.append(Favorite(path=path))
+            finally:
+                settings.endArray()
+        finally:
+            settings.endGroup()
         return favorites
 
     def _save_favorites(self, favorites: list):
@@ -1167,15 +1155,17 @@ class MainWindow(QMainWindow):
         Args:
             favorites: List of Favorite objects to save
         """
-        settings.beginGroup("Favorites")
-
-        settings.beginWriteArray("locations", len(favorites))
-        for i, favorite in enumerate(favorites):
-            settings.setArrayIndex(i)
-            settings.setValue("path", favorite.path)
-        settings.endArray()
-
-        settings.endGroup()
+        settings.beginGroup(SETTINGS_GROUP_FAVORITES)
+        try:
+            settings.beginWriteArray(SETTINGS_ARRAY_FAVORITES_LOCATIONS, len(favorites))
+            try:
+                for i, favorite in enumerate(favorites):
+                    settings.setArrayIndex(i)
+                    settings.setValue("path", favorite.path)
+            finally:
+                settings.endArray()
+        finally:
+            settings.endGroup()
 
     def _on_favorites_button_clicked(self):
         """Handle favorites toolbar button click by refreshing and showing the menu."""
@@ -1320,29 +1310,31 @@ class MainWindow(QMainWindow):
         return None
 
     def _load_column_settings(self):
-        settings.beginGroup("file_list")
-        
-        # Load column settings
-        num_columns = settings.beginReadArray("columns")
-        if num_columns > 0:
-            self.file_list_settings.columns = []
-            for i in range(num_columns):
-                settings.setArrayIndex(i)
-                col_settings = ColumnSettings(
-                    id=settings.value("id"),
-                    label=settings.value("label"),
-                    group=settings.value("group"),
-                    width=int(settings.value("width")),
-                    is_visible=settings.value("is_visible", type=bool)
-                )
-                self.file_list_settings.columns.append(col_settings)
-        settings.endArray()
+        settings.beginGroup(SETTINGS_GROUP_FILE_LIST)
+        try:
+            # Load column settings
+            num_columns = settings.beginReadArray(SETTINGS_ARRAY_FILE_LIST_COLUMNS)
+            try:
+                if num_columns > 0:
+                    self.file_list_settings.columns = []
+                    for i in range(num_columns):
+                        settings.setArrayIndex(i)
+                        col_settings = ColumnSettings(
+                            id=settings.value("id"),
+                            label=settings.value("label"),
+                            group=settings.value("group"),
+                            width=int(settings.value("width")),
+                            is_visible=settings.value("is_visible", type=bool)
+                        )
+                        self.file_list_settings.columns.append(col_settings)
+            finally:
+                settings.endArray()
 
-        # Load sort settings
-        self.file_list_settings.sort_column = settings.value("sort_column", 0, type=int)
-        self.file_list_settings.sort_order = settings.value("sort_order", Qt.SortOrder.AscendingOrder, type=int)
-        
-        settings.endGroup()
+            # Load sort settings
+            self.file_list_settings.sort_column = settings.value("sort_column", 0, type=int)
+            self.file_list_settings.sort_order = settings.value("sort_order", Qt.SortOrder.AscendingOrder, type=int)
+        finally:
+            settings.endGroup()
 
         self._apply_column_settings()
 
@@ -1371,41 +1363,44 @@ class MainWindow(QMainWindow):
         )
 
     def _save_column_settings(self):
-        settings.beginGroup("file_list")
-        header = self.files_view.header()
-        
-        # Get current visual layout
-        columns_to_save = []
-        for visual_index in range(header.count()):
-            logical_index = header.logicalIndex(visual_index)
-            col_id = self._logical_column_ids[logical_index]
-            
-            # Find original column settings to get label
-            original_col = next((c for c in FileListSettings().columns if c.id == col_id), None)
-            if original_col:
-                columns_to_save.append(ColumnSettings(
-                    id=col_id,
-                    label=original_col.label,
-                    group=original_col.group,
-                    width=header.sectionSize(logical_index),
-                    is_visible=not header.isSectionHidden(logical_index)
-                ))
+        settings.beginGroup(SETTINGS_GROUP_FILE_LIST)
+        try:
+            header = self.files_view.header()
 
-        # Save column settings
-        settings.beginWriteArray("columns", len(columns_to_save))
-        for i, col in enumerate(columns_to_save):
-            settings.setArrayIndex(i)
-            settings.setValue("id", col.id)
-            settings.setValue("label", col.label)
-            settings.setValue("width", col.width)
-            settings.setValue("is_visible", col.is_visible)
-        settings.endArray()
+            # Get current visual layout
+            columns_to_save = []
+            for visual_index in range(header.count()):
+                logical_index = header.logicalIndex(visual_index)
+                col_id = self._logical_column_ids[logical_index]
 
-        # Save sort settings
-        settings.setValue("sort_column", self.file_list_settings.sort_column)
-        settings.setValue("sort_order", self.file_list_settings.sort_order)
+                # Find original column settings to get label
+                original_col = next((c for c in FileListSettings().columns if c.id == col_id), None)
+                if original_col:
+                    columns_to_save.append(ColumnSettings(
+                        id=col_id,
+                        label=original_col.label,
+                        group=original_col.group,
+                        width=header.sectionSize(logical_index),
+                        is_visible=not header.isSectionHidden(logical_index)
+                    ))
 
-        settings.endGroup()
+            # Save column settings
+            settings.beginWriteArray(SETTINGS_ARRAY_FILE_LIST_COLUMNS, len(columns_to_save))
+            try:
+                for i, col in enumerate(columns_to_save):
+                    settings.setArrayIndex(i)
+                    settings.setValue("id", col.id)
+                    settings.setValue("label", col.label)
+                    settings.setValue("width", col.width)
+                    settings.setValue("is_visible", col.is_visible)
+            finally:
+                settings.endArray()
+
+            # Save sort settings
+            settings.setValue("sort_column", self.file_list_settings.sort_column)
+            settings.setValue("sort_order", self.file_list_settings.sort_order)
+        finally:
+            settings.endGroup()
 
     @Slot(str, float)
     def on_playback_started(self, filename: str, duration: float):
@@ -1540,7 +1535,7 @@ class MainWindow(QMainWindow):
         """Apply preference changes that take effect immediately."""
         # Apply UI skin
         from PySide6.QtWidgets import QApplication, QStyleFactory
-        ui_skin = settings.value("General/UiSkin", "")
+        ui_skin = settings.value(SETTINGS_UI_SKIN, "")
 
         if ui_skin:
             # User selected a specific style

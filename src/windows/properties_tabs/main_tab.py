@@ -1,11 +1,39 @@
 from PySide6.QtWidgets import QWidget, QFormLayout, QLineEdit, QGroupBox
-from PySide6.QtCore import QEvent, Signal
+from PySide6.QtCore import Signal
 from models.edit_manager import EditManager
 from util.const import (
     KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE,
     KEY_COMMENT, KEY_COMPOSER, KEY_TRACK_NUMBER, KEY_DISC_NUMBER, KEY_BPM,
-    KEY_INITIAL_KEY, KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN
+    KEY_INITIAL_KEY, KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN,
 )
+
+
+# Layout description for the editable metadata fields on this tab.
+# Each entry is (display_label, attribute_name, generic_tag_key). The tab's
+# __init__ iterates this list to create widgets, add them to the layout, wire
+# up signals, and populate their values -- replacing what used to be six
+# parallel blocks of copy-pasted boilerplate per field.
+_EDITABLE_FIELDS: list[tuple[str, str, str]] = [
+    ("Title:",        "title_edit",        KEY_TITLE),
+    ("Artist:",       "artist_edit",       KEY_ARTIST),
+    ("Album:",        "album_edit",        KEY_ALBUM),
+    ("Album Artist:", "album_artist_edit", KEY_ALBUM_ARTIST),
+    ("Date:",         "date_edit",         KEY_DATE),
+    ("Genre:",        "genre_edit",        KEY_GENRE),
+    ("Comment:",      "comment_edit",      KEY_COMMENT),
+    ("Composer:",     "composer_edit",     KEY_COMPOSER),
+    ("Track #:",      "track_num_edit",    KEY_TRACK_NUMBER),
+    ("Disc #:",       "disc_num_edit",     KEY_DISC_NUMBER),
+    ("BPM:",          "bpm_edit",          KEY_BPM),
+    ("Key:",          "key_edit",          KEY_INITIAL_KEY),
+]
+
+# Read-only ReplayGain fields shown inside their own group box.
+_READONLY_REPLAYGAIN_FIELDS: list[tuple[str, str, str]] = [
+    ("Track:", "replaygain_track_edit", KEY_REPLAYGAIN_TRACK_GAIN),
+    ("Album:", "replaygain_album_edit", KEY_REPLAYGAIN_ALBUM_GAIN),
+]
+
 
 class MainTab(QWidget):
     return_pressed = Signal()
@@ -17,93 +45,40 @@ class MainTab(QWidget):
 
         layout = QFormLayout(self)
 
-        # Metadata fields
-        self.title_edit = QLineEdit()
-        self.artist_edit = QLineEdit()
-        self.album_edit = QLineEdit()
-        self.album_artist_edit = QLineEdit()
-        self.date_edit = QLineEdit()
-        self.genre_edit = QLineEdit()
-        self.comment_edit = QLineEdit()
-        self.composer_edit = QLineEdit()
-        self.publisher_edit = QLineEdit()
-        self.track_num_edit = QLineEdit()
-        self.disc_num_edit = QLineEdit()
-        self.bpm_edit = QLineEdit()
-        self.key_edit = QLineEdit()
+        # Build editable metadata fields from the declarative config.
+        for label, attr_name, tag_key in _EDITABLE_FIELDS:
+            line_edit = QLineEdit()
+            setattr(self, attr_name, line_edit)
+            layout.addRow(label, line_edit)
+            self._wire_editable_field(line_edit, tag_key)
 
-        layout.addRow("Title:", self.title_edit)
-        layout.addRow("Artist:", self.artist_edit)
-        layout.addRow("Album:", self.album_edit)
-        layout.addRow("Album Artist:", self.album_artist_edit)
-        layout.addRow("Date:", self.date_edit)
-        layout.addRow("Genre:", self.genre_edit)
-        layout.addRow("Comment:", self.comment_edit)
-        layout.addRow("Composer:", self.composer_edit)
-        layout.addRow("Publisher:", self.publisher_edit)
-        layout.addRow("Track #:", self.track_num_edit)
-        layout.addRow("Disc #:", self.disc_num_edit)
-        layout.addRow("BPM:", self.bpm_edit)
-        layout.addRow("Key:", self.key_edit)
+        # Publisher is shown in the layout but not wired to a tag today.
+        # Preserved as-is pending a proper implementation of publisher editing.
+        self.publisher_edit = QLineEdit()
+        # Insert right after Composer to match the previous visual order.
+        composer_index = next(
+            i for i, (_, attr, _) in enumerate(_EDITABLE_FIELDS) if attr == "composer_edit"
+        )
+        layout.insertRow(composer_index + 1, "Publisher:", self.publisher_edit)
 
         # ReplayGain GroupBox
         replaygain_group = QGroupBox("ReplayGain")
         replaygain_layout = QFormLayout()
         replaygain_group.setLayout(replaygain_layout)
-
-        self.replaygain_track_edit = QLineEdit()
-        self.replaygain_track_edit.setReadOnly(True)
-        self.replaygain_album_edit = QLineEdit()
-        self.replaygain_album_edit.setReadOnly(True)
-
-        replaygain_layout.addRow("Track:", self.replaygain_track_edit)
-        replaygain_layout.addRow("Album:", self.replaygain_album_edit)
-        
+        for label, attr_name, _tag_key in _READONLY_REPLAYGAIN_FIELDS:
+            line_edit = QLineEdit()
+            line_edit.setReadOnly(True)
+            setattr(self, attr_name, line_edit)
+            replaygain_layout.addRow(label, line_edit)
         layout.addRow(replaygain_group)
-
-        # Connect focus events for clearing placeholders
-        self.title_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.title_edit)
-        self.artist_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.artist_edit)
-        self.album_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.album_edit)
-        self.album_artist_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.album_artist_edit)
-        self.date_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.date_edit)
-        self.genre_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.genre_edit)
-        self.comment_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.comment_edit)
-        self.composer_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.composer_edit)
-        self.track_num_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.track_num_edit)
-        self.disc_num_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.disc_num_edit)
-        self.bpm_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.bpm_edit)
-        self.key_edit.focusInEvent = lambda event: self._clear_placeholder_on_focus(event, self.key_edit)
 
         self.refresh()
 
-        # Connect signals for text changes
-        self.title_edit.textChanged.connect(lambda text: self._on_edited(KEY_TITLE, text))
-        self.artist_edit.textChanged.connect(lambda text: self._on_edited(KEY_ARTIST, text))
-        self.album_edit.textChanged.connect(lambda text: self._on_edited(KEY_ALBUM, text))
-        self.album_artist_edit.textChanged.connect(lambda text: self._on_edited(KEY_ALBUM_ARTIST, text))
-        self.date_edit.textChanged.connect(lambda text: self._on_edited(KEY_DATE, text))
-        self.genre_edit.textChanged.connect(lambda text: self._on_edited(KEY_GENRE, text))
-        self.comment_edit.textChanged.connect(lambda text: self._on_edited(KEY_COMMENT, text))
-        self.composer_edit.textChanged.connect(lambda text: self._on_edited(KEY_COMPOSER, text))
-        self.track_num_edit.textChanged.connect(lambda text: self._on_edited(KEY_TRACK_NUMBER, text))
-        self.disc_num_edit.textChanged.connect(lambda text: self._on_edited(KEY_DISC_NUMBER, text))
-        self.bpm_edit.textChanged.connect(lambda text: self._on_edited(KEY_BPM, text))
-        self.key_edit.textChanged.connect(lambda text: self._on_edited(KEY_INITIAL_KEY, text))
-
-        # Connect returnPressed signals
-        self.title_edit.returnPressed.connect(self._on_return_pressed)
-        self.artist_edit.returnPressed.connect(self._on_return_pressed)
-        self.album_edit.returnPressed.connect(self._on_return_pressed)
-        self.album_artist_edit.returnPressed.connect(self._on_return_pressed)
-        self.date_edit.returnPressed.connect(self._on_return_pressed)
-        self.genre_edit.returnPressed.connect(self._on_return_pressed)
-        self.comment_edit.returnPressed.connect(self._on_return_pressed)
-        self.composer_edit.returnPressed.connect(self._on_return_pressed)
-        self.track_num_edit.returnPressed.connect(self._on_return_pressed)
-        self.disc_num_edit.returnPressed.connect(self._on_return_pressed)
-        self.bpm_edit.returnPressed.connect(self._on_return_pressed)
-        self.key_edit.returnPressed.connect(self._on_return_pressed)
+    def _wire_editable_field(self, line_edit: QLineEdit, tag_key: str) -> None:
+        """Attach focus / textChanged / returnPressed handlers to an editable field."""
+        line_edit.focusInEvent = lambda event, w=line_edit: self._clear_placeholder_on_focus(event, w)
+        line_edit.textChanged.connect(lambda text, key=tag_key: self._on_edited(key, text))
+        line_edit.returnPressed.connect(self._on_return_pressed)
 
     def _on_edited(self, generic_tag_name, new_value):
         self.edit_manager.stage_change(self.media_files, generic_tag_name, new_value)
@@ -153,17 +128,7 @@ class MainTab(QWidget):
             line_edit.setStyleSheet("")
 
     def refresh(self):
-        self._populate_field(self.title_edit, KEY_TITLE)
-        self._populate_field(self.artist_edit, KEY_ARTIST)
-        self._populate_field(self.album_edit, KEY_ALBUM)
-        self._populate_field(self.album_artist_edit, KEY_ALBUM_ARTIST)
-        self._populate_field(self.date_edit, KEY_DATE)
-        self._populate_field(self.genre_edit, KEY_GENRE)
-        self._populate_field(self.comment_edit, KEY_COMMENT)
-        self._populate_field(self.composer_edit, KEY_COMPOSER)
-        self._populate_field(self.track_num_edit, KEY_TRACK_NUMBER)
-        self._populate_field(self.disc_num_edit, KEY_DISC_NUMBER)
-        self._populate_field(self.bpm_edit, KEY_BPM)
-        self._populate_field(self.key_edit, KEY_INITIAL_KEY)
-        self._populate_field(self.replaygain_track_edit, KEY_REPLAYGAIN_TRACK_GAIN)
-        self._populate_field(self.replaygain_album_edit, KEY_REPLAYGAIN_ALBUM_GAIN)
+        for _label, attr_name, tag_key in _EDITABLE_FIELDS:
+            self._populate_field(getattr(self, attr_name), tag_key)
+        for _label, attr_name, tag_key in _READONLY_REPLAYGAIN_FIELDS:
+            self._populate_field(getattr(self, attr_name), tag_key)

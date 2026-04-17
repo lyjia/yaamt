@@ -7,7 +7,6 @@ all channels. The result is reported in dBFS (decibels relative to full scale).
 """
 
 import struct
-from typing import Optional, List
 
 from providers.audio import AudioStreamBase
 from providers.analysis import AnalyzerCategory, AnalyzerBase, AnalyzerResult
@@ -51,21 +50,16 @@ class PeakMeterAnalyzer(AnalyzerBase):
             AnalyzerResult with peak level in dBFS
         """
         try:
-            # Check for cancellation
-            if self.is_cancelled:
-                return AnalyzerResult(
-                    success=False,
-                    error="Analysis cancelled by user"
-                )
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
 
-            # Check if we should skip existing results
-            skip_if_exists = self.options.get('skip_if_tag_exists', False)
-            if skip_if_exists and self._has_existing_result():
-                return AnalyzerResult(
-                    success=True,
-                    skipped=True,
-                    error="Peak level already measured"
-                )
+            skipped = self._check_skip_if(
+                self._has_existing_result(),
+                "Peak level already measured",
+            )
+            if skipped is not None:
+                return skipped
 
             # Get audio stream from MediaFile
             log.debug(f"Starting peak analysis for {self.media_file.file_path}")
@@ -217,7 +211,7 @@ class PeakMeterAnalyzer(AnalyzerBase):
         chunk_bytes: bytes,
         sample_width: int,
         nchannels: int,
-        format_char: Optional[str],
+        format_char: str | None,
         max_value: float,
         is_unsigned: bool
     ) -> float:
@@ -282,7 +276,7 @@ class PeakMeterAnalyzer(AnalyzerBase):
         return chunk_peak
 
     @classmethod
-    def validate_file(cls, media_file) -> tuple[bool, Optional[str]]:
+    def validate_file(cls, media_file) -> tuple[bool, str | None]:
         """
         Check if this analyzer can process the given file.
 

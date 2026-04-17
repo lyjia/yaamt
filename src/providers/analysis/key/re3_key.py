@@ -9,7 +9,6 @@ Reference:
     references/RapidEvolution3/src/com/mixshare/rapid_evolution/audio/detection/key/KeyDetector.java
 """
 
-from typing import Optional, List
 import time
 import numpy as np
 
@@ -18,7 +17,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGroupBox
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from util.const import KEY_INITIAL_KEY, KEY_DIATONIC_MODE
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import AnalyzerOption
 from util.logging import log
 
 # Import the wavelet key detection components
@@ -29,7 +28,7 @@ from providers.analysis.key.support.wavelet import (
 )
 
 
-@analyzer(AnalyzerCategory.KEY, debug_only=True)
+@analyzer(AnalyzerCategory.KEY)
 class RE3WaveletKeyAnalyzer(AnalyzerBase):
     """
     Musical key analyzer adapted from the RapidEvolution3 CWT algorithm.
@@ -62,23 +61,13 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
         audio_stream = None
 
         try:
-            # Check for cancellation
-            if self.is_cancelled:
-                return AnalyzerResult(
-                    success=False,
-                    error="Analysis cancelled by user"
-                )
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
 
-            # Check if key already exists (skip if requested)
-            skip_if_exists = self.options.get('skip_if_tag_exists', False)
-            existing_key = self.media_file.get_tag_simple(KEY_INITIAL_KEY)
-
-            if existing_key and skip_if_exists:
-                return AnalyzerResult(
-                    success=True,
-                    skipped=True,
-                    error="Key already set"
-                )
+            skipped = self._check_skip_if_exists(KEY_INITIAL_KEY, "Key already set")
+            if skipped is not None:
+                return skipped
 
             # Get accuracy setting (percentage of audio to analyze)
             # Default to 100% for maximum accuracy, matching RE3's default
@@ -355,7 +344,7 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -388,7 +377,7 @@ class RE3WaveletKeyAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional[QWidget]:
+    def get_settings_widget(cls) -> QWidget | None:
         """
         Return a QWidget for configuring key analyzer parameters.
 

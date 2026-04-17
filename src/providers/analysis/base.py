@@ -6,7 +6,7 @@ file analyzers must implement or use.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 
 class AnalyzerResult:
@@ -22,8 +22,8 @@ class AnalyzerResult:
 
     def __init__(self,
                  success: bool,
-                 data: Optional[Dict[str, Any]] = None,
-                 error: Optional[str] = None,
+                 data: dict[str, Any] | None = None,
+                 error: str | None = None,
                  skipped: bool = False):
         """
         Initialize an AnalyzerResult.
@@ -70,7 +70,7 @@ class AnalyzerBase(ABC):
     version: str = "1.0.0"
     debug_only: bool = False  # If True, this analyzer is only available in debug builds
 
-    def __init__(self, media_file, options: Optional[Dict[str, Any]] = None):
+    def __init__(self, media_file, options: dict[str, Any] | None = None):
         """
         Initialize analyzer with a MediaFile.
 
@@ -112,8 +112,71 @@ class AnalyzerBase(ABC):
         """Check if cancellation has been requested."""
         return self._cancelled
 
+    # Common guard-clause helpers used at the top of analyze() methods.
+    # Keeping them here eliminates the identical prologue that was previously
+    # duplicated across every AnalyzerBase subclass.
+
+    _CANCELLATION_MESSAGE = "Analysis cancelled by user"
+    _SKIP_IF_EXISTS_OPTION = 'skip_if_tag_exists'
+
+    def _check_cancellation(self) -> "AnalyzerResult | None":
+        """
+        Return a failure AnalyzerResult if cancellation was requested, else None.
+
+        Intended for use as a one-line guard at the top of ``analyze()``:
+
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
+        """
+        if self.is_cancelled:
+            return AnalyzerResult(success=False, error=self._CANCELLATION_MESSAGE)
+        return None
+
+    def _check_skip_if_exists(
+        self,
+        tag_name: str,
+        skipped_message: str | None = None,
+    ) -> "AnalyzerResult | None":
+        """
+        Return a 'skipped' AnalyzerResult if the given tag already has a value
+        and the ``skip_if_tag_exists`` option is set, else None.
+
+        Args:
+            tag_name: Generic tag name to check via ``MediaFile.get_tag_simple``.
+            skipped_message: Optional explanatory string for the skip result.
+                             Defaults to ``f"{tag_name} already set"``.
+        """
+        if not self.options.get(self._SKIP_IF_EXISTS_OPTION, False):
+            return None
+        if not self.media_file.get_tag_simple(tag_name):
+            return None
+        return AnalyzerResult(
+            success=True,
+            skipped=True,
+            error=skipped_message or f"{tag_name} already set",
+        )
+
+    def _check_skip_if(
+        self,
+        value_exists: bool,
+        skipped_message: str,
+    ) -> "AnalyzerResult | None":
+        """
+        Variant of :meth:`_check_skip_if_exists` for analyzers that need a
+        custom existence check (e.g. scanning the comments field rather than
+        a single tag).
+
+        Args:
+            value_exists: Result of the analyzer-specific existence check.
+            skipped_message: Explanatory string for the skip result.
+        """
+        if value_exists and self.options.get(self._SKIP_IF_EXISTS_OPTION, False):
+            return AnalyzerResult(success=True, skipped=True, error=skipped_message)
+        return None
+
     @classmethod
-    def get_options_metadata(cls) -> List:
+    def get_options_metadata(cls) -> list:
         """
         Return metadata about this analyzer's configurable options.
 
@@ -128,7 +191,7 @@ class AnalyzerBase(ABC):
         return []
 
     @classmethod
-    def get_settings_widget(cls) -> Optional[Any]:
+    def get_settings_widget(cls) -> Any | None:
         """
         Return a QWidget for analyzer-specific settings.
 
@@ -142,7 +205,7 @@ class AnalyzerBase(ABC):
         Returns:
             QWidget instance or None if no options
         """
-        from util.analyzer_options import build_widget_from_option
+        from windows.analyzer.option_widgets import build_widget_from_option
 
         options = cls.get_options_metadata()
         if not options:
@@ -164,7 +227,7 @@ class AnalyzerBase(ABC):
         return widget
 
     @classmethod
-    def get_thread_count(cls, options: Optional[Dict[str, Any]] = None) -> int:
+    def get_thread_count(cls, options: dict[str, Any] | None = None) -> int:
         """
         Return the number of threads this analyzer requires.
 
@@ -181,7 +244,7 @@ class AnalyzerBase(ABC):
         return 1
 
     @classmethod
-    def validate_file(cls, media_file) -> tuple[bool, Optional[str]]:
+    def validate_file(cls, media_file) -> tuple[bool, str | None]:
         """
         Check if this analyzer can process the given file.
 
@@ -195,7 +258,7 @@ class AnalyzerBase(ABC):
         return (True, None)
 
     @classmethod
-    def get_required_resources(cls) -> List:
+    def get_required_resources(cls) -> list:
         """
         Return list of resources required by this analyzer.
 

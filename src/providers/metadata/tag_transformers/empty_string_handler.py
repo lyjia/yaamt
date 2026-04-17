@@ -8,6 +8,8 @@ consistent handling of empty values by subsequent transformers.
 
 from typing import Any
 from PySide6.QtCore import QSettings
+
+from util.const import COMMON_WRITABLE_TAGS
 from .base import TransformerBase
 
 
@@ -26,13 +28,7 @@ class EmptyStringHandler(TransformerBase):
     name = "Empty String Handler"
     description = "Normalize None and empty values to empty string"
     version = "1.0.0"
-    # Applies to all common tags
-    applicable_tags = [
-        'title', 'artist', 'album', 'album_artist', 'composer', 'genre',
-        'comment', 'copyright', 'date', 'year', 'track_number', 'track_total',
-        'disc_number', 'disc_total', 'bpm', 'key', 'isrc', 'label',
-        'remixer', 'lyricist', 'conductor', 'publisher', 'grouping'
-    ]
+    applicable_tags = list(COMMON_WRITABLE_TAGS)
     priority = 5  # Run first
 
     def __init__(self, settings: QSettings):

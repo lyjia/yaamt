@@ -10,7 +10,7 @@ Paper: "Genre-Agnostic Key Classification With Convolutional Neural Networks"
        by F. Korzeniowski and G. Widmer (ISMIR 2018)
 """
 
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from pathlib import Path
 import numpy as np
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import AnalyzerOption
 from util.const import KEY_INITIAL_KEY
 from util.logging import log
 from util.resource_manager import get_resource_manager, ResourceMetadata
@@ -72,7 +72,7 @@ KEYNET_MODEL_SIZE = 1874533  # Used only for progress display on downloader
 KEYNET_MODEL_CHECKSUM = "fc92072f1b9b19552ce3b74a9c8ce0cecb97633a12ae524ac0d93c05800e354e"  # SHA256 for validation
 
 
-@analyzer(AnalyzerCategory.KEY, debug_only=True)
+@analyzer(AnalyzerCategory.KEY)
 class MusicalKeyCNNAnalyzer(AnalyzerBase):
     """
     Musical key analyzer using a Convolutional Neural Network.
@@ -115,23 +115,13 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         audio_stream = None
 
         try:
-            # Check for cancellation
-            if self.is_cancelled:
-                return AnalyzerResult(
-                    success=False,
-                    error="Analysis cancelled by user"
-                )
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
 
-            # Check if key already exists (skip if requested)
-            skip_if_exists = self.options.get('skip_if_tag_exists', False)
-            existing_key = self.media_file.get_tag_simple(KEY_INITIAL_KEY)
-
-            if existing_key and skip_if_exists:
-                return AnalyzerResult(
-                    success=True,
-                    skipped=True,
-                    error="Key already set"
-                )
+            skipped = self._check_skip_if_exists(KEY_INITIAL_KEY, "Key already set")
+            if skipped is not None:
+                return skipped
 
             # Import PyTorch dependencies (fail gracefully if not available)
             try:
@@ -353,7 +343,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         return spec_tensor
 
     @classmethod
-    def get_required_resources(cls) -> List[ResourceMetadata]:
+    def get_required_resources(cls) -> list[ResourceMetadata]:
         """
         Return resources required by this analyzer.
 
@@ -377,7 +367,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -402,7 +392,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional["QWidget"]:
+    def get_settings_widget(cls) -> "QWidget | None":
         """
         Return a QWidget for configuring MusicalKeyCNN analyzer parameters.
 
@@ -420,6 +410,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
             QProgressDialog
         )
         from PySide6.QtCore import Qt, QThread, Signal
+        from windows.analyzer.option_widgets import build_widget_from_option
 
         widget = QWidget()
         main_layout = QVBoxLayout()

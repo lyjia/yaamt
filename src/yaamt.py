@@ -14,7 +14,7 @@ This module implements the CLI with verb-based commands:
 import argparse
 import sys
 import os
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 from models.edit_manager import EditManager
 from models.media_file import MediaFile
@@ -22,9 +22,9 @@ from models.settings import settings as qsettings
 from providers import get_analyzer_by_name, get_analyzers_by_category, AnalyzerCategory
 from providers.analysis.base import AnalyzerBase
 from workers.analyzer_dispatcher import AnalyzerDispatcher
-from util.const import ALL_TAGS, IS_DEBUG_BUILD
-from util.debug import set_debug_mode, is_debug_mode
-from util.logging import log, configure_logger
+from util.const import ALL_TAGS
+from util.debug import add_debug_argument, initialize_debug_and_logging
+from util.logging import log
 from util.version import get_version
 from util.cli_formatters import (
     format_analyzer_list,
@@ -56,7 +56,7 @@ SUPPORTED_EXTENSIONS = ['.mp3', '.flac', '.wav']
 OUTPUT_FORMATS = ['list', 'table', 'csv', 'json']
 
 
-def get_files(paths: List[str], recursive: bool = False) -> List[str]:
+def get_files(paths: list[str], recursive: bool = False) -> list[str]:
     """
     Collect audio file paths from the given paths.
 
@@ -88,7 +88,7 @@ def get_files(paths: List[str], recursive: bool = False) -> List[str]:
     return files
 
 
-def load_media_files(file_paths: List[str], enable_write: bool = False) -> List[MediaFile]:
+def load_media_files(file_paths: list[str], enable_write: bool = False) -> list[MediaFile]:
     """
     Load MediaFile instances from file paths.
 
@@ -118,7 +118,7 @@ def load_media_files(file_paths: List[str], enable_write: bool = False) -> List[
 # Command Handlers
 # ============================================================================
 
-def cmd_help(args):
+def cmd_help(args: argparse.Namespace) -> int:
     """Handle the 'help' command."""
     print_program_header()
 
@@ -233,7 +233,7 @@ def print_program_header():
     print("=========================================================================================================")
     print()
 
-def cmd_list(args):
+def cmd_list(args: argparse.Namespace) -> int:
     """Handle the 'list' command."""
     if args.type is None:
         # List all listable things
@@ -253,7 +253,7 @@ def cmd_list(args):
         return SYS_RETURN_ERROR
 
 
-def cmd_read(args):
+def cmd_read(args: argparse.Namespace) -> int:
     """Handle the 'read' command."""
     # Collect files
     file_paths = get_files(args.paths, args.recursive)
@@ -288,7 +288,7 @@ def cmd_read(args):
     return SYS_RETURN_SUCCESS
 
 
-def cmd_write(args):
+def cmd_write(args: argparse.Namespace) -> int:
     """Handle the 'write' command."""
     # Collect files
     file_paths = get_files(args.paths, args.recursive)
@@ -344,7 +344,7 @@ def cmd_write(args):
     return SYS_RETURN_SUCCESS
 
 
-def cmd_analyze(args):
+def cmd_analyze(args: argparse.Namespace) -> int:
     """Handle the 'analyze' command."""
     # Get analyzer class
     analyzer_class = get_analyzer_by_name(args.analyzer)
@@ -491,7 +491,7 @@ def cmd_analyze(args):
 # Main Entry Point
 # ============================================================================
 
-def main():
+def main() -> int:
     """Main CLI entry point."""
     # Create main parser
     parser = argparse.ArgumentParser(
@@ -502,8 +502,7 @@ def main():
     # Global options
     parser.add_argument('--version', action='store_true', help='Show version and exit')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
-    parser.add_argument('--debug', action='store_true', default=1,
-                        help=f'Enable debug mode (default)')
+    add_debug_argument(parser)
 
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
@@ -575,19 +574,8 @@ def main():
         print(get_version())
         return SYS_RETURN_SUCCESS
 
-    # Handle debug mode
-    # If --debug is not specified (None), use IS_DEBUG_BUILD default
-    debug_mode = args.debug if args.debug is not None else IS_DEBUG_BUILD
-    set_debug_mode(debug_mode)
-
-    # Determine log level based on debug mode (extensible for future --log-level flag)
-    log_level = 'debug' if is_debug_mode() else 'info'
-
-    # Configure logging
-    if args.verbose:
-        configure_logger(use_formatter=True, log_level=log_level)
-    else:
-        configure_logger(use_formatter=True, log_level=log_level)
+    # Initialize debug mode and logging in one place, shared with the GUI.
+    initialize_debug_and_logging(args)
 
     # Handle analyze command specially to add dynamic options
     if args.command == 'analyze' and hasattr(args, 'analyzer'):

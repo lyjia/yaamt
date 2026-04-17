@@ -5,7 +5,7 @@ This module provides the AudioFormatDescriptor class, which describes the
 desired audio format parameters for stream adaptation.
 """
 
-from typing import Optional, Literal
+from typing import Literal
 
 
 class AudioFormatDescriptor:
@@ -25,10 +25,10 @@ class AudioFormatDescriptor:
 
     def __init__(
         self,
-        sample_rate: Optional[int] = None,
-        channels: Optional[int] = None,
-        sample_width: Optional[int] = None,
-        sample_format: Optional[Literal['int', 'float']] = None
+        sample_rate: int | None = None,
+        channels: int | None = None,
+        sample_width: int | None = None,
+        sample_format: Literal['int', 'float'] | None = None
     ):
         """
         Initialize an AudioFormatDescriptor.

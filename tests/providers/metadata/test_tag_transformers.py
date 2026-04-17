@@ -76,7 +76,7 @@ class TestEmptyStringHandler:
         """Test that EmptyStringHandler declares applicable tags."""
         assert 'title' in EmptyStringHandler.applicable_tags
         assert 'bpm' in EmptyStringHandler.applicable_tags
-        assert 'key' in EmptyStringHandler.applicable_tags
+        assert KEY_INITIAL_KEY in EmptyStringHandler.applicable_tags
 
     def test_priority(self):
         """Test that EmptyStringHandler has priority 5 (runs first)."""

@@ -5,7 +5,6 @@ This dialog displays the results summary after analysis completes, including
 success/failure/skip counts and detailed error information.
 """
 
-from typing import List, Tuple, Optional
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,

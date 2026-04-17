@@ -1,7 +1,6 @@
 """
 Factory for providing audio stream instances.
 """
-from typing import Optional
 from .base import AudioStreamBase
 from .miniaudio_stream import MiniaudioStream
 from .format_descriptor import AudioFormatDescriptor
@@ -17,7 +16,7 @@ class AudioStreamFactory:
     @staticmethod
     def get_stream(
         filepath: str,
-        format_descriptor: Optional[AudioFormatDescriptor] = None
+        format_descriptor: AudioFormatDescriptor | None = None
     ) -> AudioStreamBase:
         """
         Creates and returns an audio stream for the given file path.

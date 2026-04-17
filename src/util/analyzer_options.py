@@ -1,28 +1,20 @@
 """
-Analyzer Option System
+Analyzer option metadata (GUI-free half of the system).
 
-This module provides a declarative system for defining analyzer options that can be
-used by both the CLI (argparse) and GUI (Qt widgets). This eliminates code duplication
-and ensures consistency between the two interfaces.
+This module owns the declarative ``AnalyzerOption`` dataclass and the
+CLI-side argparse helpers. It is deliberately free of PySide6 so
+providers, analyzers, and the CLI entrypoint can import it without
+dragging in Qt.
 
-Key components:
-- AnalyzerOption: Dataclass defining a single option's metadata
-- build_widget_from_option(): Auto-generate Qt widget from option metadata
-- add_option_to_argparse(): Add option to argparse parser
+The GUI counterpart -- :func:`build_widget_from_option` and its
+supporting ``_build_*`` helpers -- lives in
+``windows.analyzer.option_widgets``. Call that module when you need to
+render an option as a Qt widget.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any
 from argparse import ArgumentParser
-
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QSpinBox, QDoubleSpinBox, QCheckBox, QComboBox, QSlider,
-    QPushButton, QLineEdit, QFileDialog
-)
-from PySide6.QtCore import Qt
-
-from models.settings import get_qsettings
 
 
 @dataclass
@@ -52,11 +44,11 @@ class AnalyzerOption:
     type: str
     default: Any
     help: str
-    choices: Optional[List[Union[Any, Tuple[Any, str]]]] = None
-    min: Optional[float] = None
-    max: Optional[float] = None
-    interval: Optional[float] = None
-    suffix: Optional[str] = None
+    choices: list[Any | tuple[Any, str]] | None = None
+    min: float | None = None
+    max: float | None = None
+    interval: float | None = None
+    suffix: str | None = None
 
     def __post_init__(self):
         """Validate option configuration."""
@@ -70,420 +62,6 @@ class AnalyzerOption:
         if self.type in ('int', 'float', 'slider'):
             if self.min is not None and self.max is not None and self.min > self.max:
                 raise ValueError(f"Option '{self.name}': min ({self.min}) cannot be greater than max ({self.max})")
-
-
-def build_widget_from_option(option: AnalyzerOption,
-                            settings_group: Optional[str] = None) -> QWidget:
-    """
-    Auto-generate appropriate Qt widget from option metadata.
-
-    Widget Selection Logic:
-    - type='slider' → Always use QSlider + QSpinBox/QDoubleSpinBox
-    - type='int'/'float' with min/max/interval → QSlider + SpinBox
-    - type='int'/'float' without interval → SpinBox only
-    - type='bool' → QCheckBox
-    - type='choice' → QComboBox
-
-    The generated widget will have its objectName set to option.name,
-    which is used by AnalyzerSetupDialog._extract_settings_from_widget()
-    to retrieve values.
-
-    QSettings Integration:
-    If settings_group is provided, the widget will load its initial value
-    from QSettings and save changes back automatically.
-
-    Args:
-        option: The AnalyzerOption to create a widget for
-        settings_group: Optional QSettings group path (e.g., "analyzers/AubioBPMAnalyzer")
-
-    Returns:
-        QWidget configured based on option metadata
-    """
-    # Load saved value from QSettings if available
-    saved_value = option.default
-    if settings_group:
-        settings = get_qsettings()
-        settings.beginGroup(settings_group)
-
-        # Type-appropriate retrieval
-        if option.type == 'bool':
-            saved_value = settings.value(option.name, option.default, type=bool)
-        elif option.type in ('int', 'slider'):
-            saved_value = settings.value(option.name, option.default, type=int)
-        elif option.type == 'float':
-            saved_value = settings.value(option.name, option.default, type=float)
-        else:  # choice, file
-            saved_value = settings.value(option.name, option.default)
-
-        settings.endGroup()
-
-    # Create widget based on type
-    if option.type == 'bool':
-        return _build_checkbox(option, saved_value, settings_group)
-
-    elif option.type == 'choice':
-        return _build_combobox(option, saved_value, settings_group)
-
-    elif option.type == 'slider' or (option.type in ('int', 'float') and
-                                     option.min is not None and
-                                     option.max is not None and
-                                     option.interval is not None):
-        return _build_slider_spinbox(option, saved_value, settings_group)
-
-    elif option.type == 'int':
-        return _build_spinbox(option, saved_value, settings_group, is_float=False)
-
-    elif option.type == 'float':
-        return _build_spinbox(option, saved_value, settings_group, is_float=True)
-
-    elif option.type == 'file':
-        return _build_file_input(option, saved_value, settings_group)
-
-    elif option.type == 'directory':
-        return _build_directory_input(option, saved_value, settings_group)
-
-    else:
-        raise ValueError(f"Cannot build widget for option type: {option.type}")
-
-
-def _build_checkbox(option: AnalyzerOption,
-                   value: bool,
-                   settings_group: Optional[str]) -> QCheckBox:
-    """Build a QCheckBox widget."""
-    checkbox = QCheckBox(option.help)
-    checkbox.setObjectName(option.name)
-    checkbox.setChecked(value)
-
-    # Save to QSettings on change
-    if settings_group:
-        def save_value(checked: bool):
-            settings = get_qsettings()
-            settings.beginGroup(settings_group)
-            settings.setValue(option.name, checked)
-            settings.endGroup()
-
-        checkbox.stateChanged.connect(lambda state: save_value(state == Qt.CheckState.Checked))
-
-    return checkbox
-
-
-def _build_combobox(option: AnalyzerOption,
-                   value: Any,
-                   settings_group: Optional[str]) -> QWidget:
-    """Build a QComboBox widget with optional label."""
-    container = QWidget()
-    layout = QVBoxLayout()
-    layout.setContentsMargins(0, 0, 0, 0)
-
-    # Add label
-    label = QLabel(option.help + ":")
-    layout.addWidget(label)
-
-    # Create combo box
-    combo = QComboBox()
-    combo.setObjectName(option.name)
-
-    # Add items (handle both simple values and (value, label) tuples)
-    for choice in option.choices:
-        if isinstance(choice, tuple):
-            # (value, label) tuple
-            combo.addItem(choice[1], choice[0])
-        else:
-            # Simple value
-            combo.addItem(str(choice), choice)
-
-    # Set current value
-    for i in range(combo.count()):
-        if combo.itemData(i) == value:
-            combo.setCurrentIndex(i)
-            break
-
-    layout.addWidget(combo)
-
-    # Save to QSettings on change
-    if settings_group:
-        def save_value(index: int):
-            settings = get_qsettings()
-            settings.beginGroup(settings_group)
-            settings.setValue(option.name, combo.itemData(index))
-            settings.endGroup()
-
-        combo.currentIndexChanged.connect(save_value)
-
-    container.setLayout(layout)
-    return container
-
-
-def _build_spinbox(option: AnalyzerOption,
-                  value: Union[int, float],
-                  settings_group: Optional[str],
-                  is_float: bool) -> QWidget:
-    """Build a QSpinBox or QDoubleSpinBox widget."""
-    container = QWidget()
-    layout = QVBoxLayout()
-    layout.setContentsMargins(0, 0, 0, 0)
-
-    # Add label
-    label = QLabel(option.help + ":")
-    layout.addWidget(label)
-
-    # Create spin box
-    if is_float:
-        spinbox = QDoubleSpinBox()
-        spinbox.setDecimals(2)
-    else:
-        spinbox = QSpinBox()
-
-    spinbox.setObjectName(option.name)
-
-    # Set range
-    if option.min is not None:
-        spinbox.setMinimum(option.min)
-    if option.max is not None:
-        spinbox.setMaximum(option.max)
-
-    # Set step
-    if option.interval is not None:
-        spinbox.setSingleStep(option.interval)
-
-    # Set suffix
-    if option.suffix:
-        spinbox.setSuffix(option.suffix)
-
-    # Set value
-    spinbox.setValue(value)
-
-    layout.addWidget(spinbox)
-
-    # Save to QSettings on change
-    if settings_group:
-        def save_value(new_value: Union[int, float]):
-            settings = get_qsettings()
-            settings.beginGroup(settings_group)
-            settings.setValue(option.name, new_value)
-            settings.endGroup()
-
-        spinbox.valueChanged.connect(save_value)
-
-    container.setLayout(layout)
-    return container
-
-
-def _build_slider_spinbox(option: AnalyzerOption,
-                         value: Union[int, float],
-                         settings_group: Optional[str]) -> QWidget:
-    """Build a QSlider + QSpinBox/QDoubleSpinBox combo widget."""
-    container = QWidget()
-    main_layout = QVBoxLayout()
-    main_layout.setContentsMargins(0, 0, 0, 0)
-
-    # Add label
-    label = QLabel(option.help + ":")
-    main_layout.addWidget(label)
-
-    # Horizontal layout for slider and spinbox
-    h_layout = QHBoxLayout()
-
-    # Create slider
-    slider = QSlider(Qt.Orientation.Horizontal)
-    # Slider works with integers, so scale if needed
-    is_float = option.type == 'float'
-    scale_factor = 100 if is_float else 1
-
-    slider_min = int(option.min * scale_factor) if option.min is not None else 0
-    slider_max = int(option.max * scale_factor) if option.max is not None else 100
-    slider_step = int(option.interval * scale_factor) if option.interval is not None else 1
-
-    slider.setMinimum(slider_min)
-    slider.setMaximum(slider_max)
-    slider.setSingleStep(slider_step)
-    slider.setTickInterval(slider_step)
-    slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-    slider.setValue(int(value * scale_factor))
-
-    # Note: We don't set objectName on slider, only on spinbox
-    # This is because _extract_settings_from_widget() only reads from spinbox
-
-    h_layout.addWidget(slider)
-
-    # Create spinbox
-    if is_float:
-        spinbox = QDoubleSpinBox()
-        spinbox.setDecimals(2)
-    else:
-        spinbox = QSpinBox()
-
-    spinbox.setObjectName(option.name)
-
-    if option.min is not None:
-        spinbox.setMinimum(option.min)
-    if option.max is not None:
-        spinbox.setMaximum(option.max)
-    if option.interval is not None:
-        spinbox.setSingleStep(option.interval)
-    if option.suffix:
-        spinbox.setSuffix(option.suffix)
-
-    spinbox.setValue(value)
-    spinbox.setMaximumWidth(80)
-
-    h_layout.addWidget(spinbox)
-
-    # Connect slider and spinbox
-    def slider_to_spinbox(slider_value: int):
-        actual_value = slider_value / scale_factor if is_float else slider_value
-        spinbox.setValue(actual_value)
-
-    def spinbox_to_slider(spinbox_value: Union[int, float]):
-        slider_value = int(spinbox_value * scale_factor) if is_float else int(spinbox_value)
-        slider.setValue(slider_value)
-
-    slider.valueChanged.connect(slider_to_spinbox)
-    spinbox.valueChanged.connect(spinbox_to_slider)
-
-    # Save to QSettings on change
-    if settings_group:
-        def save_value(new_value: Union[int, float]):
-            settings = get_qsettings()
-            settings.beginGroup(settings_group)
-            settings.setValue(option.name, new_value)
-            settings.endGroup()
-
-        spinbox.valueChanged.connect(save_value)
-
-    main_layout.addLayout(h_layout)
-
-    container.setLayout(main_layout)
-    return container
-
-
-def _build_file_input(option: AnalyzerOption,
-                     value: str,
-                     settings_group: Optional[str]) -> QWidget:
-    """Build a file input widget with QLineEdit and Browse button."""
-    container = QWidget()
-    main_layout = QVBoxLayout()
-    main_layout.setContentsMargins(0, 0, 0, 0)
-
-    # Add label
-    label = QLabel(option.help + ":")
-    main_layout.addWidget(label)
-
-    # Horizontal layout for line edit and button
-    h_layout = QHBoxLayout()
-
-    # Create line edit
-    line_edit = QLineEdit()
-    line_edit.setObjectName(option.name)
-    line_edit.setText(str(value) if value else '')
-    line_edit.setPlaceholderText("Select a file..." if not value else "")
-
-    h_layout.addWidget(line_edit)
-
-    # Create browse button
-    browse_button = QPushButton("Browse...")
-    browse_button.setMaximumWidth(100)
-
-    # Define file dialog function
-    def open_file_dialog():
-        # Determine file filters based on choices (if provided)
-        # choices can be used to specify allowed file extensions
-        filters = "All Files (*.*)"
-        if option.choices:
-            # Assume choices contains file extensions like ['.pth', '.pt', '.onnx']
-            # or filter descriptions like ['PyTorch Models (*.pth *.pt)', 'ONNX Models (*.onnx)']
-            if isinstance(option.choices[0], str) and option.choices[0].startswith('.'):
-                # Simple extensions list
-                extensions = ' '.join(f'*{ext}' for ext in option.choices)
-                filters = f"Model Files ({extensions});;All Files (*.*)"
-            elif isinstance(option.choices[0], str) and '(' in option.choices[0]:
-                # Filter descriptions
-                filters = ';;'.join(option.choices) + ";;All Files (*.*)"
-
-        file_path, _ = QFileDialog.getOpenFileName(
-            container,
-            f"Select {option.help}",
-            line_edit.text() if line_edit.text() else "",
-            filters
-        )
-
-        if file_path:
-            line_edit.setText(file_path)
-
-    browse_button.clicked.connect(open_file_dialog)
-    h_layout.addWidget(browse_button)
-
-    main_layout.addLayout(h_layout)
-
-    # Save to QSettings on change
-    if settings_group:
-        def save_value(text: str):
-            settings = get_qsettings()
-            settings.beginGroup(settings_group)
-            settings.setValue(option.name, text)
-            settings.endGroup()
-
-        line_edit.textChanged.connect(save_value)
-
-    container.setLayout(main_layout)
-    return container
-
-
-def _build_directory_input(option: AnalyzerOption,
-                           value: str,
-                           settings_group: Optional[str]) -> QWidget:
-    """Build a directory input widget with QLineEdit and Browse button."""
-    container = QWidget()
-    main_layout = QVBoxLayout()
-    main_layout.setContentsMargins(0, 0, 0, 0)
-
-    # Add label
-    label = QLabel(option.help + ":")
-    main_layout.addWidget(label)
-
-    # Horizontal layout for line edit and button
-    h_layout = QHBoxLayout()
-
-    # Create line edit
-    line_edit = QLineEdit()
-    line_edit.setObjectName(option.name)
-    line_edit.setText(str(value) if value else '')
-    line_edit.setPlaceholderText("Select a directory..." if not value else "")
-
-    h_layout.addWidget(line_edit)
-
-    # Create browse button
-    browse_button = QPushButton("Browse...")
-    browse_button.setMaximumWidth(100)
-
-    # Define directory dialog function
-    def open_directory_dialog():
-        directory_path = QFileDialog.getExistingDirectory(
-            container,
-            f"Select {option.help}",
-            line_edit.text() if line_edit.text() else ""
-        )
-
-        if directory_path:
-            line_edit.setText(directory_path)
-
-    browse_button.clicked.connect(open_directory_dialog)
-    h_layout.addWidget(browse_button)
-
-    main_layout.addLayout(h_layout)
-
-    # Save to QSettings on change
-    if settings_group:
-        def save_value(text: str):
-            settings = get_qsettings()
-            settings.beginGroup(settings_group)
-            settings.setValue(option.name, text)
-            settings.endGroup()
-
-        line_edit.textChanged.connect(save_value)
-
-    container.setLayout(main_layout)
-    return container
 
 
 def add_option_to_argparse(parser: ArgumentParser,
@@ -581,7 +159,7 @@ def add_option_to_argparse(parser: ArgumentParser,
     parser.add_argument(arg_name, **kwargs)
 
 
-def get_common_analyzer_options() -> List[AnalyzerOption]:
+def get_common_analyzer_options() -> list[AnalyzerOption]:
     """
     Return common options available for all analyzers.
 
@@ -600,14 +178,18 @@ def get_common_analyzer_options() -> List[AnalyzerOption]:
     ]
 
 
-# BPM range preference keys in QSettings
-BPM_RANGE_MIN_KEY = "Analyzers/CategoryOptions/bpm/range_min"
-BPM_RANGE_MAX_KEY = "Analyzers/CategoryOptions/bpm/range_max"
-BPM_RANGE_MIN_DEFAULT = 80
-BPM_RANGE_MAX_DEFAULT = 200
+# BPM range preference keys in QSettings (re-exported from util.const so all
+# QSettings paths are centralised there). Kept at module level so existing
+# ``from util.analyzer_options import BPM_RANGE_*`` imports keep working.
+from util.const import (  # noqa: E402 - intentional: re-export
+    BPM_RANGE_MIN_KEY,
+    BPM_RANGE_MAX_KEY,
+    BPM_RANGE_MIN_DEFAULT,
+    BPM_RANGE_MAX_DEFAULT,
+)
 
 
-def get_bpm_category_options() -> List[AnalyzerOption]:
+def get_bpm_category_options() -> list[AnalyzerOption]:
     """
     Return BPM-specific category options for CLI.
 

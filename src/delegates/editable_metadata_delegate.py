@@ -1,6 +1,10 @@
-import os
-from PySide6.QtWidgets import QStyledItemDelegate, QLineEdit
-from PySide6.QtCore import QModelIndex, Qt
+
+from PySide6.QtWidgets import (
+    QStyledItemDelegate, QLineEdit, QWidget, QStyleOptionViewItem,
+)
+from PySide6.QtCore import (
+    QModelIndex, QAbstractItemModel, QAbstractProxyModel, QItemSelectionModel, Qt,
+)
 
 from util.logging import log
 
@@ -17,18 +21,18 @@ class EditableMetadataDelegate(QStyledItemDelegate):
     When multiple rows are selected, the delegate applies the edit to all selected rows
     via the source model's setDataForRows() method.
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._selection_model = None
-        self._proxy_model = None
+        self._selection_model: QItemSelectionModel | None = None
+        self._proxy_model: QAbstractProxyModel | None = None
 
-    def set_selection_model(self, selection_model):
+    def set_selection_model(self, selection_model: QItemSelectionModel) -> None:
         self._selection_model = selection_model
 
-    def set_proxy_model(self, proxy_model):
+    def set_proxy_model(self, proxy_model: QAbstractProxyModel) -> None:
         self._proxy_model = proxy_model
 
-    def _get_selected_source_rows(self, column):
+    def _get_selected_source_rows(self, column: int) -> list[int]:
         """
         Returns a list of source-model row indices for the current selection at the given column.
         Returns an empty list if selection info is unavailable.
@@ -42,7 +46,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
 
         return [self._proxy_model.mapToSource(idx).row() for idx in selected_indexes]
 
-    def createEditor(self, parent, option, index):
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex) -> QLineEdit:
         """
         Create and return a QLineEdit widget for editing the cell content.
 
@@ -57,7 +61,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
         editor = QLineEdit(parent)
         return editor
 
-    def setEditorData(self, editor, index):
+    def setEditorData(self, editor: QLineEdit, index: QModelIndex) -> None:
         """
         Set the editor's data to the current value of the cell.
         For multi-select, shows a placeholder if values differ across selected rows.
@@ -94,7 +98,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
         editor.selectAll()
         editor.setFocus()
 
-    def setModelData(self, editor, model, index):
+    def setModelData(self, editor: QLineEdit, model: QAbstractItemModel, index: QModelIndex) -> None:
         """
         Set the model data from the editor when editing is finished.
         For multi-select, applies the change to all selected rows via setDataForRows().
@@ -135,7 +139,7 @@ class EditableMetadataDelegate(QStyledItemDelegate):
                 source_model.setData(source_index, new_value, role=role)
                 source_model.finished_with_edits()
 
-    def updateEditorGeometry(self, editor, option, index):
+    def updateEditorGeometry(self, editor: QLineEdit, option: QStyleOptionViewItem, index: QModelIndex) -> None:
         """
         Update the editor's geometry to match the cell geometry.
 

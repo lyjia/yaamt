@@ -6,7 +6,6 @@ and custom scores for BPM detection.
 """
 
 from enum import Enum
-from typing import Tuple
 import mingus.core.intervals as intervals
 
 
@@ -62,7 +61,7 @@ def calculate_key_relationship(
     ref_is_minor: bool,
     analyzed_pitch_class: int,
     analyzed_is_minor: bool
-) -> Tuple[float, KeyRelationship]:
+) -> tuple[float, KeyRelationship]:
     """
     Calculate MIREX relationship score between reference and analyzed keys.
 
@@ -131,7 +130,7 @@ def calculate_key_score(
     return score
 
 
-def calculate_bpm_score(reference_bpm: float, analyzed_bpm: float) -> Tuple[float, BPMCategory]:
+def calculate_bpm_score(reference_bpm: float, analyzed_bpm: float) -> tuple[float, BPMCategory]:
     """
     Calculate custom score for BPM detection based on absolute difference.
 

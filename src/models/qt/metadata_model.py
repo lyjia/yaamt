@@ -1,6 +1,9 @@
 import os
+from typing import Any
+
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QFont, QColor
+from PySide6.QtWidgets import QWidget
 from models.settings import ColumnSettings
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
@@ -8,7 +11,8 @@ from models.edit_manager import EditManager
 from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA,
-    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
+    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, COL_MAIN_DATE_CREATED,
+    KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
     KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_FILE_ID, LOADING_PLACEHOLDER
 )
 from util.display import human_readable_size, human_readable_timestamp
@@ -16,22 +20,23 @@ from util.logging import log
 
 
 class MetadataTableModel(QAbstractTableModel):
-    def __init__(self, columns: list[ColumnSettings], edit_manager: EditManager, parent=None):
+    def __init__(self, columns: list[ColumnSettings], edit_manager: EditManager,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._data = []
+        self._data: list[dict] = []
         self._columns = columns
         self.edit_manager = edit_manager
 
         if self.edit_manager is None:
             raise ValueError("edit_manager cannot be None!")
 
-    def rowCount(self, parent=QModelIndex()):
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self._data)
 
-    def columnCount(self, parent=QModelIndex()):
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self._columns)
 
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
 
         if not index.isValid():
             return None
@@ -66,7 +71,7 @@ class MetadataTableModel(QAbstractTableModel):
                 fmtime = row_data.get(KEY_FILE_MTIME)
                 return human_readable_timestamp(fmtime)
 
-            elif column.id == "date_created":
+            elif column.id == COL_MAIN_DATE_CREATED:
                 fctime = row_data.get(KEY_FILE_CTIME)
                 return human_readable_timestamp(fctime)
 
@@ -104,7 +109,7 @@ class MetadataTableModel(QAbstractTableModel):
             elif column.id == COL_MAIN_DATE_MODIFIED:
                 return row_data.get(KEY_FILE_MTIME)
 
-            elif column.id == "date_created":
+            elif column.id == COL_MAIN_DATE_CREATED:
                 return row_data.get(KEY_FILE_CTIME)
 
             # elif header == "Last Accessed":
@@ -115,7 +120,7 @@ class MetadataTableModel(QAbstractTableModel):
                 
         return None
 
-    def flags(self, index):
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         """
         Return the item flags for the given index.
         This determines whether a cell is editable and selectable.
@@ -138,7 +143,8 @@ class MetadataTableModel(QAbstractTableModel):
 
         return flags
 
-    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+    def setData(self, index: QModelIndex, value: Any,
+                role: int = Qt.ItemDataRole.EditRole) -> bool:
         """
         Set the data for the item at the given index.
 
@@ -182,7 +188,8 @@ class MetadataTableModel(QAbstractTableModel):
 
         return True
 
-    def setDataForRows(self, rows: list[int], column: int, value, role=Qt.ItemDataRole.EditRole):
+    def setDataForRows(self, rows: list[int], column: int, value: Any,
+                       role: int = Qt.ItemDataRole.EditRole) -> bool:
         """
         Stage a change for multiple rows at once. Does NOT call finished_with_edits();
         the caller must do that separately.
@@ -238,11 +245,11 @@ class MetadataTableModel(QAbstractTableModel):
         log.debug(f"setDataForRows: staged '{column_settings.id}' = '{value}' for {len(media_files)} files")
         return True
 
-    def finished_with_edits(self):
+    def finished_with_edits(self) -> None:
         log.debug("Finished with edits. Saving changes...")
         self.edit_manager.commit_changes()
 
-    def get_media_file_for_row(self, row):
+    def get_media_file_for_row(self, row: int) -> MediaFile | None:
         """
         Get the MediaFile object for a given row index.
 
@@ -267,20 +274,21 @@ class MetadataTableModel(QAbstractTableModel):
 
         return None
 
-    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+    def headerData(self, section: int, orientation: Qt.Orientation,
+                   role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             return self._columns[section].label
         return None
 
-    def get_data_for_row(self, row):
+    def get_data_for_row(self, row: int) -> dict:
         return self._data[row]
 
-    def set_entire_data(self, data):
+    def set_entire_data(self, data: list[dict]) -> None:
         self.beginResetModel()
         self._data = data
         self.endResetModel()
 
-    def add_rows(self, rows_data: list[dict]):
+    def add_rows(self, rows_data: list[dict]) -> None:
         """
         Append new rows to the model (used during Stage 1 discovery).
 
@@ -296,7 +304,7 @@ class MetadataTableModel(QAbstractTableModel):
         self._data.extend(rows_data)
         self.endInsertRows()
 
-    def update_row(self, index: int, metadata: dict):
+    def update_row(self, index: int, metadata: dict) -> None:
         """
         Update an existing row with enriched metadata (used during Stage 2 enrichment).
 
@@ -316,7 +324,7 @@ class MetadataTableModel(QAbstractTableModel):
         end_index = self.createIndex(index, self.columnCount() - 1)
         self.dataChanged.emit(start_index, end_index, [])
 
-    def sort(self, column, order):
+    def sort(self, column: int, order: Qt.SortOrder) -> None:
         self.layoutAboutToBeChanged.emit()
         column_settings = self._columns[column]
 
@@ -362,7 +370,7 @@ class MetadataTableModel(QAbstractTableModel):
             KEY_FILE_ID: media_file.file_id
         }
 
-    def refresh_files(self, file_ids: list[str], edit_manager: EditManager):
+    def refresh_files(self, file_ids: list[int], edit_manager: EditManager) -> None:
         """
         Refresh the metadata for specific files in the model.
 

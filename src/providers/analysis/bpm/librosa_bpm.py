@@ -6,7 +6,7 @@ It loads the entire audio file into memory as a numpy array and returns
 raw float BPM values.
 """
 
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import AnalyzerOption
 from util.bpm import BpmCandidate
 from util.logging import log
 
@@ -52,23 +52,13 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
         audio_stream = None
 
         try:
-            # Check for cancellation
-            if self.is_cancelled:
-                return AnalyzerResult(
-                    success=False,
-                    error="Analysis cancelled by user"
-                )
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
 
-            # Check if BPM already exists (skip if requested)
-            skip_if_exists = self.options.get('skip_if_tag_exists', False)
-            existing_bpm = self.media_file.get_tag_simple('bpm')
-
-            if existing_bpm and skip_if_exists:
-                return AnalyzerResult(
-                    success=True,
-                    skipped=True,
-                    error="BPM already set"
-                )
+            skipped = self._check_skip_if_exists('bpm', "BPM already set")
+            if skipped is not None:
+                return skipped
 
             # Import librosa (fail gracefully if not available)
             try:
@@ -188,7 +178,7 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -242,7 +232,7 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional["QWidget"]:
+    def get_settings_widget(cls) -> "QWidget | None":
         """
         Return a QWidget for configuring librosa BPM analyzer parameters.
 
@@ -250,6 +240,7 @@ class LibrosaBeatTrackingBPMAnalyzer(AnalyzerBase):
             QWidget with controls for tempo estimation and beat tracking parameters
         """
         from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QLabel
+        from windows.analyzer.option_widgets import build_widget_from_option
 
         widget = QWidget()
         main_layout = QVBoxLayout()

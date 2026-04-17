@@ -5,7 +5,6 @@ This analyzer detects BPM using the aubio library's beat tracking system.
 It streams audio data and returns raw float BPM values.
 """
 
-from typing import Optional, List
 import numpy as np
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QComboBox,
@@ -14,7 +13,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QComboBox,
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import AnalyzerOption
 from util.bpm import BpmCandidate
 from util.logging import log
 
@@ -51,23 +50,13 @@ class AubioBPMAnalyzer(AnalyzerBase):
         audio_stream = None
 
         try:
-            # Check for cancellation
-            if self.is_cancelled:
-                return AnalyzerResult(
-                    success=False,
-                    error="Analysis cancelled by user"
-                )
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
 
-            # Check if BPM already exists (skip if requested)
-            skip_if_exists = self.options.get('skip_if_tag_exists', False)
-            existing_bpm = self.media_file.get_tag_simple('bpm')
-
-            if existing_bpm and skip_if_exists:
-                return AnalyzerResult(
-                    success=True,
-                    skipped=True,
-                    error="BPM already set"
-                )
+            skipped = self._check_skip_if_exists('bpm', "BPM already set")
+            if skipped is not None:
+                return skipped
 
             # Import aubio (fail gracefully if not available)
             try:
@@ -214,7 +203,7 @@ class AubioBPMAnalyzer(AnalyzerBase):
                     log.warning(f"Error closing audio stream: {e}")
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -280,7 +269,7 @@ class AubioBPMAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional[QWidget]:
+    def get_settings_widget(cls) -> QWidget | None:
         """
         Return a QWidget for configuring aubio analyzer parameters.
 
@@ -289,6 +278,10 @@ class AubioBPMAnalyzer(AnalyzerBase):
         Returns:
             QWidget with controls for method, mode, and advanced parameters
         """
+        # Imported lazily so this provider module can be loaded in CLI /
+        # headless contexts without dragging in the GUI widget layer.
+        from windows.analyzer.option_widgets import build_widget_from_option
+
         widget = QWidget()
         main_layout = QVBoxLayout()
         main_layout.setSpacing(8)

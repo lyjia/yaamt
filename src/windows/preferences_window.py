@@ -1,5 +1,4 @@
 """Main preferences window."""
-from typing import List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
     QStackedWidget, QMessageBox, QSplitter, QListWidgetItem
@@ -9,6 +8,10 @@ from PySide6.QtCore import Qt, QSize
 from models.settings import get_qsettings
 from PySide6.QtGui import QKeySequence, QShortcut
 
+from util.const import (
+    SETTINGS_GROUP_GENERAL, SETTINGS_GROUP_ANALYZERS_PREFERRED,
+    SETTINGS_GROUP_ANALYZERS_CATEGORY_OPTIONS, SETTINGS_GROUP_RESOURCES,
+)
 from windows.preferences.base import PreferencePaneBase
 from windows.preferences.general_pane import GeneralPane
 from windows.preferences.metadata_pane import MetadataPane
@@ -31,7 +34,7 @@ class PreferencesWindow(QDialog):
         """Initialize the PreferencesWindow."""
         super().__init__(parent)
         self.settings = get_qsettings()
-        self.panes: List[PreferencePaneBase] = []
+        self.panes: list[PreferencePaneBase] = []
 
         self._setup_window()
         self._setup_ui()
@@ -180,11 +183,11 @@ class PreferencesWindow(QDialog):
     def _clear_all_settings(self) -> None:
         """Clear all preference-related settings from QSettings."""
         # Clear General settings
-        self.settings.remove("General")
+        self.settings.remove(SETTINGS_GROUP_GENERAL)
 
         # Clear Analyzer settings
-        self.settings.remove("Analyzers/Preferred")
-        self.settings.remove("Analyzers/CategoryOptions")
+        self.settings.remove(SETTINGS_GROUP_ANALYZERS_PREFERRED)
+        self.settings.remove(SETTINGS_GROUP_ANALYZERS_CATEGORY_OPTIONS)
 
         # Clear Resources settings
-        self.settings.remove("Resources")
+        self.settings.remove(SETTINGS_GROUP_RESOURCES)

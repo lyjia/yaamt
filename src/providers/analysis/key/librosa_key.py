@@ -6,7 +6,7 @@ combined with the Krumhansl-Schmuckler key-finding algorithm. It loads
 the entire audio file into memory as a numpy array.
 """
 
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from providers.analysis import AnalyzerBase, AnalyzerResult, AnalyzerCategory
 from providers import analyzer
 from providers.audio.format_descriptor import AudioFormatDescriptor
-from util.analyzer_options import AnalyzerOption, build_widget_from_option
+from util.analyzer_options import AnalyzerOption
 from util.const import KEY_INITIAL_KEY
 from util.logging import log
 
@@ -29,7 +29,7 @@ MINOR_PROFILE = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 
 PITCH_CLASSES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 
-@analyzer(AnalyzerCategory.KEY, debug_only=True)
+@analyzer(AnalyzerCategory.KEY)
 class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
     """
     Musical key analyzer using librosa chromagram and Krumhansl-Schmuckler algorithm.
@@ -62,23 +62,13 @@ class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
         audio_stream = None
 
         try:
-            # Check for cancellation
-            if self.is_cancelled:
-                return AnalyzerResult(
-                    success=False,
-                    error="Analysis cancelled by user"
-                )
+            cancelled = self._check_cancellation()
+            if cancelled is not None:
+                return cancelled
 
-            # Check if key already exists (skip if requested)
-            skip_if_exists = self.options.get('skip_if_tag_exists', False)
-            existing_key = self.media_file.get_tag_simple(KEY_INITIAL_KEY)
-
-            if existing_key and skip_if_exists:
-                return AnalyzerResult(
-                    success=True,
-                    skipped=True,
-                    error="Key already set"
-                )
+            skipped = self._check_skip_if_exists(KEY_INITIAL_KEY, "Key already set")
+            if skipped is not None:
+                return skipped
 
             # Import librosa (fail gracefully if not available)
             try:
@@ -250,7 +240,7 @@ class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
         return best_key, best_mode, best_correlation
 
     @classmethod
-    def get_options_metadata(cls) -> List[AnalyzerOption]:
+    def get_options_metadata(cls) -> list[AnalyzerOption]:
         """
         Return option metadata for this analyzer.
 
@@ -289,7 +279,7 @@ class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
         ]
 
     @classmethod
-    def get_settings_widget(cls) -> Optional["QWidget"]:
+    def get_settings_widget(cls) -> "QWidget | None":
         """
         Return a QWidget for configuring librosa key analyzer parameters.
 
@@ -297,6 +287,7 @@ class LibrosaChromagramKeyAnalyzer(AnalyzerBase):
             QWidget with controls for chromagram and key detection parameters
         """
         from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QLabel
+        from windows.analyzer.option_widgets import build_widget_from_option
 
         widget = QWidget()
         main_layout = QVBoxLayout()

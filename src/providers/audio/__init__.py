@@ -1,8 +1,7 @@
 from .base import AudioStreamBase
-from typing import List, Tuple
 
 
-def get_available_audio_devices() -> List[Tuple[str, str]]:
+def get_available_audio_devices() -> list[tuple[str, str]]:
     """
     Get list of available audio output devices.
 

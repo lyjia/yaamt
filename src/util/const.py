@@ -65,17 +65,30 @@ KEY_GENRE = 'genre'
 KEY_GROUPING = 'grouping'
 KEY_INITIAL_KEY = 'initialkey'
 KEY_ISRC = 'isrc'
+KEY_LABEL = 'label'
 KEY_LANGUAGE = 'language'
 KEY_LYRICIST = 'lyricist'
 KEY_MEDIA = 'media'
 KEY_MOOD = 'mood'
 KEY_ORGANIZATION = 'organization'
+KEY_PUBLISHER = 'publisher'
+KEY_REMIXER = 'remixer'
 KEY_TITLE = 'title'
 KEY_TITLE_SORT = 'titlesort'
 KEY_TRACK_NUMBER = 'tracknumber'
 KEY_TRACK_TOTAL = 'tracktotal'
 KEY_VERSION = 'version'
 KEY_YEAR = 'year'
+
+# Tags that are end-user-editable text fields. Used by tag transformers to
+# decide which tags should be whitespace-trimmed, empty-string-normalized, etc.
+COMMON_WRITABLE_TAGS = [
+    KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_ALBUM_ARTIST, KEY_COMPOSER,
+    KEY_GENRE, KEY_COMMENT, KEY_COPYRIGHT, KEY_DATE, KEY_YEAR,
+    KEY_TRACK_NUMBER, KEY_TRACK_TOTAL, KEY_DISC_NUMBER, KEY_DISC_TOTAL,
+    KEY_ISRC, KEY_LABEL, KEY_REMIXER, KEY_LYRICIST, KEY_CONDUCTOR,
+    KEY_PUBLISHER, KEY_GROUPING, KEY_BPM, KEY_INITIAL_KEY,
+]
 
 ALL_TAGS = { #display names for each tag
     KEY_ALBUM: "Album",
@@ -111,6 +124,7 @@ COL_MAIN_FILENAME = "filename"
 COL_MAIN_SIZE = "size"
 COL_MAIN_TYPE = "type"
 COL_MAIN_DATE_MODIFIED = "date_modified"
+COL_MAIN_DATE_CREATED = "date_created"
 COL_MAIN_TITLE = KEY_TITLE
 COL_MAIN_ARTIST = KEY_ARTIST
 COL_MAIN_ALBUM = KEY_ALBUM
@@ -171,3 +185,61 @@ BPM_RANGE_PRESETS = [
     ("Hardstyle / Hardcore (95-198)", (95, 198)),
     ("Custom", (None, None)),
 ]
+
+#### QSettings paths ####
+# Central registry of all QSettings keys and groups used by the application.
+# Any new QSettings access should add its key here rather than hard-coding a
+# string literal in the GUI/model code.
+
+# Top-level groups (used with settings.beginGroup / settings.remove)
+SETTINGS_GROUP_GENERAL = "General"
+SETTINGS_GROUP_FAVORITES = "Favorites"
+SETTINGS_GROUP_FILE_LIST = "file_list"
+SETTINGS_GROUP_ANALYZERS_PREFERRED = "Analyzers/Preferred"
+SETTINGS_GROUP_ANALYZERS_CATEGORY_OPTIONS = "Analyzers/CategoryOptions"
+SETTINGS_GROUP_RESOURCES = "Resources"
+
+# Sub-array keys within their groups
+SETTINGS_ARRAY_FAVORITES_LOCATIONS = "locations"
+SETTINGS_ARRAY_FILE_LIST_COLUMNS = "columns"
+
+# General settings
+SETTINGS_STARTUP_DIR_MODE = "General/StartupDirectoryMode"
+SETTINGS_PREFERRED_DIRECTORY = "General/PreferredDirectory"
+SETTINGS_PREFERRED_AUDIO_DEVICE = "General/PreferredAudioDevice"
+SETTINGS_UI_SKIN = "General/UiSkin"
+
+# Debug / playback adaptation settings
+SETTINGS_DEBUG_PLAYBACK_ADAPTATION = "Debug/PlaybackFormatAdaptationEnabled"
+SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE = "Debug/PlaybackSampleRate"
+SETTINGS_DEBUG_PLAYBACK_CHANNELS = "Debug/PlaybackChannels"
+SETTINGS_DEBUG_PLAYBACK_SAMPLE_WIDTH = "Debug/PlaybackSampleWidth"
+SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT = "Debug/PlaybackSampleFormat"
+
+# Analyzer category-option settings (BPM, key)
+SETTINGS_BPM_RANGE_MIN = "Analyzers/CategoryOptions/bpm/range_min"
+SETTINGS_BPM_RANGE_MAX = "Analyzers/CategoryOptions/bpm/range_max"
+SETTINGS_BPM_DECIMAL_PLACES = "Analyzers/CategoryOptions/bpm/decimal_places"
+SETTINGS_KEY_NOTATION_FORMAT = "Analyzers/CategoryOptions/key/notation_format"
+
+# Prefix (not a complete key) for per-category preferred analyzer selection.
+# Use as f"{SETTINGS_ANALYZERS_PREFERRED_PREFIX}/{category_lower}".
+SETTINGS_ANALYZERS_PREFERRED_PREFIX = SETTINGS_GROUP_ANALYZERS_PREFERRED
+
+# Resources settings
+SETTINGS_RESOURCES_CACHE_ROOT = "Resources/CacheRoot"
+SETTINGS_RESOURCES_CUSTOM_LOCATIONS = "Resources/CustomLocations"
+
+# Analyzer thread pool size (not a category option, shared with thread scheduler)
+SETTINGS_ANALYZERS_THREAD_POOL_SIZE = "Analyzers/thread_pool_size"
+
+# Default values for settings
+BPM_RANGE_MIN_DEFAULT = 80
+BPM_RANGE_MAX_DEFAULT = 200
+KEY_NOTATION_FORMAT_DEFAULT = "standard_abbrev"
+STARTUP_DIR_MODE_DEFAULT = "last"
+
+# Backwards-compatible aliases (these constants used to live in analyzer_options;
+# they are re-exported here so all settings paths are discoverable in one place).
+BPM_RANGE_MIN_KEY = SETTINGS_BPM_RANGE_MIN
+BPM_RANGE_MAX_KEY = SETTINGS_BPM_RANGE_MAX

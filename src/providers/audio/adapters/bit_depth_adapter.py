@@ -9,6 +9,11 @@ import numpy as np
 from typing import Literal
 from .base import AdapterBase
 from ..base import AudioStreamBase
+from util.audio_numpy import (
+    SAMPLE_WIDTH_8BIT, SAMPLE_WIDTH_16BIT, SAMPLE_WIDTH_24BIT, SAMPLE_WIDTH_32BIT,
+    INT24_MIN, INT24_MAX, INT24_MAX_MAGNITUDE,
+    bytes_to_int32_24bit, int32_to_bytes_24bit, get_numpy_dtype,
+)
 
 
 class BitDepthAdapter(AdapterBase):
@@ -58,7 +63,8 @@ class BitDepthAdapter(AdapterBase):
         """
         super().__init__(source)
 
-        if target_sample_width not in (1, 2, 3, 4):
+        if target_sample_width not in (SAMPLE_WIDTH_8BIT, SAMPLE_WIDTH_16BIT,
+                                       SAMPLE_WIDTH_24BIT, SAMPLE_WIDTH_32BIT):
             raise ValueError(
                 f"target_sample_width must be 1, 2, 3, or 4 bytes, "
                 f"got {target_sample_width}"
@@ -71,7 +77,7 @@ class BitDepthAdapter(AdapterBase):
             )
 
         # Validate format combinations
-        if target_sample_format == 'float' and target_sample_width != 4:
+        if target_sample_format == 'float' and target_sample_width != SAMPLE_WIDTH_32BIT:
             raise ValueError(
                 f"Float format only supports 32-bit (4 bytes), "
                 f"got {target_sample_width} bytes"
@@ -92,8 +98,8 @@ class BitDepthAdapter(AdapterBase):
         self._target_sample_format = target_sample_format
 
         # Get dtypes for conversion
-        self._source_dtype = self._get_dtype(source.sample_width, source_format)
-        self._target_dtype = self._get_dtype(target_sample_width, target_sample_format)
+        self._source_dtype = get_numpy_dtype(source.sample_width, source_format)
+        self._target_dtype = get_numpy_dtype(target_sample_width, target_sample_format)
 
     def _infer_source_format(self, sample_width: int) -> Literal['int', 'float']:
         """
@@ -109,49 +115,12 @@ class BitDepthAdapter(AdapterBase):
         Returns:
             'int' or 'float'
         """
-        if sample_width in (1, 2, 3):
+        if sample_width in (SAMPLE_WIDTH_8BIT, SAMPLE_WIDTH_16BIT, SAMPLE_WIDTH_24BIT):
             return 'int'
-        elif sample_width == 4:
+        elif sample_width == SAMPLE_WIDTH_32BIT:
             return 'float'
         else:
             raise ValueError(f"Unsupported sample width: {sample_width} bytes")
-
-    def _get_dtype(
-        self,
-        sample_width: int,
-        sample_format: Literal['int', 'float']
-    ) -> np.dtype:
-        """
-        Get the appropriate numpy dtype for the given format.
-
-        Args:
-            sample_width: Sample width in bytes
-            sample_format: Sample format ('int' or 'float')
-
-        Returns:
-            NumPy dtype for audio data
-
-        Raises:
-            ValueError: If format is not supported
-        """
-        if sample_format == 'int':
-            dtype_map = {
-                1: np.dtype('<i1'),   # 8-bit signed int
-                2: np.dtype('<i2'),   # 16-bit signed int
-                3: np.dtype('<i4'),   # 24-bit (stored as 32-bit int)
-                4: np.dtype('<i4'),   # 32-bit signed int
-            }
-        else:  # float
-            dtype_map = {
-                4: np.dtype('<f4'),   # 32-bit float
-            }
-
-        if sample_width not in dtype_map:
-            raise ValueError(
-                f"Unsupported format: {sample_width} bytes, {sample_format}"
-            )
-
-        return dtype_map[sample_width]
 
     def _bytes_to_array(self, data: bytes, sample_width: int) -> np.ndarray:
         """
@@ -164,30 +133,11 @@ class BitDepthAdapter(AdapterBase):
         Returns:
             NumPy array with audio samples
         """
-        if sample_width == 3:
-            # Handle 24-bit audio: convert 3 bytes to int32
-            audio_bytes = np.frombuffer(data, dtype=np.uint8)
-            n_samples = len(audio_bytes) // 3
-            audio_array = np.zeros(n_samples, dtype=np.int32)
-
-            for i in range(n_samples):
-                # Extract 3 bytes and convert to signed int32
-                byte_offset = i * 3
-                val = int(audio_bytes[byte_offset]) | \
-                      (int(audio_bytes[byte_offset + 1]) << 8) | \
-                      (int(audio_bytes[byte_offset + 2]) << 16)
-
-                # Sign extend if negative (bit 23 is set)
-                if val & 0x800000:
-                    val = val - 0x1000000  # Convert to negative by subtracting 2^24
-
-                audio_array[i] = val
-
-            return audio_array
-        else:
-            # Standard formats
-            dtype = self._get_dtype(sample_width, self._infer_source_format(sample_width))
-            return np.frombuffer(data, dtype=dtype)
+        if sample_width == SAMPLE_WIDTH_24BIT:
+            return bytes_to_int32_24bit(data)
+        # Standard formats
+        dtype = get_numpy_dtype(sample_width, self._infer_source_format(sample_width))
+        return np.frombuffer(data, dtype=dtype)
 
     def _array_to_bytes(self, array: np.ndarray, sample_width: int) -> bytes:
         """
@@ -200,25 +150,9 @@ class BitDepthAdapter(AdapterBase):
         Returns:
             Audio data as bytes
         """
-        if sample_width == 3:
-            # Handle 24-bit audio: convert int32 to 3 bytes
-            array = array.astype(np.int32)
-            output_bytes = bytearray()
-
-            for val in array.flat:
-                # Clamp to 24-bit range
-                val = np.clip(val, -8388608, 8388607)
-                # Write as 3 bytes (little-endian)
-                output_bytes.extend([
-                    val & 0xFF,
-                    (val >> 8) & 0xFF,
-                    (val >> 16) & 0xFF
-                ])
-
-            return bytes(output_bytes)
-        else:
-            # Standard formats
-            return array.tobytes()
+        if sample_width == SAMPLE_WIDTH_24BIT:
+            return int32_to_bytes_24bit(array)
+        return array.tobytes()
 
     def _convert_audio(self, source_array: np.ndarray) -> np.ndarray:
         """
@@ -243,9 +177,8 @@ class BitDepthAdapter(AdapterBase):
         # Normalize based on source format
         if source_format == 'int':
             # Normalize int to [-1.0, 1.0]
-            if self._source.sample_width == 3:
-                # 24-bit: range is -8388608 to 8388607
-                working_array /= 8388608.0
+            if self._source.sample_width == SAMPLE_WIDTH_24BIT:
+                working_array /= INT24_MAX_MAGNITUDE
             else:
                 # Use 2^(bits-1) for normalization
                 working_array /= (2 ** (source_bits - 1))
@@ -256,25 +189,25 @@ class BitDepthAdapter(AdapterBase):
         # Convert to target format
         if target_format == 'int':
             # Convert normalized float to target int range
-            if self._target_sample_width == 3:
-                # 24-bit: range is -8388608 to 8388607
-                working_array *= 8388607.0
+            if self._target_sample_width == SAMPLE_WIDTH_24BIT:
+                # 24-bit peak magnitude is 2^23 - 1
+                working_array *= INT24_MAX
             else:
                 # Use 2^(bits-1) - 1 for scaling
                 working_array *= (2 ** (target_bits - 1) - 1)
 
             # Clip to valid range
-            if self._target_sample_width == 1:
+            if self._target_sample_width == SAMPLE_WIDTH_8BIT:
                 working_array = np.clip(working_array, -128, 127)
-            elif self._target_sample_width == 2:
+            elif self._target_sample_width == SAMPLE_WIDTH_16BIT:
                 working_array = np.clip(working_array, -32768, 32767)
-            elif self._target_sample_width == 3:
-                working_array = np.clip(working_array, -8388608, 8388607)
-            elif self._target_sample_width == 4:
+            elif self._target_sample_width == SAMPLE_WIDTH_24BIT:
+                working_array = np.clip(working_array, INT24_MIN, INT24_MAX)
+            elif self._target_sample_width == SAMPLE_WIDTH_32BIT:
                 working_array = np.clip(working_array, -2147483648, 2147483647)
 
             # Convert to target integer dtype
-            if self._target_sample_width == 3:
+            if self._target_sample_width == SAMPLE_WIDTH_24BIT:
                 result = working_array.astype(np.int32)
             else:
                 result = working_array.astype(self._target_dtype)

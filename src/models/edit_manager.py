@@ -1,7 +1,7 @@
 import threading
 
 from PySide6.QtCore import QObject, Signal, QThread, Slot
-from typing import Dict, List, Any, Optional
+from typing import Any
 from models.media_file import MediaFile
 from models.tag_info import TagInfo
 from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_VALUE, KEY_PROVIDER
@@ -60,8 +60,8 @@ class EditManager(QObject):
             return
         super().__init__()
         # Structure: {file_id: {KEY_TAG_GENERIC: {tag: value}, KEY_TAG_INTERNAL: {tag: {KEY_VALUE: value, KEY_PROVIDER: provider}}}}
-        self._staged_changes: Dict[str, Dict[str, Dict]] = {}
-        self._media_files: Dict[str, MediaFile] = {}
+        self._staged_changes: dict[str, dict[str, dict]] = {}
+        self._media_files: dict[str, MediaFile] = {}
         self._autosave = True #always enable for now
         self._commit_thread = None
         self._playback_coordinator = None
@@ -89,14 +89,14 @@ class EditManager(QObject):
             log.debug(f"Autosave set to: {enabled}")
             self.autosave_changed.emit(self._autosave)
 
-    def set_playback_coordinator(self, coordinator) -> None:
+    def set_playback_coordinator(self, coordinator: Any | None) -> None:
         """
         Set the PlaybackCoordinator used to pause/resume playback around file writes.
         In CLI mode this is never called, leaving the coordinator as None (no-op).
         """
         self._playback_coordinator = coordinator
 
-    def register_media_files(self, media_files: List[MediaFile], force_replace: bool = False):
+    def register_media_files(self, media_files: list[MediaFile], force_replace: bool = False) -> None:
         """
         Register MediaFile instances with the EditManager.
 
@@ -108,7 +108,9 @@ class EditManager(QObject):
             if force_replace or media_file.file_id not in self._media_files:
                 self._media_files[media_file.file_id] = media_file
 
-    def stage_change(self, media_files: List[MediaFile], tag: str, value: Any, is_internal_tag: bool = False, provider = None):
+    def stage_change(self, media_files: list[MediaFile], tag: str, value: Any,
+                     is_internal_tag: bool = False,
+                     provider: Any | None = None) -> None:
         """
         Stage a change for one or more files, pending a call to commit_changes().
 
@@ -144,9 +146,12 @@ class EditManager(QObject):
 
             self.staged_changes_exist.emit(self.has_staged_changes())
 
-    def _save_changes_impl(self):
+    def _save_changes_impl(self) -> tuple[list[int], list[str]]:
         """
         Core save logic that can be used by both synchronous and asynchronous operations.
+
+        Returns:
+            Tuple of ``(saved_file_ids, errors)``.
         """
         log.debug("Starting save operation...")
         saved_file_ids = []
@@ -195,7 +200,7 @@ class EditManager(QObject):
 
         self._commit_thread.quit()
 
-    def commit_changes(self, autosave_override=False):
+    def commit_changes(self, autosave_override: bool = False) -> bool:
         """
         Commit all staged changes to the files by running the save operation in a background thread.
 
@@ -213,8 +218,8 @@ class EditManager(QObject):
         # do not use self._commit_thread.isFinished() here, it will crash as the thread is already deleted!
         if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.finished and self._commit_thread.isRunning():
             log.warning("Save is already in progress.")
-            return
-        
+            return False
+
         if not self.has_staged_changes():
             self.staged_changes_exist.emit(False)
             return False
@@ -230,15 +235,19 @@ class EditManager(QObject):
 
         self.commit_started.emit()
         self._commit_thread.start()
+        return True
 
-    def commit_changes_sync(self):
+    def commit_changes_sync(self) -> tuple[list[int], list[str]]:
         """
         Commit all staged changes to the files synchronously. Used by the CLI to bypass the background thread.
+
+        Returns:
+            Tuple of ``(saved_file_ids, errors)``.
         """
         saved_file_ids, errors = self._save_changes_impl()
         return saved_file_ids, errors
 
-    def reset_changes(self):
+    def reset_changes(self) -> None:
         """
         Reset all staged changes.
         """
@@ -246,7 +255,7 @@ class EditManager(QObject):
             self._staged_changes.clear()
             self.staged_changes_exist.emit(False)
 
-    def clear_staged_changes_for_files(self, file_ids: List[str]):
+    def clear_staged_changes_for_files(self, file_ids: list[int]) -> None:
         """
         Clear staged changes for specific files.
 
@@ -268,14 +277,13 @@ class EditManager(QObject):
             if file_changes[KEY_TAG_GENERIC] or file_changes[KEY_TAG_INTERNAL]:
                 result = True
                 break
-        # log.debug(f"has_staged_changes returning: {result}")
         return result
 
 
-    def get_staged_value_for_file(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
+    def get_staged_value_for_file(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Any | None:
         return self.get_staged_value(media_file.file_id, tag, is_internal_tag)
 
-    def get_staged_value(self, file_id: int, tag: str, is_internal_tag: bool = False) -> Optional[Any]:
+    def get_staged_value(self, file_id: int, tag: str, is_internal_tag: bool = False) -> Any | None:
         """
         Get the staged value for a specific tag in a file by file id.
 
@@ -304,7 +312,7 @@ class EditManager(QObject):
 
 
 
-    def get_staged_changes_for_file(self, media_file: MediaFile) -> Dict[str, Dict]:
+    def get_staged_changes_for_file(self, media_file: MediaFile) -> dict[str, dict]:
         """
         Get all staged changes for a specific file.
 
@@ -316,10 +324,10 @@ class EditManager(QObject):
         """
         return self.get_staged_changes(media_file.file_id)
 
-    def get_staged_changes(self, file_id: int):
+    def get_staged_changes(self, file_id: int) -> dict[str, dict]:
         return self._staged_changes.get(file_id, {KEY_TAG_GENERIC: {}, KEY_TAG_INTERNAL: {}})
 
-    def get_media_file(self, file_id) -> Optional[MediaFile]:
+    def get_media_file(self, file_id: int) -> MediaFile | None:
         to_ret = self._media_files.get(file_id)
         if to_ret is None:
             log.warning(f"Media file with id {file_id} not found.")
