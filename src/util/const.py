@@ -80,6 +80,13 @@ KEY_TRACK_TOTAL = 'tracktotal'
 KEY_VERSION = 'version'
 KEY_YEAR = 'year'
 
+# Acoustic fingerprint / MusicBrainz identifier tags. Names are lowercase
+# to match the Vorbis-comment convention used by Picard (EasyID3 handlers
+# translate them to ID3 frames, see mutagen_provider.py).
+KEY_MUSICBRAINZ_RECORDING_ID = 'musicbrainz_recordingid'
+KEY_ACOUSTID_ID = 'acoustid_id'
+KEY_ACOUSTID_FINGERPRINT = 'acoustid_fingerprint'
+
 # Tags that are end-user-editable text fields. Used by tag transformers to
 # decide which tags should be whitespace-trimmed, empty-string-normalized, etc.
 COMMON_WRITABLE_TAGS = [
@@ -110,7 +117,10 @@ ALL_TAGS = { #display names for each tag
     KEY_TITLE: "Title",
     KEY_TRACK_NUMBER: "Track",
     KEY_TRACK_TOTAL: "Tracks",
-    KEY_YEAR: "Year"
+    KEY_YEAR: "Year",
+    KEY_MUSICBRAINZ_RECORDING_ID: "MusicBrainz Recording ID",
+    KEY_ACOUSTID_ID: "AcoustID ID",
+    KEY_ACOUSTID_FINGERPRINT: "AcoustID Fingerprint",
 }
 
 
@@ -221,6 +231,8 @@ SETTINGS_BPM_RANGE_MIN = "Analyzers/CategoryOptions/bpm/range_min"
 SETTINGS_BPM_RANGE_MAX = "Analyzers/CategoryOptions/bpm/range_max"
 SETTINGS_BPM_DECIMAL_PLACES = "Analyzers/CategoryOptions/bpm/decimal_places"
 SETTINGS_KEY_NOTATION_FORMAT = "Analyzers/CategoryOptions/key/notation_format"
+SETTINGS_ACOUSTID_API_KEY = "Analyzers/CategoryOptions/fingerprint/acoustid_api_key"
+SETTINGS_FPCALC_PATH = "Resources/FpcalcPath"
 
 # Prefix (not a complete key) for per-category preferred analyzer selection.
 # Use as f"{SETTINGS_ANALYZERS_PREFERRED_PREFIX}/{category_lower}".
@@ -238,6 +250,7 @@ BPM_RANGE_MIN_DEFAULT = 80
 BPM_RANGE_MAX_DEFAULT = 200
 KEY_NOTATION_FORMAT_DEFAULT = "standard_abbrev"
 STARTUP_DIR_MODE_DEFAULT = "last"
+DEFAULT_ACOUSTID_API_KEY = ""  # TODO: register yaamt with acoustid.org and insert a bundled key
 
 # Backwards-compatible aliases (these constants used to live in analyzer_options;
 # they are re-exported here so all settings paths are discoverable in one place).
