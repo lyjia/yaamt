@@ -39,6 +39,7 @@ KEY_STEREO_MODE = 'stereo_mode'
 KEY_REPLAYGAIN_TRACK_GAIN = 'replaygain_track_gain'
 KEY_REPLAYGAIN_ALBUM_GAIN = 'replaygain_album_gain'
 KEY_REPLAYGAIN_TRACK_PEAK = 'replaygain_track_peak'
+KEY_REPLAYGAIN_ALBUM_PEAK = 'replaygain_album_peak'
 
 # TAG KEYS
 KEY_ALBUM = 'album'
