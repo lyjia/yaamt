@@ -1,274 +1,306 @@
 {
-    "tags": {
-        "album": {
-            "value": "pytest",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "pytest"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "albumartist": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "albumartistsort": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "albumsort": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "arranger": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "artist": {
-            "value": "Lyjia",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "Lyjia"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "artistsort": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "author": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "bpm": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "comment": {
-            "value": "Hello world!",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "Hello world!"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "compilation": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "composer": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "composersort": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "conductor": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "copyright": {
-            "value": "2025",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "2025"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "discnumber": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "discsubtitle": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "encodedby": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "genre": {
-            "value": "Power Ballad",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "Power Ballad"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "grouping": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "initialkey": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "isrc": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "language": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "length": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "lyricist": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "media": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "mood": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "organization": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "title": {
-            "value": "DTMF Sample ANSI",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "DTMF Sample ANSI"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "titlesort": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "tracknumber": {
-            "value": "99",
-            "provider": "MutagenProvider",
-            "all_values": [
-                "99"
-            ],
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        },
-        "version": {
-            "value": null,
-            "provider": "MutagenProvider",
-            "all_values": null,
-            "all_providers": [
-                "MutagenProvider"
-            ]
-        }
+  "tags": {
+    "album": {
+      "value": "pytest",
+      "provider": "MutagenProvider",
+      "all_values": [
+        "pytest"
+      ],
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "albumartist": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "albumartistsort": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "albumsort": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "arranger": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "artist": {
+      "value": "Lyjia",
+      "provider": "MutagenProvider",
+      "all_values": [
+        "Lyjia"
+      ],
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "artistsort": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "author": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "bpm": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "comment": {
+      "value": "Hello world!",
+      "provider": "MutagenProvider",
+      "all_values": [
+        "Hello world!"
+      ],
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "compilation": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "composer": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "composersort": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "conductor": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "copyright": {
+      "value": "2025",
+      "provider": "MutagenProvider",
+      "all_values": [
+        "2025"
+      ],
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "discnumber": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "discsubtitle": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "encodedby": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "genre": {
+      "value": "Power Ballad",
+      "provider": "MutagenProvider",
+      "all_values": [
+        "Power Ballad"
+      ],
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "grouping": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "initialkey": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "isrc": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "language": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "length": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "lyricist": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "media": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "mood": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "organization": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "title": {
+      "value": "DTMF Sample ANSI",
+      "provider": "MutagenProvider",
+      "all_values": [
+        "DTMF Sample ANSI"
+      ],
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "titlesort": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "tracknumber": {
+      "value": "99",
+      "provider": "MutagenProvider",
+      "all_values": [
+        "99"
+      ],
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "version": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "replaygain_track_gain": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "replaygain_album_gain": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "replaygain_track_peak": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
+    },
+    "replaygain_album_peak": {
+      "value": null,
+      "provider": "MutagenProvider",
+      "all_values": null,
+      "all_providers": [
+        "MutagenProvider"
+      ]
     }
+  }
 }

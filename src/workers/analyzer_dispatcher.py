@@ -13,7 +13,7 @@ from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot
 
 from models.media_file import MediaFile
 from models.settings import get_qsettings
-from providers.analysis.base import AnalyzerBase, AnalyzerResult
+from providers.analysis.base import AnalyzerBase, AnalyzerResult, BatchAnalyzerBase
 from providers.audio.base import AudioStreamBase
 from util.bpm import BpmCandidate, select_best_bpm
 from util.const import (
@@ -366,6 +366,11 @@ class AnalyzerDispatcher(QObject):
         self.report_format = 'csv'  # Default: CSV format
         self.report_file = None  # Report output file path
 
+        # Tracks the analyzer class for the current run. Needed so
+        # _finish_processing can detect BatchAnalyzerBase subclasses and invoke
+        # their aggregate_results hook.
+        self.analyzer_class: type[AnalyzerBase] | None = None
+
     def enqueue(self, analyzer_class: type[AnalyzerBase],
                 media_files: list[MediaFile],
                 options: dict[str, Any] | None = None) -> None:
@@ -385,8 +390,9 @@ class AnalyzerDispatcher(QObject):
         self.report_format = options.get('report_format', 'csv')
         self.report_file = options.get('report_file', None)
 
-        # Store the analyzer name for report generation
+        # Store the analyzer name / class for the current run.
         self.analyzer_name = analyzer_class.__name__
+        self.analyzer_class = analyzer_class
 
         for mf in media_files:
             # Validate the file first
@@ -508,6 +514,7 @@ class AnalyzerDispatcher(QObject):
         self.report_format = 'csv'
         self.report_file = None
         self.analyzer_name = None
+        self.analyzer_class = None
 
     def _process_next(self) -> None:
         """Process the next task in the queue, starting multiple workers if possible."""
@@ -574,6 +581,12 @@ class AnalyzerDispatcher(QObject):
         ]
         self.active_tasks_updated.emit(active_list)
 
+    def _is_batch_analyzer(self) -> bool:
+        """True when the current run's analyzer derives from BatchAnalyzerBase."""
+        return self.analyzer_class is not None and issubclass(
+            self.analyzer_class, BatchAnalyzerBase,
+        )
+
     @Slot(int, object)
     def _on_worker_finished(self, worker_id: int, task: AnalysisTask) -> None:
         """
@@ -591,8 +604,11 @@ class AnalyzerDispatcher(QObject):
             self.threads_in_use -= thread_count
             del self.active_tasks[worker_id]
 
-        # Apply results to MediaFile if successful
-        self._apply_results(task)
+        # Apply results immediately for per-file analyzers; batch analyzers
+        # defer writes until _finish_processing so aggregate_results can merge
+        # cross-file data (e.g. album gain) before anything is staged.
+        if not self._is_batch_analyzer():
+            self._apply_results(task)
 
         # Move task to completed list
         self.completed_tasks.append(task)
@@ -613,10 +629,12 @@ class AnalyzerDispatcher(QObject):
 
     def _apply_results(self, task: AnalysisTask) -> None:
         """
-        Apply analyzer results to MediaFile and handle autosave.
+        Stage analyzer results via EditManager so they honour the autosave flag.
 
-        Args:
-            task: The completed AnalysisTask
+        Changes are staged but NOT committed here — a single
+        ``commit_changes[_sync]`` call in ``_finish_processing`` handles the
+        write-out after every task has been staged. When autosave is disabled
+        the changes remain visible as pending edits in the GUI.
         """
         if not task.result:
             return
@@ -660,11 +678,6 @@ class AnalyzerDispatcher(QObject):
                     else:
                         result_data[KEY_COMMENT] = mode_comment
 
-                # Build changes dictionary using KEY_TAG_GENERIC
-                changes = {
-                    KEY_TAG_GENERIC: result_data
-                }
-
                 # Temporarily override key notation format if specified in options
                 saved_key_format = None
                 if 'key_notation_format' in task.options:
@@ -674,15 +687,26 @@ class AnalyzerDispatcher(QObject):
                     log.debug(f"Temporarily overriding key notation format to: {task.options['key_notation_format']}")
 
                 try:
-                    # Save to MediaFile (autosave will handle persistence if enabled)
-                    task.media_file.save(changes)
+                    # Stage the change through EditManager so the autosave
+                    # preference gate is respected. The actual write happens in
+                    # _finalize_writes() once the whole batch is staged.
+                    from models.edit_manager import EditManager
+                    edit_manager = EditManager()
+                    edit_manager.register_media_files([task.media_file])
+                    for tag, value in result_data.items():
+                        edit_manager.stage_change(
+                            [task.media_file], tag, value,
+                        )
                 finally:
                     # Restore original key notation format if it was overridden
                     if saved_key_format is not None:
                         qsettings.setValue(SETTINGS_KEY_NOTATION_FORMAT, saved_key_format)
                         log.debug(f"Restored key notation format to: {saved_key_format}")
 
-                log.info(f"Applied analysis results to {task.media_file.file_path}: {task.result.data}")
+                log.info(
+                    f"Staged analysis results for {task.media_file.file_path}: "
+                    f"{list(result_data.keys())}"
+                )
 
             except Exception as e:
                 log.error(f"Failed to apply results for {task.media_file.file_path}: {e}")
@@ -691,6 +715,79 @@ class AnalyzerDispatcher(QObject):
                     success=False,
                     error=f"Failed to save results: {str(e)}"
                 )
+
+    def _run_batch_aggregation(self) -> None:
+        """
+        For BatchAnalyzerBase runs, call the analyzer's aggregate_results hook
+        on successful completed tasks, merge the returned data into each task's
+        result, then stage every task. Skipped entirely when the user cancelled
+        mid-batch so we don't emit misleading album metadata.
+        """
+        if not self._is_batch_analyzer() or not self.write_to_tags:
+            return
+
+        successful = [
+            t for t in self.completed_tasks
+            if t.result and t.result.success and not t.result.skipped
+        ]
+        if not successful:
+            return
+
+        # All tasks in a run share the same options; read from the first.
+        run_options = successful[0].options or {}
+
+        try:
+            aggregated = self.analyzer_class.aggregate_results(successful, run_options)
+        except Exception as e:
+            log.error(f"Batch aggregation failed: {e}", exc_info=True)
+            aggregated = {}
+
+        for task in successful:
+            extra = aggregated.get(task.media_file.file_path)
+            if extra:
+                merged = dict(task.result.data)
+                merged.update(extra)
+                task.result.data = merged
+            # Whether or not aggregation produced extras, stage the per-file data.
+            self._apply_results(task)
+
+    def _finalize_writes(self) -> None:
+        """
+        Commit all EditManager-staged changes accumulated during the run. In
+        GUI context this may be a no-op when autosave is off (changes remain
+        as pending edits); in headless context we always commit synchronously.
+        """
+        if not self.write_to_tags:
+            return
+
+        try:
+            from models.edit_manager import EditManager
+            from PySide6.QtCore import QCoreApplication
+            edit_manager = EditManager()
+
+            if not edit_manager.has_staged_changes():
+                return
+
+            if not edit_manager.autosave:
+                log.info(
+                    "Autosave disabled — analyzer results remain as staged "
+                    "changes until the user saves them"
+                )
+                return
+
+            if QCoreApplication.instance() is None:
+                # Headless (CLI / tests): commit synchronously.
+                saved, errors = edit_manager.commit_changes_sync()
+                if errors:
+                    for err in errors:
+                        log.error(f"Save error: {err}")
+                else:
+                    log.info(f"Committed analysis results for {len(saved)} file(s)")
+            else:
+                # GUI: background-thread commit through Qt event loop.
+                edit_manager.commit_changes()
+        except Exception as e:
+            log.error(f"Failed to commit analysis results: {e}", exc_info=True)
 
     def _finish_processing(self) -> None:
         """Complete the analysis run and emit completion signal."""
@@ -706,6 +803,13 @@ class AnalyzerDispatcher(QObject):
         log.info(f"Analysis complete: {summary['successful']}/{summary['total']} successful, "
                 f"{len(summary['failed'])} failed, {len(summary['skipped'])} skipped "
                 f"[total time: {batch_elapsed:.2f}s]")
+
+        # Batch analyzers: derive cross-file metadata now that every task has
+        # finished, then stage the merged per-file data.
+        self._run_batch_aggregation()
+
+        # Commit everything staged through EditManager during the run.
+        self._finalize_writes()
 
         # Generate report if requested
         if self.generate_report and self.report_file:
