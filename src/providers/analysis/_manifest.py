@@ -29,3 +29,4 @@ from providers.analysis.key import musical_cnn_key
 
 # Loudness analyzers
 from providers.analysis.loudness import peak_meter
+from providers.analysis.loudness import replaygain
