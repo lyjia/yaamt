@@ -1,4 +1,5 @@
 import os
+from typing import Any
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QStatusBar, QSplitter, QLabel, QProgressBar,
     QPushButton, QStyle, QTreeView, QFileSystemModel, QMenu, QMessageBox,
@@ -29,6 +30,8 @@ from util.const import (
     SETTINGS_GROUP_FAVORITES, SETTINGS_ARRAY_FAVORITES_LOCATIONS,
     SETTINGS_GROUP_FILE_LIST, SETTINGS_ARRAY_FILE_LIST_COLUMNS,
 )
+from windows.rename.setup_dialog import RenameSetupDialog
+from workers.rename_dispatcher import RenameDispatcher
 from util.debug import is_debug_mode
 from util.file_browser import open_in_file_browser
 from util.logging import log
@@ -522,6 +525,10 @@ class MainWindow(QMainWindow):
         analyze_menu = self._build_analyze_menu()
         menu.addMenu(analyze_menu)
 
+        # Add Metadata submenu
+        metadata_menu = self._build_metadata_menu()
+        menu.addMenu(metadata_menu)
+
         menu.exec_(self.files_view.mapToGlobal(pos))
 
     def toggle_column(self, index, checked):
@@ -596,6 +603,15 @@ class MainWindow(QMainWindow):
         self.action_properties.setEnabled(False)
         self.action_properties.triggered.connect(self.open_properties_window)
 
+        # Metadata submenu actions
+        self.action_rename_from_metadata = QAction(
+            "Rename files based on metadata...", self
+        )
+        self.action_rename_from_metadata.setEnabled(False)
+        self.action_rename_from_metadata.triggered.connect(
+            self._on_rename_files_requested
+        )
+
         # Playback actions
         self.action_play_file = QAction("Play this file", self)
         self.action_play_file.setEnabled(False)
@@ -623,6 +639,10 @@ class MainWindow(QMainWindow):
         # Add Analyze submenu
         analyze_menu = self._build_analyze_menu()
         file_menu.addMenu(analyze_menu)
+
+        # Add Metadata submenu
+        metadata_menu = self._build_metadata_menu()
+        file_menu.addMenu(metadata_menu)
         file_menu.addSeparator()
 
         file_menu.addAction(self.action_properties)
@@ -875,6 +895,15 @@ class MainWindow(QMainWindow):
         about_window = windows.AboutWindow(self)
         about_window.exec()
 
+    def _build_metadata_menu(self) -> QMenu:
+        """
+        Build the Metadata submenu (used by both the File menu and the
+        right-click context menu). Houses bulk-metadata actions like rename.
+        """
+        metadata_menu = QMenu("&Metadata", self)
+        metadata_menu.addAction(self.action_rename_from_metadata)
+        return metadata_menu
+
     def _build_analyze_menu(self):
         """
         Build the Analyze submenu with categories.
@@ -950,8 +979,25 @@ class MainWindow(QMainWindow):
         dispatcher.reset()  # Clear any previous state
         dispatcher.enqueue(analyzer_class, media_files, options)
 
+        # Refresh the file list as soon as the dispatcher finishes, before the
+        # summary dialog shows. Using a single-shot connection keeps later
+        # analyzer runs from stacking refreshes on the singleton dispatcher.
+        refresh_conn: list[Any] = []
+
+        def _refresh_on_complete():
+            self._refresh_after_batch(media_files)
+            conn = refresh_conn[0] if refresh_conn else None
+            if conn is not None:
+                try:
+                    dispatcher.analysis_completed.disconnect(conn)
+                except (RuntimeError, TypeError):
+                    pass
+
+        refresh_conn.append(_refresh_on_complete)
+        dispatcher.analysis_completed.connect(_refresh_on_complete)
+
         # Show progress dialog
-        progress_dialog = AnalyzerProgressDialog(self)
+        progress_dialog = AnalyzerProgressDialog(self, dispatcher=dispatcher)
 
         # Start analysis
         dispatcher.start()
@@ -961,22 +1007,126 @@ class MainWindow(QMainWindow):
 
         # Show summary dialog after completion
         if result == QDialog.DialogCode.Accepted:
-            summary_dialog = AnalyzerSummaryDialog(self)
+            summary_dialog = AnalyzerSummaryDialog(
+                self, summary=dispatcher.get_summary()
+            )
             summary_dialog.select_files_requested.connect(self._on_select_analyzer_files)
             summary_dialog.exec()
 
-            # Refresh the file list to show updated metadata
-            # Get the file IDs that were analyzed
-            file_ids = [mf.file_id for mf in media_files]
+    def _refresh_after_batch(self, media_files: list) -> None:
+        """
+        Refresh the file list after an analyzer or rename batch completes.
 
-            # Clear any staged changes for these files (analyzer results are authoritative)
-            self.edit_manager.clear_staged_changes_for_files(file_ids)
+        For analyzer runs (file paths unchanged), we refresh in place via
+        MetadataTableModel.refresh_files(). For rename runs (some MediaFile's
+        on-disk path no longer matches the listed path), we fall back to a
+        full directory rescan because the model's rows are keyed by path.
+        """
+        try:
+            paths_changed = any(
+                not os.path.exists(mf.file_path)
+                for mf in media_files
+            )
+        except Exception:
+            paths_changed = False
 
-            # Force-replace MediaFile instances to ensure fresh data is used
-            self.edit_manager.register_media_files(media_files, force_replace=True)
+        if paths_changed and self._current_path:
+            # Full rescan: file paths have changed (e.g. after rename).
+            log.info("Batch changed file paths; triggering full directory rescan")
+            self.set_path(self._current_path)
+            return
 
-            # Refresh the display
-            self.file_model.refresh_files(file_ids, self.edit_manager)
+        file_ids = [mf.file_id for mf in media_files]
+        # Clear any staged changes for these files; results are authoritative.
+        self.edit_manager.clear_staged_changes_for_files(file_ids)
+        # Force-replace MediaFile instances so the display picks up new data.
+        self.edit_manager.register_media_files(media_files, force_replace=True)
+        self.file_model.refresh_files(file_ids, self.edit_manager)
+
+    def _on_rename_files_requested(self) -> None:
+        """
+        Entry point for the "Rename files based on metadata..." action.
+
+        Collects the currently selected media files, shows the setup dialog,
+        then drives a RenameDispatcher through the shared progress/summary
+        dialogs and refreshes the file list.
+        """
+        selected_indexes = self.files_view.selectionModel().selectedRows()
+        if not selected_indexes:
+            log.debug("No files selected for rename")
+            return
+
+        media_files = []
+        for index in selected_indexes:
+            source_index = self.proxy_model.mapToSource(index)
+            row_data = self.file_model.get_data_for_row(row=source_index.row())
+            file_path = row_data.get(KEY_FILE_PATH)
+            if file_path and row_data.get(KEY_IS_MEDIA):
+                media_files.append(MediaFile(file_path, enable_write=True))
+
+        if not media_files:
+            log.debug("No valid media files selected for rename")
+            return
+
+        setup_dialog = RenameSetupDialog(media_files, self)
+        if setup_dialog.exec() != QDialog.DialogCode.Accepted:
+            log.debug("Rename cancelled by user in setup dialog")
+            return
+
+        format_string = setup_dialog.get_format_string()
+        collision_mode = setup_dialog.get_collision_mode()
+
+        log.info(
+            f"Renaming {len(media_files)} files with format {format_string!r} "
+            f"(collision mode: {collision_mode})"
+        )
+
+        dispatcher = RenameDispatcher(self)
+        dispatcher.enqueue(media_files, format_string, collision_mode)
+
+        # Immediate post-completion refresh (before summary dialog shows).
+        dispatcher.analysis_completed.connect(
+            lambda: self._refresh_after_batch(media_files)
+        )
+
+        progress_dialog = AnalyzerProgressDialog(
+            self,
+            dispatcher=dispatcher,
+            title="Renaming Files",
+            cancel_button_text="Cancel Rename",
+            supports_discard=False,
+            cancel_prompt_title="Cancel Rename",
+            cancel_prompt_body=(
+                "Stop renaming remaining files? Files already renamed will "
+                "keep their new names."
+            ),
+        )
+
+        dispatcher.start()
+        result = progress_dialog.exec()
+
+        if result == QDialog.DialogCode.Accepted:
+            summary_dialog = AnalyzerSummaryDialog(
+                self,
+                summary=dispatcher.get_summary(),
+                title="Rename Complete",
+                success_verb="renamed",
+            )
+            # Renames don't support "reselect failed" - the underlying files
+            # may have been renamed or are still at their old names. Hide the
+            # button by not connecting the signal; the dialog still shows it
+            # if there are failures. Acceptable tradeoff; the button just
+            # selects by path.
+            summary_dialog.select_files_requested.connect(
+                self._on_select_analyzer_files
+            )
+            summary_dialog.exec()
+
+            # Full rescan after the user closes the summary, per spec. The
+            # on-completion refresh already updated the list, but a rescan
+            # ensures any new files, timestamps, etc. are picked up cleanly.
+            if self._current_path:
+                self.set_path(self._current_path)
 
     @Slot(list)
     def _on_select_analyzer_files(self, file_paths: list):
@@ -1238,6 +1388,9 @@ class MainWindow(QMainWindow):
         self.action_properties.setEnabled(len(selected_rows) > 0 and is_media_file)
         self.action_play_file.setEnabled(len(selected_rows) == 1 and is_media_file)
         self.action_open_in_file_browser.setEnabled(len(selected_rows) >= 1)
+        self.action_rename_from_metadata.setEnabled(
+            len(selected_rows) > 0 and is_media_file
+        )
         # Save and Reset actions are enabled/disabled by on_autosave_changed
         # but they also require staged changes to be meaningful.
         # We can further refine their state here if needed, e.g., disable if no staged changes.
