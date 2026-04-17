@@ -30,15 +30,32 @@ class AnalyzerProgressDialog(QDialog):
     - Cancel button with option to keep/discard partial results
     """
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        dispatcher: Any | None = None,
+        title: str = "Analyzing Files",
+        cancel_button_text: str = "Cancel Analysis",
+        supports_discard: bool = True,
+        cancel_prompt_title: str = "Cancel Analysis",
+        cancel_prompt_body: str = (
+            "Do you want to keep the results from files already analyzed?"
+        ),
+    ) -> None:
         """
         Initialize the progress dialog.
 
         Args:
             parent: Parent widget
+            dispatcher: Any object exposing task_started/task_completed/
+                progress_updated/analysis_completed/active_tasks_updated
+                signals plus cancel_all(). Defaults to AnalyzerDispatcher()
+                for backward compatibility with existing analyzer call sites.
+            title: Window title (e.g. "Analyzing Files" or "Renaming Files").
+            cancel_button_text: Label for the cancel button.
         """
         super().__init__(parent)
-        self.setWindowTitle("Analyzing Files")
+        self.setWindowTitle(title)
         self.setMinimumWidth(500)
         self.setMinimumHeight(200)
         self.setModal(True)
@@ -46,7 +63,11 @@ class AnalyzerProgressDialog(QDialog):
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint
         )
 
-        self.dispatcher = AnalyzerDispatcher()
+        self.dispatcher = dispatcher if dispatcher is not None else AnalyzerDispatcher()
+        self._cancel_button_text = cancel_button_text
+        self._supports_discard = supports_discard
+        self._cancel_prompt_title = cancel_prompt_title
+        self._cancel_prompt_body = cancel_prompt_body
         self._is_cancelled = False
         self._completed_count = 0
         self._total_count = 0
@@ -101,7 +122,7 @@ class AnalyzerProgressDialog(QDialog):
         layout.addSpacing(10)
 
         # Cancel button (fixed at bottom)
-        self.cancel_button = QPushButton("Cancel Analysis")
+        self.cancel_button = QPushButton(self._cancel_button_text)
         self.cancel_button.clicked.connect(self._on_cancel_clicked)
         layout.addWidget(self.cancel_button)
 
@@ -273,31 +294,49 @@ class AnalyzerProgressDialog(QDialog):
 
     def _on_cancel_clicked(self) -> None:
         """Handle cancel button click."""
-        # Prompt user about keeping partial results
-        reply = QMessageBox.question(
-            self,
-            "Cancel Analysis",
-            "Do you want to keep the results from files already analyzed?\n\n"
-            f"Progress: {self._completed_count}/{self._total_count} files completed",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Yes
+        progress_line = (
+            f"\n\nProgress: {self._completed_count}/{self._total_count} files completed"
         )
 
-        if reply == QMessageBox.StandardButton.Cancel:
-            # User cancelled the cancellation
-            return
-        elif reply == QMessageBox.StandardButton.Yes:
-            # Keep partial results
-            log.info("User cancelled analysis, keeping partial results")
-            self.dispatcher.cancel_all()
-            self._is_cancelled = True
-            self.accept()
-        else:  # No
-            # Discard all results
-            log.info("User cancelled analysis, discarding all results")
-            self.dispatcher.cancel_all()
-            self._is_cancelled = True
-            self.reject()
+        if self._supports_discard:
+            # Analyzer flow: Yes = keep partial results, No = discard.
+            reply = QMessageBox.question(
+                self,
+                self._cancel_prompt_title,
+                self._cancel_prompt_body + progress_line,
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes,
+            )
+
+            if reply == QMessageBox.StandardButton.Cancel:
+                return
+            elif reply == QMessageBox.StandardButton.Yes:
+                log.info("User cancelled operation, keeping partial results")
+                self.dispatcher.cancel_all()
+                self._is_cancelled = True
+                self.accept()
+            else:
+                log.info("User cancelled operation, discarding all results")
+                self.dispatcher.cancel_all()
+                self._is_cancelled = True
+                self.reject()
+        else:
+            # Rename flow: already-applied filesystem operations can't be
+            # discarded. Just confirm stop-the-queue with a plain Yes/No.
+            reply = QMessageBox.question(
+                self,
+                self._cancel_prompt_title,
+                self._cancel_prompt_body + progress_line,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                log.info("User cancelled remaining operations")
+                self.dispatcher.cancel_all()
+                self._is_cancelled = True
+                self.accept()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Handle dialog close event."""
