@@ -1,12 +1,16 @@
 """Integrations preferences pane for third-party service credentials."""
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QLineEdit
+    QVBoxLayout, QHBoxLayout, QGroupBox, QLabel
 )
 from PySide6.QtGui import QIcon
 
 from models.settings import get_qsettings
+from providers.analysis.fingerprint.musicbrainz_acoustid import (
+    verify_acoustid_api_key,
+)
 from util.const import SETTINGS_ACOUSTID_API_KEY
 from windows.preferences.base import PreferencePaneBase
+from windows.widgets.api_key_field import ApiKeyField
 
 
 ACOUSTID_API_KEY_SIGNUP_URL = "https://acoustid.org/api-key"
@@ -43,12 +47,14 @@ class IntegrationsPane(PreferencePaneBase):
         key_row = QHBoxLayout()
         key_row.addWidget(QLabel("API key:"))
 
-        self.acoustid_api_key_edit = QLineEdit()
-        self.acoustid_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.acoustid_api_key_edit.setPlaceholderText(
-            "Required — register a free key at acoustid.org/api-key"
+        self.acoustid_api_key_field = ApiKeyField(
+            verifier=verify_acoustid_api_key,
+            placeholder="Required — register a free key at acoustid.org/api-key",
         )
-        key_row.addWidget(self.acoustid_api_key_edit, 1)
+        self.acoustid_api_key_field.validity_changed.connect(
+            self._on_field_validity_changed
+        )
+        key_row.addWidget(self.acoustid_api_key_field, 1)
 
         acoustid_layout.addLayout(key_row)
 
@@ -56,7 +62,8 @@ class IntegrationsPane(PreferencePaneBase):
             "The MusicBrainz AcoustID analyzer uses this key to query "
             "acoustid.org for fingerprint matches. Register a free key at "
             f'<a href="{ACOUSTID_API_KEY_SIGNUP_URL}">'
-            f"{ACOUSTID_API_KEY_SIGNUP_URL}</a>."
+            f"{ACOUSTID_API_KEY_SIGNUP_URL}</a>. The key is verified with "
+            "the service when you tab out of the field."
         )
         info_label.setOpenExternalLinks(True)
         info_label.setWordWrap(True)
@@ -68,7 +75,7 @@ class IntegrationsPane(PreferencePaneBase):
 
         layout.addStretch()
 
-    # PreferencePaneBase implementation
+    # ----- PreferencePaneBase implementation ----------------------------
 
     def get_name(self) -> str:
         return "Integrations"
@@ -80,18 +87,34 @@ class IntegrationsPane(PreferencePaneBase):
         )
 
     def load_from_settings(self) -> None:
-        self.acoustid_api_key_edit.setText(
-            self.settings.value(SETTINGS_ACOUSTID_API_KEY, "", type=str)
-        )
+        saved = self.settings.value(SETTINGS_ACOUSTID_API_KEY, "", type=str)
+        self.acoustid_api_key_field.setText(saved)
+        # Trust persisted keys without re-hitting the network on every open.
+        if saved:
+            self.acoustid_api_key_field.mark_verified(saved)
 
     def save_to_settings(self) -> None:
         self.settings.setValue(
             SETTINGS_ACOUSTID_API_KEY,
-            self.acoustid_api_key_edit.text().strip(),
+            self.acoustid_api_key_field.text(),
         )
 
     def validate(self) -> tuple[bool, str]:
-        return True, ""
+        if self.is_ready_to_save():
+            return True, ""
+        return False, (
+            "AcoustID API key has not been verified. Tab out of the field "
+            "to verify it, or clear the field to skip this integration."
+        )
+
+    def is_ready_to_save(self) -> bool:
+        return self.acoustid_api_key_field.is_valid()
 
     def load_defaults(self) -> None:
-        self.acoustid_api_key_edit.clear()
+        self.acoustid_api_key_field.setText("")
+
+    # ----- internal -----------------------------------------------------
+
+    def _on_field_validity_changed(self, _is_valid: bool) -> None:
+        # Re-emit so the PreferencesWindow can update its Save button.
+        self.validity_changed.emit(self.is_ready_to_save())

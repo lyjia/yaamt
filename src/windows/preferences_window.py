@@ -143,10 +143,20 @@ class PreferencesWindow(QDialog):
             item = QListWidgetItem(pane.get_icon(), pane.get_name())
             self.category_list.addItem(item)
             self.pane_stack.addWidget(pane)
+            # Recompute Save's enabled state whenever any pane reports a
+            # validity change (e.g. an API key field finishes verifying).
+            pane.validity_changed.connect(self._refresh_save_enabled)
 
         # Select first category
         if self.category_list.count() > 0:
             self.category_list.setCurrentRow(0)
+
+        self._refresh_save_enabled()
+
+    def _refresh_save_enabled(self) -> None:
+        """Disable Save when any pane reports it isn't ready to save."""
+        ready = all(pane.is_ready_to_save() for pane in self.panes)
+        self.save_button.setEnabled(ready)
 
     def _load_all_panes(self) -> None:
         """Load settings for all panes."""

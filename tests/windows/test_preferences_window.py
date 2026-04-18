@@ -47,3 +47,28 @@ def test_select_pane_targets_resources(prefs):
     assert prefs.select_pane("Resources") is True
     idx = prefs.category_list.currentRow()
     assert prefs.panes[idx].get_name() == "Resources"
+
+
+def test_save_disabled_when_a_pane_is_not_ready(prefs):
+    integrations = next(p for p in prefs.panes if p.get_name() == "Integrations")
+    integrations.acoustid_api_key_field.setText("typed-but-unverified")
+    integrations.acoustid_api_key_field.line_edit.textEdited.emit("typed-but-unverified")
+    assert prefs.save_button.isEnabled() is False
+
+
+def test_save_re_enabled_when_pane_becomes_ready(prefs):
+    integrations = next(p for p in prefs.panes if p.get_name() == "Integrations")
+    integrations.acoustid_api_key_field.setText("typed")
+    integrations.acoustid_api_key_field.line_edit.textEdited.emit("typed")
+    assert prefs.save_button.isEnabled() is False
+    integrations.acoustid_api_key_field.mark_verified("typed")
+    assert prefs.save_button.isEnabled() is True
+
+
+def test_save_re_enabled_when_field_cleared(prefs):
+    integrations = next(p for p in prefs.panes if p.get_name() == "Integrations")
+    integrations.acoustid_api_key_field.setText("typed")
+    integrations.acoustid_api_key_field.line_edit.textEdited.emit("typed")
+    assert prefs.save_button.isEnabled() is False
+    integrations.acoustid_api_key_field.setText("")
+    assert prefs.save_button.isEnabled() is True

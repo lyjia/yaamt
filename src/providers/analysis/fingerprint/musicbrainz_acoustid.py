@@ -306,6 +306,62 @@ def _resolve_api_key() -> str:
     return get_qsettings().value(SETTINGS_ACOUSTID_API_KEY, "", type=str)
 
 
+# AcoustID API key validation -----------------------------------------------
+
+# AcoustID's /v2/lookup endpoint validates the supplied client (API) key
+# regardless of whether the fingerprint matches anything. We use a tiny
+# fixed lookup with a deliberately bogus fingerprint+duration: a valid key
+# yields ``{"status": "ok", "results": []}``, while an invalid key yields
+# ``{"status": "error", "error": {"code": 4, ...}}``.
+_ACOUSTID_LOOKUP_URL = "https://api.acoustid.org/v2/lookup"
+_ACOUSTID_INVALID_KEY_CODE = 4
+_ACOUSTID_VERIFY_TIMEOUT_SECONDS = 10
+# Short, well-formed Chromaprint string used purely to satisfy the API's
+# parameter requirements during verification — no real audio is fingerprinted.
+_VERIFY_PROBE_FINGERPRINT = "AQADtMmYRIkYHRePLkU0nVN3wKlxnZGJk6cmHc-FcXpwoYL44IeQH8eNxR8u4dCH8m_C5o-FIO12hGvg7-CBGqVAh_iFB-uOBzm6T8WP_NhxJUcbUg7VgT9OFcfRJzNyVI8H58iLozs-yEcv9NCJ4yqOL7iU40d8nPiMSyPyHEfTBz9-FB-OPjieKL-OPmiOH8mND8mLIzwOK2cwLRJ-_AfRBGVQ8oDUKEcfSBV-9MFx4ydOPI80NHnxZmhMHU9-aE-OJjwO_jiu49iN6tCFf3jw4yuOXEee48iH4tiH48qJUkcTPtCFf0lQ_QO-"
+_VERIFY_PROBE_DURATION = "30"
+
+
+def verify_acoustid_api_key(api_key: str) -> tuple[bool, str | None]:
+    """Validate an AcoustID API key by issuing a probe lookup.
+
+    Designed to be wired into ``windows.widgets.api_key_field.ApiKeyField``
+    as its ``verifier`` callable. Returns ``(True, None)`` when the key is
+    accepted by the service, or ``(False, error_message)`` when the
+    service rejects it or the request can't reach the network.
+    """
+    import json
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    if not api_key:
+        return False, "Empty API key"
+
+    params = {
+        "client": api_key,
+        "duration": _VERIFY_PROBE_DURATION,
+        "fingerprint": _VERIFY_PROBE_FINGERPRINT,
+        "format": "json",
+    }
+    url = f"{_ACOUSTID_LOOKUP_URL}?{urllib.parse.urlencode(params)}"
+    try:
+        with urllib.request.urlopen(url, timeout=_ACOUSTID_VERIFY_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        return False, f"Network error: {e.reason}"
+    except (ValueError, TimeoutError) as e:
+        return False, f"Could not contact AcoustID: {e}"
+
+    if payload.get("status") == "ok":
+        return True, None
+
+    err = payload.get("error", {}) if isinstance(payload, dict) else {}
+    if err.get("code") == _ACOUSTID_INVALID_KEY_CODE:
+        return False, "Invalid API key"
+    return False, err.get("message") or "AcoustID rejected the key"
+
+
 # HTML rendered inside QLabel for the Requirements section. Both the
 # check/X glyph and the optional Configure... link live in the same label
 # so they flow on one line together.
