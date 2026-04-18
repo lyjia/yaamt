@@ -150,3 +150,64 @@ def test_editing_finished_skips_when_text_already_verified(qapp):
     field.mark_verified("good")
     field.line_edit.editingFinished.emit()
     assert calls == []
+
+
+def test_thread_handles_cleared_after_verification(qapp):
+    """Regression: once a verification completes, the QThread/worker
+    references must be dropped so the next verification doesn't poke at
+    a deleted-by-Qt C++ object."""
+    field = _make_field(qapp)
+    field.setText("first")
+    # Pretend a real verification cycle ran: in production
+    # _on_verification_done is invoked by the worker's finished signal
+    # immediately before the QThread is deleteLater'd.
+    field._on_verification_done("first", False, "Invalid API key")
+    assert field._thread is None
+    assert field._worker is None
+
+
+def test_cancel_in_flight_survives_deleted_qthread_wrapper(qapp):
+    """Regression: simulate the post-deleteLater state where our Python
+    wrapper exists but the underlying QThread C++ object is gone. The
+    next _cancel_in_flight (e.g. triggered by a second editingFinished)
+    must not raise RuntimeError."""
+    field = _make_field(qapp)
+
+    class _DeadQThread:
+        def isRunning(self):
+            raise RuntimeError(
+                "Internal C++ object (PySide6.QtCore.QThread) already deleted."
+            )
+
+        def quit(self):  # pragma: no cover - unreachable; isRunning blew up
+            raise AssertionError("quit should not be called when isRunning raises")
+
+    field._thread = _DeadQThread()
+    field._worker = object()
+    # Must not raise; should clear references defensively.
+    field._cancel_in_flight()
+    assert field._thread is None
+    assert field._worker is None
+
+
+def test_second_verification_after_first_completes(qapp):
+    """End-to-end of the user's reported flow: verify a bad key, then a
+    correct one. The widget must not blow up when starting the second
+    verification because of stale handles from the first."""
+    results_iter = iter([(False, "Invalid API key"), (True, None)])
+    verifier = lambda _key: next(results_iter)
+    field = _make_field(qapp, verifier=verifier)
+
+    # First attempt: bad key, then the worker fires _on_verification_done.
+    field.setText("bad-key")
+    field._on_verification_done("bad-key", False, "Invalid API key")
+
+    # Second attempt: user retypes and tabs out. Pre-fix this raised
+    # RuntimeError inside _cancel_in_flight.
+    field.line_edit.setText("good-key")
+    field.line_edit.textEdited.emit("good-key")
+    # Trigger the same code path the editingFinished signal uses, but
+    # short-circuit before the real QThread spawn so the test stays
+    # synchronous.
+    field._cancel_in_flight()
+    assert field._thread is None

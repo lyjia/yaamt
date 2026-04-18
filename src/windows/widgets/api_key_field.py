@@ -214,19 +214,35 @@ class ApiKeyField(QWidget):
         thread.start()
 
     def _cancel_in_flight(self) -> None:
-        if self._thread is not None and self._thread.isRunning():
-            # We don't have a kill switch in the verifier; just orphan the
-            # in-flight thread by dropping our reference. Stale results are
-            # filtered in _on_verification_done by comparing the returned
-            # key against the current text.
-            try:
-                self._thread.quit()
-            except RuntimeError:
-                pass
+        # Two ways the in-flight handles get stale:
+        #   1. A previous verification finished cleanly — _on_verification_done
+        #      cleared the references. self._thread is None, nothing to do.
+        #   2. A previous verification finished and Qt's deleteLater already
+        #      collected the underlying C++ object, but our Python wrapper
+        #      still exists. Touching it raises RuntimeError; the cheapest
+        #      defence is to swallow it. We don't have a kill switch into
+        #      the verifier callable anyway; stale results are filtered in
+        #      _on_verification_done by comparing the returned key against
+        #      the current text.
+        thread = self._thread
+        self._thread = None
+        self._worker = None
+        if thread is None:
+            return
+        try:
+            if thread.isRunning():
+                thread.quit()
+        except RuntimeError:
+            pass
+
+    def _on_verification_done(self, key: str, ok: bool, error: object) -> None:
+        # The thread/worker are about to be torn down by the deleteLater
+        # signals connected in _start_verification — drop our references
+        # now so a subsequent _cancel_in_flight doesn't try to call into
+        # a wrapper whose C++ object has already been collected.
         self._thread = None
         self._worker = None
 
-    def _on_verification_done(self, key: str, ok: bool, error: object) -> None:
         # If the user kept typing while we were checking, the result is
         # stale; ignore it. The state is already STATE_UNVERIFIED.
         if self.text() != key:
