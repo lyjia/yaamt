@@ -67,6 +67,60 @@ def test_padding_negative_number():
     assert format_filename("%TRACKNUMBER:000%", tokens) == "-003"
 
 
+def test_integer_pad_preserves_decimal_portion():
+    # :000 only pads the integer portion. Decimals in the actual value are
+    # never truncated.
+    tokens = {"BPM": "174.5"}
+    assert format_filename("%BPM:000%", tokens) == "174.5"
+    tokens = {"BPM": "90.5"}
+    assert format_filename("%BPM:000%", tokens) == "090.5"
+
+
+def test_decimal_pad_forces_decimal_on_integer_value():
+    # Integer value with :000.0 picks up a ".0" suffix and padding.
+    tokens = {"BPM": "174"}
+    assert format_filename("%BPM:000.0%", tokens) == "174.0"
+    tokens = {"BPM": "90"}
+    assert format_filename("%BPM:000.0%", tokens) == "090.0"
+
+
+def test_decimal_pad_preserves_existing_decimals_beyond_minimum():
+    # The decimal-pad count is a minimum; extra decimals survive untouched.
+    tokens = {"BPM": "174.55"}
+    assert format_filename("%BPM:000.0%", tokens) == "174.55"
+
+
+def test_decimal_pad_pads_fractional_to_requested_width():
+    tokens = {"BPM": "90.5"}
+    assert format_filename("%BPM:000.000%", tokens) == "090.500"
+
+
+def test_no_pad_spec_renders_value_as_is():
+    # Plain %BPM% never modifies a decimal value.
+    tokens = {"BPM": "174.5"}
+    assert format_filename("%BPM%", tokens) == "174.5"
+    tokens = {"BPM": "174"}
+    assert format_filename("%BPM%", tokens) == "174"
+
+
+def test_decimal_pad_on_non_numeric_is_no_op():
+    # Non-numeric values still render verbatim even with a decimal spec.
+    tokens = _simple_tokens(ARTIST="Raiden")
+    assert format_filename("%ARTIST:000.0%", tokens) == "Raiden"
+
+
+def test_decimal_pad_exceeded_by_value_unchanged_integer():
+    # Integer portion wider than pad width renders unchanged; decimal still
+    # gets forced to the minimum width.
+    tokens = {"BPM": "1000"}
+    assert format_filename("%BPM:000.0%", tokens) == "1000.0"
+
+
+def test_decimal_pad_with_negative_value():
+    tokens = {"BPM": "-5.25"}
+    assert format_filename("%BPM:000.0%", tokens) == "-005.25"
+
+
 def test_initialkey_pads_leading_digits_of_camelot_notation():
     # "7A" with :00 -> "07A". The Camelot special case pads the numeric
     # prefix while preserving the trailing letter.

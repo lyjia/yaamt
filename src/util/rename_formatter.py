@@ -11,11 +11,20 @@ Format language:
                             where N is the number of '0' characters after the
                             colon. Non-numeric values render unchanged, and
                             values exceeding the pad width render unchanged.
+                            If the actual value is a decimal (e.g. "174.5"),
+                            the fractional portion is always preserved, so
+                            "174.5" with :000 renders as "174.5" (not "174").
                             Special case: %INITIALKEY:00% pads the leading
                             numeric portion of a Camelot-notation key while
                             preserving the trailing letter (e.g. "7A" -> "07A",
                             "11B" stays "11B"). No other token has a mixed
                             numeric/alphabetic pad behavior.
+    %TOKEN:000.0%           Pad the integer portion like :000, and force at
+                            least one decimal place. The decimal-pad count is
+                            a minimum: if the actual value has more decimal
+                            digits, they are preserved verbatim. So "174" with
+                            :000.0 renders as "174.0", "90" becomes "090.0",
+                            "174.55" with :000.0 stays "174.55".
     <section>               Optional section. Renders only if every TAG token
                             directly inside the section resolves to a non-empty
                             value. Sections may be nested; a nested section
@@ -149,8 +158,11 @@ def build_token_map_from_dict(raw: dict[str, Any]) -> dict[str, str]:
 # Parser
 # ---------------------------------------------------------------------------
 
-# Matches %TOKEN% or %TOKEN:0000%. Token chars: A-Z, 0-9, underscore.
-_TAG_RE = re.compile(r"%([A-Za-z_][A-Za-z0-9_]*)(?::(0+))?%")
+# Matches %TOKEN%, %TOKEN:0000%, or %TOKEN:0000.000%. Token chars: A-Z, 0-9,
+# underscore. The optional pad spec is one run of zeros for integer padding,
+# then optionally a '.' followed by another run of zeros for minimum-decimal
+# padding.
+_TAG_RE = re.compile(r"%([A-Za-z_][A-Za-z0-9_]*)(?::(0+)(?:\.(0+))?)?%")
 
 
 class FormatParseError(ValueError):
@@ -205,8 +217,14 @@ def _parse_section(
                 flush_literal()
                 token = m.group(1).upper()
                 pad_width = len(m.group(2)) if m.group(2) else 0
+                decimal_pad = len(m.group(3)) if m.group(3) else 0
                 nodes.append(
-                    {"kind": _NODE_TAG, "token": token, "pad": pad_width}
+                    {
+                        "kind": _NODE_TAG,
+                        "token": token,
+                        "pad": pad_width,
+                        "decimal_pad": decimal_pad,
+                    }
                 )
                 pos = m.end()
                 continue
@@ -230,16 +248,58 @@ def _parse_section(
 # ---------------------------------------------------------------------------
 
 
-def _pad_fully_numeric(value: str, pad: int) -> str:
-    """Pad value if it is entirely numeric; return value unchanged otherwise."""
+def _split_numeric(value: str) -> tuple[str, str, str] | None:
+    """
+    Split a fully-numeric value into (sign, int_part, frac_part).
+
+    Returns None if value isn't a plain signed integer or decimal. Accepts
+    "123", "-7", "174.5", "-0.25". Rejects leading-dot ".5", trailing-dot
+    "5.", or anything with non-numeric tail.
+    """
     stripped = value.strip()
-    if stripped and stripped.lstrip("-").isdigit():
-        n = int(stripped)
-        formatted = f"{abs(n):0{pad}d}"
-        if n < 0:
-            formatted = f"-{formatted}"
-        return formatted
-    return value
+    if not stripped:
+        return None
+    sign = ""
+    rest = stripped
+    if rest.startswith(("-", "+")):
+        sign = "-" if rest[0] == "-" else ""
+        rest = rest[1:]
+    if "." in rest:
+        int_part, _, frac_part = rest.partition(".")
+        if not int_part or not frac_part:
+            return None
+        if not int_part.isdigit() or not frac_part.isdigit():
+            return None
+    else:
+        if not rest.isdigit():
+            return None
+        int_part = rest
+        frac_part = ""
+    return sign, int_part, frac_part
+
+
+def _pad_fully_numeric(value: str, pad: int, decimal_pad: int) -> str:
+    """
+    Pad an integer-or-decimal value.
+
+    - Leading zeros pad the integer portion to `pad` digits.
+    - Decimal portion is preserved verbatim when present.
+    - When `decimal_pad` > 0, the output is guaranteed to have at least
+      `decimal_pad` fractional digits (padded with trailing zeros). Actual
+      decimal digits, if any, are always preserved regardless of
+      `decimal_pad`; the spec is a minimum, never a truncation.
+    """
+    parsed = _split_numeric(value)
+    if parsed is None:
+        return value
+    sign, int_part, frac_part = parsed
+    int_n = int(int_part)
+    padded_int = f"{int_n:0{pad}d}"
+    target_frac_len = max(decimal_pad, len(frac_part))
+    if target_frac_len > 0:
+        frac_padded = frac_part.ljust(target_frac_len, "0")
+        return f"{sign}{padded_int}.{frac_padded}"
+    return f"{sign}{padded_int}"
 
 
 def _pad_leading_numeric(value: str, pad: int) -> str:
@@ -247,7 +307,8 @@ def _pad_leading_numeric(value: str, pad: int) -> str:
     Pad the leading numeric portion of value, preserving any trailing content.
 
     Used exclusively for Camelot-notation keys (e.g. "7A" -> "07A"). If the
-    value has no leading digits the input is returned unchanged.
+    value has no leading digits the input is returned unchanged. Decimal-pad
+    spec is ignored here since Camelot notation isn't a decimal number.
     """
     m = _LEADING_NUMERIC_RE.match(value.strip())
     if m is None:
@@ -261,12 +322,13 @@ def _render_tag(node: dict[str, Any], token_map: dict[str, str]) -> str:
     """Render a single TAG node, applying numeric padding if requested."""
     value = token_map.get(node["token"], "")
     pad = node["pad"]
-    if not pad or not value:
+    decimal_pad = node.get("decimal_pad", 0)
+    if (not pad and not decimal_pad) or not value:
         return value
     if node["token"] == _INITIAL_KEY_TOKEN:
         # Camelot / mixed notation: pad leading digits, keep letter suffix.
         return _pad_leading_numeric(value, pad)
-    return _pad_fully_numeric(value, pad)
+    return _pad_fully_numeric(value, pad, decimal_pad)
 
 
 def _render_nodes(
