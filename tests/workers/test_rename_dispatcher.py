@@ -59,7 +59,7 @@ def test_plan_rename_empty_render_marks_task_unrunnable(tmp_audio_copy):
     from workers.rename_dispatcher import plan_rename
 
     mf = MediaFile(tmp_audio_copy)
-    task = plan_rename(mf, "[%NOPE%]?", RENAME_COLLISION_SKIP)
+    task = plan_rename(mf, "<%NOPE%>", RENAME_COLLISION_SKIP)
 
     # Empty render -> empty basename, empty target path.
     assert task.target_basename == ""

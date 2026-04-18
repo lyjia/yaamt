@@ -139,8 +139,8 @@ class RenameSetupDialog(QDialog):
         desc = QLabel(
             "Rename selected files using a format string built from their "
             "metadata. Tokens are wrapped in %PERCENT% characters. Enclose a "
-            "segment in [brackets]? to mark it optional - it renders only if "
-            "every token inside has a value. Use :00 inside a token (e.g. "
+            "segment in <angle brackets> to mark it optional - it renders only "
+            "if every token inside has a value. Use :00 inside a token (e.g. "
             "%TRACKNUMBER:00%) to pad numbers with leading zeros."
         )
         desc.setWordWrap(True)

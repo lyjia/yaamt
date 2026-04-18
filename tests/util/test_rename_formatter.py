@@ -70,20 +70,20 @@ def test_padding_negative_number():
 def test_optional_section_renders_when_present():
     tokens = _simple_tokens(ARTIST="Raiden", TITLE="Infection",
                             REMIXER="E-Sassin")
-    out = format_filename("%ARTIST% - %TITLE%[ (%REMIXER% Remix)]?", tokens)
+    out = format_filename("%ARTIST% - %TITLE%< (%REMIXER% Remix)>", tokens)
     assert out == "Raiden - Infection (E-Sassin Remix)"
 
 
 def test_optional_section_collapses_when_any_token_missing():
     tokens = _simple_tokens(ARTIST="Raiden", TITLE="Infection", REMIXER="")
-    out = format_filename("%ARTIST% - %TITLE%[ (%REMIXER% Remix)]?", tokens)
+    out = format_filename("%ARTIST% - %TITLE%< (%REMIXER% Remix)>", tokens)
     assert out == "Raiden - Infection"
 
 
 def test_nested_optional_section_collapse_preserves_parent():
     # Exact example from the spec: empty ALBUMARTIST must NOT prevent the
     # outer section from rendering.
-    fmt = "[[%ALBUMARTIST% - ]? %ALBUM% - %TRACKNUMBER%]? %ARTIST% - %TITLE%"
+    fmt = "<<%ALBUMARTIST% - > %ALBUM% - %TRACKNUMBER%> %ARTIST% - %TITLE%"
     tokens = _simple_tokens(
         ALBUMARTIST="", ALBUM="Guide", TRACKNUMBER="7",
         ARTIST="Raiden", TITLE="Infection",
@@ -95,7 +95,7 @@ def test_nested_optional_section_collapse_preserves_parent():
 
 
 def test_nested_optional_section_fully_present():
-    fmt = "[[%ALBUMARTIST% - ]?%ALBUM% - %TRACKNUMBER%]? %ARTIST% - %TITLE%"
+    fmt = "<<%ALBUMARTIST% - >%ALBUM% - %TRACKNUMBER%> %ARTIST% - %TITLE%"
     tokens = _simple_tokens(
         ALBUMARTIST="Dieselboy", ALBUM="Guide", TRACKNUMBER="7",
         ARTIST="Raiden", TITLE="Infection",
@@ -105,7 +105,7 @@ def test_nested_optional_section_fully_present():
 
 
 def test_nested_optional_outer_collapses_when_direct_token_missing():
-    fmt = "[[%ALBUMARTIST% - ]?%ALBUM% - %TRACKNUMBER%]? %ARTIST% - %TITLE%"
+    fmt = "<<%ALBUMARTIST% - >%ALBUM% - %TRACKNUMBER%> %ARTIST% - %TITLE%"
     tokens = _simple_tokens(
         ALBUMARTIST="Dieselboy", ALBUM="", TRACKNUMBER="7",
         ARTIST="Raiden", TITLE="Infection",
@@ -117,16 +117,25 @@ def test_nested_optional_outer_collapses_when_direct_token_missing():
 
 def test_unterminated_optional_raises():
     try:
-        format_filename("[%ARTIST% - %TITLE%", _simple_tokens(ARTIST="x", TITLE="y"))
+        format_filename("<%ARTIST% - %TITLE%", _simple_tokens(ARTIST="x", TITLE="y"))
     except FormatParseError:
         return
     raise AssertionError("Expected FormatParseError")
 
 
-def test_literal_bracket_without_question_mark():
-    tokens = _simple_tokens(ARTIST="Raiden")
-    # A bare ']' at the top level is a literal.
+def test_literal_square_brackets():
+    tokens = _simple_tokens(ARTIST="Raiden", TITLE="Infection")
+    # Square brackets are plain literals - no special meaning in the new
+    # syntax. Users can freely include them in filenames.
+    assert format_filename("[%ARTIST%] %TITLE%", tokens) == "[Raiden] Infection"
+    assert format_filename("[]", tokens) == "[]"
     assert format_filename("%ARTIST%]", tokens) == "Raiden]"
+
+
+def test_literal_closing_angle_bracket_at_top_level():
+    tokens = _simple_tokens(ARTIST="Raiden")
+    # A '>' with no matching '<' on the stack renders as a literal.
+    assert format_filename("%ARTIST%>", tokens) == "Raiden>"
 
 
 def test_literal_percent():
@@ -196,7 +205,7 @@ def test_list_tokens_by_section_has_both_sections():
 
 
 def test_validate_format_string_reports_parse_errors():
-    ok, msg = validate_format_string("[%ARTIST% - %TITLE%")
+    ok, msg = validate_format_string("<%ARTIST% - %TITLE%")
     assert ok is False
     assert msg
 
@@ -216,7 +225,7 @@ def test_validate_format_string_rejects_multiple_unknown_tokens():
 
 
 def test_validate_format_string_rejects_unknown_token_inside_optional():
-    ok, msg = validate_format_string("[%NOTATHING% - ]?%ARTIST%")
+    ok, msg = validate_format_string("<%NOTATHING% - >%ARTIST%")
     assert ok is False
     assert "NOTATHING" in msg
 
@@ -229,6 +238,6 @@ def test_validate_format_string_accepts_valid():
 
 def test_end_to_end_sample_metadata():
     tokens = build_token_map_from_dict(SAMPLE_RENAME_METADATA)
-    fmt = "[%TRACKNUMBER:00% - ]?%ARTIST% - %TITLE%[ (%REMIXER% Remix)]?"
+    fmt = "<%TRACKNUMBER:00% - >%ARTIST% - %TITLE%< (%REMIXER% Remix)>"
     out = format_filename(fmt, tokens)
     assert out == "07 - Raiden - Infection (E-Sassin Remix)"

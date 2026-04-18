@@ -11,11 +11,12 @@ Format language:
                             where N is the number of '0' characters after the
                             colon. Non-numeric values render unchanged, and
                             values exceeding the pad width render unchanged.
-    [section]?              Optional section. Renders only if every TAG token
+    <section>               Optional section. Renders only if every TAG token
                             directly inside the section resolves to a non-empty
                             value. Sections may be nested; a nested section
                             that collapses to empty does NOT poison its parent
-                            section's presence check.
+                            section's presence check. '[' and ']' are always
+                            literal characters.
 
 The sanitizer strips path separators, Windows-reserved chars, and control
 characters so the rendered filename is safe to apply with os.rename.
@@ -154,7 +155,7 @@ def _parse(format_string: str) -> list[dict[str, Any]]:
 def _parse_section(
     s: str, pos: int, top_level: bool
 ) -> tuple[list[dict[str, Any]], int]:
-    """Parse until we hit a ']?' terminator (if not top-level) or end-of-string."""
+    """Parse until we hit a '>' terminator (if not top-level) or end-of-string."""
     nodes: list[dict[str, Any]] = []
     buf: list[str] = []
 
@@ -166,7 +167,7 @@ def _parse_section(
     while pos < len(s):
         ch = s[pos]
 
-        if ch == "[":
+        if ch == "<":
             # Start a nested optional section.
             flush_literal()
             inner, new_pos = _parse_section(s, pos + 1, top_level=False)
@@ -174,12 +175,11 @@ def _parse_section(
             pos = new_pos
             continue
 
-        if ch == "]":
-            # Must be followed by '?' to terminate an optional section.
-            if not top_level and pos + 1 < len(s) and s[pos + 1] == "?":
+        if ch == ">":
+            if not top_level:
                 flush_literal()
-                return nodes, pos + 2
-            # Literal ']' (no terminator).
+                return nodes, pos + 1
+            # Literal '>' at top level (no matching opener).
             buf.append(ch)
             pos += 1
             continue
@@ -204,7 +204,7 @@ def _parse_section(
         pos += 1
 
     if not top_level:
-        raise FormatParseError("Unterminated '[' - missing ']?'")
+        raise FormatParseError("Unterminated '<' - missing '>'")
 
     flush_literal()
     return nodes, pos
