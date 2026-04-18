@@ -352,15 +352,34 @@ class ResourcesPane(PreferencePaneBase):
         """
         Return a best-guess starting path for the Locate... file dialog.
 
-        If the metadata declares a ``discovery_executable`` and that command
-        resolves via ``shutil.which``, the dialog opens at (and pre-selects)
-        that file. Otherwise returns an empty string so Qt uses its platform
-        default (usually the user's home directory).
+        Priority:
+            1. The user's previously-set custom location for this resource —
+               opens at (and preselects) that file. If the file moved away,
+               Qt still opens its parent directory.
+            2. The result of ``shutil.which(discovery_executable)`` for tools
+               like ``fpcalc`` that the user may have already installed
+               system-wide.
+            3. The resource's standard cache path (where direct downloads
+               land). Returned even when the file is absent so Qt opens the
+               dedicated cache subdirectory.
+            4. Empty string — Qt falls back to the platform default
+               (usually the user's home directory).
         """
+        rm = get_resource_manager()
+
+        custom = rm.get_custom_location(metadata.resource_id)
+        if custom:
+            return str(custom)
+
         if metadata.discovery_executable:
             found = shutil.which(metadata.discovery_executable)
             if found:
                 return found
+
+        cache_path = rm.get_resource_path(metadata.resource_id)
+        if cache_path is not None and (cache_path.exists() or cache_path.parent.exists()):
+            return str(cache_path)
+
         return ""
 
     # PreferencePaneBase implementation
