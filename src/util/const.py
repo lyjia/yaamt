@@ -370,7 +370,7 @@ SAMPLE_RENAME_METADATA = {
     KEY_ISRC: "",
     KEY_LANGUAGE: "eng",
     KEY_MOOD: "Dark",
-    KEY_REMIXER: "E-Sassin",
+    KEY_REMIXER: "E-Sassin Remix",
     KEY_LABEL: "System Recordings",
     KEY_PUBLISHER: "Human Imprint",
     KEY_TITLE: "Infection",
