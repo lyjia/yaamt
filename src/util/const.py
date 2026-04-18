@@ -314,9 +314,10 @@ RENAME_COLLISION_MODE_LABELS = {
 RENAME_PRESETS_DEFAULTS = [
     "%ARTIST% - %TITLE%",
     "%ARTIST% - %TITLE%< (%REMIXER% Remix)>",
-    "<%TRACKNUMBER:00% - >%ARTIST% - %TITLE%",
-    "<<%ALBUMARTIST% - >%ALBUM% - %TRACKNUMBER:00%> %ARTIST% - %TITLE%",
+    "<%TRACKNUMBER:00%. >%ARTIST% - %TITLE%",
+    "<[<%ALBUMARTIST% - ><%ALBUM%>< - %TRACKNUMBER:00%>]> %ARTIST% - %TITLE%< (%REMIXER% Remix)>",
     "<%YEAR% - >%ARTIST% - %ALBUM% - %TRACKNUMBER:00% - %TITLE%",
+    "<%INITIALKEY%,><%BPM:000%,>%ARTIST% - <%ALBUM% - ><%TRACKNUMBER:00% - >%TITLE%< (%REMIXER% Remix)>"
 ]
 
 # Hand-curated sample data used by the rename setup dialog's live "Example:" label.
