@@ -31,6 +31,8 @@ from typing import Callable
 from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QWidget
 
+from util.logging import log
+
 
 # Verifier contract: synchronous call returning (is_valid, error_or_none).
 # The widget runs the verifier on a background QThread so blocking network
@@ -197,6 +199,7 @@ class ApiKeyField(QWidget):
     # ----- verification --------------------------------------------------
 
     def _start_verification(self, key: str) -> None:
+        log.debug(f"ApiKeyField: starting verification for key suffix ...{key[-4:] if len(key) >= 4 else '***'}")
         self._cancel_in_flight()
 
         thread = QThread(self)
@@ -246,12 +249,24 @@ class ApiKeyField(QWidget):
         # If the user kept typing while we were checking, the result is
         # stale; ignore it. The state is already STATE_UNVERIFIED.
         if self.text() != key:
+            log.debug(
+                f"ApiKeyField: discarding stale verification result for "
+                f"...{key[-4:] if len(key) >= 4 else '***'}"
+            )
             return
         if ok:
+            log.info(
+                f"ApiKeyField: verification succeeded for key suffix "
+                f"...{key[-4:] if len(key) >= 4 else '***'}"
+            )
             self._verified_key = key
             self._last_error = None
             self._set_state(STATE_OK)
         else:
+            log.info(
+                f"ApiKeyField: verification failed for key suffix "
+                f"...{key[-4:] if len(key) >= 4 else '***'}: {error}"
+            )
             self._verified_key = None
             self._last_error = str(error) if error else None
             self._set_state(STATE_FAIL)

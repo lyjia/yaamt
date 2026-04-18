@@ -620,17 +620,48 @@ class TestVerifyAcoustidApiKey:
         assert ok is False
         assert "Invalid API key" in error
 
-    def test_other_error_codes_surface_message(self, monkeypatch):
+    def test_unknown_application_code_means_invalid_key(self, monkeypatch):
+        # Code 16 = "Unknown application"; the key's application has been
+        # disabled or never existed — same user-facing meaning as code 4.
         self._patch_urlopen(
             monkeypatch,
-            payload={"status": "error", "error": {"code": 99, "message": "rate limited"}},
+            payload={"status": "error", "error": {"code": 16, "message": "unknown application"}},
         )
         from providers.analysis.fingerprint.musicbrainz_acoustid import (
             verify_acoustid_api_key,
         )
         ok, error = verify_acoustid_api_key("some-key")
         assert ok is False
-        assert "rate limited" in error
+        assert "Invalid API key" in error
+
+    def test_invalid_fingerprint_error_means_key_is_valid(self, monkeypatch):
+        # Code 3 means the server rejected our probe fingerprint — but the
+        # request still got past authentication, so the key itself is valid.
+        # Treating this as a verification failure is what made every real
+        # key look "invalid" to the user.
+        self._patch_urlopen(
+            monkeypatch,
+            payload={"status": "error", "error": {"code": 3, "message": "invalid fingerprint"}},
+        )
+        from providers.analysis.fingerprint.musicbrainz_acoustid import (
+            verify_acoustid_api_key,
+        )
+        ok, error = verify_acoustid_api_key("real-good-key")
+        assert ok is True
+        assert error is None
+
+    def test_invalid_duration_error_means_key_is_valid(self, monkeypatch):
+        # Code 7 = "invalid duration". Same reasoning as code 3.
+        self._patch_urlopen(
+            monkeypatch,
+            payload={"status": "error", "error": {"code": 7, "message": "invalid duration"}},
+        )
+        from providers.analysis.fingerprint.musicbrainz_acoustid import (
+            verify_acoustid_api_key,
+        )
+        ok, error = verify_acoustid_api_key("real-good-key")
+        assert ok is True
+        assert error is None
 
     def test_network_failure_returns_clear_error(self, monkeypatch):
         import urllib.error
