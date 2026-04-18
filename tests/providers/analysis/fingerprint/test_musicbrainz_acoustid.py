@@ -228,6 +228,60 @@ class TestSuccessPath:
         # Fingerprint is opt-in — must be absent by default.
         assert KEY_ACOUSTID_FINGERPRINT not in result.data
 
+    def test_fpcalc_env_var_overrides_during_call_and_restores_after(
+        self, media_file, monkeypatch
+    ):
+        """Regression: pyacoustid resolves fpcalc via os.environ['FPCALC'],
+        not via the force_fpcalc kwarg. The analyzer must set FPCALC to the
+        resolved binary path while the call is in flight and restore the
+        previous value afterwards."""
+        import os
+        import sys
+        import types
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+
+        monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: "/some/where/fpcalc")
+        monkeypatch.setattr(mod, "_resolve_api_key", lambda: "test-api-key")
+
+        seen_env: list[str | None] = []
+
+        fake = types.ModuleType("acoustid")
+        fake.fingerprint_file = lambda path, force_fpcalc=False: (
+            seen_env.append(os.environ.get("FPCALC")),
+            (SAMPLE_DURATION, SAMPLE_FINGERPRINT_BYTES),
+        )[1]
+        fake.lookup = lambda api_key, fp, duration, meta=None: _fake_lookup_response(0.95)
+        monkeypatch.setitem(sys.modules, "acoustid", fake)
+
+        # Pre-existing env value must be restored after the call.
+        monkeypatch.setenv("FPCALC", "/preexisting/value")
+
+        result = MusicBrainzAcoustIDAnalyzer(media_file).analyze()
+        assert result.success is True
+        assert seen_env == ["/some/where/fpcalc"]
+        assert os.environ["FPCALC"] == "/preexisting/value"
+
+    def test_fpcalc_env_var_unset_after_call_when_originally_unset(
+        self, media_file, monkeypatch
+    ):
+        import os
+        import sys
+        import types
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+
+        monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: "/elsewhere/fpcalc")
+        monkeypatch.setattr(mod, "_resolve_api_key", lambda: "test-api-key")
+        monkeypatch.delenv("FPCALC", raising=False)
+
+        fake = types.ModuleType("acoustid")
+        fake.fingerprint_file = lambda path, force_fpcalc=False: (SAMPLE_DURATION, SAMPLE_FINGERPRINT_BYTES)
+        fake.lookup = lambda api_key, fp, duration, meta=None: _fake_lookup_response(0.95)
+        monkeypatch.setitem(sys.modules, "acoustid", fake)
+
+        result = MusicBrainzAcoustIDAnalyzer(media_file).analyze()
+        assert result.success is True
+        assert "FPCALC" not in os.environ
+
     def test_store_fingerprint_opt_in(self, media_file, stub_resolvers, fake_acoustid):
         result = MusicBrainzAcoustIDAnalyzer(
             media_file, {"store_fingerprint": True}
