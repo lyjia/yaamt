@@ -153,6 +153,25 @@ class PreferencesWindow(QDialog):
         for pane in self.panes:
             pane.load_from_settings()
 
+    def select_pane(self, name: str) -> bool:
+        """
+        Select the preference pane whose ``get_name()`` matches ``name``.
+
+        Used by other windows (e.g. the analyzer setup dialog) that want to
+        deep-link into a specific preference pane.
+
+        Args:
+            name: The pane's display name (case-sensitive).
+
+        Returns:
+            True if a pane with that name was found and selected, False otherwise.
+        """
+        for i, pane in enumerate(self.panes):
+            if pane.get_name() == name:
+                self.category_list.setCurrentRow(i)
+                return True
+        return False
+
     def _on_save_clicked(self) -> None:
         """Handle Save button click."""
         # Validate all panes

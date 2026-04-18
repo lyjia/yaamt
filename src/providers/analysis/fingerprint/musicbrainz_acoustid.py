@@ -224,6 +224,30 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
         return ANALYZER_THREAD_COUNT
 
     @classmethod
+    def get_settings_widget(cls):
+        """Build the analyzer's settings widget.
+
+        Prepends a Requirements status group above the auto-generated option
+        widgets so the user can see at a glance whether fpcalc and the
+        AcoustID API key are configured, with inline links that deep-link
+        into the matching preferences pane.
+        """
+        from PySide6.QtWidgets import QWidget, QVBoxLayout
+        from windows.analyzer.option_widgets import build_widget_from_option
+
+        widget = QWidget()
+        layout = QVBoxLayout()
+
+        layout.addWidget(_build_requirements_group())
+
+        settings_group = f"analyzers/{cls.__name__}"
+        for option in cls.get_options_metadata():
+            layout.addWidget(build_widget_from_option(option, settings_group))
+
+        widget.setLayout(layout)
+        return widget
+
+    @classmethod
     def validate_file(cls, media_file) -> tuple[bool, str | None]:
         if not media_file.is_readable():
             return (False, "File is not readable")
@@ -280,3 +304,78 @@ def _resolve_api_key() -> str:
     """Read the AcoustID API key from QSettings. No bundled fallback — the
     user must supply their own key via Preferences > Integrations."""
     return get_qsettings().value(SETTINGS_ACOUSTID_API_KEY, "", type=str)
+
+
+# HTML rendered inside QLabel for the Requirements section. Both the
+# check/X glyph and the optional Configure... link live in the same label
+# so they flow on one line together.
+_OK_MARK = '<span style="color:#2a7;">&#x2713;</span>'
+_FAIL_MARK = '<span style="color:#c33;">&#x2717;</span>'
+_CONFIGURE_LINK = '<a href="#prefs">Configure...</a>'
+_PANE_RESOURCES = "Resources"
+_PANE_INTEGRATIONS = "Integrations"
+
+
+def _fpcalc_status_html() -> str:
+    """Return HTML describing the current fpcalc resolution state."""
+    path = _resolve_fpcalc_path()
+    if path:
+        return f"{_OK_MARK} Chromaprint <code>fpcalc</code> found at <code>{path}</code>"
+    return (
+        f"{_FAIL_MARK} Chromaprint <code>fpcalc</code> not found. "
+        f"{_CONFIGURE_LINK}"
+    )
+
+
+def _api_key_status_html() -> str:
+    """Return HTML describing the current AcoustID API key state."""
+    if _resolve_api_key():
+        return f"{_OK_MARK} AcoustID API key configured"
+    return f"{_FAIL_MARK} AcoustID API key not set. {_CONFIGURE_LINK}"
+
+
+def _build_requirements_group():
+    """Build the "Requirements" groupbox shown above the analyzer options.
+
+    Two labels (fpcalc, API key) render with a green check or red X plus an
+    inline Configure... link when the requirement isn't satisfied. Clicking
+    the link opens the Preferences window scrolled to the relevant pane,
+    and the labels refresh when preferences close so the user sees the
+    effect of their edit without reopening this dialog.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QGroupBox, QLabel, QVBoxLayout
+
+    group = QGroupBox("Requirements")
+    layout = QVBoxLayout()
+
+    fpcalc_label = QLabel()
+    fpcalc_label.setObjectName("requirement_fpcalc")
+    fpcalc_label.setTextFormat(Qt.TextFormat.RichText)
+    fpcalc_label.setOpenExternalLinks(False)
+
+    api_key_label = QLabel()
+    api_key_label.setObjectName("requirement_acoustid_api_key")
+    api_key_label.setTextFormat(Qt.TextFormat.RichText)
+    api_key_label.setOpenExternalLinks(False)
+
+    def refresh() -> None:
+        fpcalc_label.setText(_fpcalc_status_html())
+        api_key_label.setText(_api_key_status_html())
+
+    def open_prefs(pane_name: str) -> None:
+        from windows.preferences_window import PreferencesWindow
+        prefs = PreferencesWindow(group.window())
+        prefs.select_pane(pane_name)
+        prefs.exec()
+        refresh()
+
+    fpcalc_label.linkActivated.connect(lambda _: open_prefs(_PANE_RESOURCES))
+    api_key_label.linkActivated.connect(lambda _: open_prefs(_PANE_INTEGRATIONS))
+
+    refresh()
+
+    layout.addWidget(fpcalc_label)
+    layout.addWidget(api_key_label)
+    group.setLayout(layout)
+    return group

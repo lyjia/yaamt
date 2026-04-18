@@ -370,3 +370,129 @@ class TestResourceRegistration:
         rm = get_resource_manager()
         registered = rm.get_all_registered_resources()
         assert FPCALC_RESOURCE_ID in registered
+
+
+class TestRequirementsStatusHelpers:
+    """HTML helpers that render the status of the analyzer's two
+    requirements (fpcalc, AcoustID API key) in the settings widget."""
+
+    def test_fpcalc_ok_html(self, monkeypatch):
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+        monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: "/usr/bin/fpcalc")
+        html = mod._fpcalc_status_html()
+        assert "&#x2713;" in html
+        assert "/usr/bin/fpcalc" in html
+        assert "Configure" not in html
+
+    def test_fpcalc_missing_html_has_configure_link(self, monkeypatch):
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+        monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: None)
+        html = mod._fpcalc_status_html()
+        assert "&#x2717;" in html
+        assert "Configure" in html
+        assert 'href="#prefs"' in html
+
+    def test_api_key_ok_html(self, monkeypatch):
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+        monkeypatch.setattr(mod, "_resolve_api_key", lambda: "abc-123")
+        html = mod._api_key_status_html()
+        assert "&#x2713;" in html
+        # The literal key value must never appear in the UI string.
+        assert "abc-123" not in html
+        assert "Configure" not in html
+
+    def test_api_key_missing_html_has_configure_link(self, monkeypatch):
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+        monkeypatch.setattr(mod, "_resolve_api_key", lambda: "")
+        html = mod._api_key_status_html()
+        assert "&#x2717;" in html
+        assert "Configure" in html
+        assert 'href="#prefs"' in html
+
+
+@pytest.mark.skipif(
+    __import__("util.const", fromlist=["IN_GITHUB_RUNNER"]).IN_GITHUB_RUNNER,
+    reason="Qt widgets crash in GitHub Actions runner",
+)
+class TestSettingsWidgetRequirements:
+    """The Requirements group is wired into the settings widget and its
+    links deep-link to the correct preference pane."""
+
+    def test_widget_contains_requirements_group(self, qapp, monkeypatch):
+        from PySide6.QtWidgets import QGroupBox, QLabel
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+
+        monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: None)
+        monkeypatch.setattr(mod, "_resolve_api_key", lambda: "")
+
+        widget = MusicBrainzAcoustIDAnalyzer.get_settings_widget()
+        groups = [g.title() for g in widget.findChildren(QGroupBox)]
+        assert "Requirements" in groups
+
+        labels = {
+            lbl.objectName(): lbl
+            for lbl in widget.findChildren(QLabel)
+            if lbl.objectName().startswith("requirement_")
+        }
+        assert "requirement_fpcalc" in labels
+        assert "requirement_acoustid_api_key" in labels
+        # Both should show the fail mark since nothing is configured.
+        assert "&#x2717;" in labels["requirement_fpcalc"].text()
+        assert "&#x2717;" in labels["requirement_acoustid_api_key"].text()
+
+    def test_widget_reflects_configured_state(self, qapp, monkeypatch, tmp_path):
+        from PySide6.QtWidgets import QLabel
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+
+        fake = tmp_path / "fpcalc"
+        fake.write_text("")
+        monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: str(fake))
+        monkeypatch.setattr(mod, "_resolve_api_key", lambda: "my-key")
+
+        widget = MusicBrainzAcoustIDAnalyzer.get_settings_widget()
+        labels = {
+            lbl.objectName(): lbl
+            for lbl in widget.findChildren(QLabel)
+            if lbl.objectName().startswith("requirement_")
+        }
+        assert "&#x2713;" in labels["requirement_fpcalc"].text()
+        assert str(fake) in labels["requirement_fpcalc"].text()
+        assert "&#x2713;" in labels["requirement_acoustid_api_key"].text()
+
+    def test_link_click_opens_preferences_on_correct_pane(self, qapp, monkeypatch):
+        """Clicking the Configure... link inside a requirement row should
+        open PreferencesWindow.exec() after selecting the matching pane."""
+        from PySide6.QtWidgets import QLabel
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+
+        monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: None)
+        monkeypatch.setattr(mod, "_resolve_api_key", lambda: "")
+
+        calls: list[str] = []
+
+        class FakePreferencesWindow:
+            def __init__(self, parent=None):
+                pass
+
+            def select_pane(self, name: str) -> bool:
+                calls.append(name)
+                return True
+
+            def exec(self) -> int:
+                return 0
+
+        # Install the fake so the link handler picks it up via the lazy import.
+        import windows.preferences_window as pref_mod
+        monkeypatch.setattr(pref_mod, "PreferencesWindow", FakePreferencesWindow)
+
+        widget = MusicBrainzAcoustIDAnalyzer.get_settings_widget()
+        labels = {
+            lbl.objectName(): lbl
+            for lbl in widget.findChildren(QLabel)
+            if lbl.objectName().startswith("requirement_")
+        }
+
+        labels["requirement_fpcalc"].linkActivated.emit("#prefs")
+        labels["requirement_acoustid_api_key"].linkActivated.emit("#prefs")
+
+        assert calls == ["Resources", "Integrations"]
