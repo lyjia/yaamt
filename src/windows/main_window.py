@@ -516,19 +516,7 @@ class MainWindow(QMainWindow):
 
     def on_files_view_customContextMenuRequested(self, pos):
         menu = QMenu()
-        menu.addAction(self.action_play_file)
-        menu.addAction(self.action_properties)
-        menu.addAction(self.action_open_in_file_browser)
-        menu.addSeparator()
-
-        # Add Analyze submenu
-        analyze_menu = self._build_analyze_menu()
-        menu.addMenu(analyze_menu)
-
-        # Add Metadata submenu
-        metadata_menu = self._build_metadata_menu()
-        menu.addMenu(metadata_menu)
-
+        self._populate_file_action_menu(menu)
         menu.exec_(self.files_view.mapToGlobal(pos))
 
     def toggle_column(self, index, checked):
@@ -636,18 +624,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_reset)
         file_menu.addSeparator()
 
-        # Add Analyze submenu
-        analyze_menu = self._build_analyze_menu()
-        file_menu.addMenu(analyze_menu)
-
-        # Add Metadata submenu
-        metadata_menu = self._build_metadata_menu()
-        file_menu.addMenu(metadata_menu)
-        file_menu.addSeparator()
-
-        file_menu.addAction(self.action_properties)
-        file_menu.addAction(self.action_play_file)
-        file_menu.addAction(self.action_open_in_file_browser)
+        self._populate_file_action_menu(file_menu)
         file_menu.addSeparator()
 
         # Preferences action
@@ -932,6 +909,17 @@ class MainWindow(QMainWindow):
                 analyze_menu.addAction(action)
 
         return analyze_menu
+
+    def _populate_file_action_menu(self, menu: QMenu) -> None:
+        """Append the shared per-file actions (Play, Properties, Open, Analyze,
+        Metadata) to the given menu in canonical order. Called by both the File
+        menu and the files-view right-click menu so their ordering stays in sync."""
+        menu.addAction(self.action_play_file)
+        menu.addAction(self.action_properties)
+        menu.addAction(self.action_open_in_file_browser)
+        menu.addSeparator()
+        menu.addMenu(self._build_analyze_menu())
+        menu.addMenu(self._build_metadata_menu())
 
     def _on_analyze_category_selected(self, category: str):
         """
