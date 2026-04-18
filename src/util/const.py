@@ -113,6 +113,54 @@ ALL_TAGS = { #display names for each tag
     KEY_YEAR: "Year"
 }
 
+# Section headers used in ALL_FORMATTING_TAGS.
+RENAME_SECTION_TAGS = "Tags"
+RENAME_SECTION_STREAM_INFO = "Stream Info"
+
+# Useful writable tags that aren't in ALL_TAGS but are commonly wanted when
+# composing filenames (remix attributions, label imprints, etc.).
+EXTRA_RENAME_TAGS = {
+    KEY_REMIXER: "Remixer",
+    KEY_LABEL: "Label",
+    KEY_PUBLISHER: "Publisher",
+    KEY_COPYRIGHT: "Copyright",
+    KEY_LYRICIST: "Lyricist",
+    KEY_CONDUCTOR: "Conductor",
+    KEY_ARRANGER: "Arranger",
+    KEY_VERSION: "Version",
+    KEY_DIATONIC_MODE: "Diatonic Mode",
+    KEY_DISC_SUBTITLE: "Disc Subtitle",
+    KEY_MEDIA: "Media",
+    KEY_ORGANIZATION: "Organization",
+    KEY_AUTHOR: "Author",
+}
+
+# Human-readable labels for stream-info keys that are exposed to the rename formatter.
+STREAM_INFO_LABELS = {
+    KEY_BITRATE: "Bitrate",
+    KEY_BITRATE_MODE: "Bitrate Mode",
+    KEY_SAMPLE_RATE: "Sample Rate",
+    KEY_BITS_PER_SAMPLE: "Bits Per Sample",
+    KEY_TOTAL_SAMPLES: "Total Samples",
+    KEY_LENGTH: "Length (seconds)",
+    KEY_CHANNELS: "Channels",
+    KEY_FORMAT: "Format",
+    KEY_ENCODER_INFO: "Encoder Info",
+    KEY_STEREO_MODE: "Stereo Mode",
+}
+
+# Dict-of-arrays: metadata fields usable as tokens in the rename formatter.
+# Top-level keys are section headers. Subarrays list KEY_ constants in display order.
+#   - "Tags": every field from ALL_TAGS plus additional writable tags (remixer,
+#     label, publisher, etc.) that are useful in filenames but aren't in
+#     ALL_TAGS because they aren't default display columns.
+#   - "Stream Info": every STREAM INFO key except the replaygain keys, which
+#     aren't useful in filenames.
+ALL_FORMATTING_TAGS = {
+    RENAME_SECTION_TAGS: list(ALL_TAGS.keys()) + list(EXTRA_RENAME_TAGS.keys()),
+    RENAME_SECTION_STREAM_INFO: list(STREAM_INFO_LABELS.keys()),
+}
+
 
 #### END metadata model keys ####
 
@@ -243,3 +291,76 @@ STARTUP_DIR_MODE_DEFAULT = "last"
 # they are re-exported here so all settings paths are discoverable in one place).
 BPM_RANGE_MIN_KEY = SETTINGS_BPM_RANGE_MIN
 BPM_RANGE_MAX_KEY = SETTINGS_BPM_RANGE_MAX
+
+# Rename-from-metadata settings
+SETTINGS_GROUP_RENAME = "Rename"
+SETTINGS_ARRAY_RENAME_PRESETS = "presets"
+SETTINGS_RENAME_COLLISION_MODE = "Rename/CollisionMode"
+
+# Collision-handling modes for the rename feature.
+RENAME_COLLISION_AUTO_DISAMBIGUATE = "auto_disambiguate"
+RENAME_COLLISION_SKIP = "skip"
+RENAME_COLLISION_OVERWRITE = "overwrite"
+RENAME_COLLISION_MODE_DEFAULT = RENAME_COLLISION_AUTO_DISAMBIGUATE
+
+RENAME_COLLISION_MODE_LABELS = {
+    RENAME_COLLISION_AUTO_DISAMBIGUATE: "Auto-disambiguate (append ' (2)', ' (3)', ...)",
+    RENAME_COLLISION_SKIP: "Skip and report in summary",
+    RENAME_COLLISION_OVERWRITE: "Overwrite existing files",
+}
+
+# Factory-default format strings surfaced through the setup dialog's preset dropdown
+# and through the Preferences > Rename Presets pane's Reset-to-Default button.
+RENAME_PRESETS_DEFAULTS = [
+    "%ARTIST% - %TITLE%",
+    "%ARTIST% - %TITLE%< (%REMIXER% Remix)>",
+    "<%TRACKNUMBER:00%. >%ARTIST% - %TITLE%",
+    "<[<%ALBUMARTIST% - ><%ALBUM%>< - %TRACKNUMBER:00%>]> %ARTIST% - %TITLE%< (%REMIXER% Remix)>",
+    "<%YEAR% - >%ARTIST% - %ALBUM% - %TRACKNUMBER:00% - %TITLE%",
+    "<%INITIALKEY%,><%BPM:000%,>%ARTIST% - <%ALBUM% - ><%TRACKNUMBER:00% - >%TITLE%< (%REMIXER% Remix)>"
+]
+
+# Hand-curated sample data used by the rename setup dialog's live "Example:" label.
+# Represents track 7, disc 1 of Dieselboy's "The Dungeonmaster's Guide" (2005):
+# Raiden - Infection (E-Sassin Remix). Keeping this as a developer-editable constant
+# keeps the example self-contained and avoids needing a real file on disk.
+SAMPLE_RENAME_METADATA = {
+    # Tags
+    KEY_ALBUM: "The Dungeonmaster's Guide (Disc 1)",
+    KEY_ALBUM_ARTIST: "Dieselboy",
+    KEY_ARTIST: "Raiden",
+    KEY_BPM: "174",
+    KEY_COMMENT: "",
+    KEY_COMPOSER: "Raiden",
+    KEY_DATE: "2005-06-28",
+    KEY_DISC_NUMBER: "1",
+    KEY_DISC_TOTAL: "2",
+    KEY_ENCODED_BY: "YAAMT",
+    KEY_GENRE: "Drum and Bass",
+    KEY_GROUPING: "",
+    KEY_INITIAL_KEY: "Am",
+    KEY_ISRC: "",
+    KEY_LANGUAGE: "eng",
+    KEY_MOOD: "Dark",
+    KEY_REMIXER: "E-Sassin",
+    KEY_LABEL: "System Recordings",
+    KEY_PUBLISHER: "Human Imprint",
+    KEY_TITLE: "Infection",
+    KEY_TRACK_NUMBER: "7",
+    KEY_TRACK_TOTAL: "9",
+    KEY_YEAR: "2005",
+    # Stream info
+    KEY_BITRATE: 320000,
+    KEY_BITRATE_MODE: "CBR",
+    KEY_SAMPLE_RATE: 44100,
+    KEY_BITS_PER_SAMPLE: 16,
+    KEY_TOTAL_SAMPLES: 15115500,
+    KEY_LENGTH: 342.75,
+    KEY_CHANNELS: 2,
+    KEY_FORMAT: "MP3",
+    KEY_ENCODER_INFO: "LAME 3.100",
+    KEY_STEREO_MODE: "joint stereo",
+}
+
+# Filename extension tacked on to the sample label output.
+SAMPLE_RENAME_EXTENSION = ".mp3"
