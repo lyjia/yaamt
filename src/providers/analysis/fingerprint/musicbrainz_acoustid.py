@@ -142,8 +142,31 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
             return AnalyzerResult(success=False, error=f"AcoustID lookup failed: {e}")
 
         if response.get("status") != "ok":
-            err = response.get("error", {}).get("message", "unknown AcoustID error")
-            return AnalyzerResult(success=False, error=f"AcoustID: {err}")
+            err_obj = response.get("error", {}) if isinstance(response, dict) else {}
+            err_message = err_obj.get("message", "unknown AcoustID error")
+            err_code = err_obj.get("code")
+            log.error(
+                f"AcoustID rejected lookup for {self.media_file.file_path}: "
+                f"code={err_code}, message={err_message!r}, "
+                f"raw_response={response!r}"
+            )
+            # AcoustID error code 4 ("Invalid API key") is by far the most
+            # common confused-key case: users grab the personal key from
+            # acoustid.org/api-key (intended for submissions) and try to
+            # use it for lookups. Steer them at the application registration
+            # page in the surfaced error so the fix is one click away.
+            if err_code == 4:
+                return AnalyzerResult(
+                    success=False,
+                    error=(
+                        "AcoustID rejected the API key. Lookups require an "
+                        "application API key, NOT the personal key from "
+                        "acoustid.org/api-key. Register one at "
+                        "https://acoustid.org/new-application and paste it "
+                        "into Preferences > Integrations."
+                    ),
+                )
+            return AnalyzerResult(success=False, error=f"AcoustID: {err_message}")
 
         qualifying = [
             r for r in response.get("results", [])

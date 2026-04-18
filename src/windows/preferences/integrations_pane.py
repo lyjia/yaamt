@@ -13,7 +13,7 @@ from windows.preferences.base import PreferencePaneBase
 from windows.widgets.api_key_field import ApiKeyField
 
 
-ACOUSTID_API_KEY_SIGNUP_URL = "https://acoustid.org/api-key"
+ACOUSTID_NEW_APPLICATION_URL = "https://acoustid.org/new-application"
 
 
 class IntegrationsPane(PreferencePaneBase):
@@ -49,7 +49,7 @@ class IntegrationsPane(PreferencePaneBase):
 
         self.acoustid_api_key_field = ApiKeyField(
             verifier=verify_acoustid_api_key,
-            placeholder="Required — register a free key at acoustid.org/api-key",
+            placeholder="Application API key (register one at acoustid.org/new-application)",
         )
         self.acoustid_api_key_field.validity_changed.connect(
             self._on_field_validity_changed
@@ -59,11 +59,14 @@ class IntegrationsPane(PreferencePaneBase):
         acoustid_layout.addLayout(key_row)
 
         info_label = QLabel(
-            "The MusicBrainz AcoustID analyzer uses this key to query "
-            "acoustid.org for fingerprint matches. Register a free key at "
-            f'<a href="{ACOUSTID_API_KEY_SIGNUP_URL}">'
-            f"{ACOUSTID_API_KEY_SIGNUP_URL}</a>. The key is verified with "
-            "the service when you tab out of the field."
+            "The MusicBrainz AcoustID analyzer uses an <b>application</b> "
+            "API key to query acoustid.org for fingerprint matches. This "
+            "is <i>not</i> the personal API key shown on your AcoustID "
+            "account page — that one is for submissions only and will be "
+            "rejected for lookups. Register an application (free) at "
+            f'<a href="{ACOUSTID_NEW_APPLICATION_URL}">'
+            f"{ACOUSTID_NEW_APPLICATION_URL}</a> and paste the resulting "
+            "application API key here."
         )
         info_label.setOpenExternalLinks(True)
         info_label.setWordWrap(True)

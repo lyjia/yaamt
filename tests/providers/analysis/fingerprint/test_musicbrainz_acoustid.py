@@ -209,13 +209,33 @@ class TestMatchArbitration:
         fake.fingerprint_file = lambda p, force_fpcalc=None: (SAMPLE_DURATION, SAMPLE_FINGERPRINT_BYTES)
         fake.lookup = lambda a, f, d, meta=None: {
             "status": "error",
-            "error": {"message": "invalid api key"},
+            "error": {"code": 99, "message": "rate limited"},
         }
         monkeypatch.setitem(sys.modules, "acoustid", fake)
 
         result = MusicBrainzAcoustIDAnalyzer(media_file).analyze()
         assert result.success is False
-        assert "invalid api key" in result.error.lower()
+        assert "rate limited" in result.error.lower()
+
+    def test_invalid_api_key_error_includes_application_url(
+        self, media_file, stub_resolvers, monkeypatch
+    ):
+        """When AcoustID rejects the key with code 4, the error message
+        must point users at the application registration page (the most
+        common cause is pasting the personal key intended for submissions
+        instead of an application key)."""
+        fake = types.ModuleType("acoustid")
+        fake.fingerprint_file = lambda p, force_fpcalc=None: (SAMPLE_DURATION, SAMPLE_FINGERPRINT_BYTES)
+        fake.lookup = lambda a, f, d, meta=None: {
+            "status": "error",
+            "error": {"code": 4, "message": "invalid api key"},
+        }
+        monkeypatch.setitem(sys.modules, "acoustid", fake)
+
+        result = MusicBrainzAcoustIDAnalyzer(media_file).analyze()
+        assert result.success is False
+        assert "application" in result.error.lower()
+        assert "acoustid.org/new-application" in result.error
 
 
 class TestSuccessPath:
