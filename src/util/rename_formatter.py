@@ -331,8 +331,8 @@ def validate_format_string(format_string: str) -> tuple[bool, str]:
     except FormatParseError as e:
         return False, str(e)
 
-    # Warn on unknown tokens - not fatal (they just render empty), but surfacing
-    # the name helps the user. Walk the AST to collect TAG tokens.
+    # Unknown tokens are treated as a hard validation failure so the dialog
+    # can disable OK and the user knows the format won't do what they think.
     unknown: list[str] = []
     known = _all_known_tokens()
 
@@ -347,5 +347,5 @@ def validate_format_string(format_string: str) -> tuple[bool, str]:
     if unknown:
         unique = ", ".join(sorted(set(unknown)))
         log.debug(f"Unknown rename tokens: {unique}")
-        return True, f"Unknown tokens will render empty: {unique}"
+        return False, f"Unknown token(s): {unique}"
     return True, ""

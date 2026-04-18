@@ -201,9 +201,23 @@ def test_validate_format_string_reports_parse_errors():
     assert msg
 
 
-def test_validate_format_string_warns_on_unknown_token():
+def test_validate_format_string_rejects_unknown_token():
     ok, msg = validate_format_string("%ARTIST% - %NOTATHING%")
-    assert ok is True
+    assert ok is False
+    assert "NOTATHING" in msg
+
+
+def test_validate_format_string_rejects_multiple_unknown_tokens():
+    ok, msg = validate_format_string("%FOO% - %BAR% - %ARTIST%")
+    assert ok is False
+    # Both unknown tokens listed (alphabetized, deduped).
+    assert "BAR" in msg
+    assert "FOO" in msg
+
+
+def test_validate_format_string_rejects_unknown_token_inside_optional():
+    ok, msg = validate_format_string("[%NOTATHING% - ]?%ARTIST%")
+    assert ok is False
     assert "NOTATHING" in msg
 
 
