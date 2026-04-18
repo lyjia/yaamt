@@ -67,6 +67,52 @@ def test_padding_negative_number():
     assert format_filename("%TRACKNUMBER:000%", tokens) == "-003"
 
 
+def test_initialkey_pads_leading_digits_of_camelot_notation():
+    # "7A" with :00 -> "07A". The Camelot special case pads the numeric
+    # prefix while preserving the trailing letter.
+    tokens = {"INITIALKEY": "7A"}
+    assert format_filename("%INITIALKEY:00%", tokens) == "07A"
+
+
+def test_initialkey_leaves_two_digit_camelot_unchanged():
+    tokens = {"INITIALKEY": "11B"}
+    assert format_filename("%INITIALKEY:00%", tokens) == "11B"
+
+
+def test_initialkey_pads_to_requested_width():
+    tokens = {"INITIALKEY": "1A"}
+    assert format_filename("%INITIALKEY:000%", tokens) == "001A"
+
+
+def test_initialkey_without_digits_unchanged():
+    # Traditional notation like "Am" or "C#m" has no leading digits - padding
+    # is a no-op.
+    tokens = {"INITIALKEY": "Am"}
+    assert format_filename("%INITIALKEY:00%", tokens) == "Am"
+
+
+def test_initialkey_empty_value_stays_empty():
+    tokens = {"INITIALKEY": ""}
+    assert format_filename("%INITIALKEY:00%", tokens) == ""
+
+
+def test_initialkey_purely_numeric_value_padded():
+    tokens = {"INITIALKEY": "7"}
+    assert format_filename("%INITIALKEY:00%", tokens) == "07"
+
+
+def test_initialkey_unpadded_token_renders_verbatim():
+    tokens = {"INITIALKEY": "7A"}
+    assert format_filename("%INITIALKEY%", tokens) == "7A"
+
+
+def test_camelot_special_case_does_not_apply_to_other_tokens():
+    # Only INITIALKEY gets the leading-digit pad. Other tokens fall back to
+    # the strict fully-numeric rule, so "2Pac" stays "2Pac" even with :00.
+    tokens = _simple_tokens(ARTIST="2Pac")
+    assert format_filename("%ARTIST:00%", tokens) == "2Pac"
+
+
 def test_optional_section_renders_when_present():
     tokens = _simple_tokens(ARTIST="Raiden", TITLE="Infection",
                             REMIXER="E-Sassin")

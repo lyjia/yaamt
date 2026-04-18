@@ -11,6 +11,11 @@ Format language:
                             where N is the number of '0' characters after the
                             colon. Non-numeric values render unchanged, and
                             values exceeding the pad width render unchanged.
+                            Special case: %INITIALKEY:00% pads the leading
+                            numeric portion of a Camelot-notation key while
+                            preserving the trailing letter (e.g. "7A" -> "07A",
+                            "11B" stays "11B"). No other token has a mixed
+                            numeric/alphabetic pad behavior.
     <section>               Optional section. Renders only if every TAG token
                             directly inside the section resolves to a non-empty
                             value. Sections may be nested; a nested section
@@ -34,11 +39,21 @@ from util.const import (
     ALL_FORMATTING_TAGS,
     ALL_TAGS,
     EXTRA_RENAME_TAGS,
+    KEY_INITIAL_KEY,
     RENAME_SECTION_STREAM_INFO,
     RENAME_SECTION_TAGS,
     STREAM_INFO_LABELS,
 )
 from util.logging import log
+
+
+# Token for KEY_INITIAL_KEY - used by the special Camelot padding rule.
+_INITIAL_KEY_TOKEN = KEY_INITIAL_KEY.upper()
+
+# Matches a run of digits at the very start of a string, optionally preceded
+# by a minus sign. Used for both the default numeric pad and the mixed
+# numeric/alphabetic pad that the Camelot special case relies on.
+_LEADING_NUMERIC_RE = re.compile(r"^(-?)(\d+)(.*)$", re.DOTALL)
 
 
 # Characters that are invalid in filenames on at least one supported OS. We
@@ -215,19 +230,43 @@ def _parse_section(
 # ---------------------------------------------------------------------------
 
 
+def _pad_fully_numeric(value: str, pad: int) -> str:
+    """Pad value if it is entirely numeric; return value unchanged otherwise."""
+    stripped = value.strip()
+    if stripped and stripped.lstrip("-").isdigit():
+        n = int(stripped)
+        formatted = f"{abs(n):0{pad}d}"
+        if n < 0:
+            formatted = f"-{formatted}"
+        return formatted
+    return value
+
+
+def _pad_leading_numeric(value: str, pad: int) -> str:
+    """
+    Pad the leading numeric portion of value, preserving any trailing content.
+
+    Used exclusively for Camelot-notation keys (e.g. "7A" -> "07A"). If the
+    value has no leading digits the input is returned unchanged.
+    """
+    m = _LEADING_NUMERIC_RE.match(value.strip())
+    if m is None:
+        return value
+    sign, digits, rest = m.groups()
+    n = int(digits)
+    return f"{sign}{n:0{pad}d}{rest}"
+
+
 def _render_tag(node: dict[str, Any], token_map: dict[str, str]) -> str:
     """Render a single TAG node, applying numeric padding if requested."""
     value = token_map.get(node["token"], "")
     pad = node["pad"]
-    if pad and value:
-        stripped = value.strip()
-        if stripped and stripped.lstrip("-").isdigit():
-            n = int(stripped)
-            formatted = f"{abs(n):0{pad}d}"
-            if n < 0:
-                formatted = f"-{formatted}"
-            return formatted
-    return value
+    if not pad or not value:
+        return value
+    if node["token"] == _INITIAL_KEY_TOKEN:
+        # Camelot / mixed notation: pad leading digits, keep letter suffix.
+        return _pad_leading_numeric(value, pad)
+    return _pad_fully_numeric(value, pad)
 
 
 def _render_nodes(
