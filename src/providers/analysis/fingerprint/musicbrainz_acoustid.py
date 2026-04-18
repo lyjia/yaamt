@@ -352,99 +352,23 @@ def _resolve_api_key() -> str:
 
 
 # AcoustID API key validation -----------------------------------------------
-
-# AcoustID's /v2/lookup endpoint authenticates the supplied client (API) key
-# before it parses any other parameter. We send a probe lookup with a
-# deliberately bogus fingerprint and read the response:
-#   - ``{"status": "ok", ...}``                  → key + params accepted
-#   - ``{"status": "error", "error": {"code": K}}`` → see below
 #
-# Codes 4 ("invalid API key") and 16 ("unknown application") mean the key
-# itself was rejected. Any OTHER error code (e.g. 3 "invalid fingerprint",
-# 7 "invalid duration") means our PROBE was rejected — but the request
-# still got past authentication, so the key is good. We treat that as a
-# successful verification rather than reporting it to the user as a
-# rejection.
+# Intentionally a no-op. We tried calling out to /v2/lookup with a probe
+# fingerprint, but AcoustID validates request parameters before the client
+# key — a malformed probe returns HTTP 400 (no structured error code to
+# inspect), and finding a valid-but-tiny Chromaprint payload that AcoustID
+# accepts proved fragile across API revisions. The first analysis run
+# surfaces AcoustID's own error message in the analyzer summary if the key
+# is bad, which is a more reliable signal than guessing in Preferences.
 #
-# AcoustID error code reference: https://acoustid.org/webservice
-_ACOUSTID_LOOKUP_URL = "https://api.acoustid.org/v2/lookup"
-_ACOUSTID_KEY_REJECTED_CODES = {
-    4,   # Invalid API key
-    16,  # Unknown application (the application this key belongs to was disabled)
-}
-_ACOUSTID_VERIFY_TIMEOUT_SECONDS = 10
-_ACOUSTID_USER_AGENT = "yaamt-acoustid-verify/1.0"
-
-# A throwaway Chromaprint string and short duration used purely to satisfy
-# the endpoint's required parameters; the server is expected to reject the
-# fingerprint. We only care whether the key passed authentication.
-_VERIFY_PROBE_FINGERPRINT = "AQAAAA"
-_VERIFY_PROBE_DURATION = "30"
+# The function is kept (rather than removed) so the ``ApiKeyField``
+# verifier-callable plumbing stays in place for any future integration
+# whose service does have a cheap ping endpoint.
 
 
 def verify_acoustid_api_key(api_key: str) -> tuple[bool, str | None]:
-    """Validate an AcoustID API key by issuing a probe lookup.
-
-    Designed to be wired into ``windows.widgets.api_key_field.ApiKeyField``
-    as its ``verifier`` callable. Returns ``(True, None)`` when AcoustID
-    accepts the key (regardless of whether the probe lookup matched
-    anything), or ``(False, error_message)`` when the service rejects the
-    key or the request can't reach the network.
-    """
-    import json
-    import urllib.error
-    import urllib.parse
-    import urllib.request
-
-    if not api_key:
-        log.debug("AcoustID verify: empty key, returning early")
-        return False, "Empty API key"
-
-    params = {
-        "client": api_key,
-        "duration": _VERIFY_PROBE_DURATION,
-        "fingerprint": _VERIFY_PROBE_FINGERPRINT,
-        "format": "json",
-    }
-    url = f"{_ACOUSTID_LOOKUP_URL}?{urllib.parse.urlencode(params)}"
-    request = urllib.request.Request(url, headers={"User-Agent": _ACOUSTID_USER_AGENT})
-    log.info(
-        f"AcoustID verify: probing {_ACOUSTID_LOOKUP_URL} with key suffix "
-        f"...{api_key[-4:] if len(api_key) >= 4 else '***'}"
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=_ACOUSTID_VERIFY_TIMEOUT_SECONDS) as response:
-            raw = response.read().decode("utf-8")
-            status = getattr(response, "status", "?")
-            log.debug(f"AcoustID verify: HTTP {status} response body: {raw}")
-            payload = json.loads(raw)
-    except urllib.error.URLError as e:
-        log.warning(f"AcoustID verify: network error: {e}")
-        return False, f"Network error: {e.reason}"
-    except (ValueError, TimeoutError) as e:
-        log.warning(f"AcoustID verify: could not parse response: {e}")
-        return False, f"Could not contact AcoustID: {e}"
-
-    if payload.get("status") == "ok":
-        log.info("AcoustID verify: key accepted (status=ok)")
-        return True, None
-
-    err = payload.get("error", {}) if isinstance(payload, dict) else {}
-    code = err.get("code")
-    message = err.get("message") or "AcoustID rejected the request"
-
-    if code in _ACOUSTID_KEY_REJECTED_CODES:
-        log.info(f"AcoustID verify: key rejected (code={code}, message={message!r})")
-        return False, "Invalid API key"
-
-    # The endpoint accepted the key but rejected our probe parameters —
-    # treat that as a successful key validation. Log so the line is in the
-    # debug trail when someone investigates.
-    log.info(
-        f"AcoustID verify: key accepted; probe rejected as expected "
-        f"(code={code}, message={message!r})"
-    )
+    """No-op verifier: any value the user typed is accepted as-is."""
+    log.debug("AcoustID verify: accepting key (no remote validation performed)")
     return True, None
 
 

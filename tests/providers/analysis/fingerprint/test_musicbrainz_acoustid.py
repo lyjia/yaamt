@@ -553,125 +553,24 @@ class TestSettingsWidgetRequirements:
 
 
 class TestVerifyAcoustidApiKey:
-    """Tests for ``verify_acoustid_api_key`` — the helper passed to
-    ``ApiKeyField`` as its verifier callable."""
+    """``verify_acoustid_api_key`` is intentionally a no-op (see comment in
+    musicbrainz_acoustid.py). These tests pin that contract so we don't
+    accidentally bring back the unreliable probe-lookup approach.
+    """
 
-    def _patch_urlopen(self, monkeypatch, payload=None, raises=None):
-        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
-        import io
-        import json
-        import urllib.request
-
-        class _FakeResponse:
-            def __init__(self, body: bytes):
-                self._buf = io.BytesIO(body)
-
-            def read(self):
-                return self._buf.read()
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-        def fake_urlopen(url, timeout=None):
-            if raises is not None:
-                raise raises
-            return _FakeResponse(json.dumps(payload).encode("utf-8"))
-
-        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen) \
-            if hasattr(mod, "urllib") else \
-            monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
-
-    def test_empty_key_rejected_without_network(self, monkeypatch):
-        # If the verifier ever calls the network with an empty key, this
-        # assertion explodes.
+    def test_no_op_accepts_anything(self, monkeypatch):
+        # Belt-and-suspenders: if a future change adds a network call,
+        # this assertion blows up because our verifier should never
+        # actually open a socket.
         import urllib.request
         monkeypatch.setattr(
             urllib.request, "urlopen",
-            lambda *a, **kw: (_ for _ in ()).throw(AssertionError("no network for empty key")),
+            lambda *a, **kw: (_ for _ in ()).throw(AssertionError("no network expected")),
         )
         from providers.analysis.fingerprint.musicbrainz_acoustid import (
             verify_acoustid_api_key,
         )
-        ok, error = verify_acoustid_api_key("")
-        assert ok is False
-        assert error and "empty" in error.lower()
-
-    def test_status_ok_means_valid_key(self, monkeypatch):
-        self._patch_urlopen(monkeypatch, payload={"status": "ok", "results": []})
-        from providers.analysis.fingerprint.musicbrainz_acoustid import (
-            verify_acoustid_api_key,
-        )
-        ok, error = verify_acoustid_api_key("good-key")
-        assert ok is True
-        assert error is None
-
-    def test_error_code_4_means_invalid_key(self, monkeypatch):
-        self._patch_urlopen(
-            monkeypatch,
-            payload={"status": "error", "error": {"code": 4, "message": "invalid api key"}},
-        )
-        from providers.analysis.fingerprint.musicbrainz_acoustid import (
-            verify_acoustid_api_key,
-        )
-        ok, error = verify_acoustid_api_key("bad-key")
-        assert ok is False
-        assert "Invalid API key" in error
-
-    def test_unknown_application_code_means_invalid_key(self, monkeypatch):
-        # Code 16 = "Unknown application"; the key's application has been
-        # disabled or never existed — same user-facing meaning as code 4.
-        self._patch_urlopen(
-            monkeypatch,
-            payload={"status": "error", "error": {"code": 16, "message": "unknown application"}},
-        )
-        from providers.analysis.fingerprint.musicbrainz_acoustid import (
-            verify_acoustid_api_key,
-        )
-        ok, error = verify_acoustid_api_key("some-key")
-        assert ok is False
-        assert "Invalid API key" in error
-
-    def test_invalid_fingerprint_error_means_key_is_valid(self, monkeypatch):
-        # Code 3 means the server rejected our probe fingerprint — but the
-        # request still got past authentication, so the key itself is valid.
-        # Treating this as a verification failure is what made every real
-        # key look "invalid" to the user.
-        self._patch_urlopen(
-            monkeypatch,
-            payload={"status": "error", "error": {"code": 3, "message": "invalid fingerprint"}},
-        )
-        from providers.analysis.fingerprint.musicbrainz_acoustid import (
-            verify_acoustid_api_key,
-        )
-        ok, error = verify_acoustid_api_key("real-good-key")
-        assert ok is True
-        assert error is None
-
-    def test_invalid_duration_error_means_key_is_valid(self, monkeypatch):
-        # Code 7 = "invalid duration". Same reasoning as code 3.
-        self._patch_urlopen(
-            monkeypatch,
-            payload={"status": "error", "error": {"code": 7, "message": "invalid duration"}},
-        )
-        from providers.analysis.fingerprint.musicbrainz_acoustid import (
-            verify_acoustid_api_key,
-        )
-        ok, error = verify_acoustid_api_key("real-good-key")
-        assert ok is True
-        assert error is None
-
-    def test_network_failure_returns_clear_error(self, monkeypatch):
-        import urllib.error
-        self._patch_urlopen(
-            monkeypatch,
-            raises=urllib.error.URLError("Connection refused"),
-        )
-        from providers.analysis.fingerprint.musicbrainz_acoustid import (
-            verify_acoustid_api_key,
-        )
-        ok, error = verify_acoustid_api_key("some-key")
-        assert ok is False
-        assert "Network error" in error
+        for value in ("any-real-looking-key", "", "   ", "x"):
+            ok, error = verify_acoustid_api_key(value)
+            assert ok is True, f"verifier rejected {value!r}"
+            assert error is None
