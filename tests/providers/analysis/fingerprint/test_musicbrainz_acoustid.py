@@ -248,6 +248,43 @@ class TestSuccessPath:
         # Fingerprint is opt-in — must be absent by default.
         assert KEY_ACOUSTID_FINGERPRINT not in result.data
 
+    def test_score_is_written_and_truncated_to_four_decimals(
+        self, media_file, stub_resolvers, monkeypatch
+    ):
+        from util.const import KEY_ACOUSTID_SCORE
+
+        fake = types.ModuleType("acoustid")
+        fake.fingerprint_file = lambda p, force_fpcalc=None: (SAMPLE_DURATION, SAMPLE_FINGERPRINT_BYTES)
+        fake.lookup = lambda a, f, d, meta=None: {
+            "status": "ok",
+            "results": [
+                {
+                    "id": SAMPLE_ACOUSTID,
+                    "score": 0.9523456789,
+                    "recordings": [{"id": SAMPLE_MBID, "title": "Test"}],
+                }
+            ],
+        }
+        monkeypatch.setitem(sys.modules, "acoustid", fake)
+
+        result = MusicBrainzAcoustIDAnalyzer(media_file).analyze()
+        assert result.success is True
+        assert result.data[KEY_ACOUSTID_SCORE] == "0.9523"
+
+    def test_score_absent_on_skip(self, media_file, stub_resolvers, monkeypatch):
+        """Skipped (no confident match) results must not write a score —
+        the requirement is 'only when a match is confirmed'."""
+        from util.const import KEY_ACOUSTID_SCORE
+
+        fake = types.ModuleType("acoustid")
+        fake.fingerprint_file = lambda p, force_fpcalc=None: (SAMPLE_DURATION, SAMPLE_FINGERPRINT_BYTES)
+        fake.lookup = lambda a, f, d, meta=None: {"status": "ok", "results": []}
+        monkeypatch.setitem(sys.modules, "acoustid", fake)
+
+        result = MusicBrainzAcoustIDAnalyzer(media_file).analyze()
+        assert result.skipped is True
+        assert KEY_ACOUSTID_SCORE not in result.data
+
     def test_fpcalc_env_var_overrides_during_call_and_restores_after(
         self, media_file, monkeypatch
     ):

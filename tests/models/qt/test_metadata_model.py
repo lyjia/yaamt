@@ -4,11 +4,50 @@ import json
 import pytest
 
 from models.media_file import MediaFile
-from models.qt.metadata_model import MetadataTableModel
+from models.qt.metadata_model import (
+    MetadataTableModel,
+    _format_acoustid_fingerprint_cell,
+    _format_mbid_cell,
+)
 from util.const import (
     PROJECT_ROOT, KEY_FILE_TYPE_HUMAN, KEY_TITLE, KEY_ARTIST,
     KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_IS_MEDIA, KEY_TAG_GENERIC, IN_GITHUB_RUNNER
 )
+
+
+class TestFingerprintColumnFormatters:
+    """The AcoustID Fingerprint and MBID columns synthesise their cell
+    text from multiple underlying tags; pin the composite strings so a
+    later refactor doesn't quietly change what the user sees."""
+
+    def test_mbid_cell_empty_when_tag_absent(self):
+        assert _format_mbid_cell(None) == ""
+        assert _format_mbid_cell("") == ""
+
+    def test_mbid_cell_checkmark_when_tag_present(self):
+        assert _format_mbid_cell("abc-uuid") == "\u2713"
+
+    def test_fingerprint_cell_empty_when_tag_absent(self):
+        assert _format_acoustid_fingerprint_cell(None, None) == ""
+        # Even with a score, the checkmark shouldn't appear without the
+        # underlying fingerprint tag.
+        assert _format_acoustid_fingerprint_cell(None, "0.9") == ""
+
+    def test_fingerprint_cell_checkmark_without_score(self):
+        assert _format_acoustid_fingerprint_cell("AQAD...", None) == "\u2713"
+        assert _format_acoustid_fingerprint_cell("AQAD...", "") == "\u2713"
+
+    def test_fingerprint_cell_checkmark_with_score_4dp(self):
+        # Formatter rounds to 4 decimal places regardless of how the
+        # score got stored (analyzer already truncates, but be tolerant
+        # if an external tool wrote a longer value).
+        assert _format_acoustid_fingerprint_cell("AQAD...", "0.9523") == "\u2713 (0.9523)"
+        assert _format_acoustid_fingerprint_cell("AQAD...", "0.95234567") == "\u2713 (0.9523)"
+        assert _format_acoustid_fingerprint_cell("AQAD...", 0.5) == "\u2713 (0.5000)"
+
+    def test_fingerprint_cell_gracefully_ignores_unparseable_score(self):
+        # Defensive: a garbage score shouldn't prevent the checkmark.
+        assert _format_acoustid_fingerprint_cell("AQAD...", "not-a-number") == "\u2713"
 
 # Define the directory containing the test fixtures.
 FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "metadata"

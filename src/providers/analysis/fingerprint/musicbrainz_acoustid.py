@@ -26,6 +26,7 @@ from util.analyzer_options import AnalyzerOption
 from util.const import (
     KEY_ACOUSTID_FINGERPRINT,
     KEY_ACOUSTID_ID,
+    KEY_ACOUSTID_SCORE,
     KEY_COMMENT,
     KEY_LENGTH,
     KEY_MUSICBRAINZ_RECORDING_ID,
@@ -196,10 +197,20 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
                 error="AcoustID response missing required IDs",
             )
 
+        # The score AcoustID reports describes the confidence of the whole
+        # result cluster (AcoustID UUID + linked recordings), not an
+        # individual MBID — that's why the stored tag is acoustid_score.
+        # Trim to 4 decimal places per user spec; anything beyond that is
+        # noise and just bloats the tag text.
+        score_raw = top.get("score")
+        score_str = f"{float(score_raw):.4f}" if score_raw is not None else None
+
         result_data: dict[str, Any] = {
             KEY_MUSICBRAINZ_RECORDING_ID: mbid,
             KEY_ACOUSTID_ID: acoustid_uuid,
         }
+        if score_str is not None:
+            result_data[KEY_ACOUSTID_SCORE] = score_str
         if store_fingerprint:
             result_data[KEY_ACOUSTID_FINGERPRINT] = fingerprint.decode("ascii") if isinstance(fingerprint, bytes) else fingerprint
 

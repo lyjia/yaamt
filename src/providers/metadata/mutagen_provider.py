@@ -12,7 +12,7 @@ from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, K
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
     KEY_ALBUM_ARTIST_SORT, KEY_ALBUM_SORT, KEY_COMPOSER_SORT, KEY_ARTIST_SORT, KEY_TITLE_SORT, KEY_ISRC, \
     KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE, KEY_COMMENT, KEY_MUSICBRAINZ_RECORDING_ID, KEY_ACOUSTID_ID, \
-    KEY_ACOUSTID_FINGERPRINT
+    KEY_ACOUSTID_FINGERPRINT, KEY_ACOUSTID_SCORE
 from util.exceptions import SomethingsReallyFuckedUpException, InvalidFileError
 from util.logging import log
 from .base import MetadataProviderBase
@@ -127,6 +127,10 @@ EasyID3.RegisterKey(KEY_MUSICBRAINZ_RECORDING_ID, mbid_get, mbid_set, mbid_delet
 # easy-mode passes through directly so no extra Vorbis registration is needed.
 EasyID3.RegisterTXXXKey(KEY_ACOUSTID_ID, 'Acoustid Id')
 EasyID3.RegisterTXXXKey(KEY_ACOUSTID_FINGERPRINT, 'Acoustid Fingerprint')
+# AcoustID match confidence. Not part of Picard's canonical set but
+# follows the same TXXX/Vorbis naming convention so third-party tools can
+# read it without guessing.
+EasyID3.RegisterTXXXKey(KEY_ACOUSTID_SCORE, 'Acoustid Score')
 
 MUT_EASY_TAG_NAMES = ['album',
                       'bpm',
@@ -163,6 +167,7 @@ MUT_EASY_TAG_NAMES = ['album',
                       KEY_MUSICBRAINZ_RECORDING_ID,
                       KEY_ACOUSTID_ID,
                       KEY_ACOUSTID_FINGERPRINT,
+                      KEY_ACOUSTID_SCORE,
                       # doesnt appear in above comment for some reason?
                       'genre'] #TODO: figure out why
 
@@ -203,6 +208,7 @@ MUTAGEN_TO_GENERIC_MAP = {
     KEY_MUSICBRAINZ_RECORDING_ID: KEY_MUSICBRAINZ_RECORDING_ID,
     KEY_ACOUSTID_ID: KEY_ACOUSTID_ID,
     KEY_ACOUSTID_FINGERPRINT: KEY_ACOUSTID_FINGERPRINT,
+    KEY_ACOUSTID_SCORE: KEY_ACOUSTID_SCORE,
     'genre': KEY_GENRE,
 }
 

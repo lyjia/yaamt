@@ -86,6 +86,11 @@ KEY_YEAR = 'year'
 KEY_MUSICBRAINZ_RECORDING_ID = 'musicbrainz_recordingid'
 KEY_ACOUSTID_ID = 'acoustid_id'
 KEY_ACOUSTID_FINGERPRINT = 'acoustid_fingerprint'
+# AcoustID match confidence (0.0-1.0). The score attaches to the AcoustID
+# cluster result, not to individual MusicBrainz recordings, so it's named
+# acoustid_score rather than musicbrainz_score. Only written when a match
+# is confirmed.
+KEY_ACOUSTID_SCORE = 'acoustid_score'
 
 # Tags that are end-user-editable text fields. Used by tag transformers to
 # decide which tags should be whitespace-trimmed, empty-string-normalized, etc.
@@ -121,6 +126,7 @@ ALL_TAGS = { #display names for each tag
     KEY_MUSICBRAINZ_RECORDING_ID: "MusicBrainz Recording ID",
     KEY_ACOUSTID_ID: "AcoustID ID",
     KEY_ACOUSTID_FINGERPRINT: "AcoustID Fingerprint",
+    KEY_ACOUSTID_SCORE: "AcoustID Score",
 }
 
 # Section headers used in ALL_FORMATTING_TAGS.
@@ -189,6 +195,11 @@ COL_MAIN_ALBUM = KEY_ALBUM
 COL_MAIN_GENRE = KEY_GENRE
 COL_MAIN_BPM = KEY_BPM
 COL_MAIN_KEY = KEY_INITIAL_KEY
+# Composite columns for the fingerprint analyzer: the cell shows a green
+# check (or nothing) to indicate presence of the underlying tag, with the
+# AcoustID match score in parentheses on the fingerprint column only.
+COL_MAIN_ACOUSTID_FINGERPRINT = "col_acoustid_fingerprint"
+COL_MAIN_MBID = "col_musicbrainz_recordingid"
 
 GROUP_FILE = "file"
 GROUP_META = "metadata"
@@ -204,7 +215,12 @@ AVAILABLE_COLUMNS = { # for right-side file pane
     COL_MAIN_ALBUM: {"id": COL_MAIN_ALBUM, "group": GROUP_META, "label": ALL_TAGS[KEY_ALBUM], "width": 150, "is_visible": True, "is_writable": True},
     COL_MAIN_GENRE: {"id": COL_MAIN_GENRE, "group": GROUP_META, "label": ALL_TAGS[KEY_GENRE], "width": 100, "is_visible": True, "is_writable": True},
     COL_MAIN_BPM: {"id": COL_MAIN_BPM, "group": GROUP_META, "label": ALL_TAGS[KEY_BPM], "width": 50, "is_visible": True, "is_writable": True},
-    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_INITIAL_KEY], "width": 50, "is_visible": True, "is_writable": True}
+    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_INITIAL_KEY], "width": 50, "is_visible": True, "is_writable": True},
+
+    # Computed columns — not directly editable; their cell text is built
+    # from underlying tags in MetadataTableModel.data().
+    COL_MAIN_ACOUSTID_FINGERPRINT: {"id": COL_MAIN_ACOUSTID_FINGERPRINT, "group": GROUP_META, "label": "AcoustID Fingerprint", "width": 140, "is_visible": False, "is_writable": False},
+    COL_MAIN_MBID: {"id": COL_MAIN_MBID, "group": GROUP_META, "label": "MusicBrainz Recording ID", "width": 140, "is_visible": False, "is_writable": False},
 }
 #### END column names for file list ####
 
