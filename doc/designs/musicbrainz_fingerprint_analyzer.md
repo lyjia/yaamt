@@ -57,7 +57,7 @@ returns a clear error message rather than crashing.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
-| `min_score` | float 0.0–1.0 | 0.85 | Minimum AcoustID match score; below this, skip file |
+| `min_score` | float 0.0–1.0 | 0.90 | Minimum AcoustID match score; below this, skip file. Chosen to favour conservative automated tagging (few false positives) at the cost of more unmatched tracks. |
 | `require_unique_match` | bool | True | Skip when multiple results exceed the score threshold |
 | `store_fingerprint` | bool | False | Also write the raw Chromaprint value (~1–3 KB per file) |
 | `append_to_comments` | bool | False | Append / replace an `MBID: <uuid>` line in the Comments field |

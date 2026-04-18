@@ -39,6 +39,11 @@ class AnalyzerOption:
         max: Maximum value for numeric types
         interval: Step size for numeric types (determines if slider is used)
         suffix: Display suffix for GUI (e.g., '%', 'ms', 'Hz')
+        tooltip: Optional longer-form text rendered as the widget's
+            hover tooltip. When unset, GUI builders fall back to ``help``.
+            Use this to attach multi-line guidance (e.g. range
+            interpretation) without bloating the label shown next to
+            the control.
     """
     name: str
     type: str
@@ -49,6 +54,7 @@ class AnalyzerOption:
     max: float | None = None
     interval: float | None = None
     suffix: str | None = None
+    tooltip: str | None = None
 
     def __post_init__(self):
         """Validate option configuration."""

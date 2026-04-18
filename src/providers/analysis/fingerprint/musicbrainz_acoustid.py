@@ -103,7 +103,7 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
                 error="AcoustID API key not configured. Set one in Preferences > Integrations.",
             )
 
-        min_score = float(self.options.get("min_score", 0.85))
+        min_score = float(self.options.get("min_score", 0.90))
         require_unique_match = bool(self.options.get("require_unique_match", True))
         store_fingerprint = bool(self.options.get("store_fingerprint", False))
         append_to_comments = bool(self.options.get("append_to_comments", False))
@@ -241,11 +241,33 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
             AnalyzerOption(
                 name="min_score",
                 type="float",
-                default=0.85,
+                default=0.90,
                 min=0.0,
                 max=1.0,
                 interval=0.05,
-                help="Minimum AcoustID match score (0.0-1.0); below this a file is skipped",
+                help="Minimum AcoustID match score",
+                tooltip=(
+                    "The minimum AcoustID match confidence required to "
+                    "accept a result. Files scoring below this are "
+                    "skipped. Typical ranges:\n"
+                    "\n"
+                    "  0.95+  Essentially identical fingerprint; same "
+                    "encoding of the same recording.\n"
+                    "  0.85–0.95  Same recording, different encoding "
+                    "(e.g. different bitrate or format).\n"
+                    "  0.70–0.85  Probably the same recording, but "
+                    "encoding differences are large enough that mismatches "
+                    "start to appear.\n"
+                    "  0.50–0.70  Risky — could be a different take, "
+                    "remix, remaster, or cover.\n"
+                    "  below 0.50  AcoustID's own threshold for treating "
+                    "a result as low-confidence.\n"
+                    "\n"
+                    "The default 0.90 is conservative for automated "
+                    "tagging: few false positives, at the cost of more "
+                    "unmatched tracks. Lower it if you want to tag more "
+                    "aggressively and are willing to review results."
+                ),
             ),
             AnalyzerOption(
                 name="require_unique_match",

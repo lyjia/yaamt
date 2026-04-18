@@ -112,7 +112,7 @@ class TestRegistration:
 
     def test_options_metadata(self):
         options = {o.name: o for o in MusicBrainzAcoustIDAnalyzer.get_options_metadata()}
-        assert options["min_score"].default == 0.85
+        assert options["min_score"].default == 0.90
         assert options["require_unique_match"].default is True
         assert options["store_fingerprint"].default is False
         assert options["append_to_comments"].default is False
