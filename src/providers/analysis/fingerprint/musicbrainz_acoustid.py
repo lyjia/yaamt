@@ -23,16 +23,15 @@ from providers import analyzer
 from providers.analysis import AnalyzerBase, AnalyzerCategory, AnalyzerResult
 from util.analyzer_options import AnalyzerOption
 from util.const import (
-    DEFAULT_ACOUSTID_API_KEY,
     KEY_ACOUSTID_FINGERPRINT,
     KEY_ACOUSTID_ID,
     KEY_COMMENT,
     KEY_LENGTH,
     KEY_MUSICBRAINZ_RECORDING_ID,
     SETTINGS_ACOUSTID_API_KEY,
-    SETTINGS_FPCALC_PATH,
 )
 from util.logging import log
+from util.resource_manager import ResourceMetadata, get_resource_manager
 
 
 # AcoustID's own requirement for a usable fingerprint. Below this we don't
@@ -45,6 +44,12 @@ ANALYZER_THREAD_COUNT = 1
 
 # Marker used when appending the MBID to the Comments field.
 COMMENT_MARKER = "MBID:"
+
+# Resource identifier for the Chromaprint fpcalc binary, registered with
+# the global ResourceManager so it shows up in Preferences > Resources.
+FPCALC_RESOURCE_ID = "chromaprint_fpcalc"
+FPCALC_BINARY_NAME = "fpcalc.exe" if os.name == "nt" else "fpcalc"
+CHROMAPRINT_DOWNLOAD_URL = "https://acoustid.org/chromaprint"
 
 
 @analyzer(AnalyzerCategory.FINGERPRINT)
@@ -82,14 +87,18 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
         if fpcalc_path is None:
             return AnalyzerResult(
                 success=False,
-                error="Chromaprint fpcalc not found. Set the path in Preferences > Resources.",
+                error=(
+                    "Chromaprint fpcalc not found. Install it from "
+                    f"{CHROMAPRINT_DOWNLOAD_URL} and locate it in "
+                    "Preferences > Resources."
+                ),
             )
 
         api_key = _resolve_api_key()
         if not api_key:
             return AnalyzerResult(
                 success=False,
-                error="AcoustID API key not configured. Set one in Preferences > Resources.",
+                error="AcoustID API key not configured. Set one in Preferences > Integrations.",
             )
 
         min_score = float(self.options.get("min_score", 0.85))
@@ -226,22 +235,48 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
             )
         return (True, None)
 
+    @classmethod
+    def get_required_resources(cls) -> list[ResourceMetadata]:
+        # Chromaprint's fpcalc is distributed as a standalone binary. We list
+        # it in Preferences > Resources with a browser-opening Download action
+        # so the user lands on the Chromaprint download page and can install
+        # whichever build matches their OS. Locate... uses
+        # ``discovery_executable`` to preload the file dialog at the path
+        # reported by ``shutil.which`` if fpcalc is already on PATH.
+        return [
+            ResourceMetadata(
+                resource_id=FPCALC_RESOURCE_ID,
+                url=CHROMAPRINT_DOWNLOAD_URL,
+                filename=FPCALC_BINARY_NAME,
+                expected_size=0,
+                category="tools",
+                subdirectory="chromaprint",
+                display_name="Chromaprint fpcalc",
+                description=(
+                    "Command-line tool that computes Chromaprint acoustic "
+                    "fingerprints. Required by the MusicBrainz AcoustID "
+                    "analyzer."
+                ),
+                download_type="browser",
+                required_by="MusicBrainzAcoustIDAnalyzer",
+                discovery_executable="fpcalc",
+            )
+        ]
+
 
 def _resolve_fpcalc_path() -> str | None:
-    """QSettings override > FPCALC env var > shutil.which('fpcalc')."""
-    configured = get_qsettings().value(SETTINGS_FPCALC_PATH, "", type=str)
-    if configured and os.path.isfile(configured):
-        return configured
+    """Resource-manager custom location > FPCALC env var > PATH."""
+    rm = get_resource_manager()
+    custom = rm.get_custom_location(FPCALC_RESOURCE_ID)
+    if custom and custom.is_file():
+        return str(custom)
     env = os.environ.get("FPCALC")
     if env and os.path.isfile(env):
         return env
-    found = shutil.which("fpcalc")
-    return found
+    return shutil.which("fpcalc")
 
 
 def _resolve_api_key() -> str:
-    """Configured override (QSettings) takes precedence over bundled default."""
-    override = get_qsettings().value(SETTINGS_ACOUSTID_API_KEY, "", type=str)
-    if override:
-        return override
-    return DEFAULT_ACOUSTID_API_KEY
+    """Read the AcoustID API key from QSettings. No bundled fallback — the
+    user must supply their own key via Preferences > Integrations."""
+    return get_qsettings().value(SETTINGS_ACOUSTID_API_KEY, "", type=str)

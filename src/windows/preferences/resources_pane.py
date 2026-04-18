@@ -1,27 +1,18 @@
 """Resources preferences pane for managing external resources."""
-import os
 import shutil
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox,
-    QProgressDialog, QLineEdit
+    QProgressDialog
 )
 from PySide6.QtGui import QIcon, QColor
 from PySide6.QtCore import Qt, QThread, Signal
 
 from models.settings import get_qsettings
-from util.const import (
-    SETTINGS_ACOUSTID_API_KEY,
-    SETTINGS_FPCALC_PATH,
-    SETTINGS_RESOURCES_CACHE_ROOT,
-)
+from util.const import SETTINGS_RESOURCES_CACHE_ROOT
 from windows.preferences.base import PreferencePaneBase
 from util.resource_manager import get_resource_manager, ResourceMetadata
-
-
-FPCALC_BINARY_NAME = "fpcalc.exe" if os.name == "nt" else "fpcalc"
-ACOUSTID_API_KEY_SIGNUP_URL = "https://acoustid.org/api-key"
 
 
 class ResourcesPane(PreferencePaneBase):
@@ -105,74 +96,6 @@ class ResourcesPane(PreferencePaneBase):
 
         cache_group.setLayout(cache_layout)
         layout.addWidget(cache_group)
-
-        # External Tools section (Chromaprint fpcalc)
-        external_tools_group = QGroupBox("External Tools")
-        external_tools_layout = QVBoxLayout()
-
-        fpcalc_row = QHBoxLayout()
-        fpcalc_row.addWidget(QLabel("Chromaprint (fpcalc):"))
-
-        self.fpcalc_path_edit = QLineEdit()
-        self.fpcalc_path_edit.setReadOnly(True)
-        self.fpcalc_path_edit.setPlaceholderText("Not configured")
-        fpcalc_row.addWidget(self.fpcalc_path_edit, 1)
-
-        locate_fpcalc_btn = QPushButton("Locate...")
-        locate_fpcalc_btn.clicked.connect(self._on_locate_fpcalc)
-        fpcalc_row.addWidget(locate_fpcalc_btn)
-
-        detect_fpcalc_btn = QPushButton("Detect")
-        detect_fpcalc_btn.clicked.connect(self._on_detect_fpcalc)
-        fpcalc_row.addWidget(detect_fpcalc_btn)
-
-        external_tools_layout.addLayout(fpcalc_row)
-
-        self.fpcalc_status_label = QLabel()
-        self.fpcalc_status_label.setStyleSheet("font-size: 10px;")
-        external_tools_layout.addWidget(self.fpcalc_status_label)
-
-        fpcalc_info_label = QLabel(
-            "Chromaprint's <code>fpcalc</code> tool computes acoustic "
-            "fingerprints for the MusicBrainz AcoustID analyzer. "
-            "Install it separately (e.g. <code>apt install "
-            "libchromaprint-tools</code> or <code>brew install "
-            "chromaprint</code>), then use Detect or Locate to select the "
-            "binary."
-        )
-        fpcalc_info_label.setWordWrap(True)
-        fpcalc_info_label.setStyleSheet("color: gray; font-size: 10px;")
-        external_tools_layout.addWidget(fpcalc_info_label)
-
-        external_tools_group.setLayout(external_tools_layout)
-        layout.addWidget(external_tools_group)
-
-        # API Keys section (AcoustID)
-        api_keys_group = QGroupBox("API Keys")
-        api_keys_layout = QVBoxLayout()
-
-        acoustid_row = QHBoxLayout()
-        acoustid_row.addWidget(QLabel("AcoustID API key:"))
-
-        self.acoustid_api_key_edit = QLineEdit()
-        self.acoustid_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.acoustid_api_key_edit.setPlaceholderText("Using bundled key")
-        acoustid_row.addWidget(self.acoustid_api_key_edit, 1)
-
-        api_keys_layout.addLayout(acoustid_row)
-
-        acoustid_info_label = QLabel(
-            f'Register a free key at <a href="{ACOUSTID_API_KEY_SIGNUP_URL}">'
-            f"{ACOUSTID_API_KEY_SIGNUP_URL}</a> and paste it here to use your "
-            "own quota. Leave blank to use the bundled yaamt key."
-        )
-        acoustid_info_label.setOpenExternalLinks(True)
-        acoustid_info_label.setWordWrap(True)
-        acoustid_info_label.setStyleSheet("color: gray; font-size: 10px;")
-        api_keys_layout.addWidget(acoustid_info_label)
-
-        api_keys_group.setLayout(api_keys_layout)
-        layout.addWidget(api_keys_group)
 
         # Update cache path display
         self._update_cache_path_display()
@@ -410,7 +333,7 @@ class ResourcesPane(PreferencePaneBase):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             f"Locate {metadata.display_name or resource_id}",
-            "",
+            self._suggested_locate_path(metadata),
             file_filter
         )
 
@@ -425,49 +348,20 @@ class ResourcesPane(PreferencePaneBase):
                     "The selected file could not be found."
                 )
 
-    def _on_locate_fpcalc(self) -> None:
-        """Open a file chooser to locate the Chromaprint fpcalc binary."""
-        if os.name == "nt":
-            file_filter = "Executable (*.exe);;All Files (*.*)"
-        else:
-            file_filter = "All Files (*.*)"
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Locate Chromaprint fpcalc", "", file_filter
-        )
-        if file_path:
-            self._set_fpcalc_path(file_path)
+    def _suggested_locate_path(self, metadata: ResourceMetadata) -> str:
+        """
+        Return a best-guess starting path for the Locate... file dialog.
 
-    def _on_detect_fpcalc(self) -> None:
-        """Auto-detect fpcalc on $PATH via shutil.which."""
-        found = shutil.which("fpcalc")
-        if found:
-            self._set_fpcalc_path(found)
-        else:
-            QMessageBox.information(
-                self,
-                "fpcalc Not Found",
-                "Could not find 'fpcalc' on your PATH.\n\n"
-                "Install Chromaprint's command-line tools and try again, or "
-                "use Locate... to pick the binary manually.",
-            )
-
-    def _set_fpcalc_path(self, path: str) -> None:
-        """Validate, persist, and reflect a new fpcalc path in the UI."""
-        self.fpcalc_path_edit.setText(path)
-        self.settings.setValue(SETTINGS_FPCALC_PATH, path)
-        self._update_fpcalc_status(path)
-
-    def _update_fpcalc_status(self, path: str) -> None:
-        """Set the green/red status label based on the current fpcalc path."""
-        if path and os.path.isfile(path):
-            self.fpcalc_status_label.setText("Status: OK")
-            self.fpcalc_status_label.setStyleSheet("color: green; font-size: 10px;")
-        elif path:
-            self.fpcalc_status_label.setText("Status: File not found")
-            self.fpcalc_status_label.setStyleSheet("color: red; font-size: 10px;")
-        else:
-            self.fpcalc_status_label.setText("Status: Not configured")
-            self.fpcalc_status_label.setStyleSheet("color: gray; font-size: 10px;")
+        If the metadata declares a ``discovery_executable`` and that command
+        resolves via ``shutil.which``, the dialog opens at (and pre-selects)
+        that file. Otherwise returns an empty string so Qt uses its platform
+        default (usually the user's home directory).
+        """
+        if metadata.discovery_executable:
+            found = shutil.which(metadata.discovery_executable)
+            if found:
+                return found
+        return ""
 
     # PreferencePaneBase implementation
 
@@ -481,36 +375,20 @@ class ResourcesPane(PreferencePaneBase):
         )
 
     def load_from_settings(self) -> None:
-        """Load resources table and external-tool / API-key fields."""
+        """Load resources table."""
         self._populate_table()
-        fpcalc_path = self.settings.value(SETTINGS_FPCALC_PATH, "", type=str)
-        self.fpcalc_path_edit.setText(fpcalc_path)
-        self._update_fpcalc_status(fpcalc_path)
-        self.acoustid_api_key_edit.setText(
-            self.settings.value(SETTINGS_ACOUSTID_API_KEY, "", type=str)
-        )
 
     def save_to_settings(self) -> None:
-        """Persist the fields that are committed on Save (API key).
-
-        The fpcalc path is saved immediately by the Locate/Detect buttons,
-        so only the API-key text field needs to be flushed here.
-        """
-        self.settings.setValue(
-            SETTINGS_ACOUSTID_API_KEY,
-            self.acoustid_api_key_edit.text().strip(),
-        )
+        """No settings to save - custom locations are saved immediately."""
+        pass
 
     def validate(self) -> tuple[bool, str]:
         """No validation needed."""
         return True, ""
 
     def load_defaults(self) -> None:
-        """Clear all custom locations and reset external-tool / API-key fields."""
+        """Clear all custom locations."""
         rm = get_resource_manager()
         for resource_id in rm.get_all_registered_resources():
             rm.clear_custom_location(resource_id)
         self._populate_table()
-        self.fpcalc_path_edit.clear()
-        self._update_fpcalc_status("")
-        self.acoustid_api_key_edit.clear()

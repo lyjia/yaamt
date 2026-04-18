@@ -11,9 +11,11 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from util.const import (
     SETTINGS_GROUP_GENERAL, SETTINGS_GROUP_ANALYZERS_PREFERRED,
     SETTINGS_GROUP_ANALYZERS_CATEGORY_OPTIONS, SETTINGS_GROUP_RESOURCES,
+    SETTINGS_GROUP_INTEGRATIONS,
 )
 from windows.preferences.base import PreferencePaneBase
 from windows.preferences.general_pane import GeneralPane
+from windows.preferences.integrations_pane import IntegrationsPane
 from windows.preferences.metadata_pane import MetadataPane
 from windows.preferences.resources_pane import ResourcesPane
 
@@ -124,8 +126,9 @@ class PreferencesWindow(QDialog):
         general_pane = GeneralPane()
         metadata_pane = MetadataPane()
         resources_pane = ResourcesPane()
+        integrations_pane = IntegrationsPane()
 
-        self.panes = [general_pane, metadata_pane, resources_pane]
+        self.panes = [general_pane, metadata_pane, resources_pane, integrations_pane]
 
         # Add to UI
         for pane in self.panes:
@@ -191,3 +194,6 @@ class PreferencesWindow(QDialog):
 
         # Clear Resources settings
         self.settings.remove(SETTINGS_GROUP_RESOURCES)
+
+        # Clear Integrations settings
+        self.settings.remove(SETTINGS_GROUP_INTEGRATIONS)

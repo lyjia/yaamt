@@ -36,12 +36,19 @@ Reads prefer `UFID` and fall back to `TXXX`.
 
 - **`pyacoustid`** Python package — pip-installable; gracefully reported
   as missing if absent.
-- **Chromaprint `fpcalc`** — user-installed binary (e.g.
-  `apt install libchromaprint-tools`, `brew install chromaprint`).
-  Path is configurable in Preferences > Resources, or via the `FPCALC`
-  environment variable, or discovered on `$PATH`.
-- **AcoustID API key** — a bundled yaamt key ships by default; users may
-  override with their own key in Preferences > Resources.
+- **Chromaprint `fpcalc`** — registered as a resource
+  (`chromaprint_fpcalc`) in the global `ResourceManager` and surfaced in
+  Preferences > Resources alongside other downloadables like the KeyNet
+  CNN model. `download_type="browser"` opens the Chromaprint download
+  page; `discovery_executable="fpcalc"` makes the Locate... dialog
+  preselect `shutil.which("fpcalc")` when the binary is already on PATH.
+  At analyze time, the priority chain is:
+    1. User-set custom location (via Locate...),
+    2. `FPCALC` environment variable,
+    3. `shutil.which("fpcalc")`.
+- **AcoustID API key** — user-supplied, configured in Preferences >
+  Integrations. No default key is bundled; analysis fails with a clear
+  error until the user enters their own.
 
 All three are resolved at analyze time. If any is missing, the analyzer
 returns a clear error message rather than crashing.

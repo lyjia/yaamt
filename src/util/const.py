@@ -208,6 +208,7 @@ SETTINGS_GROUP_FILE_LIST = "file_list"
 SETTINGS_GROUP_ANALYZERS_PREFERRED = "Analyzers/Preferred"
 SETTINGS_GROUP_ANALYZERS_CATEGORY_OPTIONS = "Analyzers/CategoryOptions"
 SETTINGS_GROUP_RESOURCES = "Resources"
+SETTINGS_GROUP_INTEGRATIONS = "Integrations"
 
 # Sub-array keys within their groups
 SETTINGS_ARRAY_FAVORITES_LOCATIONS = "locations"
@@ -231,8 +232,7 @@ SETTINGS_BPM_RANGE_MIN = "Analyzers/CategoryOptions/bpm/range_min"
 SETTINGS_BPM_RANGE_MAX = "Analyzers/CategoryOptions/bpm/range_max"
 SETTINGS_BPM_DECIMAL_PLACES = "Analyzers/CategoryOptions/bpm/decimal_places"
 SETTINGS_KEY_NOTATION_FORMAT = "Analyzers/CategoryOptions/key/notation_format"
-SETTINGS_ACOUSTID_API_KEY = "Analyzers/CategoryOptions/fingerprint/acoustid_api_key"
-SETTINGS_FPCALC_PATH = "Resources/FpcalcPath"
+SETTINGS_ACOUSTID_API_KEY = "Integrations/AcoustID/api_key"
 
 # Prefix (not a complete key) for per-category preferred analyzer selection.
 # Use as f"{SETTINGS_ANALYZERS_PREFERRED_PREFIX}/{category_lower}".
@@ -250,7 +250,6 @@ BPM_RANGE_MIN_DEFAULT = 80
 BPM_RANGE_MAX_DEFAULT = 200
 KEY_NOTATION_FORMAT_DEFAULT = "standard_abbrev"
 STARTUP_DIR_MODE_DEFAULT = "last"
-DEFAULT_ACOUSTID_API_KEY = ""  # TODO: register yaamt with acoustid.org and insert a bundled key
 
 # Backwards-compatible aliases (these constants used to live in analyzer_options;
 # they are re-exported here so all settings paths are discoverable in one place).

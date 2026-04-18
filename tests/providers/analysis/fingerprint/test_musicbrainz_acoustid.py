@@ -294,36 +294,40 @@ class TestValidateFile:
 
 
 class TestFpcalcResolution:
-    def test_settings_override_wins(self, tmp_path, monkeypatch):
-        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
-        fake_fpcalc = tmp_path / "fpcalc"
-        fake_fpcalc.write_text("")
+    """Tests for ``_resolve_fpcalc_path`` — the priority chain is
+    ResourceManager custom location → FPCALC env var → ``shutil.which``."""
 
-        class FakeQSettings:
-            def value(self, key, default, type=None):
-                return str(fake_fpcalc)
-        monkeypatch.setattr(mod, "get_qsettings", lambda: FakeQSettings())
-        assert mod._resolve_fpcalc_path() == str(fake_fpcalc)
+    def test_custom_location_wins(self, tmp_path, monkeypatch):
+        from providers.analysis.fingerprint import musicbrainz_acoustid as mod
+        fake = tmp_path / "fpcalc"
+        fake.write_text("")
+
+        class FakeRM:
+            def get_custom_location(self, rid):
+                return fake
+        monkeypatch.setattr(mod, "get_resource_manager", lambda: FakeRM())
+        monkeypatch.setenv("FPCALC", "/should/not/be/used")
+        assert mod._resolve_fpcalc_path() == str(fake)
 
     def test_env_var_fallback(self, tmp_path, monkeypatch):
         from providers.analysis.fingerprint import musicbrainz_acoustid as mod
-        fake_fpcalc = tmp_path / "fpcalc"
-        fake_fpcalc.write_text("")
+        fake = tmp_path / "fpcalc"
+        fake.write_text("")
 
-        class FakeQSettings:
-            def value(self, key, default, type=None):
-                return ""
-        monkeypatch.setattr(mod, "get_qsettings", lambda: FakeQSettings())
-        monkeypatch.setenv("FPCALC", str(fake_fpcalc))
-        assert mod._resolve_fpcalc_path() == str(fake_fpcalc)
+        class FakeRM:
+            def get_custom_location(self, rid):
+                return None
+        monkeypatch.setattr(mod, "get_resource_manager", lambda: FakeRM())
+        monkeypatch.setenv("FPCALC", str(fake))
+        assert mod._resolve_fpcalc_path() == str(fake)
 
-    def test_which_fallback(self, monkeypatch):
+    def test_path_fallback(self, monkeypatch):
         from providers.analysis.fingerprint import musicbrainz_acoustid as mod
 
-        class FakeQSettings:
-            def value(self, key, default, type=None):
-                return ""
-        monkeypatch.setattr(mod, "get_qsettings", lambda: FakeQSettings())
+        class FakeRM:
+            def get_custom_location(self, rid):
+                return None
+        monkeypatch.setattr(mod, "get_resource_manager", lambda: FakeRM())
         monkeypatch.delenv("FPCALC", raising=False)
         with patch.object(mod.shutil, "which", return_value="/tmp/fpcalc-from-path"):
             assert mod._resolve_fpcalc_path() == "/tmp/fpcalc-from-path"
@@ -331,10 +335,38 @@ class TestFpcalcResolution:
     def test_none_when_nothing_found(self, monkeypatch):
         from providers.analysis.fingerprint import musicbrainz_acoustid as mod
 
-        class FakeQSettings:
-            def value(self, key, default, type=None):
-                return ""
-        monkeypatch.setattr(mod, "get_qsettings", lambda: FakeQSettings())
+        class FakeRM:
+            def get_custom_location(self, rid):
+                return None
+        monkeypatch.setattr(mod, "get_resource_manager", lambda: FakeRM())
         monkeypatch.delenv("FPCALC", raising=False)
         with patch.object(mod.shutil, "which", return_value=None):
             assert mod._resolve_fpcalc_path() is None
+
+
+class TestResourceRegistration:
+    """The analyzer must register Chromaprint's fpcalc binary so it shows up
+    in Preferences > Resources alongside other downloadable resources."""
+
+    def test_get_required_resources_declares_fpcalc(self):
+        resources = MusicBrainzAcoustIDAnalyzer.get_required_resources()
+        assert len(resources) == 1
+        fpcalc = resources[0]
+        from providers.analysis.fingerprint.musicbrainz_acoustid import (
+            FPCALC_BINARY_NAME, FPCALC_RESOURCE_ID,
+        )
+        assert fpcalc.resource_id == FPCALC_RESOURCE_ID
+        assert fpcalc.filename == FPCALC_BINARY_NAME
+        assert fpcalc.download_type == "browser"
+        assert fpcalc.discovery_executable == "fpcalc"
+        assert fpcalc.required_by == "MusicBrainzAcoustIDAnalyzer"
+
+    def test_fpcalc_registered_with_resource_manager(self):
+        # Importing the manifest runs the @analyzer decorator which in turn
+        # registers each analyzer's resources with the global ResourceManager.
+        import providers.analysis._manifest  # noqa: F401
+        from providers.analysis.fingerprint.musicbrainz_acoustid import FPCALC_RESOURCE_ID
+        from util.resource_manager import get_resource_manager
+        rm = get_resource_manager()
+        registered = rm.get_all_registered_resources()
+        assert FPCALC_RESOURCE_ID in registered
