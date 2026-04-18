@@ -107,12 +107,20 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
         store_fingerprint = bool(self.options.get("store_fingerprint", False))
         append_to_comments = bool(self.options.get("append_to_comments", False))
 
-        # pyacoustid's ``force_fpcalc`` is a boolean that selects the fpcalc
-        # backend over the in-process Chromaprint library; it does NOT
-        # accept a binary path. The actual fpcalc lookup is done via the
-        # ``FPCALC`` environment variable (or "fpcalc" on PATH). Set the
-        # env var to the path we resolved so pyacoustid invokes the binary
-        # the user picked in Preferences > Resources.
+        # pyacoustid's ``fingerprint_file`` resolves its fpcalc binary
+        # exclusively through ``os.environ.get('FPCALC', 'fpcalc')`` — there
+        # is no path argument. ``force_fpcalc`` is a boolean toggle that
+        # only chooses between the in-process Chromaprint library (via
+        # audioread) and the external fpcalc binary; passing a path string
+        # to it is silently ignored (the truthy value just selects the
+        # binary backend). The only way to direct pyacoustid at a specific
+        # fpcalc executable is to set the FPCALC env var, which the
+        # ``_fpcalc_env`` context manager does for the duration of the
+        # call and unwinds on exit so we don't leak into other workers.
+        # We pass ``force_fpcalc=True`` to skip the audioread/Chromaprint
+        # in-process path altogether — it depends on optional native
+        # libraries (libav/ffmpeg) that yaamt doesn't currently bundle, so
+        # behaviour stays predictable across machines.
         try:
             with _fpcalc_env(fpcalc_path):
                 duration, fingerprint = acoustid.fingerprint_file(
@@ -312,10 +320,19 @@ def _resolve_fpcalc_path() -> str | None:
 def _fpcalc_env(path: str):
     """Temporarily point ``FPCALC`` at the resolved binary for pyacoustid.
 
-    pyacoustid invokes fpcalc via ``os.environ.get('FPCALC', 'fpcalc')``;
-    overriding the env var is the only way to make it use a specific
-    binary path. We restore the previous value (or unset it) on exit so
-    other processes/threads see the original environment.
+    Background: pyacoustid's ``fingerprint_file`` (and any helper that
+    calls it) discovers the fpcalc binary purely through
+    ``os.environ.get('FPCALC', 'fpcalc')``. Its ``force_fpcalc`` kwarg is
+    a backend selector (audioread vs. fpcalc), not a path override —
+    handing it a string silently no-ops. Mutating the env var for the
+    duration of the call is therefore the only sanctioned way to direct
+    pyacoustid at a specific executable, e.g. one the user picked via
+    Preferences > Resources > Locate... or one we found via
+    ``shutil.which`` that we want to lock in for the call.
+
+    The previous value is captured up front and restored on exit so
+    parallel analyzer workers (or unrelated subprocesses inheriting our
+    environment) keep the value the user actually set in their shell.
     """
     saved = os.environ.get("FPCALC")
     os.environ["FPCALC"] = path
