@@ -438,14 +438,24 @@ _PANE_RESOURCES = "Resources"
 _PANE_INTEGRATIONS = "Integrations"
 
 
-def _fpcalc_status_html() -> str:
-    """Return HTML describing the current fpcalc resolution state."""
+def _fpcalc_status_html() -> tuple[str, str | None]:
+    """Return ``(html, tooltip)`` describing the current fpcalc state.
+
+    The label text is deliberately short so the preferences/setup dialog
+    doesn't stretch when the resolved path is long (common on Windows).
+    The full path, when available, is surfaced as the label's tooltip
+    instead of being rendered inline.
+    """
     path = _resolve_fpcalc_path()
     if path:
-        return f"{_OK_MARK} Chromaprint <code>fpcalc</code> found at <code>{path}</code>"
+        return (
+            f"{_OK_MARK} Chromaprint <code>fpcalc</code> found",
+            path,
+        )
     return (
         f"{_FAIL_MARK} Chromaprint <code>fpcalc</code> not found. "
-        f"{_CONFIGURE_LINK}"
+        f"{_CONFIGURE_LINK}",
+        None,
     )
 
 
@@ -482,7 +492,9 @@ def _build_requirements_group():
     api_key_label.setOpenExternalLinks(False)
 
     def refresh() -> None:
-        fpcalc_label.setText(_fpcalc_status_html())
+        fpcalc_html, fpcalc_tooltip = _fpcalc_status_html()
+        fpcalc_label.setText(fpcalc_html)
+        fpcalc_label.setToolTip(fpcalc_tooltip or "")
         api_key_label.setText(_api_key_status_html())
 
     def open_prefs(pane_name: str) -> None:

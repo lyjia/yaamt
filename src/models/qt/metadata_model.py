@@ -12,10 +12,10 @@ from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA,
     COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, COL_MAIN_DATE_CREATED,
-    COL_MAIN_ACOUSTID_FINGERPRINT, COL_MAIN_MBID,
+    COL_MAIN_ACOUSTID_ID, COL_MAIN_MBID,
     KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
     KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_FILE_ID, LOADING_PLACEHOLDER,
-    KEY_ACOUSTID_FINGERPRINT, KEY_ACOUSTID_SCORE, KEY_MUSICBRAINZ_RECORDING_ID,
+    KEY_ACOUSTID_ID, KEY_ACOUSTID_SCORE, KEY_MUSICBRAINZ_RECORDING_ID,
 )
 from util.display import human_readable_size, human_readable_timestamp
 from util.logging import log
@@ -24,15 +24,20 @@ from util.logging import log
 _CHECKMARK = "\u2713"  # Rendered as-is — no HTML in QTableView cells.
 
 
-def _format_acoustid_fingerprint_cell(fingerprint: Any, score: Any) -> str:
-    """Render the AcoustID Fingerprint column cell.
+def _format_acoustid_id_cell(acoustid_id: Any, score: Any) -> str:
+    """Render the AcoustID ID column cell.
 
-    Checkmark when the fingerprint tag is set; ``" (0.9523)"`` appended
-    when the AcoustID score tag is also present. Empty string if the
-    fingerprint tag isn't set — no "fingerprint absent" glyph, matching
-    the user's spec.
+    Checkmark when the acoustid_id tag is set (meaning a match was
+    confirmed); ``" (0.9523)"`` appended when the AcoustID score tag is
+    also present. Empty string if no AcoustID ID is on the file — no
+    "no match" glyph, matching the user's spec.
+
+    The AcoustID ID is the identity of the cluster AcoustID matched our
+    fingerprint to, so the presence of the ID is the true signal of "a
+    match happened" — not the raw Chromaprint fingerprint (which is
+    just a local hash and says nothing about match success).
     """
-    if not fingerprint:
+    if not acoustid_id:
         return ""
     score_str = ""
     if score not in (None, ""):
@@ -111,14 +116,12 @@ class MetadataTableModel(QAbstractTableModel):
                 fctime = row_data.get(KEY_FILE_CTIME)
                 return human_readable_timestamp(fctime)
 
-            elif column.id == COL_MAIN_ACOUSTID_FINGERPRINT:
-                # Present when the analyzer wrote a fingerprint for this
-                # file. The score (attached to the AcoustID cluster that
-                # produced the match) is displayed here because the column
-                # name carries the "AcoustID" branding; it isn't
-                # meaningful next to the MBID column.
-                return _format_acoustid_fingerprint_cell(
-                    row_data.get(KEY_ACOUSTID_FINGERPRINT),
+            elif column.id == COL_MAIN_ACOUSTID_ID:
+                # Present when the analyzer recorded an AcoustID match
+                # for this file. The score (AcoustID's confidence in the
+                # cluster assignment) naturally lives alongside the ID.
+                return _format_acoustid_id_cell(
+                    row_data.get(KEY_ACOUSTID_ID),
                     row_data.get(KEY_ACOUSTID_SCORE),
                 )
 
@@ -416,10 +419,10 @@ class MetadataTableModel(QAbstractTableModel):
             KEY_INITIAL_KEY: media_file.get_tag_simple(KEY_INITIAL_KEY),
 
             # Fingerprint-analyzer-produced tags. Included so the
-            # AcoustID Fingerprint and MusicBrainz Recording ID columns
-            # can render their checkmark / score composites without
+            # AcoustID ID and MusicBrainz Recording ID columns can
+            # render their checkmark / score composites without
             # re-querying the tag provider on every data() call.
-            KEY_ACOUSTID_FINGERPRINT: media_file.get_tag_simple(KEY_ACOUSTID_FINGERPRINT),
+            KEY_ACOUSTID_ID: media_file.get_tag_simple(KEY_ACOUSTID_ID),
             KEY_ACOUSTID_SCORE: media_file.get_tag_simple(KEY_ACOUSTID_SCORE),
             KEY_MUSICBRAINZ_RECORDING_ID: media_file.get_tag_simple(KEY_MUSICBRAINZ_RECORDING_ID),
 

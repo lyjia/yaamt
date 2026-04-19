@@ -490,18 +490,22 @@ class TestRequirementsStatusHelpers:
     def test_fpcalc_ok_html(self, monkeypatch):
         from providers.analysis.fingerprint import musicbrainz_acoustid as mod
         monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: "/usr/bin/fpcalc")
-        html = mod._fpcalc_status_html()
+        html, tooltip = mod._fpcalc_status_html()
         assert "&#x2713;" in html
-        assert "/usr/bin/fpcalc" in html
+        # Path must NOT be inlined — long paths would stretch the dialog.
+        assert "/usr/bin/fpcalc" not in html
+        # But it SHOULD be surfaced as the label's tooltip for hover lookup.
+        assert tooltip == "/usr/bin/fpcalc"
         assert "Configure" not in html
 
     def test_fpcalc_missing_html_has_configure_link(self, monkeypatch):
         from providers.analysis.fingerprint import musicbrainz_acoustid as mod
         monkeypatch.setattr(mod, "_resolve_fpcalc_path", lambda: None)
-        html = mod._fpcalc_status_html()
+        html, tooltip = mod._fpcalc_status_html()
         assert "&#x2717;" in html
         assert "Configure" in html
         assert 'href="#prefs"' in html
+        assert tooltip is None
 
     def test_api_key_ok_html(self, monkeypatch):
         from providers.analysis.fingerprint import musicbrainz_acoustid as mod
@@ -567,7 +571,10 @@ class TestSettingsWidgetRequirements:
             if lbl.objectName().startswith("requirement_")
         }
         assert "&#x2713;" in labels["requirement_fpcalc"].text()
-        assert str(fake) in labels["requirement_fpcalc"].text()
+        # Path must NOT appear inline — long paths would stretch the dialog.
+        assert str(fake) not in labels["requirement_fpcalc"].text()
+        # The path is surfaced via the label's hover tooltip instead.
+        assert labels["requirement_fpcalc"].toolTip() == str(fake)
         assert "&#x2713;" in labels["requirement_acoustid_api_key"].text()
 
     def test_link_click_opens_preferences_on_correct_pane(self, qapp, monkeypatch):

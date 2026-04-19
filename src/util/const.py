@@ -196,9 +196,11 @@ COL_MAIN_GENRE = KEY_GENRE
 COL_MAIN_BPM = KEY_BPM
 COL_MAIN_KEY = KEY_INITIAL_KEY
 # Composite columns for the fingerprint analyzer: the cell shows a green
-# check (or nothing) to indicate presence of the underlying tag, with the
-# AcoustID match score in parentheses on the fingerprint column only.
-COL_MAIN_ACOUSTID_FINGERPRINT = "col_acoustid_fingerprint"
+# check (or nothing) to indicate presence of the underlying ID tag, with
+# the AcoustID match score in parentheses on the AcoustID column only.
+# The score belongs with the AcoustID cluster ID, not the raw Chromaprint
+# fingerprint (which is just a local hash, unrelated to match confidence).
+COL_MAIN_ACOUSTID_ID = "col_acoustid_id"
 COL_MAIN_MBID = "col_musicbrainz_recordingid"
 
 GROUP_FILE = "file"
@@ -219,7 +221,7 @@ AVAILABLE_COLUMNS = { # for right-side file pane
 
     # Computed columns — not directly editable; their cell text is built
     # from underlying tags in MetadataTableModel.data().
-    COL_MAIN_ACOUSTID_FINGERPRINT: {"id": COL_MAIN_ACOUSTID_FINGERPRINT, "group": GROUP_META, "label": "AcoustID Fingerprint", "width": 140, "is_visible": False, "is_writable": False},
+    COL_MAIN_ACOUSTID_ID: {"id": COL_MAIN_ACOUSTID_ID, "group": GROUP_META, "label": "AcoustID ID", "width": 140, "is_visible": False, "is_writable": False},
     COL_MAIN_MBID: {"id": COL_MAIN_MBID, "group": GROUP_META, "label": "MusicBrainz Recording ID", "width": 140, "is_visible": False, "is_writable": False},
 }
 #### END column names for file list ####
