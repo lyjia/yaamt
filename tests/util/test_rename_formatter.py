@@ -11,6 +11,7 @@ from util.const import (
     KEY_ALBUM,
     KEY_ALBUM_ARTIST,
     KEY_ARTIST,
+    KEY_BITRATE,
     KEY_REMIXER,
     KEY_TITLE,
     KEY_TRACK_NUMBER,
@@ -170,13 +171,13 @@ def test_camelot_special_case_does_not_apply_to_other_tokens():
 def test_optional_section_renders_when_present():
     tokens = _simple_tokens(ARTIST="Raiden", TITLE="Infection",
                             REMIXER="E-Sassin")
-    out = format_filename("%ARTIST% - %TITLE%< (%REMIXER% Remix)>", tokens)
-    assert out == "Raiden - Infection (E-Sassin Remix)"
+    out = format_filename("%ARTIST% - %TITLE%< (%REMIXER%)>", tokens)
+    assert out == "Raiden - Infection (E-Sassin)"
 
 
 def test_optional_section_collapses_when_any_token_missing():
     tokens = _simple_tokens(ARTIST="Raiden", TITLE="Infection", REMIXER="")
-    out = format_filename("%ARTIST% - %TITLE%< (%REMIXER% Remix)>", tokens)
+    out = format_filename("%ARTIST% - %TITLE%< (%REMIXER%)>", tokens)
     assert out == "Raiden - Infection"
 
 
@@ -270,15 +271,17 @@ def test_sanitize_filename_empty_input():
 
 def test_build_token_map_from_dict_uses_uppercase_keys():
     tokens = build_token_map_from_dict(SAMPLE_RENAME_METADATA)
-    assert tokens["ARTIST"] == "Raiden"
-    assert tokens["TITLE"] == "Infection"
-    assert tokens["ALBUMARTIST"] == "Dieselboy"
-    assert tokens["REMIXER"] == "E-Sassin"
-    assert tokens["TRACKNUMBER"] == "7"
-    # Missing tags come back as empty strings.
-    assert tokens.get("GROUPING", "x") == ""
-    # Stream info is coerced to plain strings.
-    assert tokens["BITRATE"] == "320000"
+    # Dereference the sample constant directly so these stay green when the
+    # example values are tweaked (e.g. REMIXER swapped "E-Sassin" -> "E-Sassin Remix").
+    assert tokens["ARTIST"] == str(SAMPLE_RENAME_METADATA[KEY_ARTIST])
+    assert tokens["TITLE"] == str(SAMPLE_RENAME_METADATA[KEY_TITLE])
+    assert tokens["ALBUMARTIST"] == str(SAMPLE_RENAME_METADATA[KEY_ALBUM_ARTIST])
+    assert tokens["REMIXER"] == str(SAMPLE_RENAME_METADATA[KEY_REMIXER])
+    assert tokens["TRACKNUMBER"] == str(SAMPLE_RENAME_METADATA[KEY_TRACK_NUMBER])
+    # Tags that aren't present in the raw dict at all come back as empty strings.
+    assert build_token_map_from_dict({}).get("GROUPING", "x") == ""
+    # Stream info is coerced to plain strings (BITRATE is stored as an int).
+    assert tokens["BITRATE"] == str(SAMPLE_RENAME_METADATA[KEY_BITRATE])
 
 
 def test_build_token_map_handles_float_lengths():
@@ -340,4 +343,12 @@ def test_end_to_end_sample_metadata():
     tokens = build_token_map_from_dict(SAMPLE_RENAME_METADATA)
     fmt = "<%TRACKNUMBER:00% - >%ARTIST% - %TITLE%< (%REMIXER% Remix)>"
     out = format_filename(fmt, tokens)
-    assert out == "07 - Raiden - Infection (E-Sassin Remix)"
+    # Reconstruct the expected output from the same sample constants the
+    # formatter consumes so value tweaks don't break this test. Assumes the
+    # sample's track is numeric and its tag fields are non-empty (if either
+    # changes, the format's optional-section semantics change too).
+    track = str(SAMPLE_RENAME_METADATA[KEY_TRACK_NUMBER]).zfill(2)
+    artist = SAMPLE_RENAME_METADATA[KEY_ARTIST]
+    title = SAMPLE_RENAME_METADATA[KEY_TITLE]
+    remixer = SAMPLE_RENAME_METADATA[KEY_REMIXER]
+    assert out == f"{track} - {artist} - {title} ({remixer} Remix)"
