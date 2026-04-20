@@ -4,6 +4,7 @@ from typing import Any
 
 import mutagen
 from mutagen.easyid3 import EasyID3
+from mutagen.easymp4 import EasyMP4Tags
 
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
@@ -12,7 +13,8 @@ from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, K
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
     KEY_ALBUM_ARTIST_SORT, KEY_ALBUM_SORT, KEY_COMPOSER_SORT, KEY_ARTIST_SORT, KEY_TITLE_SORT, KEY_ISRC, \
     KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE, KEY_COMMENT, KEY_MUSICBRAINZ_RECORDING_ID, KEY_ACOUSTID_ID, \
-    KEY_ACOUSTID_FINGERPRINT, KEY_ACOUSTID_SCORE
+    KEY_ACOUSTID_FINGERPRINT, KEY_ACOUSTID_SCORE, KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN, \
+    KEY_REPLAYGAIN_TRACK_PEAK, KEY_REPLAYGAIN_ALBUM_PEAK
 from util.exceptions import SomethingsReallyFuckedUpException, InvalidFileError
 from util.logging import log
 from .base import MetadataProviderBase
@@ -132,6 +134,21 @@ EasyID3.RegisterTXXXKey(KEY_ACOUSTID_FINGERPRINT, 'Acoustid Fingerprint')
 # read it without guessing.
 EasyID3.RegisterTXXXKey(KEY_ACOUSTID_SCORE, 'Acoustid Score')
 
+# Canonical ReplayGain 2.0 tag bindings. ID3: lowercase TXXX descriptions
+# match the foobar2000 / r128gain / rsgain convention so written tags interop
+# with every major ReplayGain-aware player. MP4: iTunes-style freeform atom
+# under the com.apple.iTunes mean. FLAC/Vorbis require no registration —
+# lowercase Vorbis comment keys pass through mutagen's native FLAC interface.
+_REPLAYGAIN_TAGS = (
+    KEY_REPLAYGAIN_TRACK_GAIN,
+    KEY_REPLAYGAIN_ALBUM_GAIN,
+    KEY_REPLAYGAIN_TRACK_PEAK,
+    KEY_REPLAYGAIN_ALBUM_PEAK,
+)
+for _rg_key in _REPLAYGAIN_TAGS:
+    EasyID3.RegisterTXXXKey(_rg_key, _rg_key)
+    EasyMP4Tags.RegisterFreeformKey(_rg_key, _rg_key)
+
 MUT_EASY_TAG_NAMES = ['album',
                       'bpm',
                       'compilation',
@@ -169,7 +186,14 @@ MUT_EASY_TAG_NAMES = ['album',
                       KEY_ACOUSTID_FINGERPRINT,
                       KEY_ACOUSTID_SCORE,
                       # doesnt appear in above comment for some reason?
-                      'genre'] #TODO: figure out why
+                      'genre', #TODO: figure out why
+                      # ReplayGain tags (registered with EasyID3 and EasyMP4Tags
+                      # at module load). Included here so MediaFile recognises
+                      # them as writable even on files that don't yet have them.
+                      KEY_REPLAYGAIN_TRACK_GAIN,
+                      KEY_REPLAYGAIN_ALBUM_GAIN,
+                      KEY_REPLAYGAIN_TRACK_PEAK,
+                      KEY_REPLAYGAIN_ALBUM_PEAK]
 
 # This dictionary maps 'easy' mutagen tag names to the generic KEY_ constants.
 # This is used to populate the `generic_tag_name` field in the TagInfo objects.
@@ -210,6 +234,12 @@ MUTAGEN_TO_GENERIC_MAP = {
     KEY_ACOUSTID_FINGERPRINT: KEY_ACOUSTID_FINGERPRINT,
     KEY_ACOUSTID_SCORE: KEY_ACOUSTID_SCORE,
     'genre': KEY_GENRE,
+    # ReplayGain tags (ID3 TXXX / MP4 freeform / Vorbis comment — all map
+    # identically to the same lowercase generic name).
+    KEY_REPLAYGAIN_TRACK_GAIN: KEY_REPLAYGAIN_TRACK_GAIN,
+    KEY_REPLAYGAIN_ALBUM_GAIN: KEY_REPLAYGAIN_ALBUM_GAIN,
+    KEY_REPLAYGAIN_TRACK_PEAK: KEY_REPLAYGAIN_TRACK_PEAK,
+    KEY_REPLAYGAIN_ALBUM_PEAK: KEY_REPLAYGAIN_ALBUM_PEAK,
 }
 
 

@@ -216,3 +216,26 @@ class TestAutosaveIntegration:
         d._finalize_writes()
 
         assert not em.has_staged_changes()
+
+    def test_finalize_writes_is_synchronous(self, flac_copies):
+        """
+        Regression: commit_changes() ran on a QThread and raced with
+        main_window's post-analysis clear_staged_changes_for_files call.
+        _finalize_writes must now commit synchronously so staged results are
+        on disk before the dispatcher emits analysis_completed.
+        """
+        em = _reset_edit_manager()
+        em.set_autosave(True)
+
+        d = _dispatcher_for(_StubNonBatchAnalyzer)
+        mf = MediaFile(str(flac_copies[0]), enable_write=True)
+
+        task = _make_task(_StubNonBatchAnalyzer, mf)
+        d._apply_results(task)
+        d._finalize_writes()
+
+        # Immediately after _finalize_writes returns the file MUST already be
+        # written. No thread pump, no sleeps.
+        assert not em.has_staged_changes()
+        mf2 = MediaFile(str(flac_copies[0]))
+        assert mf2.get_tag_simple(KEY_COMMENT) == "stub per-file"

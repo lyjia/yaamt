@@ -119,6 +119,20 @@ class TestDiscovery:
         by_name = {o.name: o for o in ReplayGainAnalyzer.get_options_metadata()}
         assert by_name[OPT_APPEND_COMMENTS].default is False
 
+    def test_is_first_loudness_analyzer_for_default_selection(self):
+        """AnalyzerSetupDialog defaults to combo index 0 when no user
+        preference is saved, so ReplayGain must be the first analyzer
+        registered under the Loudness category."""
+        loudness = get_analyzers_by_category(AnalyzerCategory.LOUDNESS)
+        assert loudness, "no loudness analyzers registered"
+        assert loudness[0] is ReplayGainAnalyzer
+
+    def test_peak_meter_is_debug_only(self):
+        """PeakMeterAnalyzer should be gated behind debug mode so release
+        builds surface only ReplayGain under the Loudness category."""
+        from providers.analysis.loudness.peak_meter import PeakMeterAnalyzer
+        assert PeakMeterAnalyzer.debug_only is True
+
 
 # --------------------------------------------------------------- per-track
 

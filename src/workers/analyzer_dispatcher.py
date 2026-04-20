@@ -753,16 +753,21 @@ class AnalyzerDispatcher(QObject):
 
     def _finalize_writes(self) -> None:
         """
-        Commit all EditManager-staged changes accumulated during the run. In
-        GUI context this may be a no-op when autosave is off (changes remain
-        as pending edits); in headless context we always commit synchronously.
+        Commit all EditManager-staged changes accumulated during the run.
+
+        We commit synchronously in both GUI and CLI contexts so that the
+        ``analysis_completed`` signal does not fire until the disk writes are
+        actually done. A background QThread commit would race with the
+        main_window's post-analysis refresh / clear_staged_changes_for_files
+        and drop the analyzer's results. When autosave is off the commit is
+        skipped entirely — staged changes remain visible as pending edits
+        until the user explicitly saves them.
         """
         if not self.write_to_tags:
             return
 
         try:
             from models.edit_manager import EditManager
-            from PySide6.QtCore import QCoreApplication
             edit_manager = EditManager()
 
             if not edit_manager.has_staged_changes():
@@ -775,17 +780,12 @@ class AnalyzerDispatcher(QObject):
                 )
                 return
 
-            if QCoreApplication.instance() is None:
-                # Headless (CLI / tests): commit synchronously.
-                saved, errors = edit_manager.commit_changes_sync()
-                if errors:
-                    for err in errors:
-                        log.error(f"Save error: {err}")
-                else:
-                    log.info(f"Committed analysis results for {len(saved)} file(s)")
+            saved, errors = edit_manager.commit_changes_sync()
+            if errors:
+                for err in errors:
+                    log.error(f"Save error: {err}")
             else:
-                # GUI: background-thread commit through Qt event loop.
-                edit_manager.commit_changes()
+                log.info(f"Committed analysis results for {len(saved)} file(s)")
         except Exception as e:
             log.error(f"Failed to commit analysis results: {e}", exc_info=True)
 

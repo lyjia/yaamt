@@ -27,6 +27,7 @@ from providers.analysis.key import musical_cnn_key
 # Fingerprint analyzers
 from providers.analysis.fingerprint import musicbrainz_acoustid
 
-# Loudness analyzers
-from providers.analysis.loudness import peak_meter
+# Loudness analyzers (ReplayGain listed first so the setup dialog defaults to
+# it in the Loudness category combo).
 from providers.analysis.loudness import replaygain
+from providers.analysis.loudness import peak_meter

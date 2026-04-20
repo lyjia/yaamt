@@ -1025,8 +1025,10 @@ class MainWindow(QMainWindow):
             return
 
         file_ids = [mf.file_id for mf in media_files]
-        # Clear any staged changes for these files; results are authoritative.
-        self.edit_manager.clear_staged_changes_for_files(file_ids)
+        # Do NOT clear staged changes here: with autosave off those entries
+        # *are* the analyzer's results and clearing them would silently
+        # discard the batch's work. With autosave on, the dispatcher has
+        # already committed synchronously so staged changes are empty.
         # Force-replace MediaFile instances so the display picks up new data.
         self.edit_manager.register_media_files(media_files, force_replace=True)
         self.file_model.refresh_files(file_ids, self.edit_manager)
