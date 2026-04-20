@@ -52,6 +52,11 @@ class ResourceMetadata:
         download_type: "direct" for HTTP download, "browser" to open URL in browser
         subdirectory: Subdirectory within category
         required_by: Component that requires this resource
+        discovery_executable: Optional command name (e.g. "fpcalc") used as a
+            hint when the user clicks Locate..., so the file dialog opens at
+            the path reported by ``shutil.which`` if the tool is already on
+            PATH. Purely a UX hint — the resource manager never persists an
+            auto-discovered path on its own.
     """
     resource_id: str
     url: str
@@ -65,6 +70,7 @@ class ResourceMetadata:
     download_type: str = "direct"
     subdirectory: str = ""
     required_by: str = ""
+    discovery_executable: str | None = None
 
 
 class ProgressReporter:

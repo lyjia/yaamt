@@ -30,21 +30,36 @@ class AnalyzerSummaryDialog(QDialog):
     # Signal emitted when user wants to select failed/skipped files
     select_files_requested = Signal(list)  # List of file paths
 
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        summary: dict | None = None,
+        title: str = "Analysis Complete",
+        success_verb: str = "analyzed",
+    ):
         """
         Initialize the summary dialog.
 
         Args:
             parent: Parent widget
+            summary: Pre-built summary dict matching
+                AnalyzerDispatcher.get_summary()'s shape. If None, falls back
+                to the analyzer singleton for backward compatibility.
+            title: Window title (e.g. "Analysis Complete", "Rename Complete").
+            success_verb: Past-tense verb used in the header label
+                (e.g. "analyzed" or "renamed").
         """
         super().__init__(parent)
-        self.setWindowTitle("Analysis Complete")
+        self.setWindowTitle(title)
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
         self.setModal(True)
 
-        self.dispatcher = AnalyzerDispatcher()
-        self.summary = self.dispatcher.get_summary()
+        if summary is None:
+            # Legacy analyzer call site - fetch summary from the singleton.
+            summary = AnalyzerDispatcher().get_summary()
+        self.summary = summary
+        self._success_verb = success_verb
 
         self._setup_ui()
 
@@ -58,7 +73,7 @@ class AnalyzerSummaryDialog(QDialog):
         failed_count = len(self.summary['failed'])
         skipped_count = len(self.summary['skipped'])
 
-        summary_text = f"Successfully analyzed: {successful} / {total} files"
+        summary_text = f"Successfully {self._success_verb}: {successful} / {total} files"
         summary_label = QLabel(summary_text)
         summary_label.setStyleSheet("QLabel { font-size: 14pt; font-weight: bold; }")
         layout.addWidget(summary_label)
@@ -107,7 +122,7 @@ class AnalyzerSummaryDialog(QDialog):
 
         # If all successful, show a success message
         if failed_count == 0 and skipped_count == 0 and total > 0:
-            success_label = QLabel("All files analyzed successfully!")
+            success_label = QLabel(f"All files {self._success_verb} successfully!")
             success_label.setStyleSheet("QLabel { color: green; font-weight: bold; }")
             success_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(success_label)

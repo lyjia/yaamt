@@ -25,7 +25,7 @@ from providers.analysis.key import librosa_key
 from providers.analysis.key import musical_cnn_key
 
 # Fingerprint analyzers
-# (none yet)
+from providers.analysis.fingerprint import musicbrainz_acoustid
 
 # Loudness analyzers
 from providers.analysis.loudness import peak_meter

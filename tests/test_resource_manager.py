@@ -427,6 +427,29 @@ class TestNewResourceMetadataFields:
         )
         assert metadata.required_by == "MusicalKeyCNNAnalyzer"
 
+    def test_discovery_executable_default_none(self):
+        """New hint field defaults to None (no executable-based auto-location)."""
+        metadata = ResourceMetadata(
+            resource_id="test",
+            url="https://example.com/test.dat",
+            filename="test.dat",
+            expected_size=100,
+        )
+        assert metadata.discovery_executable is None
+
+    def test_discovery_executable_field(self):
+        """discovery_executable carries a command name used by the Resources
+        pane's Locate... dialog to preselect a path via shutil.which."""
+        metadata = ResourceMetadata(
+            resource_id="chromaprint_fpcalc",
+            url="https://acoustid.org/chromaprint",
+            filename="fpcalc",
+            expected_size=0,
+            download_type="browser",
+            discovery_executable="fpcalc",
+        )
+        assert metadata.discovery_executable == "fpcalc"
+
 
 class TestCustomLocations:
     """Test custom location functionality."""

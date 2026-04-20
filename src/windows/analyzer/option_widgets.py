@@ -150,6 +150,8 @@ def _build_checkbox(option: AnalyzerOption,
     checkbox = QCheckBox(option.help)
     checkbox.setObjectName(option.name)
     checkbox.setChecked(value)
+    if option.tooltip:
+        checkbox.setToolTip(option.tooltip)
 
     if settings_group:
         save_value = _make_settings_saver(option, settings_group)
@@ -213,6 +215,8 @@ def _build_spinbox(option: AnalyzerOption,
     if is_float:
         spinbox.setDecimals(2)
     spinbox.setObjectName(option.name)
+    if option.tooltip:
+        spinbox.setToolTip(option.tooltip)
 
     if option.min is not None:
         spinbox.setMinimum(option.min)
@@ -262,6 +266,8 @@ def _build_slider_spinbox(option: AnalyzerOption,
     slider.setTickInterval(slider_step)
     slider.setTickPosition(QSlider.TickPosition.TicksBelow)
     slider.setValue(int(value * scale_factor))
+    if option.tooltip:
+        slider.setToolTip(option.tooltip)
     # Only the spinbox carries the option objectName: the settings extractor
     # reads values from the spinbox, not the slider.
     h_layout.addWidget(slider)
@@ -270,6 +276,8 @@ def _build_slider_spinbox(option: AnalyzerOption,
     if is_float:
         spinbox.setDecimals(2)
     spinbox.setObjectName(option.name)
+    if option.tooltip:
+        spinbox.setToolTip(option.tooltip)
 
     if option.min is not None:
         spinbox.setMinimum(option.min)
