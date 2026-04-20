@@ -80,6 +80,18 @@ KEY_TRACK_TOTAL = 'tracktotal'
 KEY_VERSION = 'version'
 KEY_YEAR = 'year'
 
+# Acoustic fingerprint / MusicBrainz identifier tags. Names are lowercase
+# to match the Vorbis-comment convention used by Picard (EasyID3 handlers
+# translate them to ID3 frames, see mutagen_provider.py).
+KEY_MUSICBRAINZ_RECORDING_ID = 'musicbrainz_recordingid'
+KEY_ACOUSTID_ID = 'acoustid_id'
+KEY_ACOUSTID_FINGERPRINT = 'acoustid_fingerprint'
+# AcoustID match confidence (0.0-1.0). The score attaches to the AcoustID
+# cluster result, not to individual MusicBrainz recordings, so it's named
+# acoustid_score rather than musicbrainz_score. Only written when a match
+# is confirmed.
+KEY_ACOUSTID_SCORE = 'acoustid_score'
+
 # Tags that are end-user-editable text fields. Used by tag transformers to
 # decide which tags should be whitespace-trimmed, empty-string-normalized, etc.
 COMMON_WRITABLE_TAGS = [
@@ -110,7 +122,11 @@ ALL_TAGS = { #display names for each tag
     KEY_TITLE: "Title",
     KEY_TRACK_NUMBER: "Track",
     KEY_TRACK_TOTAL: "Tracks",
-    KEY_YEAR: "Year"
+    KEY_YEAR: "Year",
+    KEY_MUSICBRAINZ_RECORDING_ID: "MusicBrainz Recording ID",
+    KEY_ACOUSTID_ID: "AcoustID ID",
+    KEY_ACOUSTID_FINGERPRINT: "AcoustID Fingerprint",
+    KEY_ACOUSTID_SCORE: "AcoustID Score",
 }
 
 # Section headers used in ALL_FORMATTING_TAGS.
@@ -179,6 +195,13 @@ COL_MAIN_ALBUM = KEY_ALBUM
 COL_MAIN_GENRE = KEY_GENRE
 COL_MAIN_BPM = KEY_BPM
 COL_MAIN_KEY = KEY_INITIAL_KEY
+# Composite columns for the fingerprint analyzer: the cell shows a green
+# check (or nothing) to indicate presence of the underlying ID tag, with
+# the AcoustID match score in parentheses on the AcoustID column only.
+# The score belongs with the AcoustID cluster ID, not the raw Chromaprint
+# fingerprint (which is just a local hash, unrelated to match confidence).
+COL_MAIN_ACOUSTID_ID = "col_acoustid_id"
+COL_MAIN_MBID = "col_musicbrainz_recordingid"
 
 GROUP_FILE = "file"
 GROUP_META = "metadata"
@@ -194,7 +217,12 @@ AVAILABLE_COLUMNS = { # for right-side file pane
     COL_MAIN_ALBUM: {"id": COL_MAIN_ALBUM, "group": GROUP_META, "label": ALL_TAGS[KEY_ALBUM], "width": 150, "is_visible": True, "is_writable": True},
     COL_MAIN_GENRE: {"id": COL_MAIN_GENRE, "group": GROUP_META, "label": ALL_TAGS[KEY_GENRE], "width": 100, "is_visible": True, "is_writable": True},
     COL_MAIN_BPM: {"id": COL_MAIN_BPM, "group": GROUP_META, "label": ALL_TAGS[KEY_BPM], "width": 50, "is_visible": True, "is_writable": True},
-    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_INITIAL_KEY], "width": 50, "is_visible": True, "is_writable": True}
+    COL_MAIN_KEY: {"id": COL_MAIN_KEY, "group": GROUP_META, "label": ALL_TAGS[KEY_INITIAL_KEY], "width": 50, "is_visible": True, "is_writable": True},
+
+    # Computed columns — not directly editable; their cell text is built
+    # from underlying tags in MetadataTableModel.data().
+    COL_MAIN_ACOUSTID_ID: {"id": COL_MAIN_ACOUSTID_ID, "group": GROUP_META, "label": "AcoustID ID", "width": 140, "is_visible": False, "is_writable": False},
+    COL_MAIN_MBID: {"id": COL_MAIN_MBID, "group": GROUP_META, "label": "MusicBrainz Recording ID", "width": 140, "is_visible": False, "is_writable": False},
 }
 #### END column names for file list ####
 
@@ -246,6 +274,7 @@ SETTINGS_GROUP_FILE_LIST = "file_list"
 SETTINGS_GROUP_ANALYZERS_PREFERRED = "Analyzers/Preferred"
 SETTINGS_GROUP_ANALYZERS_CATEGORY_OPTIONS = "Analyzers/CategoryOptions"
 SETTINGS_GROUP_RESOURCES = "Resources"
+SETTINGS_GROUP_INTEGRATIONS = "Integrations"
 
 # Sub-array keys within their groups
 SETTINGS_ARRAY_FAVORITES_LOCATIONS = "locations"
@@ -269,6 +298,7 @@ SETTINGS_BPM_RANGE_MIN = "Analyzers/CategoryOptions/bpm/range_min"
 SETTINGS_BPM_RANGE_MAX = "Analyzers/CategoryOptions/bpm/range_max"
 SETTINGS_BPM_DECIMAL_PLACES = "Analyzers/CategoryOptions/bpm/decimal_places"
 SETTINGS_KEY_NOTATION_FORMAT = "Analyzers/CategoryOptions/key/notation_format"
+SETTINGS_ACOUSTID_API_KEY = "Integrations/AcoustID/api_key"
 
 # Prefix (not a complete key) for per-category preferred analyzer selection.
 # Use as f"{SETTINGS_ANALYZERS_PREFERRED_PREFIX}/{category_lower}".
@@ -315,9 +345,9 @@ RENAME_PRESETS_DEFAULTS = [
     "%ARTIST% - %TITLE%",
     "%ARTIST% - %TITLE%< (%REMIXER% Remix)>",
     "<%TRACKNUMBER:00%. >%ARTIST% - %TITLE%",
-    "<[<%ALBUMARTIST% - ><%ALBUM%>< - %TRACKNUMBER:00%>]> %ARTIST% - %TITLE%< (%REMIXER% Remix)>",
+    "<[<%ALBUMARTIST% - ><%ALBUM%>< - %TRACKNUMBER:00%>]> %ARTIST% - %TITLE%< (%REMIXER%)>",
     "<%YEAR% - >%ARTIST% - %ALBUM% - %TRACKNUMBER:00% - %TITLE%",
-    "<%INITIALKEY%,><%BPM:000%,>%ARTIST% - <%ALBUM% - ><%TRACKNUMBER:00% - >%TITLE%< (%REMIXER% Remix)>"
+    "<%INITIALKEY%,><%BPM:000%,>%ARTIST% - <%ALBUM% - ><%TRACKNUMBER:00% - >%TITLE%< (%REMIXER%)>"
 ]
 
 # Hand-curated sample data used by the rename setup dialog's live "Example:" label.
@@ -342,7 +372,7 @@ SAMPLE_RENAME_METADATA = {
     KEY_ISRC: "",
     KEY_LANGUAGE: "eng",
     KEY_MOOD: "Dark",
-    KEY_REMIXER: "E-Sassin",
+    KEY_REMIXER: "E-Sassin Remix",
     KEY_LABEL: "System Recordings",
     KEY_PUBLISHER: "Human Imprint",
     KEY_TITLE: "Infection",

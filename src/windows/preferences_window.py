@@ -11,10 +11,11 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from util.const import (
     SETTINGS_GROUP_GENERAL, SETTINGS_GROUP_ANALYZERS_PREFERRED,
     SETTINGS_GROUP_ANALYZERS_CATEGORY_OPTIONS, SETTINGS_GROUP_RESOURCES,
-    SETTINGS_GROUP_RENAME,
+    SETTINGS_GROUP_INTEGRATIONS, SETTINGS_GROUP_RENAME,
 )
 from windows.preferences.base import PreferencePaneBase
 from windows.preferences.general_pane import GeneralPane
+from windows.preferences.integrations_pane import IntegrationsPane
 from windows.preferences.metadata_pane import MetadataPane
 from windows.preferences.rename_presets_pane import RenamePresetsPane
 from windows.preferences.resources_pane import ResourcesPane
@@ -127,23 +128,59 @@ class PreferencesWindow(QDialog):
         metadata_pane = MetadataPane()
         resources_pane = ResourcesPane()
         rename_presets_pane = RenamePresetsPane()
+        integrations_pane = IntegrationsPane()
 
-        self.panes = [general_pane, metadata_pane, resources_pane, rename_presets_pane]
+        self.panes = [
+            general_pane,
+            metadata_pane,
+            resources_pane,
+            rename_presets_pane,
+            integrations_pane,
+        ]
 
         # Add to UI
         for pane in self.panes:
             item = QListWidgetItem(pane.get_icon(), pane.get_name())
             self.category_list.addItem(item)
             self.pane_stack.addWidget(pane)
+            # Recompute Save's enabled state whenever any pane reports a
+            # validity change (e.g. an API key field finishes verifying).
+            pane.validity_changed.connect(self._refresh_save_enabled)
 
         # Select first category
         if self.category_list.count() > 0:
             self.category_list.setCurrentRow(0)
 
+        self._refresh_save_enabled()
+
+    def _refresh_save_enabled(self) -> None:
+        """Disable Save when any pane reports it isn't ready to save."""
+        ready = all(pane.is_ready_to_save() for pane in self.panes)
+        self.save_button.setEnabled(ready)
+
     def _load_all_panes(self) -> None:
         """Load settings for all panes."""
         for pane in self.panes:
             pane.load_from_settings()
+
+    def select_pane(self, name: str) -> bool:
+        """
+        Select the preference pane whose ``get_name()`` matches ``name``.
+
+        Used by other windows (e.g. the analyzer setup dialog) that want to
+        deep-link into a specific preference pane.
+
+        Args:
+            name: The pane's display name (case-sensitive).
+
+        Returns:
+            True if a pane with that name was found and selected, False otherwise.
+        """
+        for i, pane in enumerate(self.panes):
+            if pane.get_name() == name:
+                self.category_list.setCurrentRow(i)
+                return True
+        return False
 
     def _on_save_clicked(self) -> None:
         """Handle Save button click."""
@@ -197,3 +234,6 @@ class PreferencesWindow(QDialog):
 
         # Clear Rename presets
         self.settings.remove(SETTINGS_GROUP_RENAME)
+
+        # Clear Integrations settings
+        self.settings.remove(SETTINGS_GROUP_INTEGRATIONS)

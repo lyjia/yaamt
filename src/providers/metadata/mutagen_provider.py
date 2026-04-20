@@ -11,7 +11,8 @@ from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, K
     KEY_LYRICIST, KEY_LENGTH as KEY_LENGTH_TAG, KEY_MEDIA, KEY_MOOD, KEY_GROUPING, KEY_TITLE, KEY_VERSION, KEY_ARTIST, \
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
     KEY_ALBUM_ARTIST_SORT, KEY_ALBUM_SORT, KEY_COMPOSER_SORT, KEY_ARTIST_SORT, KEY_TITLE_SORT, KEY_ISRC, \
-    KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE, KEY_COMMENT
+    KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE, KEY_COMMENT, KEY_MUSICBRAINZ_RECORDING_ID, KEY_ACOUSTID_ID, \
+    KEY_ACOUSTID_FINGERPRINT, KEY_ACOUSTID_SCORE
 from util.exceptions import SomethingsReallyFuckedUpException, InvalidFileError
 from util.logging import log
 from .base import MetadataProviderBase
@@ -78,6 +79,59 @@ def comment_delete(id3: Any, key: str) -> None:
 EasyID3.RegisterTextKey(KEY_INITIAL_KEY, 'TKEY')
 EasyID3.RegisterKey(KEY_COMMENT, comment_get, comment_set, comment_delete)
 
+# MusicBrainz Recording ID: Picard stores this in a UFID frame (canonical,
+# binary) and additionally in a TXXX:MusicBrainz Track Id text frame for
+# players that only read text frames. We read from either and write to both.
+_MBID_OWNER = 'http://musicbrainz.org'
+_MBID_TXXX_DESC = 'MusicBrainz Track Id'
+
+def mbid_get(id3: Any, key: str) -> list:
+    """Read the MusicBrainz Recording ID from UFID (preferred) or TXXX fallback.
+
+    Raises KeyError when neither frame is present, matching mutagen's easy-mode
+    contract so ``key in id3`` returns False for unset tags.
+    """
+    ufid = id3.get(f'UFID:{_MBID_OWNER}')
+    if ufid is not None and ufid.data:
+        try:
+            return [ufid.data.decode('ascii')]
+        except UnicodeDecodeError:
+            pass
+    txxx = id3.get(f'TXXX:{_MBID_TXXX_DESC}')
+    if txxx is not None and txxx.text:
+        values = [str(v) for v in txxx.text if v]
+        if values:
+            return values
+    raise KeyError(key)
+
+def mbid_set(id3: Any, key: str, value: Any) -> None:
+    """Write the MusicBrainz Recording ID to both UFID and TXXX frames."""
+    from mutagen.id3 import UFID, TXXX, Encoding
+    text_value = value[0] if isinstance(value, list) else str(value)
+    id3.delall(f'UFID:{_MBID_OWNER}')
+    id3.delall(f'TXXX:{_MBID_TXXX_DESC}')
+    if not text_value:
+        return
+    id3.add(UFID(owner=_MBID_OWNER, data=text_value.encode('ascii')))
+    id3.add(TXXX(encoding=Encoding.UTF8, desc=_MBID_TXXX_DESC, text=text_value))
+
+def mbid_delete(id3: Any, key: str) -> None:
+    """Remove both the UFID and TXXX MusicBrainz Recording ID frames."""
+    id3.delall(f'UFID:{_MBID_OWNER}')
+    id3.delall(f'TXXX:{_MBID_TXXX_DESC}')
+
+EasyID3.RegisterKey(KEY_MUSICBRAINZ_RECORDING_ID, mbid_get, mbid_set, mbid_delete)
+
+# AcoustID identifiers live in TXXX frames using Picard's canonical
+# descriptions. Vorbis/FLAC use lowercase keys of the same name, which
+# easy-mode passes through directly so no extra Vorbis registration is needed.
+EasyID3.RegisterTXXXKey(KEY_ACOUSTID_ID, 'Acoustid Id')
+EasyID3.RegisterTXXXKey(KEY_ACOUSTID_FINGERPRINT, 'Acoustid Fingerprint')
+# AcoustID match confidence. Not part of Picard's canonical set but
+# follows the same TXXX/Vorbis naming convention so third-party tools can
+# read it without guessing.
+EasyID3.RegisterTXXXKey(KEY_ACOUSTID_SCORE, 'Acoustid Score')
+
 MUT_EASY_TAG_NAMES = ['album',
                       'bpm',
                       'compilation',
@@ -110,6 +164,10 @@ MUT_EASY_TAG_NAMES = ['album',
                       # added manually, above
                       KEY_INITIAL_KEY,
                       KEY_COMMENT,
+                      KEY_MUSICBRAINZ_RECORDING_ID,
+                      KEY_ACOUSTID_ID,
+                      KEY_ACOUSTID_FINGERPRINT,
+                      KEY_ACOUSTID_SCORE,
                       # doesnt appear in above comment for some reason?
                       'genre'] #TODO: figure out why
 
@@ -147,6 +205,10 @@ MUTAGEN_TO_GENERIC_MAP = {
     'language': KEY_LANGUAGE,
     KEY_INITIAL_KEY: KEY_INITIAL_KEY,
     KEY_COMMENT: KEY_COMMENT,
+    KEY_MUSICBRAINZ_RECORDING_ID: KEY_MUSICBRAINZ_RECORDING_ID,
+    KEY_ACOUSTID_ID: KEY_ACOUSTID_ID,
+    KEY_ACOUSTID_FINGERPRINT: KEY_ACOUSTID_FINGERPRINT,
+    KEY_ACOUSTID_SCORE: KEY_ACOUSTID_SCORE,
     'genre': KEY_GENRE,
 }
 

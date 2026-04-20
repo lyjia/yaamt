@@ -1,5 +1,29 @@
 {
     "tags": {
+        "acoustid_fingerprint": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "acoustid_id": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "acoustid_score": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "album": {
             "value": "pytest",
             "provider": "MutagenProvider",
@@ -219,6 +243,14 @@
             ]
         },
         "mood": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "musicbrainz_recordingid": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
