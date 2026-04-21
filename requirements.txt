@@ -22,5 +22,6 @@ scipy==1.16.2
 librosa==0.11.0
 torchaudio==2.9.1
 
-# for ReplayGainAnalyzer (BS.1770 / EBU R128 integrated loudness)
-pyloudnorm==0.2.0
+# for ReplayGainAnalyzer: Python bindings for libebur128 (the reference
+# ITU-R BS.1770-4 / EBU R128 C library used by ffmpeg / rsgain / loudgain)
+pyebur128==0.1.1

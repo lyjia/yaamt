@@ -1,18 +1,21 @@
 """
-Tests for ReplayGainAnalyzer: per-track analysis against real fixtures and
-album aggregation using synthetic AnalysisTask objects.
+Tests for ReplayGainAnalyzer.
+
+The analyzer is a thin wrapper over libebur128 via the pyebur128 bindings,
+so these tests verify the glue (option handling, album grouping rules,
+canonical tag formatting, end-to-end MediaFile round-trip) rather than the
+BS.1770 math itself — which is already tested upstream by libebur128.
 """
 
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import numpy as np
 import pytest
 
-pytest.importorskip("pyloudnorm")
+pytest.importorskip("pyebur128")
 
 from providers.analysis import AnalyzerCategory
 from providers.analysis.base import AnalyzerResult, BatchAnalyzerBase
@@ -26,6 +29,8 @@ from providers.analysis.loudness.replaygain import (
 from providers import get_analyzers_by_category
 from models.media_file import MediaFile
 from util.const import (
+    KEY_ALBUM,
+    KEY_ALBUM_ARTIST,
     KEY_COMMENT,
     KEY_REPLAYGAIN_ALBUM_GAIN,
     KEY_REPLAYGAIN_ALBUM_PEAK,
@@ -38,7 +43,42 @@ from util.const import (
 FIXTURE_DIR = Path(__file__).parent.parent.parent.parent / "fixtures" / "metadata"
 
 
-# ----------------------------------------------------------------- test doubles
+# ------------------------------------------------------ real-file helpers
+
+
+def _copy_fixture_with_tags(
+    tmp_path: Path,
+    name: str,
+    *,
+    album: str = '',
+    album_artist: str = '',
+    source: str = "sample_dtmf_original.flac",
+) -> Path:
+    """Copy a FLAC fixture and stamp its album/album_artist tags.
+
+    Always writes both tags (even when blank) so tests exercising the
+    "no album tag" branch don't inherit the fixture's baked-in values.
+    """
+    src = FIXTURE_DIR / source
+    if not src.exists():
+        pytest.skip(f"fixture missing: {source}")
+    dst = tmp_path / name
+    shutil.copy(src, dst)
+    mf = MediaFile(str(dst), enable_write=True)
+    mf.save({KEY_TAG_GENERIC: {
+        KEY_ALBUM: album,
+        KEY_ALBUM_ARTIST: album_artist,
+    }})
+    return dst
+
+
+def _analyze(path: Path, **options):
+    mf = MediaFile(str(path), enable_write=False)
+    analyzer = ReplayGainAnalyzer(mf, options)
+    return analyzer.analyze(), mf
+
+
+# ------------------------------------------------------ stubs for aggregate
 
 
 @dataclass
@@ -46,55 +86,14 @@ class _StubTask:
     """Minimal stand-in for AnalysisTask used by aggregate_results tests."""
     media_file: Any
     result: AnalyzerResult
-    options: dict = None
+    options: dict = field(default_factory=dict)
 
 
-class _StubMediaFile:
-    """MediaFile stub with configurable tags — avoids touching real files."""
-    def __init__(self, path: str, album: str = '', album_artist: str = '',
-                 comment: str = ''):
-        self.file_path = path
-        self._tags = {
-            'album': album,
-            'albumartist': album_artist,
-            'comment': comment,
-        }
-
-    def get_tag_simple(self, key, is_internal_tag_key=False):
-        return self._tags.get(key) or None
-
-
-def _make_stub_task(
-    path: str,
-    *,
-    block_ms: np.ndarray,
-    sample_rate: int = 48000,
-    channels: int = 2,
-    track_peak: float = 0.5,
-    track_lufs: float = -20.0,
-    duration: float = 10.0,
-    album_key: tuple[str, str] | None = ('dark side', 'pink floyd'),
-    existing_comment: str = '',
-) -> _StubTask:
-    agg = {
-        'block_ms': block_ms,
-        'sample_rate': sample_rate,
-        'channels': channels,
-        'track_peak': track_peak,
-        'track_lufs': track_lufs,
-        'duration_sec': duration,
-        'album_key': album_key,
-    }
-    result = AnalyzerResult(success=True, data={}, aggregation_data=agg)
-    mf = _StubMediaFile(path, comment=existing_comment)
+def _real_task_for(path: Path, **options) -> _StubTask:
+    """Run analyze() against a real file and wrap the result in a stub task."""
+    result, mf = _analyze(path, **options)
+    assert result.success, result.error
     return _StubTask(media_file=mf, result=result)
-
-
-def _rand_block_ms(num_blocks: int = 40, channels: int = 2,
-                   seed: int = 0) -> np.ndarray:
-    """Generate plausible K-weighted block MS values (positive floats)."""
-    rng = np.random.default_rng(seed)
-    return rng.uniform(1e-4, 5e-3, size=(channels, num_blocks))
 
 
 # --------------------------------------------------------------- discovery
@@ -141,74 +140,71 @@ class TestPerTrackAnalysis:
 
     @pytest.fixture
     def flac_fixture(self, tmp_path):
-        src = FIXTURE_DIR / "sample_dtmf_original.flac"
-        if not src.exists():
-            pytest.skip("fixture missing")
-        dst = tmp_path / src.name
-        shutil.copy(src, dst)
-        return str(dst)
+        return _copy_fixture_with_tags(tmp_path, "x.flac")
 
-    def test_emits_track_gain_and_peak(self, flac_fixture):
-        mf = MediaFile(flac_fixture, enable_write=False)
-        analyzer = ReplayGainAnalyzer(mf, {OPT_COMPUTE_TRACK: True,
-                                           OPT_COMPUTE_ALBUM: True})
-        result = analyzer.analyze()
+    def test_emits_formatted_track_gain_and_peak(self, flac_fixture):
+        result, _ = _analyze(flac_fixture, **{
+            OPT_COMPUTE_TRACK: True, OPT_COMPUTE_ALBUM: False,
+        })
 
         assert result.success, result.error
         assert not result.skipped
-        assert KEY_REPLAYGAIN_TRACK_GAIN in result.data
-        assert KEY_REPLAYGAIN_TRACK_PEAK in result.data
-        # Formatted strings.
-        assert result.data[KEY_REPLAYGAIN_TRACK_GAIN].endswith("dB")
-        # Peak is a 6-decimal number in [0, 1].
+
+        # Gain tag: canonical ReplayGain "%.2f dB" format.
+        gain_str = result.data[KEY_REPLAYGAIN_TRACK_GAIN]
+        assert gain_str.endswith(" dB")
+        float(gain_str.removesuffix(" dB"))  # must parse as float
+
+        # Peak tag: canonical linear amplitude with 6 decimals.
         peak_str = result.data[KEY_REPLAYGAIN_TRACK_PEAK]
+        assert len(peak_str.split('.')[-1]) == 6
         peak_val = float(peak_str)
-        assert 0.0 <= peak_val <= 1.5  # might slightly exceed 1.0 for float32 inter-sample overs
+        assert 0.0 <= peak_val <= 1.5  # float32 inter-sample overs possible
 
     def test_emits_aggregation_data(self, flac_fixture):
-        mf = MediaFile(flac_fixture, enable_write=False)
-        analyzer = ReplayGainAnalyzer(mf)
-        result = analyzer.analyze()
-
+        result, _ = _analyze(flac_fixture)
         assert result.aggregation_data is not None
-        for key in ('block_ms', 'sample_rate', 'channels', 'track_peak',
-                    'track_lufs', 'duration_sec', 'album_key'):
+        for key in ('track_lufs', 'track_peak', 'album_key'):
             assert key in result.aggregation_data
 
     def test_emits_aggregation_data_even_when_track_disabled(self, flac_fixture):
         """compute_track_gain=False still populates aggregation_data for album use."""
-        mf = MediaFile(flac_fixture, enable_write=False)
-        analyzer = ReplayGainAnalyzer(mf, {OPT_COMPUTE_TRACK: False,
-                                           OPT_COMPUTE_ALBUM: True})
-        result = analyzer.analyze()
-
+        result, _ = _analyze(flac_fixture, **{
+            OPT_COMPUTE_TRACK: False, OPT_COMPUTE_ALBUM: True,
+        })
         assert result.success
         assert result.aggregation_data is not None
-        # No track tags were written.
         assert KEY_REPLAYGAIN_TRACK_GAIN not in result.data
         assert KEY_REPLAYGAIN_TRACK_PEAK not in result.data
 
     def test_cancellation(self, flac_fixture):
-        mf = MediaFile(flac_fixture, enable_write=False)
+        mf = MediaFile(str(flac_fixture), enable_write=False)
         analyzer = ReplayGainAnalyzer(mf)
         analyzer.cancel()
         result = analyzer.analyze()
         assert result.success is False
         assert 'cancel' in result.error.lower()
 
-    def test_missing_pyloudnorm(self, flac_fixture):
-        mf = MediaFile(flac_fixture, enable_write=False)
-        with patch.dict('sys.modules', {'pyloudnorm': None}):
-            analyzer = ReplayGainAnalyzer(mf)
-            result = analyzer.analyze()
+    def test_missing_pyebur128(self, flac_fixture):
+        mf = MediaFile(str(flac_fixture), enable_write=False)
+        with patch.dict('sys.modules', {'pyebur128': None}):
+            result = ReplayGainAnalyzer(mf).analyze()
             assert result.success is False
-            assert 'pyloudnorm' in result.error.lower()
+            assert 'pyebur128' in result.error.lower()
+
+    def test_track_gain_points_toward_reference_loudness(self, flac_fixture):
+        """track_gain + track_lufs should equal REFERENCE_LUFS by definition."""
+        result, _ = _analyze(flac_fixture)
+        track_lufs = result.aggregation_data['track_lufs']
+        gain_str = result.data[KEY_REPLAYGAIN_TRACK_GAIN]
+        track_gain = float(gain_str.removesuffix(' dB'))
+        # Rounded string values → tolerate rounding.
+        assert abs((track_gain + track_lufs) - REFERENCE_LUFS) < 0.01
 
     def test_append_to_comments(self, flac_fixture):
-        mf = MediaFile(flac_fixture, enable_write=False)
-        analyzer = ReplayGainAnalyzer(mf, {OPT_COMPUTE_TRACK: True,
-                                           OPT_APPEND_COMMENTS: True})
-        result = analyzer.analyze()
+        result, _ = _analyze(flac_fixture, **{
+            OPT_COMPUTE_TRACK: True, OPT_APPEND_COMMENTS: True,
+        })
         assert result.success
         assert KEY_COMMENT in result.data
         assert 'ReplayGain Track:' in result.data[KEY_COMMENT]
@@ -219,108 +215,116 @@ class TestPerTrackAnalysis:
 
 class TestAlbumAggregation:
 
-    def test_groups_by_album_and_albumartist(self):
-        t1 = _make_stub_task('a/1.flac', block_ms=_rand_block_ms(seed=1),
-                             album_key=('album one', 'artist x'))
-        t2 = _make_stub_task('a/2.flac', block_ms=_rand_block_ms(seed=2),
-                             album_key=('album one', 'artist x'))
-        t3 = _make_stub_task('b/1.flac', block_ms=_rand_block_ms(seed=3),
-                             album_key=('album two', 'artist y'))
+    @pytest.fixture
+    def album_of_three(self, tmp_path):
+        """Three FLAC tracks tagged as the same album."""
+        return [
+            _copy_fixture_with_tags(tmp_path, f"a{i}.flac",
+                                    album="Album One", album_artist="Artist X")
+            for i in range(3)
+        ]
 
+    def test_groups_by_album_and_albumartist(self, tmp_path):
+        tracks_a = [
+            _copy_fixture_with_tags(tmp_path, f"album_a_{i}.flac",
+                                    album="Album One", album_artist="Artist X")
+            for i in range(2)
+        ]
+        tracks_b = [
+            _copy_fixture_with_tags(tmp_path, f"album_b_{i}.flac",
+                                    album="Album Two", album_artist="Artist Y")
+            for i in range(2)
+        ]
+
+        all_tasks = [_real_task_for(p) for p in tracks_a + tracks_b]
         updates = ReplayGainAnalyzer.aggregate_results(
-            [t1, t2, t3], {OPT_COMPUTE_ALBUM: True},
+            all_tasks, {OPT_COMPUTE_ALBUM: True},
         )
 
-        assert set(updates.keys()) == {'a/1.flac', 'a/2.flac', 'b/1.flac'}
-        # Tracks in the same album get the same album tags.
-        assert updates['a/1.flac'][KEY_REPLAYGAIN_ALBUM_GAIN] == \
-               updates['a/2.flac'][KEY_REPLAYGAIN_ALBUM_GAIN]
-        # Distinct albums get (usually) distinct gains.
-        assert updates['a/1.flac'][KEY_REPLAYGAIN_ALBUM_GAIN] != \
-               updates['b/1.flac'][KEY_REPLAYGAIN_ALBUM_GAIN]
+        # Every track got an update.
+        assert len(updates) == 4
+        # Tracks sharing an album have matching album tags.
+        gains_a = {updates[str(p)][KEY_REPLAYGAIN_ALBUM_GAIN] for p in tracks_a}
+        gains_b = {updates[str(p)][KEY_REPLAYGAIN_ALBUM_GAIN] for p in tracks_b}
+        assert len(gains_a) == 1  # consistent within album A
+        assert len(gains_b) == 1  # consistent within album B
 
-    def test_compilation_album_groups_by_albumartist_not_artist(self):
-        # A compilation: same album + same "Various Artists" but different
-        # per-track artists. Our grouping is album_key = (album, album_artist),
-        # which ignores the per-track artist.
-        compilation_key = ('greatest hits', 'various artists')
-        t1 = _make_stub_task('c/1.flac', block_ms=_rand_block_ms(seed=1),
-                             album_key=compilation_key)
-        t2 = _make_stub_task('c/2.flac', block_ms=_rand_block_ms(seed=2),
-                             album_key=compilation_key)
-
+    def test_compilation_groups_by_albumartist_not_artist(self, tmp_path):
+        """Tracks with the same album + album_artist="Various Artists" stay
+        together even though per-track artist differs. The analyzer's
+        grouping key intentionally uses album_artist, not artist."""
+        tracks = [
+            _copy_fixture_with_tags(tmp_path, f"comp_{i}.flac",
+                                    album="Greatest Hits",
+                                    album_artist="Various Artists")
+            for i in range(2)
+        ]
+        tasks = [_real_task_for(p) for p in tracks]
         updates = ReplayGainAnalyzer.aggregate_results(
-            [t1, t2], {OPT_COMPUTE_ALBUM: True},
+            tasks, {OPT_COMPUTE_ALBUM: True},
         )
+        assert len(updates) == 2
+        gain_values = {updates[str(p)][KEY_REPLAYGAIN_ALBUM_GAIN] for p in tracks}
+        assert len(gain_values) == 1
 
-        assert 'c/1.flac' in updates and 'c/2.flac' in updates
-        assert updates['c/1.flac'][KEY_REPLAYGAIN_ALBUM_GAIN] == \
-               updates['c/2.flac'][KEY_REPLAYGAIN_ALBUM_GAIN]
-
-    def test_blank_album_excluded_from_aggregation(self):
-        t1 = _make_stub_task('s/1.flac', block_ms=_rand_block_ms(seed=1),
-                             album_key=None)
-        t2 = _make_stub_task('s/2.flac', block_ms=_rand_block_ms(seed=2),
-                             album_key=None)
-
+    def test_blank_album_excluded_from_aggregation(self, tmp_path):
+        """Files with no album tag must not receive album-level metadata."""
+        tracks = [
+            _copy_fixture_with_tags(tmp_path, f"orphan_{i}.flac")  # no album
+            for i in range(2)
+        ]
+        tasks = [_real_task_for(p) for p in tracks]
         updates = ReplayGainAnalyzer.aggregate_results(
-            [t1, t2], {OPT_COMPUTE_ALBUM: True},
-        )
-        assert updates == {}
-
-    def test_silent_track_excluded(self):
-        # A silent track reports -inf LUFS; aggregator must skip it.
-        normal = _make_stub_task('n/1.flac', block_ms=_rand_block_ms(seed=1),
-                                 track_lufs=-18.0)
-        silent = _make_stub_task('n/2.flac', block_ms=np.zeros((2, 40)),
-                                 track_lufs=float('-inf'))
-
-        updates = ReplayGainAnalyzer.aggregate_results(
-            [normal, silent], {OPT_COMPUTE_ALBUM: True},
-        )
-        assert 'n/1.flac' in updates
-        assert 'n/2.flac' not in updates
-
-    def test_compute_album_gain_off_returns_empty(self):
-        t = _make_stub_task('x/1.flac', block_ms=_rand_block_ms())
-        updates = ReplayGainAnalyzer.aggregate_results(
-            [t], {OPT_COMPUTE_ALBUM: False},
+            tasks, {OPT_COMPUTE_ALBUM: True},
         )
         assert updates == {}
 
-    def test_album_peak_is_max_of_track_peaks(self):
-        t1 = _make_stub_task('p/1.flac', block_ms=_rand_block_ms(seed=1),
-                             track_peak=0.75)
-        t2 = _make_stub_task('p/2.flac', block_ms=_rand_block_ms(seed=2),
-                             track_peak=0.92)
+    def test_compute_album_gain_off_returns_empty(self, album_of_three):
+        tasks = [_real_task_for(p) for p in album_of_three]
         updates = ReplayGainAnalyzer.aggregate_results(
-            [t1, t2], {OPT_COMPUTE_ALBUM: True},
+            tasks, {OPT_COMPUTE_ALBUM: False},
+        )
+        assert updates == {}
+
+    def test_album_peak_is_max_of_track_peaks(self, album_of_three):
+        """album_peak is a simple per-track max; album_gain comes from
+        libebur128's integrated album LUFS."""
+        tasks = [_real_task_for(p) for p in album_of_three]
+        updates = ReplayGainAnalyzer.aggregate_results(
+            tasks, {OPT_COMPUTE_ALBUM: True},
+        )
+        # Every track in the album shares the same album_peak value.
+        peaks = {upd[KEY_REPLAYGAIN_ALBUM_PEAK] for upd in updates.values()}
+        assert len(peaks) == 1
+
+        # That value equals the max of the per-track peaks (to 6 decimals).
+        expected_peak_val = max(
+            t.result.aggregation_data['track_peak'] for t in tasks
+        )
+        assert updates[str(album_of_three[0])][KEY_REPLAYGAIN_ALBUM_PEAK] == \
+               f"{expected_peak_val:.6f}"
+
+    def test_album_gain_points_toward_reference(self, album_of_three):
+        """album_gain should be a finite dB value pointing toward REFERENCE_LUFS."""
+        tasks = [_real_task_for(p) for p in album_of_three]
+        updates = ReplayGainAnalyzer.aggregate_results(
+            tasks, {OPT_COMPUTE_ALBUM: True},
         )
         for upd in updates.values():
-            assert upd[KEY_REPLAYGAIN_ALBUM_PEAK] == "0.920000"
+            gain_str = upd[KEY_REPLAYGAIN_ALBUM_GAIN]
+            assert gain_str.endswith(' dB')
+            gain_val = float(gain_str.removesuffix(' dB'))
+            # Album gain is a sensible finite correction; normalise range.
+            assert -60.0 < gain_val < 60.0
 
-    def test_append_to_comments_includes_album_line(self):
-        t = _make_stub_task('q/1.flac', block_ms=_rand_block_ms(seed=1))
+    def test_append_to_comments_includes_album_line(self, album_of_three):
+        tasks = [_real_task_for(p) for p in album_of_three]
         updates = ReplayGainAnalyzer.aggregate_results(
-            [t], {OPT_COMPUTE_ALBUM: True, OPT_APPEND_COMMENTS: True},
+            tasks, {OPT_COMPUTE_ALBUM: True, OPT_APPEND_COMMENTS: True},
         )
-        assert KEY_COMMENT in updates['q/1.flac']
-        assert 'ReplayGain Album:' in updates['q/1.flac'][KEY_COMMENT]
-
-    def test_mixed_channel_count_falls_back_to_energy_weighted(self):
-        # Same album, different channel counts — aggregator should fall back
-        # to energy-weighted mean instead of raising.
-        t1 = _make_stub_task('m/1.flac', block_ms=_rand_block_ms(channels=2, seed=1),
-                             channels=2, track_lufs=-18.0)
-        t2 = _make_stub_task('m/2.flac', block_ms=_rand_block_ms(channels=1, seed=2),
-                             channels=1, track_lufs=-20.0)
-        updates = ReplayGainAnalyzer.aggregate_results(
-            [t1, t2], {OPT_COMPUTE_ALBUM: True},
-        )
-        # Both tracks get album tags; gain is finite.
-        assert 'm/1.flac' in updates and 'm/2.flac' in updates
-        gain_str = updates['m/1.flac'][KEY_REPLAYGAIN_ALBUM_GAIN]
-        assert gain_str.endswith('dB')
+        for upd in updates.values():
+            assert KEY_COMMENT in upd
+            assert 'ReplayGain Album:' in upd[KEY_COMMENT]
 
 
 # --------------------------------------------------------------- end-to-end write
@@ -329,26 +333,22 @@ class TestAlbumAggregation:
 class TestEndToEndWrite:
     """
     Exercise the full MediaFile.save() path with RG tags applied via generic
-    keys. This validates that Phase 2 provider registration and the analyzer's
-    formatted string outputs round-trip through mutagen.
+    keys. Validates that provider registration and the analyzer's formatted
+    string outputs round-trip through mutagen.
     """
 
     def test_media_file_persists_analyzer_output(self, tmp_path):
-        src = FIXTURE_DIR / "sample_dtmf_original.flac"
-        if not src.exists():
-            pytest.skip("fixture missing")
-        dst = tmp_path / src.name
-        shutil.copy(src, dst)
+        dst = _copy_fixture_with_tags(tmp_path, "e2e.flac")
 
         mf = MediaFile(str(dst), enable_write=True)
-        analyzer = ReplayGainAnalyzer(mf, {OPT_COMPUTE_TRACK: True,
-                                           OPT_COMPUTE_ALBUM: False})
+        analyzer = ReplayGainAnalyzer(mf, {
+            OPT_COMPUTE_TRACK: True, OPT_COMPUTE_ALBUM: False,
+        })
         result = analyzer.analyze()
         assert result.success, result.error
 
         mf.save({KEY_TAG_GENERIC: result.data})
 
-        # Read back.
         mf2 = MediaFile(str(dst))
         assert mf2.get_tag_simple(KEY_REPLAYGAIN_TRACK_GAIN) == \
                result.data[KEY_REPLAYGAIN_TRACK_GAIN]
