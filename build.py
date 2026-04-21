@@ -2,8 +2,13 @@
 """
 Build script for YAAMT (Yet Another Audio Metadata Tool)
 
-This script builds the application for the current platform using PyInstaller (default)
-or Nuitka. Extracted from GitHub Actions workflow to allow local builds.
+This script builds the application for the current platform using PyInstaller.
+Extracted from GitHub Actions workflow to allow local builds.
+
+Nuitka support is commented out — see the NuitkaBuilder class below. The
+Nuitka path never produced a usable release and the maintenance burden of
+keeping its --nofollow-import-to list in sync with analyzer dependencies was
+not worth it. Uncomment the Nuitka code paths if you want to revisit.
 
 Usage:
     python build.py [options]
@@ -11,7 +16,7 @@ Usage:
 Options:
     --platform <platform>   Override platform detection (windows, linux, macos)
     --arch <arch>          Override architecture detection (x64, arm64)
-    --tool <tool>          Build tool to use: pyinstaller (default), nuitka
+    --tool <tool>          Build tool to use: pyinstaller (only supported value)
     --output-dir <dir>     Output directory for build artifacts (default: build)
     --release              Build in release mode (default is debug mode)
     --archive              Create archive of build artifacts
@@ -90,12 +95,13 @@ class BuildConfig:
         # If explicitly set, use that
         if self._build_tool:
             return self._build_tool
-        # Default to pyinstaller for all platforms
+        # PyInstaller is the only supported backend (Nuitka is disabled).
         return "pyinstaller"
 
-    def get_nuitka_dist_dir(self):
-        """Get the Nuitka distribution directory"""
-        return self.output_dir
+    # NuitkaBuilder disabled — see class comment below.
+    # def get_nuitka_dist_dir(self):
+    #     """Get the Nuitka distribution directory"""
+    #     return self.output_dir
 
 
 
@@ -164,107 +170,115 @@ class PyInstallerBuilder(BuildBackend):
         print(f"=== PyInstaller build complete. Output in {yaamt_dir} ===")
 
 
-class NuitkaBuilder(BuildBackend):
-    """Build backend using Nuitka"""
-
-    # Nuitka options shared across all platforms
-    UNIVERSAL_OPTS = [
-        "--assume-yes-for-downloads",
-        "--onefile",
-        "--standalone",
-        "--lto=no",
-
-        # Explicitly allowed dependencies to include
-        "--nofollow-imports",
-        "--follow-import-to=models",
-        "--follow-import-to=providers",
-        "--follow-import-to=util",
-        "--follow-import-to=workers",
-
-        # Explicitly disabled dependencies (skip compilation, save as bytecode)
-        "--nofollow-import-to=aubio",
-        "--nofollow-import-to=audioread",
-        "--nofollow-import-to=charset_normalizer",
-        "--nofollow-import-to=jinja2",
-        "--nofollow-import-to=joblib",
-        "--nofollow-import-to=librosa",
-        "--nofollow-import-to=numba",
-        "--nofollow-import-to=numpy",
-        "--nofollow-import-to=scipy",
-        "--nofollow-import-to=soundfile",
-        "--nofollow-import-to=torch",
-        "--nofollow-import-to=torchaudio",
-
-        # Anti-bloat settings
-        "--noinclude-pytest-mode=nofollow",
-        "--noinclude-setuptools-mode=nofollow",
-        "--noinclude-custom-mode=torch:nofollow",
-
-        # Suppress warnings
-        "--module-parameter=numba-disable-jit=yes",
-        "--enable-plugin=pyside6"
-    ]
-
-    GUI_OPTS = [
-        "--follow-import-to=windows",
-    ]
-
-    @property
-    def name(self) -> str:
-        return "nuitka"
-
-    def build(self, dist_dir: Path) -> None:
-        """Build both CLI and GUI executables using Nuitka"""
-        dist_dir.mkdir(parents=True, exist_ok=True)
-
-        if self.config.platform == "windows":
-            self._build_windows(dist_dir)
-        else:
-            self._build_linux(dist_dir)
-
-    def _build_windows(self, dist_dir: Path) -> None:
-        """Build with Nuitka on Windows"""
-        windows_opts = [
-            "--mingw64",
-            "--clang",
-            "--nofollow-import-to=cffi",
-            f"--output-dir={dist_dir}"
-        ]
-
-        # Add icon if available
-        icon_path = Path("resources/icons/app-icon-gui.ico")
-        if icon_path.exists():
-            windows_opts.append(f"--windows-icon-from-ico={icon_path}")
-        else:
-            print("Warning: No .ico icon file found. Windows executable will use default icon.")
-
-        print("=== Building CLI with Nuitka (Windows)... ===")
-        cmd_args = [sys.executable, "-m", "nuitka"] + self.UNIVERSAL_OPTS + windows_opts + [FILENAME_SRC_CLI]
-        subprocess.run(cmd_args, check=True)
-
-        print("=== Building GUI with Nuitka (Windows)... ===")
-        gui_opts = self.GUI_OPTS + ["--windows-console-mode=attach", FILENAME_SRC_GUI]
-        gui_args = [sys.executable, "-m", "nuitka"] + self.UNIVERSAL_OPTS + windows_opts + gui_opts
-        subprocess.run(gui_args, check=True)
-
-    def _build_linux(self, dist_dir: Path) -> None:
-        """Build with Nuitka on Linux"""
-        linux_opts = [f"--output-dir={dist_dir}"]
-
-        # Add icon if available
-        icon_path = Path("resources/icons/app-icon-gui.png")
-        if icon_path.exists():
-            linux_opts.append(f"--linux-icon={icon_path}")
-        else:
-            print("Warning: Icon file not found at resources/icons/app-icon-gui.png")
-
-        print("=== Building CLI with Nuitka (Linux)... ===")
-        cmd_args = ["nuitka"] + self.UNIVERSAL_OPTS + linux_opts + [FILENAME_SRC_CLI]
-        subprocess.run(cmd_args, check=True)
-
-        print("=== Building GUI with Nuitka (Linux)... ===")
-        gui_args = ["nuitka"] + self.UNIVERSAL_OPTS + linux_opts + self.GUI_OPTS + [FILENAME_SRC_GUI]
-        subprocess.run(gui_args, check=True)
+# Nuitka build backend disabled — the Nuitka path never produced a usable
+# release (C extensions in analyzer dependencies can't be compiled, and
+# maintaining the --nofollow-import-to exclusion list in sync with the
+# providers layer was not worth the effort). PyInstaller is the only
+# supported backend. Uncomment this class plus the factory / archive /
+# argparse / install hooks marked "NuitkaBuilder disabled" below to revisit.
+#
+# class NuitkaBuilder(BuildBackend):
+#     """Build backend using Nuitka"""
+#
+#     # Nuitka options shared across all platforms
+#     UNIVERSAL_OPTS = [
+#         "--assume-yes-for-downloads",
+#         "--onefile",
+#         "--standalone",
+#         "--lto=no",
+#
+#         # Explicitly allowed dependencies to include
+#         "--nofollow-imports",
+#         "--follow-import-to=models",
+#         "--follow-import-to=providers",
+#         "--follow-import-to=util",
+#         "--follow-import-to=workers",
+#
+#         # Explicitly disabled dependencies (skip compilation, save as bytecode)
+#         "--nofollow-import-to=aubio",
+#         "--nofollow-import-to=audioread",
+#         "--nofollow-import-to=charset_normalizer",
+#         "--nofollow-import-to=jinja2",
+#         "--nofollow-import-to=joblib",
+#         "--nofollow-import-to=librosa",
+#         "--nofollow-import-to=numba",
+#         "--nofollow-import-to=numpy",
+#         "--nofollow-import-to=pyebur128",
+#         "--nofollow-import-to=scipy",
+#         "--nofollow-import-to=soundfile",
+#         "--nofollow-import-to=torch",
+#         "--nofollow-import-to=torchaudio",
+#
+#         # Anti-bloat settings
+#         "--noinclude-pytest-mode=nofollow",
+#         "--noinclude-setuptools-mode=nofollow",
+#         "--noinclude-custom-mode=torch:nofollow",
+#
+#         # Suppress warnings
+#         "--module-parameter=numba-disable-jit=yes",
+#         "--enable-plugin=pyside6"
+#     ]
+#
+#     GUI_OPTS = [
+#         "--follow-import-to=windows",
+#     ]
+#
+#     @property
+#     def name(self) -> str:
+#         return "nuitka"
+#
+#     def build(self, dist_dir: Path) -> None:
+#         """Build both CLI and GUI executables using Nuitka"""
+#         dist_dir.mkdir(parents=True, exist_ok=True)
+#
+#         if self.config.platform == "windows":
+#             self._build_windows(dist_dir)
+#         else:
+#             self._build_linux(dist_dir)
+#
+#     def _build_windows(self, dist_dir: Path) -> None:
+#         """Build with Nuitka on Windows"""
+#         windows_opts = [
+#             "--mingw64",
+#             "--clang",
+#             "--nofollow-import-to=cffi",
+#             f"--output-dir={dist_dir}"
+#         ]
+#
+#         # Add icon if available
+#         icon_path = Path("resources/icons/app-icon-gui.ico")
+#         if icon_path.exists():
+#             windows_opts.append(f"--windows-icon-from-ico={icon_path}")
+#         else:
+#             print("Warning: No .ico icon file found. Windows executable will use default icon.")
+#
+#         print("=== Building CLI with Nuitka (Windows)... ===")
+#         cmd_args = [sys.executable, "-m", "nuitka"] + self.UNIVERSAL_OPTS + windows_opts + [FILENAME_SRC_CLI]
+#         subprocess.run(cmd_args, check=True)
+#
+#         print("=== Building GUI with Nuitka (Windows)... ===")
+#         gui_opts = self.GUI_OPTS + ["--windows-console-mode=attach", FILENAME_SRC_GUI]
+#         gui_args = [sys.executable, "-m", "nuitka"] + self.UNIVERSAL_OPTS + windows_opts + gui_opts
+#         subprocess.run(gui_args, check=True)
+#
+#     def _build_linux(self, dist_dir: Path) -> None:
+#         """Build with Nuitka on Linux"""
+#         linux_opts = [f"--output-dir={dist_dir}"]
+#
+#         # Add icon if available
+#         icon_path = Path("resources/icons/app-icon-gui.png")
+#         if icon_path.exists():
+#             linux_opts.append(f"--linux-icon={icon_path}")
+#         else:
+#             print("Warning: Icon file not found at resources/icons/app-icon-gui.png")
+#
+#         print("=== Building CLI with Nuitka (Linux)... ===")
+#         cmd_args = ["nuitka"] + self.UNIVERSAL_OPTS + linux_opts + [FILENAME_SRC_CLI]
+#         subprocess.run(cmd_args, check=True)
+#
+#         print("=== Building GUI with Nuitka (Linux)... ===")
+#         gui_args = ["nuitka"] + self.UNIVERSAL_OPTS + linux_opts + self.GUI_OPTS + [FILENAME_SRC_GUI]
+#         subprocess.run(gui_args, check=True)
 
 
 
@@ -331,8 +345,9 @@ class DependencyInstaller:
         # Install base requirements
         subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], check=True)
 
-        # Install build dependencies
-        build_deps = ["nuitka", "ordered-set", "zstandard"]
+        # Install build dependencies.
+        # "nuitka" removed from this list — Nuitka backend is disabled.
+        build_deps = ["ordered-set", "zstandard"]
         subprocess.run([sys.executable, "-m", "pip", "install"] + build_deps, check=True)
 
 
@@ -528,8 +543,9 @@ class Builder:
         tool = self.config.get_build_tool()
         if tool == "pyinstaller":
             return PyInstallerBuilder(self.config)
-        elif tool == "nuitka":
-            return NuitkaBuilder(self.config)
+        # NuitkaBuilder disabled — see class comment in this file.
+        # elif tool == "nuitka":
+        #     return NuitkaBuilder(self.config)
         else:
             raise ValueError(f"Unknown build tool: {tool}")
 
@@ -622,8 +638,9 @@ class Archiver:
         if tool == "pyinstaller":
             # PyInstaller outputs to dist_dir/yaamt/ (contains both executables)
             build_dir = self.config.output_dir / "yaamt"
-        elif tool == "nuitka":
-            build_dir = self.config.get_nuitka_dist_dir()
+        # NuitkaBuilder disabled — see class comment in this file.
+        # elif tool == "nuitka":
+        #     build_dir = self.config.get_nuitka_dist_dir()
         else:
             build_dir = self.config.output_dir
 
@@ -748,7 +765,8 @@ def main():
 
     parser.add_argument(
         "--tool",
-        choices=["pyinstaller", "nuitka"],
+        # Nuitka disabled — see NuitkaBuilder class comment in this file.
+        choices=["pyinstaller"],
         default=None,
         help="Build tool to use (default: pyinstaller)"
     )

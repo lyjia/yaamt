@@ -8,7 +8,7 @@ filelock==3.17.0  # For resource download system cross-process file locking
 pyacoustid==1.3.0  # Chromaprint fingerprinting + AcoustID lookup (MusicBrainzAcoustIDAnalyzer)
 
 # packaging
-nuitka==2.8.10
+# nuitka==2.8.10  # Nuitka build backend disabled — see build.py NuitkaBuilder.
 pyinstaller==6.17.0
 imageio==2.37.0
 
@@ -17,7 +17,6 @@ pandas==2.3.3
 mingus==0.6.1  # Used for music theory calculations (interval detection for key scoring)
 
 # for LibrosaBPMAnalyzer, LibrosaKeyAnalyzer, and MusicalKeyCNNAnalyzer
-# these dependencies cause issues compiling with nuitka
 scipy==1.16.2
 librosa==0.11.0
 torchaudio==2.9.1
