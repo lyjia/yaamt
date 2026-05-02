@@ -27,6 +27,13 @@ class PropertiesWindow(QMainWindow):
         self.media_files = media_files
         self.edit_manager = edit_manager
         self.edit_manager.register_media_files(self.media_files)
+
+        # Drop any per-MediaFile tag cache before the tabs are constructed so
+        # the first read always reflects current on-disk state. The window's
+        # MediaFiles can be passed in pre-populated by callers (e.g. the file
+        # model) where the cache may hold stale values from a prior load.
+        for mf in self.media_files:
+            mf.invalidate_tag_cache()
         if len(self.media_files) == 1:
             self.setWindowTitle(f"Properties for {os.path.basename(self.media_files[0].file_path)}")
         else:
