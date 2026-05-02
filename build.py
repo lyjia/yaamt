@@ -625,9 +625,9 @@ class Archiver:
         if not build_dir or not build_dir.exists():
             raise RuntimeError(f"Build directory not found: {build_dir}")
 
-        # Generate archive name
-        if not version_name:
-            version_name = "local"
+        # Default to the git-derived version so archive names match the
+        # version stamped into the binary.
+        version_name = _resolve_version_name(self.config, version_name)
 
         # Use overrides for platform/arch in archive name if provided (useful for CI)
         platform_name = platform_override or self.config.platform
@@ -663,16 +663,27 @@ class Archiver:
             tar.add(build_dir, arcname='.')
 
 
-def _create_installer(config: BuildConfig, version_name: str | None = None):
-    """Create a platform-native installer from the build output."""
-    if config.platform != "windows":
-        print(f"Installer generation not yet implemented for {config.platform}")
-        return
+def _resolve_version_name(config: BuildConfig, override: str | None) -> str:
+    """Single source of truth for the version stamped on archives and installers.
 
-    # Check for Inno Setup compiler
+    Defaults to the same git-derived version that the build itself stamps
+    into the binary; an explicit --version-name overrides it.
+    """
+    if override:
+        return override
+    return get_version_from_git(config.project_root)
+
+
+def _require_pyinstaller_output(config: BuildConfig) -> Path:
+    source_dir = config.output_dir / "yaamt"
+    if not source_dir.exists():
+        raise RuntimeError(f"Build output not found at {source_dir}")
+    return source_dir
+
+
+def _create_windows_installer(config: BuildConfig, version: str) -> None:
     iscc = shutil.which("iscc")
     if not iscc:
-        # Try common install locations
         for candidate in [
             Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"),
             Path(r"C:\Program Files\Inno Setup 6\ISCC.exe"),
@@ -680,20 +691,14 @@ def _create_installer(config: BuildConfig, version_name: str | None = None):
             if candidate.exists():
                 iscc = str(candidate)
                 break
-
     if not iscc:
-        print("Warning: Inno Setup (ISCC.exe) not found. Skipping installer creation.")
-        print("Install from: https://jrsoftware.org/isdl.php")
-        return
+        raise RuntimeError(
+            "Inno Setup (ISCC.exe) not found on PATH. "
+            "Install from https://jrsoftware.org/isdl.php and retry."
+        )
 
-    # Determine source directory (where PyInstaller output lives)
-    source_dir = config.output_dir / "yaamt"
-    if not source_dir.exists():
-        raise RuntimeError(f"Build output not found at {source_dir}")
-
-    version = version_name or "local"
+    source_dir = _require_pyinstaller_output(config)
     iss_file = config.project_root / "installer" / "yaamt.iss"
-
     if not iss_file.exists():
         raise RuntimeError(f"Inno Setup script not found: {iss_file}")
 
@@ -708,6 +713,76 @@ def _create_installer(config: BuildConfig, version_name: str | None = None):
     ]
     subprocess.run(cmd, check=True)
     print(f"=== Installer created in {config.output_dir} ===")
+
+
+def _create_linux_installer(config: BuildConfig, version: str) -> None:
+    nfpm = shutil.which("nfpm")
+    if not nfpm:
+        raise RuntimeError(
+            "nfpm not found on PATH. Install from https://nfpm.goreleaser.com/install/ "
+            "and retry."
+        )
+
+    source_dir = _require_pyinstaller_output(config)
+    nfpm_config = config.project_root / "installer" / "nfpm.yaml"
+    if not nfpm_config.exists():
+        raise RuntimeError(f"nfpm config not found: {nfpm_config}")
+
+    # nfpm consumes ${VAR} substitutions from the environment.
+    env = os.environ.copy()
+    env["YAAMT_VERSION"] = version
+    env["YAAMT_SOURCE_DIR"] = str(source_dir)
+    env["YAAMT_PROJECT_ROOT"] = str(config.project_root)
+
+    print(f"\n=== Creating Linux installers with nfpm... ===")
+    for packager in ("deb", "rpm"):
+        cmd = [
+            nfpm, "package",
+            "--config", str(nfpm_config),
+            "--target", str(config.output_dir),
+            "--packager", packager,
+        ]
+        subprocess.run(cmd, check=True, env=env)
+    print(f"=== Installers created in {config.output_dir} ===")
+
+
+def _create_macos_installer(config: BuildConfig, version: str) -> None:
+    if not shutil.which("create-dmg"):
+        raise RuntimeError(
+            "create-dmg not found on PATH. Install with `brew install create-dmg` and retry."
+        )
+
+    source_dir = _require_pyinstaller_output(config)
+    dmg_script = config.project_root / "installer" / "build_dmg.sh"
+    if not dmg_script.exists():
+        raise RuntimeError(f"DMG build script not found: {dmg_script}")
+
+    print(f"\n=== Creating macOS .dmg with create-dmg... ===")
+    cmd = [
+        "bash", str(dmg_script),
+        "--source", str(source_dir),
+        "--output", str(config.output_dir),
+        "--version", version,
+        "--arch", config.arch,
+    ]
+    subprocess.run(cmd, check=True)
+    print(f"=== Installer created in {config.output_dir} ===")
+
+
+_INSTALLER_BACKENDS = {
+    "windows": _create_windows_installer,
+    "linux": _create_linux_installer,
+    "macos": _create_macos_installer,
+}
+
+
+def _create_installer(config: BuildConfig, version_name: str | None = None) -> None:
+    """Dispatch to the platform-specific installer backend."""
+    backend = _INSTALLER_BACKENDS.get(config.platform)
+    if backend is None:
+        raise RuntimeError(f"No installer backend registered for platform {config.platform!r}")
+    version = _resolve_version_name(config, version_name)
+    backend(config, version)
 
 
 def main():

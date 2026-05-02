@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=YAAMT
+GenericName=Audio Metadata Tool
+Comment=Format-agnostic audio metadata editor
+Exec=/usr/lib/yaamt/yaamt-gui %F
+Icon=yaamt
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+MimeType=audio/mpeg;audio/flac;audio/wav;audio/x-wav;audio/ogg;
+StartupWMClass=yaamt-gui

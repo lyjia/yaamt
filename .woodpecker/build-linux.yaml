@@ -20,6 +20,9 @@ steps:
     image: python:3.12
     commands:
       - python build.py --install-deps
+      # nfpm is not on the python image; fetch the latest release binary.
+      - curl -sSL https://github.com/goreleaser/nfpm/releases/latest/download/nfpm_amd64.deb -o /tmp/nfpm.deb
+      - apt-get update && apt-get install -y /tmp/nfpm.deb
 
   - name: build
     image: python:3.12

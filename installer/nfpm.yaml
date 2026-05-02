@@ -1,0 +1,60 @@
+# nfpm configuration for YAAMT Linux packages.
+#
+# Build both .deb and .rpm from this single file:
+#   nfpm package --config installer/nfpm.yaml --target dist/ --packager deb
+#   nfpm package --config installer/nfpm.yaml --target dist/ --packager rpm
+#
+# Driven by build.py's _create_linux_installer; the env vars below are
+# populated there.
+
+name: yaamt
+arch: amd64                      # nfpm normalizes to x86_64 for rpm
+platform: linux
+version: ${YAAMT_VERSION}
+section: sound
+priority: optional
+maintainer: Lyjia <lyjia@users.noreply.github.com>
+description: |
+  YAAMT - Yet Another Audio Metadata Tool.
+  A format-agnostic audio metadata editor for DJs and music collectors.
+  Supports MP3, FLAC, WAV, and other common formats; computes BPM and
+  musical key; integrates with MusicBrainz for fingerprint lookup.
+vendor: Lyjia
+homepage: https://github.com/lyjia/yaamt
+license: GPL-3.0-or-later
+
+depends:
+  # Qt6 / GUI runtime (PySide6 ships its own Qt libs but still needs the
+  # system EGL/X stack)
+  - libegl1
+  - libxkbcommon0
+  - libxcb-cursor0
+  # Audio
+  - libportaudio2
+
+contents:
+  # PyInstaller output: copy the entire bundle into /usr/lib/yaamt
+  - src: ${YAAMT_SOURCE_DIR}
+    dst: /usr/lib/yaamt
+    type: tree
+
+  # CLI symlink: /usr/bin/yaamt -> /usr/lib/yaamt/yaamt
+  - src: /usr/lib/yaamt/yaamt
+    dst: /usr/bin/yaamt
+    type: symlink
+
+  # Desktop entry for the GUI
+  - src: ${YAAMT_PROJECT_ROOT}/installer/yaamt.desktop
+    dst: /usr/share/applications/yaamt.desktop
+
+  # Application icon (PNG; .icns/.ico are platform-specific)
+  - src: ${YAAMT_PROJECT_ROOT}/resources/icons/app-icon-gui.png
+    dst: /usr/share/icons/hicolor/512x512/apps/yaamt.png
+
+overrides:
+  rpm:
+    depends:
+      - mesa-libEGL
+      - libxkbcommon
+      - xcb-util-cursor
+      - portaudio

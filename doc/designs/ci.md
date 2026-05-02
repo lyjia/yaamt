@@ -57,7 +57,10 @@ this is acceptable as an interim state but blocks v1 public release.
 
 Already running. Apply runner labels `platform=linux/amd64` and
 `os=linux`. The agent must have docker + git available (Woodpecker
-defaults).
+defaults). Build pipelines additionally require `nfpm` available in
+the build container - the official `python:3.12` image does not
+include it, so either bake a custom image or `curl`-install nfpm in
+the install-deps step.
 
 ### Windows agent (to provision)
 
