@@ -1,0 +1,44 @@
+# macOS release build pipeline.
+# Runs on pushes to master/development (-> nightly release) and on
+# v*.*.* tags (-> versioned release).
+#
+# Trust tier: trusted. Has access to GITHUB_RELEASE_TOKEN.
+# Runs on a self-hosted macOS agent (no Docker - the agent must have
+# Python 3.12, git, and create-dmg pre-installed; see doc/designs/ci.md).
+
+when:
+  - event: push
+    branch: [master, development]
+  - event: tag
+    ref: refs/tags/v*.*.*
+
+labels:
+  os: macos
+  platform: darwin/arm64
+
+steps:
+  - name: install-deps
+    commands:
+      - python3 build.py --install-deps
+
+  - name: build
+    commands:
+      - python3 build.py --release --installer
+    depends_on:
+      - install-deps
+
+  - name: upload
+    secrets: [github_release_token]
+    environment:
+      GITHUB_RELEASE_TOKEN:
+        from_secret: github_release_token
+    commands:
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          TAG="$CI_COMMIT_TAG"
+        else
+          TAG="nightly"
+        fi
+      - python3 scripts/release_upload.py --repo lyjia/yaamt --tag "$TAG" dist/*.dmg
+    depends_on:
+      - build

@@ -1,0 +1,40 @@
+# Lint and test pipeline. Runs on every push and every PR.
+# Linux-only by design - tests are platform-agnostic and we want fast
+# feedback.
+#
+# Trust tier: untrusted (fork PRs run here after maintainer approval).
+# Must not depend on any secret. See doc/designs/ci.md.
+
+when:
+  - event: [push, pull_request]
+
+labels:
+  os: linux
+  platform: linux/amd64
+
+steps:
+  - name: install-deps
+    image: python:3.12
+    commands:
+      - python build.py --install-deps
+
+  - name: lint
+    image: python:3.12
+    commands:
+      - pip install flake8
+      # Hard-fail on syntax / undefined-name errors only.
+      - flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      # Soft-warn on everything else.
+      - flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    depends_on:
+      - install-deps
+
+  - name: pytest
+    image: python:3.12
+    environment:
+      QT_QPA_PLATFORM: offscreen
+      GITHUB_ACTIONS: "true"   # used by tests to skip Qt-widget cases
+    commands:
+      - pytest
+    depends_on:
+      - install-deps
