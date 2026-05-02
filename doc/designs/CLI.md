@@ -385,8 +385,10 @@ Key Analyzers:
     RapidEvolution3 wavelet-based key detection algorithm
 
 Loudness Analyzers:
-  PeakMeterAnalyzer (v1.0.0)
-    Peak level and RMS loudness measurement
+  ReplayGainAnalyzer (v1.0.0)
+    ReplayGain 2.0 (EBU R128, -18 LUFS) track + album gain via libebur128
+  PeakMeterAnalyzer (v1.0.0)  [debug-only]
+    Peak level measurement in dBFS
 ```
 
 #### 5.3 `read` Command

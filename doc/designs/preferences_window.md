@@ -232,7 +232,7 @@ No new dataclass needed - uses existing `AnalyzerSettings`:
 │  Preferred Analyzers                                           │
 │  BPM:          [LibRosa BPM Analyzer              ▼]           │
 │  Key:          [KeyFinder Analyzer                ▼]           │
-│  Gain:         [ReplayGain Analyzer               ▼]           │
+│  Loudness:     [ReplayGain Analyzer               ▼]           │
 │  MusicBrainz:  [AcoustID Analyzer                 ▼]           │
 │                                                                │
 │  BPM Detection                                                 │
@@ -360,7 +360,7 @@ General/UiSkin = "" (system default) | "Fusion" | "Windows" | etc.
 ```
 Analyzers/Preferred/bpm = "LibrosaBPMAnalyzer"
 Analyzers/Preferred/key = "KeyFinderAnalyzer"
-Analyzers/Preferred/gain = "ReplayGainAnalyzer"
+Analyzers/Preferred/loudness = "ReplayGainAnalyzer"
 Analyzers/Preferred/musicbrainz = "AcoustIDAnalyzer"
 
 Analyzers/CategoryOptions/bpm/range_min = 80

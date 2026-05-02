@@ -74,7 +74,7 @@ Implement a debug mode system with both runtime and build-time controls to manag
 2. Create temp workspace: `temp_src = create_build_workspace(build_mode)`
 3. Prepare source: `prepare_source_for_build(temp_src, build_mode)`
 4. Try:
-   - Run build from temp location (cx_Freeze or Nuitka)
+   - Run build from temp location (PyInstaller)
    - Copy output to `build/debug/` or `build/release/`
    - Cleanup temp workspace on SUCCESS only
 5. Except:
@@ -89,10 +89,10 @@ Implement a debug mode system with both runtime and build-time controls to manag
 - On success: cleanup temp workspace
 - On failure: print "Build failed. Temp workspace preserved at: {temp_path}" and leave it
 
-### 10. Update setup.py for cx_Freeze
-- Accept source path via environment variable (BUILD_SOURCE_PATH)
-- Build from provided source path instead of current directory
-- Output to build mode-specific directory
+### 10. Wire the temp source path through to PyInstaller
+- The PyInstaller spec resolves source paths relative to `SPECPATH`, which is the workspace `build.py` invokes from.
+- `build.py` runs PyInstaller from the temp workspace's project root, so no `setup.py` patching is needed.
+- Output is placed in the build-mode-specific timestamped directory under `build/`.
 
 ### 11. Documentation Updates
 - Update README with --debug flag usage

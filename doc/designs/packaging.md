@@ -1,11 +1,13 @@
 # Packaging and Distribution Design
 
-This document outlines the design for packaging and distributing the audio-metadata-tool for Windows, macOS, and Linux platforms using `cx_freeze`.
+This document outlines the design for packaging and distributing YAAMT for Windows, macOS, and Linux platforms using **PyInstaller**.
+
+(Historical note: cx_freeze was the original target and Nuitka was prototyped, but neither survived contact with the analyzer dependency mix. The Nuitka backend remains in `build.py` as commented-out code for reference. PyInstaller is the only currently active backend.)
 
 ## 1. Objectives
 
 - Generate standalone application binaries for both the CLI (`src/yaamt.py`) and GUI (`src/yaamt-gui.py`).
-- Create platform-specific installers:
+- Create platform-specific installers (currently deferred — PyInstaller produces the binaries; native installer wiring is future work):
     - `.msi` for Windows
     - `.dmg` for macOS
     - `.deb` for Debian-based Linux distributions
@@ -14,75 +16,65 @@ This document outlines the design for packaging and distributing the audio-metad
 
 ## 2. Implementation Plan
 
-### 2.1. `setup.py` Configuration
+### 2.1. PyInstaller spec file
 
-A `setup.py` file will be created in the project root to configure the `cx_freeze` build process. It will define two main executables:
+`yaamt.spec` in the project root drives the PyInstaller build. It defines two `Analysis` blocks (one each for the CLI and GUI entrypoints), a shared `excludes` list (test frameworks, alternative packagers, known-unused transitive deps), and a `hiddenimports` list for libraries whose static-import detection PyInstaller misses (notably `scipy.*`).
 
-- **`yaamt-cli`**: The command-line interface, from `src/yaamt.py`.
-- **`yaamt-gui`**: The graphical user interface, from `src/yaamt-gui.py`.
-
-The configuration will include:
-- **`build_exe` options**: To specify included/excluded packages, and to ensure all necessary resources (like icons) are bundled.
-- **Platform-specific logic**: To adjust the `base` for the GUI executable on Windows (`Win32GUI`).
-- **Bdist options**: To configure the creation of installers (`bdist_msi`, `bdist_mac`, `bdist_deb`).
+Driven by `build.py` (the high-level orchestrator), which:
+- Detects platform and architecture
+- Creates a temporary build workspace by copying only `src/` and `resources/`
+- Patches `IS_DEBUG_BUILD` for release builds
+- Invokes `pyinstaller yaamt.spec`
+- Copies the output to a timestamped directory `build/<mode>-YYYYMMDD-HHMMSS/yaamt/`
 
 ### 2.2. Dynamic Versioning
 
-A helper script, possibly `src/util/version.py`, will be created to generate the version number.
+`build.py` runs `git describe --tags --dirty --always` and patches the result into `src/util/const.py`'s `VERSION_STRING` constant in the temp build workspace. The runtime application reads that constant directly — no separate `VERSION` file is generated.
 
-**Strategy:**
-1.  Use the `subprocess` module to run `git describe --tags --dirty --always`.
-2.  This command produces a version string like `v0.1.0-g1234567-dirty`.
-3.  This version string will be written to a file (e.g., `src/VERSION`) during the build process.
-4.  The application will read this `VERSION` file at runtime to get its version.
+### 2.3. Platform-Specific Output
 
-This approach decouples the build environment (which has git) from the runtime environment (which won't).
+| Platform | Output |
+|---|---|
+| Windows | `yaamt.exe`, `yaamt-gui.exe` (one-folder bundle with PySide6 / mutagen / etc) |
+| Linux   | `yaamt`, `yaamt-gui` (one-folder bundle) |
+| macOS   | `yaamt`, `yaamt-gui` (one-folder bundle) |
 
-The `setup.py` will execute this script as part of its build process to generate the version file before the executables are frozen.
-
-### 2.3. Platform-Specific Packages
-
-The `setup.py` file will contain configurations for different distribution formats.
-
-- **Windows (`.msi`)**:
-    - The `bdist_msi` command will be used.
-    - Options will be set to define the installer's metadata (e.g., `upgrade_code`, `product_name`).
-- **macOS (`.dmg`)**:
-    - The `bdist_dmg` command will be used to create a standard `.dmg` disk image.
-    - An `Info.plist` file will be referenced to define application metadata, including the icon.
-- **Debian (`.deb`)**:
-    - The `bdist_deb` command will be used.
-    - Options will specify package metadata like maintainer, description, and dependencies.
+Native installer formats (MSI / DMG / DEB) are not yet wired through `build.py`; they were configured against the cx_freeze prototype and need re-implementation against the PyInstaller output. Tracked as future work.
 
 ### 2.4. Displaying the Version in the Application
 
-The version number, stored in the `src/VERSION` file, will be read and displayed in the following locations:
-
-- **CLI**: The `yaamt.py` script will be modified to include a `--version` argument that prints the version and exits.
-- **GUI**: The `windows/about_window.py` will be modified to read the version file and display it in the "About" dialog. A utility function in `src/util/version.py` will handle reading the file.
+- **CLI**: `yaamt.py --version` reads `util.const.VERSION_STRING` and prints it.
+- **GUI**: `windows/about_window.py` reads the same constant and renders it in the About dialog.
 
 ## 3. Build Process
 
-The following commands will be used to build the application and packages:
+```bash
+# Install Python + system build deps
+python build.py --install-deps
 
-- **Build executables**: `python setup.py build`
-- **Create Windows installer**: `python setup.py bdist_msi`
-- **Create macOS disk image**: `python setup.py bdist_dmg`
-- **Create Debian package**: `python setup.py bdist_deb`
+# Debug build (default)
+python build.py
 
-A comprehensive build script (e.g., `build.sh` or `build.bat`) could be created later to automate these steps.
+# Release build (excludes debug-only analyzers via IS_DEBUG_BUILD patch)
+python build.py --release
+
+# Tar/zip the build for distribution
+python build.py --release --archive --version-name v1.0.0
+```
 
 ## 4. Diagram: Build Workflow
 
 ```mermaid
 graph TD
-    A[Start Build] --> B{Get Version};
-    B -->|git describe| C[Generate src/VERSION file];
-    C --> D[Run cx_freeze];
-    D --> E{Build Executables};
-    E --> F[CLI: yaamt-cli];
-    E --> G[GUI: yaamt-gui];
-    D --> H{Create Packages};
-    H --> I[Windows: .msi];
-    H --> J[macOS: .dmg];
-    H --> K[Linux: .deb];
+    A[python build.py] --> B{Detect platform/arch};
+    B --> C[Create temp build workspace];
+    C --> D[Patch IS_DEBUG_BUILD + VERSION_STRING];
+    D --> E[Run PyInstaller against yaamt.spec];
+    E --> F[CLI binary: yaamt / yaamt.exe];
+    E --> G[GUI binary: yaamt-gui / yaamt-gui.exe];
+    F --> H[Copy to build/<mode>-<timestamp>/yaamt/];
+    G --> H;
+    H --> I{--archive?};
+    I -->|yes| J[Tar/zip artifact];
+    I -->|no| K[Done];
+```
