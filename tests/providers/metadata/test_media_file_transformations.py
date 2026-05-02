@@ -10,11 +10,22 @@ import time
 from pathlib import Path
 
 from models.media_file import MediaFile
-from util.const import KEY_TAG_GENERIC, KEY_TITLE, KEY_ARTIST, KEY_BPM, PROJECT_ROOT
+from util.const import (
+    KEY_ARTIST,
+    KEY_BPM,
+    KEY_TAG_GENERIC,
+    KEY_TITLE,
+    PROJECT_ROOT,
+    SETTINGS_BPM_DECIMAL_PLACES,
+)
 
 
 # Test fixture file
 SOURCE_FILE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "sample_dtmf_unicode.mp3"
+
+# QSettings isolation is provided by the autouse `isolated_qsettings` fixture
+# in tests/conftest.py. Tests that need a specific preference value accept it
+# as a parameter and call setValue() on it.
 
 
 class TestMediaFileTransformations:
@@ -112,8 +123,12 @@ class TestMediaFileTransformations:
         result = media_file_read.get_tag_simple(KEY_TITLE)
         assert result == "" or result is None  # Depends on provider behavior
 
-    def test_multiple_tags_transformed(self, tmp_path):
+    def test_multiple_tags_transformed(self, tmp_path, isolated_qsettings):
         """Test that multiple tags are transformed in a single save."""
+        # Pin the BPM decimal-places preference so the expected output is
+        # deterministic regardless of the developer's real user settings.
+        isolated_qsettings.setValue(SETTINGS_BPM_DECIMAL_PLACES, 0)
+
         # Create a temporary copy of the file
         temp_file = tmp_path / "test.mp3"
         shutil.copy(SOURCE_FILE, temp_file)
@@ -138,8 +153,10 @@ class TestMediaFileTransformations:
         assert media_file_read.get_tag_simple(KEY_ARTIST) == "Artist"
         assert media_file_read.get_tag_simple(KEY_BPM) == "120"
 
-    def test_numeric_value_transformation(self, tmp_path):
+    def test_numeric_value_transformation(self, tmp_path, isolated_qsettings):
         """Test that numeric values are converted to strings."""
+        isolated_qsettings.setValue(SETTINGS_BPM_DECIMAL_PLACES, 0)
+
         # Create a temporary copy of the file
         temp_file = tmp_path / "test.mp3"
         shutil.copy(SOURCE_FILE, temp_file)
@@ -210,8 +227,24 @@ class TestMediaFileTransformations:
         media_file_read = MediaFile(str(temp_file))
         assert media_file_read.get_tag_simple(KEY_TITLE) == "Test"
 
-    def test_transformation_with_float_value(self, tmp_path):
-        """Test transformation of float values."""
+    @pytest.mark.parametrize(
+        "decimal_places, expected",
+        [
+            # Integer rendering (rounded, no decimal point).
+            (0, "174"),
+            # Decimal rendering at each supported precision.
+            (1, "173.9"),
+            (2, "173.94"),
+            (3, "173.940"),
+        ],
+    )
+    def test_transformation_with_float_value(
+        self, tmp_path, isolated_qsettings, decimal_places, expected
+    ):
+        """Float BPM is rendered per the decimal_places preference through the
+        full save pipeline, covering both integer and decimal formatting."""
+        isolated_qsettings.setValue(SETTINGS_BPM_DECIMAL_PLACES, decimal_places)
+
         # Create a temporary copy of the file
         temp_file = tmp_path / "test.mp3"
         shutil.copy(SOURCE_FILE, temp_file)
@@ -228,7 +261,6 @@ class TestMediaFileTransformations:
         media_file.save(changes)
         time.sleep(0.1)
 
-        # Read back and verify it was formatted with default 0 decimal places
+        # Read back and verify the BPM was formatted per the preference.
         media_file_read = MediaFile(str(temp_file))
-        # BPM formatter rounds to 0 decimals by default
-        assert media_file_read.get_tag_simple(KEY_BPM) == "174"
+        assert media_file_read.get_tag_simple(KEY_BPM) == expected

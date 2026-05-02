@@ -7,7 +7,7 @@ This codebase is a Python project. It uses:
 * `PySide6` for its graphical user interface (GUI), 
 * `mutagen` for handling audio metadata, 
 * `pytest` for testing,
-* `cx_freeze` or `nuitka` for packaging the application into standalone executables.
+* `PyInstaller` for packaging the application into standalone executables.
 
 This document is to follow the AGENTS.md spec at https://ampcode.com/AGENT.md
 

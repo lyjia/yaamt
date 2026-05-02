@@ -144,24 +144,23 @@ class TestMultibandSpectralBPMAnalyzerIntegration:
             assert len(result.data['bpm_candidates']) > 0
             assert result.data['bpm_candidates'][0].bpm > 0
 
-    def test_analyze_respects_bpm_range_preferences(self, valid_audio_file):
+    def test_analyze_respects_bpm_range_preferences(self, valid_audio_file, isolated_qsettings):
         """Test that analyzer reads BPM range from QSettings."""
-        from PySide6.QtCore import QSettings
-
         media_file = MediaFile(valid_audio_file, enable_write=False)
 
-        # Read current settings
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
-        min_bpm = settings.value("Analyzers/CategoryOptions/bpm/range_min", 80, type=int)
-        max_bpm = settings.value("Analyzers/CategoryOptions/bpm/range_max", 200, type=int)
+        # Seed the isolated store with a known-valid range and read it back
+        # through the same accessor the analyzer uses.
+        isolated_qsettings.setValue("Analyzers/CategoryOptions/bpm/range_min", 80)
+        isolated_qsettings.setValue("Analyzers/CategoryOptions/bpm/range_max", 200)
+        min_bpm = isolated_qsettings.value("Analyzers/CategoryOptions/bpm/range_min", 80, type=int)
+        max_bpm = isolated_qsettings.value("Analyzers/CategoryOptions/bpm/range_max", 200, type=int)
 
-        # Verify settings are reasonable
         assert isinstance(min_bpm, int)
         assert isinstance(max_bpm, int)
         assert min_bpm < max_bpm
         assert min_bpm > 0
 
-        # Run analyzer (it should use these settings internally)
+        # Run analyzer (it should pick up these settings internally)
         analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
@@ -295,16 +294,13 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
             pytest.skip("175 BPM drum and bass fixture not available")
         return str(sample_file)
 
-    def test_analyze_120bpm_in_range(self, house_120bpm_file):
+    def test_analyze_120bpm_in_range(self, house_120bpm_file, isolated_qsettings):
         """Test 120 BPM file with range that includes 120 BPM."""
-        from PySide6.QtCore import QSettings
-
         media_file = MediaFile(house_120bpm_file, enable_write=False)
 
         # Set BPM range to include 120 BPM
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
-        settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 80)
-        settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 160)
+        isolated_qsettings.setValue("Analyzers/CategoryOptions/bpm/range_min", 80)
+        isolated_qsettings.setValue("Analyzers/CategoryOptions/bpm/range_max", 160)
 
         analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
@@ -323,16 +319,13 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         # RE3 uses range hints, so it should detect within a reasonable range of 120
         assert 50 <= detected_bpm <= 250, f"Expected reasonable BPM near 120, got {detected_bpm}"
 
-    def test_analyze_128bpm_in_range(self, house_128bpm_file):
+    def test_analyze_128bpm_in_range(self, house_128bpm_file, isolated_qsettings):
         """Test 128 BPM file with range that includes 128 BPM."""
-        from PySide6.QtCore import QSettings
-
         media_file = MediaFile(house_128bpm_file, enable_write=False)
 
         # Set BPM range to include 128 BPM (RE3 uses this as hint)
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
-        settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 100)
-        settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 150)
+        isolated_qsettings.setValue("Analyzers/CategoryOptions/bpm/range_min", 100)
+        isolated_qsettings.setValue("Analyzers/CategoryOptions/bpm/range_max", 150)
 
         analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
@@ -349,16 +342,13 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         detected_bpm = result.data['bpm_candidates'][0].bpm
         assert 50 <= detected_bpm <= 260, f"Expected reasonable BPM near 128, got {detected_bpm}"
 
-    def test_analyze_175bpm_dnb_in_range(self, dnb_175bpm_file):
+    def test_analyze_175bpm_dnb_in_range(self, dnb_175bpm_file, isolated_qsettings):
         """Test 175 BPM drum and bass file (may have irregular beats)."""
-        from PySide6.QtCore import QSettings
-
         media_file = MediaFile(dnb_175bpm_file, enable_write=False)
 
         # Set BPM range to include 175 BPM
-        settings = QSettings("Lyjia", "Audio Metadata Tool")
-        settings.setValue("Analyzers/CategoryOptions/bpm/range_min", 150)
-        settings.setValue("Analyzers/CategoryOptions/bpm/range_max", 200)
+        isolated_qsettings.setValue("Analyzers/CategoryOptions/bpm/range_min", 150)
+        isolated_qsettings.setValue("Analyzers/CategoryOptions/bpm/range_max", 200)
 
         analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
