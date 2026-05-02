@@ -30,6 +30,12 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from datetime import datetime
 
+# Make src/util importable so the build system uses the same version
+# derivation logic as the running app (avoids drift between build-stamped
+# and runtime-resolved versions).
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+from util.version import get_version_from_git  # noqa: E402
+
 DEBIAN_LINUX_DEPS = ["ccache", "patchelf", "alien", "libegl1", "libxkbcommon-x11-0",
                      "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-randr0",
                      "libxcb-render-util0", "libxcb-xinerama0", "libxcb-xfixes0", "xvfb",
@@ -541,19 +547,8 @@ class Builder:
         print(f"Build mode: {self.config.build_mode}")
         print(f"Using build tool: {backend.name}\n")
 
-        # Get version string from git in original repo (before copying)
-        try:
-            version_result = subprocess.run(
-                ['git', 'describe', '--tags', '--always', '--dirty'],
-                cwd=self.config.project_root,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            version_string = version_result.stdout.strip()
-        except subprocess.CalledProcessError:
-            version_string = "unknown"
-
+        # Resolve version via the same helper the running app uses.
+        version_string = get_version_from_git(self.config.project_root)
         print(f"Version: {version_string}\n")
 
         # Create temporary build workspace
