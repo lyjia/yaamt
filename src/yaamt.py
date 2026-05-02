@@ -118,6 +118,31 @@ def load_media_files(file_paths: list[str], enable_write: bool = False) -> list[
 # Command Handlers
 # ============================================================================
 
+def _cli_check_update() -> int:
+    """Synchronous CLI update check; bypasses Qt and the cache.
+
+    Mirrors the GUI's "Check Now" button: explicit user action, so
+    runs regardless of the SETTINGS_CHECK_FOR_UPDATES_ON_STARTUP toggle.
+    """
+    from workers.update_checker import check_latest_release
+    from util.version import is_newer
+
+    current = get_version()
+    try:
+        latest, html_url = check_latest_release()
+    except Exception as e:
+        print(f"Update check failed: {e}", file=sys.stderr)
+        return SYS_RETURN_ERROR
+
+    if is_newer(latest, current):
+        print(f"Update available: {latest} (current: {current})")
+        if html_url:
+            print(html_url)
+    else:
+        print(f"You are on the latest release ({current}).")
+    return SYS_RETURN_SUCCESS
+
+
 def cmd_help(args: argparse.Namespace) -> int:
     """Handle the 'help' command."""
     print_program_header()
@@ -214,8 +239,9 @@ def cmd_help(args: argparse.Namespace) -> int:
         print("  analyze <analyzer> [opts...] <paths...>  Analyze audio files")
         print()
         print("Global Options:")
-        print("  --version    Show version and exit")
-        print("  --verbose    Enable verbose output")
+        print("  --version       Show version and exit")
+        print("  --check-update  Check the GitHub Releases API for a newer version and exit")
+        print("  --verbose       Enable verbose output")
         print("  --debug      Enable debug mode (default)")
         print()
         print("Use 'yaamt.py help <command>' for more information on a specific command.")
@@ -501,6 +527,8 @@ def main() -> int:
 
     # Global options
     parser.add_argument('--version', action='store_true', help='Show version and exit')
+    parser.add_argument('--check-update', action='store_true',
+                        help='Check the GitHub Releases API for a newer version and exit')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
     add_debug_argument(parser)
 
@@ -573,6 +601,10 @@ def main() -> int:
     if args.version:
         print(get_version())
         return SYS_RETURN_SUCCESS
+
+    # Handle --check-update (synchronous; bypasses cache)
+    if args.check_update:
+        return _cli_check_update()
 
     # Initialize debug mode and logging in one place, shared with the GUI.
     initialize_debug_and_logging(args)

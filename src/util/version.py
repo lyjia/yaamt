@@ -120,5 +120,40 @@ def get_version() -> str:
     return get_version_from_git()
 
 
+_MMP_PATTERN = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)")
+
+
+def _parse_major_minor_patch(version: str) -> tuple[int, int, int] | None:
+    """Extract the (major, minor, patch) tuple from a version string.
+
+    Local-version suffixes (`+N.hash`, `.dirty`) are ignored: comparison
+    happens at the release-line granularity. A leading `v` is tolerated
+    so callers can pass GitHub tag names directly.
+    """
+    match = _MMP_PATTERN.match(version)
+    if match is None:
+        return None
+    return (int(match[1]), int(match[2]), int(match[3]))
+
+
+def is_newer(candidate: str, baseline: str) -> bool:
+    """
+    Return True when ``candidate``'s Major.Minor.Patch is strictly greater
+    than ``baseline``'s.
+
+    Local-version metadata (PEP 440 `+...` suffix, `.dirty`) is ignored:
+    a user running 0.3.0+5.abc1234 is past the 0.3.0 release line and
+    will only be notified about 0.3.1 / 0.4.0 etc.
+
+    Returns False if either argument cannot be parsed - we never push a
+    notification we cannot justify.
+    """
+    cand = _parse_major_minor_patch(candidate)
+    base = _parse_major_minor_patch(baseline)
+    if cand is None or base is None:
+        return False
+    return cand > base
+
+
 if __name__ == "__main__":
     print(get_version())

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PySide6.QtCore import (
-    QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, Slot, Signal
+    QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, QTimer, Slot, Signal
 )
 
 import windows
@@ -29,7 +29,10 @@ from util.const import (
     SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, SETTINGS_UI_SKIN,
     SETTINGS_GROUP_FAVORITES, SETTINGS_ARRAY_FAVORITES_LOCATIONS,
     SETTINGS_GROUP_FILE_LIST, SETTINGS_ARRAY_FILE_LIST_COLUMNS,
+    SETTINGS_CHECK_FOR_UPDATES_ON_STARTUP, CHECK_FOR_UPDATES_ON_STARTUP_DEFAULT,
+    UPDATE_CHECK_REPO,
 )
+from util.version import get_version
 from windows.rename.setup_dialog import RenameSetupDialog
 from workers.rename_dispatcher import RenameDispatcher
 from util.debug import is_debug_mode
@@ -234,6 +237,54 @@ class MainWindow(QMainWindow):
 
         # Connect the signal to start playback in the worker thread
         self.start_playback_signal.connect(self.playback_worker.start_playback)
+
+        # Schedule the opt-in update check after the window is shown.
+        # Runs only if the user has explicitly enabled the toggle in
+        # Preferences -> General -> Updates (default OFF).
+        QTimer.singleShot(0, self._maybe_check_for_updates)
+
+    def _maybe_check_for_updates(self):
+        """Honor the opt-in setting and dispatch a non-blocking check."""
+        enabled = settings.value(
+            SETTINGS_CHECK_FOR_UPDATES_ON_STARTUP,
+            CHECK_FOR_UPDATES_ON_STARTUP_DEFAULT,
+            type=bool,
+        )
+        if not enabled:
+            return
+        self._dispatch_update_check(use_cache=True, surface_failures=False)
+
+    def _dispatch_update_check(self, use_cache: bool, surface_failures: bool):
+        """Submit an UpdateChecker run to the GUI thread pool."""
+        from workers.update_checker import UpdateChecker
+
+        checker = UpdateChecker(current_version=get_version(), use_cache=use_cache)
+        checker.signals.update_available.connect(self._on_update_available)
+        checker.signals.no_update.connect(self._on_update_no_update)
+        if surface_failures:
+            checker.signals.failed.connect(self._on_update_failed)
+        else:
+            checker.signals.failed.connect(self._on_update_failed_silent)
+        self.thread_pool.start(checker)
+
+    @Slot(str, str)
+    def _on_update_available(self, latest_version: str, html_url: str):
+        message = f"Version {latest_version} is available - visit github.com/{UPDATE_CHECK_REPO}/releases"
+        self.status_bar.showMessage(message)
+        log.info(message + (f" ({html_url})" if html_url else ""))
+
+    @Slot()
+    def _on_update_no_update(self):
+        log.debug("Update check: already on latest release")
+
+    @Slot(str)
+    def _on_update_failed(self, error_message: str):
+        self.status_bar.showMessage(f"Update check failed: {error_message}", 5000)
+
+    @Slot(str)
+    def _on_update_failed_silent(self, error_message: str):
+        # Startup-path failures are log-only - do not bother the user.
+        log.debug(f"Silent update check failure: {error_message}")
 
     def closeEvent(self, event):
         log.info("MainWindow close event received!") # Commenting-out or removing this line causes playback to freeze for some reason https://github.com/lyjia/yaamt/issues/49

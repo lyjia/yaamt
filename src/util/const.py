@@ -286,6 +286,18 @@ SETTINGS_PREFERRED_DIRECTORY = "General/PreferredDirectory"
 SETTINGS_PREFERRED_AUDIO_DEVICE = "General/PreferredAudioDevice"
 SETTINGS_UI_SKIN = "General/UiSkin"
 
+# Update-check settings (see doc/designs/self_update.md).
+# CHECK_FOR_UPDATES_ON_STARTUP defaults to FALSE: the application must
+# not make any network call on startup unless the user has explicitly
+# opted in.
+SETTINGS_CHECK_FOR_UPDATES_ON_STARTUP = "General/CheckForUpdatesOnStartup"
+SETTINGS_LAST_UPDATE_CHECK_TIMESTAMP = "General/LastUpdateCheckTimestamp"
+SETTINGS_LAST_KNOWN_LATEST_VERSION = "General/LastKnownLatestVersion"
+CHECK_FOR_UPDATES_ON_STARTUP_DEFAULT = False
+UPDATE_CHECK_INTERVAL_SECONDS = 24 * 60 * 60
+UPDATE_CHECK_REPO = "lyjia/yaamt"
+UPDATE_CHECK_API_URL = f"https://api.github.com/repos/{UPDATE_CHECK_REPO}/releases/latest"
+
 # Debug / playback adaptation settings
 SETTINGS_DEBUG_PLAYBACK_ADAPTATION = "Debug/PlaybackFormatAdaptationEnabled"
 SETTINGS_DEBUG_PLAYBACK_SAMPLE_RATE = "Debug/PlaybackSampleRate"
