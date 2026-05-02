@@ -63,6 +63,12 @@ class PropertiesWindow(QMainWindow):
         self.edit_manager.commit_finished.connect(self.on_save_finished)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
 
+        # Refresh the tabs whenever the analyzer dispatcher finishes a batch:
+        # the analyzer writes through a different MediaFile instance, so this
+        # window's cached tag values would otherwise stay stale.
+        from workers.analyzer_dispatcher import AnalyzerDispatcher
+        AnalyzerDispatcher().analysis_completed.connect(self.refresh_tabs)
+
         # Bottom button layout
         self.bottom_layout = QHBoxLayout()
         tools_button = QPushButton("Tools")
@@ -113,6 +119,19 @@ class PropertiesWindow(QMainWindow):
 
     def on_save_finished(self, file_ids):
         self.close()
+
+    def refresh_tabs(self) -> None:
+        """
+        Drop cached metadata on every open MediaFile and re-populate the
+        tabs. Wired to the analyzer dispatcher's ``analysis_completed`` so
+        the window picks up tags written by a background batch.
+        """
+        for mf in self.media_files:
+            mf.invalidate_tag_cache()
+        if hasattr(self, 'main_tab'):
+            self.main_tab.refresh()
+        if hasattr(self, 'advanced_tab'):
+            self.advanced_tab.refresh()
 
     def on_staged_changes_changed(self, has_changes):
         self.update_button_states()

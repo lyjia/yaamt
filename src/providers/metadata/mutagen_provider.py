@@ -327,6 +327,19 @@ class MutagenProvider(MetadataProviderBase):
         """
         return self._audio is not None
 
+    def reload(self) -> None:
+        """
+        Re-open the file via mutagen to pick up tag changes that landed on
+        disk through a different MediaFile / provider instance. Called by
+        ``MediaFile.invalidate_tag_cache``.
+        """
+        if not self._file_path:
+            return
+        try:
+            self._audio = mutagen.File(self._file_path, easy=True)
+        except Exception as e:
+            log.warning(f"Failed to reload {self._file_path}: {e}")
+
     def is_writable(self) -> bool:
         return self._write_enabled
 

@@ -1029,7 +1029,11 @@ class MainWindow(QMainWindow):
         # *are* the analyzer's results and clearing them would silently
         # discard the batch's work. With autosave on, the dispatcher has
         # already committed synchronously so staged changes are empty.
-        # Force-replace MediaFile instances so the display picks up new data.
+        # Drop cached tag values so the file model picks up tags written
+        # through a different MediaFile instance (analyzer dispatcher),
+        # then force-replace MediaFile instances in EditManager.
+        for mf in media_files:
+            mf.invalidate_tag_cache()
         self.edit_manager.register_media_files(media_files, force_replace=True)
         self.file_model.refresh_files(file_ids, self.edit_manager)
 
