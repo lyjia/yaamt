@@ -376,8 +376,6 @@ Also, this is a side project for me, so I may not be able to respond to pull req
 
 This application uses PyInstaller to package binaries for Windows, Linux, and macOS. Build artifacts will be output to `build/`.
 
-(A Nuitka backend exists but is currently commented out in `build.py` — it never produced a usable release because several of the analyzer dependencies don't compile cleanly. PyInstaller handles them all without ceremony via prebuilt wheels.)
-
 #### First-time Setup
 
 Install dependencies before your first build:

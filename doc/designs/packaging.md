@@ -2,8 +2,6 @@
 
 This document outlines the design for packaging and distributing YAAMT for Windows, macOS, and Linux platforms using **PyInstaller**.
 
-(Historical note: cx_freeze was the original target and Nuitka was prototyped, but neither survived contact with the analyzer dependency mix. The Nuitka backend remains in `build.py` as commented-out code for reference. PyInstaller is the only currently active backend.)
-
 ## 1. Objectives
 
 - Generate standalone application binaries for both the CLI (`src/yaamt.py`) and GUI (`src/yaamt-gui.py`).
@@ -39,7 +37,7 @@ Driven by `build.py` (the high-level orchestrator), which:
 | Linux   | `yaamt`, `yaamt-gui` (one-folder bundle) |
 | macOS   | `yaamt`, `yaamt-gui` (one-folder bundle) |
 
-Native installer formats (MSI / DMG / DEB) are not yet wired through `build.py`; they were configured against the cx_freeze prototype and need re-implementation against the PyInstaller output. Tracked as future work.
+Native installer formats (MSI / DMG / DEB) are not yet wired through `build.py`. Tracked as future work.
 
 ### 2.4. Displaying the Version in the Application
 

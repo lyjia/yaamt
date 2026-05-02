@@ -8,7 +8,6 @@ filelock==3.17.0  # For resource download system cross-process file locking
 pyacoustid==1.3.0  # Chromaprint fingerprinting + AcoustID lookup (MusicBrainzAcoustIDAnalyzer)
 
 # packaging
-# nuitka==2.8.10  # Nuitka build backend disabled — see build.py NuitkaBuilder.
 pyinstaller==6.17.0
 imageio==2.37.0
 
