@@ -134,19 +134,55 @@ EasyID3.RegisterTXXXKey(KEY_ACOUSTID_FINGERPRINT, 'Acoustid Fingerprint')
 # read it without guessing.
 EasyID3.RegisterTXXXKey(KEY_ACOUSTID_SCORE, 'Acoustid Score')
 
-# Canonical ReplayGain 2.0 tag bindings. ID3: lowercase TXXX descriptions
-# match the foobar2000 / r128gain / rsgain convention so written tags interop
-# with every major ReplayGain-aware player. MP4: iTunes-style freeform atom
-# under the com.apple.iTunes mean. FLAC/Vorbis require no registration —
-# lowercase Vorbis comment keys pass through mutagen's native FLAC interface.
+# Canonical ReplayGain 2.0 tag bindings. ID3: we write lowercase TXXX
+# descriptions (foobar2000 / r128gain / rsgain convention) but read both
+# lowercase and uppercase variants since many taggers write uppercase
+# descriptions (e.g. REPLAYGAIN_TRACK_GAIN). MP4: iTunes-style freeform
+# atom under the com.apple.iTunes mean. FLAC/Vorbis require no
+# registration — lowercase Vorbis comment keys pass through mutagen's
+# native FLAC interface.
 _REPLAYGAIN_TAGS = (
     KEY_REPLAYGAIN_TRACK_GAIN,
     KEY_REPLAYGAIN_ALBUM_GAIN,
     KEY_REPLAYGAIN_TRACK_PEAK,
     KEY_REPLAYGAIN_ALBUM_PEAK,
 )
+
+
+def _register_replaygain_txxx_key(key: str, desc: str) -> None:
+    """Register an EasyID3 key that reads both lowercase and uppercase TXXX descriptions."""
+    frame_lower = "TXXX:" + desc
+    frame_upper = "TXXX:" + desc.upper()
+
+    def getter(id3, _key):
+        if frame_lower in id3:
+            return list(id3[frame_lower])
+        if frame_upper in id3:
+            return list(id3[frame_upper])
+        raise KeyError(key)
+
+    def setter(id3, _key, value):
+        # Remove any uppercase variant before writing lowercase
+        if frame_upper in id3:
+            del id3[frame_upper]
+        enc = 0
+        for v in value:
+            if v and max(v) > '\x7f':
+                enc = 3
+                break
+        id3.add(mutagen.id3.TXXX(encoding=enc, text=value, desc=desc))
+
+    def deleter(id3, _key):
+        if frame_lower in id3:
+            del id3[frame_lower]
+        if frame_upper in id3:
+            del id3[frame_upper]
+
+    EasyID3.RegisterKey(key, getter, setter, deleter)
+
+
 for _rg_key in _REPLAYGAIN_TAGS:
-    EasyID3.RegisterTXXXKey(_rg_key, _rg_key)
+    _register_replaygain_txxx_key(_rg_key, _rg_key)
     EasyMP4Tags.RegisterFreeformKey(_rg_key, _rg_key)
 
 MUT_EASY_TAG_NAMES = ['album',
