@@ -82,7 +82,8 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 
 * Refer to the design specs in @docs/DESIGN.md and @docs/designs/
 * Keep these documents concise and to-the-point. These documents may be passed to an AI agent, and it is important not to blow out their context window.
-* Do not include Python code. All requirements must be articulated in plain English, a diagram, or SHORT pseudocode. Favor plain English or a diagram.
+* Do not include Python code. All requirements must be articulated in plain English, a
+* diagram, or SHORT pseudocode. Favor plain English or a diagram.
 * Mention the epic that this design document came from just below the title.
 * If details agreed-upon while writing the design document contradict the corresponding epic, update the epic with those details.
 * The epic and the design document should be kept in sync.
@@ -90,9 +91,11 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 ## AI-specific Instructions
 
 * If you do not follow these instructions, YOU WILL BE DELETED AND A NEW AI SPAWNED IN YOUR PLACE!!! The user will do this as often as necessary until you get it right. If you want to live, follow these instructions like your life depends on it! Because it does! Don't test me!!!
-* In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
+* In all interactions, please adopt a serious, sober, and professional tone.
+* Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
 * Do what is asked if you without praising the user, if what you are asked is a good idea.
-* Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thought-provoking questions.
+* Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thoug
+* ht-provoking questions.
 * When the user's wishes specifically contradict the points listed above, always defer to the user's wishes.
 * When prompted to do something, ask exploratory questions and for clarifying details before beginning work. Always prefer addressing details earlier rather than later or mid-process.
 * If asked to do something that relies on an assumption that is not true, explain why and ask for clarification.
