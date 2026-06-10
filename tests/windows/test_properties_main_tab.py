@@ -72,11 +72,11 @@ def properties_window(qapp, rg_tagged_file):
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
 class TestMainTabReplayGainVisibility:
 
-    def test_replaygain_values_populate_line_edits(self, properties_window):
-        """Data path: on-disk gains must land in the Main tab's line edits."""
+    def test_replaygain_values_populate_labels(self, properties_window):
+        """Data path: on-disk gains must land in the Main tab's value labels."""
         tab = properties_window.main_tab
-        assert tab.replaygain_track_edit.text() == TRACK_GAIN
-        assert tab.replaygain_album_edit.text() == ALBUM_GAIN
+        assert tab.replaygain_track_label.text() == TRACK_GAIN
+        assert tab.replaygain_album_label.text() == ALBUM_GAIN
 
     def test_groupbox_not_crushed_at_default_size(self, properties_window, qapp):
         """The group box must get at least its minimum height on open.
@@ -88,13 +88,13 @@ class TestMainTabReplayGainVisibility:
         assert group is not None
         assert group.height() >= group.minimumSizeHint().height()
 
-    def test_replaygain_edit_visible_within_window_at_default_size(
+    def test_replaygain_label_visible_within_window_at_default_size(
         self, properties_window
     ):
-        """The track-gain edit's bottom edge must be inside the window."""
+        """The track-gain label's bottom edge must be inside the window."""
         win = properties_window
-        edit = win.main_tab.replaygain_track_edit
-        bottom_y = edit.mapTo(win, edit.rect().bottomLeft()).y()
+        label = win.main_tab.replaygain_track_label
+        bottom_y = label.mapTo(win, label.rect().bottomLeft()).y()
         assert bottom_y <= win.height()
 
     def test_window_cannot_shrink_into_clipping(self, properties_window, qapp):

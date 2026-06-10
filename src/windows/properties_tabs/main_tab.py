@@ -1,5 +1,8 @@
-from PySide6.QtWidgets import QWidget, QFormLayout, QLineEdit, QGroupBox
+from PySide6.QtWidgets import (
+    QWidget, QFormLayout, QHBoxLayout, QLineEdit, QLabel, QGroupBox,
+)
 from PySide6.QtCore import Signal
+from delegates.editable_metadata_delegate import PLACEHOLDER_MULTIPLE_VALUES
 from models.edit_manager import EditManager
 from util.const import (
     KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE,
@@ -28,10 +31,10 @@ _EDITABLE_FIELDS: list[tuple[str, str, str]] = [
     ("Key:",          "key_edit",          KEY_INITIAL_KEY),
 ]
 
-# Read-only ReplayGain fields shown inside their own group box.
+# Read-only ReplayGain fields shown on a single line inside their own group box.
 _READONLY_REPLAYGAIN_FIELDS: list[tuple[str, str, str]] = [
-    ("Track:", "replaygain_track_edit", KEY_REPLAYGAIN_TRACK_GAIN),
-    ("Album:", "replaygain_album_edit", KEY_REPLAYGAIN_ALBUM_GAIN),
+    ("Track:", "replaygain_track_label", KEY_REPLAYGAIN_TRACK_GAIN),
+    ("Album:", "replaygain_album_label", KEY_REPLAYGAIN_ALBUM_GAIN),
 ]
 
 
@@ -61,15 +64,19 @@ class MainTab(QWidget):
         )
         layout.insertRow(composer_index + 1, "Publisher:", self.publisher_edit)
 
-        # ReplayGain GroupBox
+        # ReplayGain GroupBox: caption/value QLabel pairs on a single line,
+        # each pair given equal stretch so they distribute evenly across the box.
         replaygain_group = QGroupBox("ReplayGain")
-        replaygain_layout = QFormLayout()
+        replaygain_layout = QHBoxLayout()
         replaygain_group.setLayout(replaygain_layout)
         for label, attr_name, _tag_key in _READONLY_REPLAYGAIN_FIELDS:
-            line_edit = QLineEdit()
-            line_edit.setReadOnly(True)
-            setattr(self, attr_name, line_edit)
-            replaygain_layout.addRow(label, line_edit)
+            pair_layout = QHBoxLayout()
+            pair_layout.addWidget(QLabel(label))
+            value_label = QLabel()
+            setattr(self, attr_name, value_label)
+            pair_layout.addWidget(value_label)
+            pair_layout.addStretch(1)
+            replaygain_layout.addLayout(pair_layout, 1)
         layout.addRow(replaygain_group)
 
         self.refresh()
@@ -111,7 +118,7 @@ class MainTab(QWidget):
         return None # Indicates multiple values
 
     def _clear_placeholder_on_focus(self, event, line_edit):
-        if line_edit.placeholderText() == "<< multiple values >>":
+        if line_edit.placeholderText() == PLACEHOLDER_MULTIPLE_VALUES:
             line_edit.setPlaceholderText("")
             line_edit.setStyleSheet("")
         QLineEdit.focusInEvent(line_edit, event)
@@ -120,15 +127,25 @@ class MainTab(QWidget):
         value = self._get_display_value(tag_name)
         if value is None: # Multiple values
             line_edit.setText("")
-            line_edit.setPlaceholderText("<< multiple values >>")
+            line_edit.setPlaceholderText(PLACEHOLDER_MULTIPLE_VALUES)
             line_edit.setStyleSheet("color: gray;")
         else: # Single value or empty
             line_edit.setText(str(value))
             line_edit.setPlaceholderText("")
             line_edit.setStyleSheet("")
 
+    def _populate_readonly_label(self, label: QLabel, tag_name: str) -> None:
+        """Populate a read-only value QLabel; labels have no placeholder text."""
+        value = self._get_display_value(tag_name)
+        if value is None: # Multiple values
+            label.setText(PLACEHOLDER_MULTIPLE_VALUES)
+            label.setStyleSheet("color: gray;")
+        else: # Single value or empty
+            label.setText(str(value))
+            label.setStyleSheet("")
+
     def refresh(self):
         for _label, attr_name, tag_key in _EDITABLE_FIELDS:
             self._populate_field(getattr(self, attr_name), tag_key)
         for _label, attr_name, tag_key in _READONLY_REPLAYGAIN_FIELDS:
-            self._populate_field(getattr(self, attr_name), tag_key)
+            self._populate_readonly_label(getattr(self, attr_name), tag_key)

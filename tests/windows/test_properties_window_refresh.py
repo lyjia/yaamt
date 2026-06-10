@@ -82,5 +82,5 @@ def test_properties_main_tab_shows_replaygain_with_pre_stale_cache(qapp, tmp_pat
     pw = PropertiesWindow([mf], em)
 
     # Defensive invalidate in __init__ should have triggered a fresh read.
-    assert pw.main_tab.replaygain_track_edit.text() == '-1.47 dB'
-    assert pw.main_tab.replaygain_album_edit.text() == '-1.47 dB'
+    assert pw.main_tab.replaygain_track_label.text() == '-1.47 dB'
+    assert pw.main_tab.replaygain_album_label.text() == '-1.47 dB'
