@@ -39,8 +39,15 @@ class PropertiesWindow(QMainWindow):
         else:
             self.setWindowTitle(f"Properties for {len(self.media_files)} files")
 
-        self.resize(720, 480)
-        self.setMinimumSize(400, 300)
+        # Default tall enough to show the Main tab's full form including the
+        # ReplayGain group box. Deliberately NO setMinimumSize() call here:
+        # with no explicit minimum, Qt imposes the layouts' computed minimum
+        # on the window (currently ~549 px for the Main tab's 15 form rows),
+        # so the user cannot resize the window small enough to clip the form.
+        # An explicit minimum like the old setMinimumSize(400, 300) OVERRIDES
+        # that layout-derived floor and is exactly what allowed the ReplayGain
+        # group to be crushed out of view.
+        self.resize(720, 600)
         self.setWindowIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon))
 
         self.central_widget = QWidget()
