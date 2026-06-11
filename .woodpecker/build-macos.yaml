@@ -14,6 +14,16 @@ when:
   - event: tag
     ref: refs/tags/v*.*.*
 
+# Skip the references/ submodules (reference material only). Fetch
+# tags explicitly: version stamping runs `git describe --tags` and
+# must see release tags even on branch-push (nightly) builds.
+clone:
+  - name: clone
+    image: woodpecker/plugin-git
+    settings:
+      recursive: false
+      tags: true
+
 labels:
   backend: local
   os: macos

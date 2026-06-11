@@ -22,6 +22,14 @@ when:
   - event: push
     branch: [master, development]
 
+# The references/ submodules are reference material only - tests and
+# builds never touch them. Skip the recursive clone.
+clone:
+  - name: clone
+    image: woodpecker/plugin-git
+    settings:
+      recursive: false
+
 labels:
   platform: linux/amd64
 
