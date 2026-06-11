@@ -28,3 +28,12 @@ The Properties Window provides a user-friendly interface for viewing and editing
 The decision to use `MediaFile`'s internal change buffer, rather than a separate one in the `PropertiesWindow`, was made to simplify the design and reduce code duplication. This approach centralizes the change management logic in the `MediaFile` class, making the application easier to maintain and reason about.
 
 The use of a `QThread` for the save operation is a critical design choice that ensures the GUI remains responsive at all times. By offloading the file I/O to a separate thread, we prevent the main event loop from being blocked, resulting in a much smoother and more professional user experience.
+
+## Autosave and Pending Edits
+
+All metadata edits (Properties window fields, inline file-view editing, analyzer results) are staged in the EditManager first. What happens next is governed by the autosave setting (File menu, persisted across sessions):
+
+*   **Autosave on:** edits persist automatically — when the Properties window closes, when an inline edit field loses focus, or when an analyzer batch completes. The file view never marks cells as pending.
+*   **Autosave off:** edits stay queued in the EditManager. Affected cells render bold in the file view until the user picks File > Save Changes (writes them) or File > Reset Changes (discards them and restores the displayed values). Save and Reset are enabled only while edits are queued.
+
+Failure handling: a file whose write fails keeps its staged edits (and its bold marker) so the user's work is never silently dropped; a later save retries it. At quit time, a pending background commit is waited on and the final save runs synchronously before the application exits.

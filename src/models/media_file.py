@@ -148,6 +148,23 @@ class MediaFile:
         else:
             self._combined_metadata[KEY_TAGS][key] = {}
 
+    def invalidate_tag_cache(self) -> None:
+        """
+        Drop every cached tag value and force every provider to reread its
+        underlying file on the next ``get_tag_*`` call.
+
+        ``MediaFile.save()`` already invalidates entries for tags it just
+        wrote, but tags written through a *different* MediaFile instance
+        (e.g. the analyzer dispatcher operates on its own MediaFile while
+        a Properties window holds another instance pointed at the same
+        file on disk) are invisible to that local invalidation. Long-lived
+        UI surfaces should call this when they receive a signal that says
+        "the file may have been touched by something else".
+        """
+        self._combined_metadata[KEY_TAGS].clear()
+        for provider in self._providers:
+            provider.reload()
+
     def get_stream_info_value(self, key: str) -> Any:
         if not self._combined_metadata[KEY_STREAM_INFO].get(key):
             self.load_meta_for_stream_info(key)

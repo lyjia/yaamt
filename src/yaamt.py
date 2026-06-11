@@ -460,6 +460,16 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     thread_pool_size = args.threads
     results = []
 
+    # Stage writes through EditManager so batch analyzers (ReplayGain) can run
+    # their cross-file aggregation step after the per-task loop. We commit
+    # once at the end via commit_changes_sync.
+    from providers.analysis.base import BatchAnalyzerBase
+    is_batch = issubclass(analyzer_class, BatchAnalyzerBase)
+    edit_manager_for_writes = None
+    if args.write_tags:
+        edit_manager_for_writes = EditManager()
+        edit_manager_for_writes.register_media_files(media_files)
+
     for idx, task in enumerate(tasks, 1):
         print(f"  [{idx}/{len(tasks)}] {task.media_file.file_path}...", end=' ', flush=True)
 
@@ -480,19 +490,42 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         # Show status
         if result.success and not result.skipped:
             print("OK")
-            # Write to tags if requested
-            if args.write_tags and result.data:
+            # Stage per-file tags now for non-batch analyzers; batch analyzers
+            # defer until aggregate_results has merged album-level data.
+            if args.write_tags and result.data and not is_batch:
                 for tag_name, tag_value in result.data.items():
-                    task.media_file.set_tag_simple(tag_name, tag_value)
-                # Save
-                try:
-                    task.media_file.save()
-                except Exception as e:
-                    log.error(f"Failed to save tags for {task.media_file.file_path}: {e}")
+                    edit_manager_for_writes.stage_change(
+                        [task.media_file], tag_name, tag_value,
+                    )
         elif result.skipped:
             print(f"SKIPPED ({result.error})")
         else:
             print(f"ERROR ({result.error})")
+
+    # Batch analyzers: run aggregate_results now and stage the merged data.
+    if args.write_tags and is_batch:
+        successful = [t for t in tasks if t.result and t.result.success and not t.result.skipped]
+        if successful:
+            try:
+                aggregated = analyzer_class.aggregate_results(successful, analyzer_options)
+            except Exception as e:
+                log.error(f"Batch aggregation failed: {e}", exc_info=True)
+                aggregated = {}
+            for task in successful:
+                extra = aggregated.get(task.media_file.file_path, {})
+                merged = dict(task.result.data)
+                merged.update(extra)
+                for tag_name, tag_value in merged.items():
+                    edit_manager_for_writes.stage_change(
+                        [task.media_file], tag_name, tag_value,
+                    )
+
+    # Commit everything staged.
+    if args.write_tags and edit_manager_for_writes is not None:
+        saved, errors = edit_manager_for_writes.commit_changes_sync()
+        if errors:
+            for err in errors:
+                log.error(f"Save error: {err}")
 
     # Format and output results
     output = format_analysis_results(

@@ -137,7 +137,7 @@ filename, reference_bpm, analyzed_bpm, score, delta, notes
 
 - **mingus**: Music theory library (add to requirements.txt)
   - Used for: `mingus.core.intervals.measure()` to calculate semitone distances
-  - May need `debug_only=True` if it doesn't compile with nuitka
+  - PyInstaller bundles it cleanly via prebuilt wheels; no `debug_only` gating needed.
 - **pandas**: Already in use (CSV handling)
 - **pathlib**: Already in use (file path handling)
 - **existing utilities**: `diatonic_key.py` (key parsing)
@@ -173,7 +173,7 @@ filename, reference_bpm, analyzed_bpm, score, delta, notes
 - **Mingus for Theory**: Use mingus.core.intervals for accurate interval calculation
 - **Dual Output**: Both summary and detailed results
 - **Timestamp-based Output**: Preserve previous evaluation runs
-- **Debug-only consideration**: If mingus can't compile with nuitka, mark eval script as debug_only
+- **Debug-only consideration**: PyInstaller is the supported backend and bundles mingus cleanly, so no `debug_only` gating is required for the eval script.
 
 References:
 

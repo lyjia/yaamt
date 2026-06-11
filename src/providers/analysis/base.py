@@ -18,13 +18,18 @@ class AnalyzerResult:
         data: Dictionary of generic_tag_name: value pairs for successful analysis
         error: Error message if analysis failed or was skipped
         skipped: Whether the analysis was skipped (e.g., data already exists)
+        aggregation_data: Optional arbitrary payload used by batch analyzers to
+            carry intermediate state (e.g. per-block loudness mean-squares) from
+            the per-file analyze() call into the analyzer's aggregate_results()
+            classmethod. Never written to tags.
     """
 
     def __init__(self,
                  success: bool,
                  data: dict[str, Any] | None = None,
                  error: str | None = None,
-                 skipped: bool = False):
+                 skipped: bool = False,
+                 aggregation_data: dict[str, Any] | None = None):
         """
         Initialize an AnalyzerResult.
 
@@ -33,11 +38,14 @@ class AnalyzerResult:
             data: Dictionary of generic tag names to values (e.g., {'bpm': 120})
             error: Error message describing what went wrong
             skipped: True if analysis was skipped (e.g., value already exists)
+            aggregation_data: Optional intermediate batch-analyzer payload. See
+                class docstring.
         """
         self.success = success
         self.data = data or {}
         self.error = error
         self.skipped = skipped
+        self.aggregation_data = aggregation_data
 
     def __repr__(self) -> str:
         if self.success and not self.skipped:
@@ -274,3 +282,68 @@ class AnalyzerBase(ABC):
             Default implementation returns an empty list (no resources required).
         """
         return []
+
+    @staticmethod
+    def merge_comment_marker(existing: str | None, marker: str, new_line: str) -> str:
+        """
+        Replace the line containing ``marker`` in ``existing`` with ``new_line``,
+        or append ``new_line`` if no such line exists.
+
+        Used by loudness analyzers that append their results to the Comments
+        field and need to avoid stacking duplicate entries on repeated runs.
+
+        Args:
+            existing: Existing comment contents (may be None or empty).
+            marker: Substring identifying the analyzer's own line (e.g. "Peak:").
+            new_line: Full replacement line (e.g. "Peak: -3.45 dBFS").
+
+        Returns:
+            Updated comments string.
+        """
+        if not existing:
+            return new_line
+        if marker not in existing:
+            return f"{existing}\n{new_line}"
+        lines = existing.split('\n')
+        return '\n'.join(
+            new_line if marker in line else line
+            for line in lines
+        )
+
+
+class BatchAnalyzerBase(AnalyzerBase):
+    """
+    Base class for analyzers whose final output depends on data aggregated
+    across multiple files (e.g. ReplayGain album gain, needs LUFS across every
+    track in the album).
+
+    The dispatcher defers tag writes for batch analyzers until every task in
+    the batch has completed, then calls :meth:`aggregate_results` with the list
+    of successful tasks. The returned per-file dict is merged into each task's
+    result data before a single unified write-out pass.
+
+    Subclasses must:
+    - Populate ``AnalyzerResult.aggregation_data`` during :meth:`analyze` with
+      any intermediate state needed by :meth:`aggregate_results`.
+    - Implement :meth:`aggregate_results` to compute the final per-file fields.
+    """
+
+    @classmethod
+    def aggregate_results(
+        cls,
+        completed_tasks: list,
+        options: dict[str, Any],
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Compute cross-task derived metadata after all per-file analyses finish.
+
+        Args:
+            completed_tasks: List of successful non-skipped ``AnalysisTask``
+                objects whose ``result.aggregation_data`` is populated.
+            options: The analyzer-invocation options dict.
+
+        Returns:
+            Mapping of ``file_path -> {generic_tag_name: value}`` whose entries
+            are merged into each task's ``result.data`` by the dispatcher.
+        """
+        return {}

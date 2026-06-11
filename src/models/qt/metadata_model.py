@@ -136,7 +136,10 @@ class MetadataTableModel(QAbstractTableModel):
                 return row_data.get(column.id, "")
         
         elif role == Qt.ItemDataRole.FontRole:
-            if staged_value is not None:
+            # Bold marks a pending (staged, not yet saved) edit. Only shown
+            # while autosave is off: with autosave on, edits persist
+            # immediately, so the view must never present them as pending.
+            if staged_value is not None and not self.edit_manager.autosave:
                 font = QFont()
                 font.setBold(True)
                 return font

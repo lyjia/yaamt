@@ -106,3 +106,13 @@ class MetadataProviderBase(ABC):
     def save(self) -> None:
         """Abstract method to save changes to the file."""
         pass
+
+    def reload(self) -> None:
+        """
+        Re-read the underlying file so subsequent ``get_tag`` calls see any
+        changes that landed via a different provider instance pointing at
+        the same path. Default implementation is a no-op for providers that
+        always read from disk; concrete providers that hold cached parsed
+        state (mutagen) should override this to refresh that state.
+        """
+        return None

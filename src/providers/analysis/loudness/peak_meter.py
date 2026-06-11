@@ -15,7 +15,7 @@ from util.const import KEY_COMMENT
 from util.logging import log
 
 
-@analyzer(AnalyzerCategory.LOUDNESS)
+@analyzer(AnalyzerCategory.LOUDNESS, debug_only=True)
 class PeakMeterAnalyzer(AnalyzerBase):
     """
     Analyzer that measures peak loudness (maximum sample value) in dBFS.
