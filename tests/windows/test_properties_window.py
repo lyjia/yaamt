@@ -156,9 +156,79 @@ def test_button_states_with_staged_changes(qapp, sample_file):
     # Trigger the signal manually since we're testing
     window.on_staged_changes_changed(True)
 
-    # Verify buttons update
+    # Verify buttons update. The close button never relabels to "Cancel":
+    # closing does not discard edits (it commits them with autosave on, or
+    # leaves them queued with autosave off).
     assert window.ok_button.isEnabled()
-    assert window.close_button.text() == "Cancel"
+    assert window.close_button.text() == "Close"
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_close_with_autosave_on_commits_staged_changes(qapp, sample_file):
+    """Autosave on: closing the window persists staged edits to disk."""
+    from PySide6.QtCore import QEventLoop
+
+    edit_manager = EditManager()
+    edit_manager.reset_changes()
+    edit_manager.set_autosave(True)
+
+    window = PropertiesWindow([sample_file], edit_manager)
+    qapp.processEvents()
+
+    window.main_tab._on_edited(KEY_TITLE, "Saved By Close")
+
+    loop = QEventLoop()
+    edit_manager.commit_finished.connect(loop.quit)
+    edit_manager.commit_failed.connect(loop.quit)
+    window.close()
+    loop.exec()
+
+    assert not edit_manager.has_staged_changes()
+    reread = MediaFile(sample_file.file_path)
+    assert reread.get_tag_simple(KEY_TITLE) == "Saved By Close"
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_close_with_autosave_off_keeps_changes_queued(qapp, sample_file):
+    """Autosave off: closing the window leaves edits staged, file untouched."""
+    edit_manager = EditManager()
+    edit_manager.reset_changes()
+    edit_manager.set_autosave(False)
+    original_title = sample_file.get_tag_simple(KEY_TITLE)
+
+    try:
+        window = PropertiesWindow([sample_file], edit_manager)
+        qapp.processEvents()
+
+        window.main_tab._on_edited(KEY_TITLE, "Queued Edit")
+        window.close()
+        qapp.processEvents()
+
+        assert edit_manager.get_staged_value_for_file(sample_file, KEY_TITLE) == "Queued Edit"
+        reread = MediaFile(sample_file.file_path)
+        assert reread.get_tag_simple(KEY_TITLE) == original_title
+    finally:
+        edit_manager.reset_changes()
+        edit_manager.set_autosave(True)
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_unrelated_commit_does_not_close_window(qapp, sample_file):
+    """A commit initiated elsewhere (File > Save Changes) must not close an
+    open Properties window that has no commit in flight."""
+    edit_manager = EditManager()
+    edit_manager.reset_changes()
+
+    window = PropertiesWindow([sample_file], edit_manager)
+    window.show()
+    qapp.processEvents()
+
+    # Simulate some other component's commit finishing.
+    edit_manager.commit_finished.emit([])
+    qapp.processEvents()
+
+    assert window.isVisible()
+    window.close()
+
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_commit_request_handling(qapp, sample_file):

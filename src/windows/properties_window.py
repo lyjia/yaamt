@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QWidget,
     QLabel,
     QStyle,
-    QMessageBox,
 )
 from models.edit_manager import EditManager
 from windows.properties_tabs.main_tab import MainTab
@@ -27,6 +26,13 @@ class PropertiesWindow(QMainWindow):
         self.media_files = media_files
         self.edit_manager = edit_manager
         self.edit_manager.register_media_files(self.media_files)
+
+        # True while a commit started by this window's OK button is in
+        # flight. EditManager is a singleton, so commit_finished /
+        # commit_failed also fire for commits initiated elsewhere (File >
+        # Save Changes, analyzer batches); those must not close this window
+        # or toggle its save UI.
+        self._commit_initiated = False
 
         # Drop any per-MediaFile tag cache before the tabs are constructed so
         # the first read always reflects current on-disk state. The window's
@@ -128,11 +134,34 @@ class PropertiesWindow(QMainWindow):
         self.spinner.show()
         self.status_label.show()
 
+        self._commit_initiated = True
         if not self.edit_manager.commit_changes():
+            # Nothing was committed (autosave off: edits stay queued in
+            # EditManager until File > Save Changes). Just close.
+            self._commit_initiated = False
             self.close()
 
+    def closeEvent(self, event):
+        """
+        With autosave on, closing the window is the commit trigger: edits
+        made here persist as soon as the window closes. With autosave off,
+        staged changes stay queued in EditManager (shown bold in the file
+        view) until the user invokes File > Save Changes.
+        """
+        if (not self._commit_initiated
+                and self.edit_manager.autosave
+                and self.edit_manager.has_staged_changes()):
+            # Fire-and-forget: EditManager outlives this window, the commit
+            # thread keeps running, and the main window refreshes rows on
+            # commit_finished. Errors surface via the main window's
+            # commit_failed handler.
+            self.edit_manager.commit_changes()
+        super().closeEvent(event)
+
     def on_save_finished(self, file_ids):
-        self.close()
+        if self._commit_initiated:
+            self._commit_initiated = False
+            self.close()
 
     def refresh_tabs(self) -> None:
         """
@@ -151,21 +180,20 @@ class PropertiesWindow(QMainWindow):
         self.update_button_states()
 
     def update_button_states(self):
-        has_changes = self.edit_manager.has_staged_changes()
-        self.ok_button.setEnabled(has_changes)
-        self.close_button.setText("Cancel" if has_changes else "Close")
+        # The button is always "Close": it never discards edits. With
+        # autosave on, closing commits them; with autosave off, they stay
+        # queued until File > Save Changes.
+        self.ok_button.setEnabled(self.edit_manager.has_staged_changes())
 
-    def on_commit_failed(self, error_message):
+    def on_commit_failed(self, errors):
+        # Only react to a commit this window started; the main window owns
+        # the error dialog (its commit_failed handler shows it globally).
+        if not self._commit_initiated:
+            return
+        self._commit_initiated = False
+
         self.central_widget.setEnabled(True)
         self.spinner.hide()
         self.status_label.hide()
         self.ok_button.show()
         self.close_button.show()
-
-        msg_box = QMessageBox()
-        msg_box.setIcon(QMessageBox.Critical)
-        msg_box.setText("Failed to save changes:")
-        msg_box.setInformativeText(error_message)
-        msg_box.setWindowTitle("Commit Failed")
-        msg_box.setStandardButtons(QMessageBox.Ok)
-        msg_box.exec()
