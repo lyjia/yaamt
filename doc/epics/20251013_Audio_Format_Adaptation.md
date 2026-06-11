@@ -63,7 +63,7 @@ Create an audio stream adaptation layer that transparently converts audio format
 3. **Memory Efficiency**: Buffer only necessary chunks, no large allocations
 4. **Latency**: Keep latency reasonable for real-time playback
 5. **Accuracy**: Seeking should be frame-accurate in adapted streams
-6. **Packaging**: Must work with Nuitka on Windows/macOS/Linux
+6. **Packaging**: Must work with PyInstaller on Windows/macOS/Linux
 
 ## Architecture Goals
 
@@ -83,7 +83,7 @@ Create an audio stream adaptation layer that transparently converts audio format
 - [ ] aubio BPM analyzer updated to use format adaptation
 - [ ] Test coverage for all adaptation combinations
 - [ ] Performance acceptable for real-time playback
-- [ ] Packages successfully with Nuitka on all platforms
+- [ ] Packages successfully with PyInstaller on all platforms
 
 ## Scope
 
@@ -101,7 +101,7 @@ Create an audio stream adaptation layer that transparently converts audio format
 
 **Primary**: scipy.signal.resample_poly
 - Reliable cross-platform installation
-- Works with Nuitka packaging
+- Works with PyInstaller packaging
 - No LLVM/numba dependencies
 - Good quality with proper parameters (Kaiser window, β=5.0+)
 - Efficient for rational sample rate ratios

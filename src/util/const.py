@@ -39,6 +39,7 @@ KEY_STEREO_MODE = 'stereo_mode'
 KEY_REPLAYGAIN_TRACK_GAIN = 'replaygain_track_gain'
 KEY_REPLAYGAIN_ALBUM_GAIN = 'replaygain_album_gain'
 KEY_REPLAYGAIN_TRACK_PEAK = 'replaygain_track_peak'
+KEY_REPLAYGAIN_ALBUM_PEAK = 'replaygain_album_peak'
 
 # TAG KEYS
 KEY_ALBUM = 'album'
@@ -285,6 +286,8 @@ SETTINGS_STARTUP_DIR_MODE = "General/StartupDirectoryMode"
 SETTINGS_PREFERRED_DIRECTORY = "General/PreferredDirectory"
 SETTINGS_PREFERRED_AUDIO_DEVICE = "General/PreferredAudioDevice"
 SETTINGS_UI_SKIN = "General/UiSkin"
+SETTINGS_AUTOSAVE = "General/Autosave"
+AUTOSAVE_DEFAULT = True
 
 # Debug / playback adaptation settings
 SETTINGS_DEBUG_PLAYBACK_ADAPTATION = "Debug/PlaybackFormatAdaptationEnabled"

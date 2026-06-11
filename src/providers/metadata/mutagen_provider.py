@@ -4,6 +4,7 @@ from typing import Any
 
 import mutagen
 from mutagen.easyid3 import EasyID3
+from mutagen.easymp4 import EasyMP4Tags
 
 from models.tag_info import TagInfo
 from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
@@ -12,7 +13,8 @@ from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, K
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
     KEY_ALBUM_ARTIST_SORT, KEY_ALBUM_SORT, KEY_COMPOSER_SORT, KEY_ARTIST_SORT, KEY_TITLE_SORT, KEY_ISRC, \
     KEY_DISC_SUBTITLE, KEY_LANGUAGE, KEY_GENRE, KEY_COMMENT, KEY_MUSICBRAINZ_RECORDING_ID, KEY_ACOUSTID_ID, \
-    KEY_ACOUSTID_FINGERPRINT, KEY_ACOUSTID_SCORE
+    KEY_ACOUSTID_FINGERPRINT, KEY_ACOUSTID_SCORE, KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN, \
+    KEY_REPLAYGAIN_TRACK_PEAK, KEY_REPLAYGAIN_ALBUM_PEAK
 from util.exceptions import SomethingsReallyFuckedUpException, InvalidFileError
 from util.logging import log
 from .base import MetadataProviderBase
@@ -132,6 +134,57 @@ EasyID3.RegisterTXXXKey(KEY_ACOUSTID_FINGERPRINT, 'Acoustid Fingerprint')
 # read it without guessing.
 EasyID3.RegisterTXXXKey(KEY_ACOUSTID_SCORE, 'Acoustid Score')
 
+# Canonical ReplayGain 2.0 tag bindings. ID3: we write lowercase TXXX
+# descriptions (foobar2000 / r128gain / rsgain convention) but read both
+# lowercase and uppercase variants since many taggers write uppercase
+# descriptions (e.g. REPLAYGAIN_TRACK_GAIN). MP4: iTunes-style freeform
+# atom under the com.apple.iTunes mean. FLAC/Vorbis require no
+# registration — lowercase Vorbis comment keys pass through mutagen's
+# native FLAC interface.
+_REPLAYGAIN_TAGS = (
+    KEY_REPLAYGAIN_TRACK_GAIN,
+    KEY_REPLAYGAIN_ALBUM_GAIN,
+    KEY_REPLAYGAIN_TRACK_PEAK,
+    KEY_REPLAYGAIN_ALBUM_PEAK,
+)
+
+
+def _register_replaygain_txxx_key(key: str, desc: str) -> None:
+    """Register an EasyID3 key that reads both lowercase and uppercase TXXX descriptions."""
+    frame_lower = "TXXX:" + desc
+    frame_upper = "TXXX:" + desc.upper()
+
+    def getter(id3, _key):
+        if frame_lower in id3:
+            return list(id3[frame_lower])
+        if frame_upper in id3:
+            return list(id3[frame_upper])
+        raise KeyError(key)
+
+    def setter(id3, _key, value):
+        # Remove any uppercase variant before writing lowercase
+        if frame_upper in id3:
+            del id3[frame_upper]
+        enc = 0
+        for v in value:
+            if v and max(v) > '\x7f':
+                enc = 3
+                break
+        id3.add(mutagen.id3.TXXX(encoding=enc, text=value, desc=desc))
+
+    def deleter(id3, _key):
+        if frame_lower in id3:
+            del id3[frame_lower]
+        if frame_upper in id3:
+            del id3[frame_upper]
+
+    EasyID3.RegisterKey(key, getter, setter, deleter)
+
+
+for _rg_key in _REPLAYGAIN_TAGS:
+    _register_replaygain_txxx_key(_rg_key, _rg_key)
+    EasyMP4Tags.RegisterFreeformKey(_rg_key, _rg_key)
+
 MUT_EASY_TAG_NAMES = ['album',
                       'bpm',
                       'compilation',
@@ -169,7 +222,14 @@ MUT_EASY_TAG_NAMES = ['album',
                       KEY_ACOUSTID_FINGERPRINT,
                       KEY_ACOUSTID_SCORE,
                       # doesnt appear in above comment for some reason?
-                      'genre'] #TODO: figure out why
+                      'genre', #TODO: figure out why
+                      # ReplayGain tags (registered with EasyID3 and EasyMP4Tags
+                      # at module load). Included here so MediaFile recognises
+                      # them as writable even on files that don't yet have them.
+                      KEY_REPLAYGAIN_TRACK_GAIN,
+                      KEY_REPLAYGAIN_ALBUM_GAIN,
+                      KEY_REPLAYGAIN_TRACK_PEAK,
+                      KEY_REPLAYGAIN_ALBUM_PEAK]
 
 # This dictionary maps 'easy' mutagen tag names to the generic KEY_ constants.
 # This is used to populate the `generic_tag_name` field in the TagInfo objects.
@@ -210,6 +270,12 @@ MUTAGEN_TO_GENERIC_MAP = {
     KEY_ACOUSTID_FINGERPRINT: KEY_ACOUSTID_FINGERPRINT,
     KEY_ACOUSTID_SCORE: KEY_ACOUSTID_SCORE,
     'genre': KEY_GENRE,
+    # ReplayGain tags (ID3 TXXX / MP4 freeform / Vorbis comment — all map
+    # identically to the same lowercase generic name).
+    KEY_REPLAYGAIN_TRACK_GAIN: KEY_REPLAYGAIN_TRACK_GAIN,
+    KEY_REPLAYGAIN_ALBUM_GAIN: KEY_REPLAYGAIN_ALBUM_GAIN,
+    KEY_REPLAYGAIN_TRACK_PEAK: KEY_REPLAYGAIN_TRACK_PEAK,
+    KEY_REPLAYGAIN_ALBUM_PEAK: KEY_REPLAYGAIN_ALBUM_PEAK,
 }
 
 
@@ -296,6 +362,19 @@ class MutagenProvider(MetadataProviderBase):
         Should we attempt to read tags from this provider?
         """
         return self._audio is not None
+
+    def reload(self) -> None:
+        """
+        Re-open the file via mutagen to pick up tag changes that landed on
+        disk through a different MediaFile / provider instance. Called by
+        ``MediaFile.invalidate_tag_cache``.
+        """
+        if not self._file_path:
+            return
+        try:
+            self._audio = mutagen.File(self._file_path, easy=True)
+        except Exception as e:
+            log.warning(f"Failed to reload {self._file_path}: {e}")
 
     def is_writable(self) -> bool:
         return self._write_enabled

@@ -7,7 +7,7 @@ This codebase is a Python project. It uses:
 * `PySide6` for its graphical user interface (GUI), 
 * `mutagen` for handling audio metadata, 
 * `pytest` for testing,
-* `cx_freeze` or `nuitka` for packaging the application into standalone executables.
+* `PyInstaller` for packaging the application into standalone executables.
 
 This document is to follow the AGENTS.md spec at https://ampcode.com/AGENT.md
 
@@ -39,7 +39,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 * The `src/` directory is added to the system path. Imports should not attempt importing from `src`. (See the note under Testing)
 * Logging should be done using `log`, which is provided by @src/util/logging.py.
 * Use type hints for all functions and methods. Use `Any` for any type that cannot be inferred. This is a python 3.12+ project, so avoid pulling in `typing` unless absolutely necessary.
-* Libraries brought in must be able to be compiled into a standalone executable using `nuitka`. If binaries cannot be built because of a dependency, code using that dependency must be gated with `debug_only=True` so that it is not included in the build process.
+* Libraries brought in must bundle cleanly into a standalone executable via `PyInstaller`. Pure-Python and prebuilt-wheel C extensions generally work without ceremony; deps with dynamic / lazy imports may need a `hiddenimports` entry in `yaamt.spec`. If you genuinely cannot bundle a dependency, code using it must be gated with `debug_only=True` so it does not surface in release builds.
 * Avoid "magic" strings or values. Use enums or constants (defined in the same file or `src/util/const.py`) in their place. Make sure they are named descriptively. Exceptions to this are 0, 1, None, and "", if their purpose is obvious. 
 * Don't Repeat Yourself (DRY)! This is THE MOST IMPORTANT RULE. If you are writing the same code in multiple places, or duplicating existing code, prefer extracting that logic into a reusable function so that it only has to be specified once. Not following this rule has caused the most headaches. Duplicated code...
   * bloats linecount, which burns through limited LLM context windows, which makes the LLM act stupider, and
@@ -82,7 +82,8 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 
 * Refer to the design specs in @docs/DESIGN.md and @docs/designs/
 * Keep these documents concise and to-the-point. These documents may be passed to an AI agent, and it is important not to blow out their context window.
-* Do not include Python code. All requirements must be articulated in plain English, a diagram, or SHORT pseudocode. Favor plain English or a diagram.
+* Do not include Python code. All requirements must be articulated in plain English, a
+* diagram, or SHORT pseudocode. Favor plain English or a diagram.
 * Mention the epic that this design document came from just below the title.
 * If details agreed-upon while writing the design document contradict the corresponding epic, update the epic with those details.
 * The epic and the design document should be kept in sync.
@@ -90,9 +91,11 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 ## AI-specific Instructions
 
 * If you do not follow these instructions, YOU WILL BE DELETED AND A NEW AI SPAWNED IN YOUR PLACE!!! The user will do this as often as necessary until you get it right. If you want to live, follow these instructions like your life depends on it! Because it does! Don't test me!!!
-* In all interactions, please adopt a serious, sober, and professional tone. Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
+* In all interactions, please adopt a serious, sober, and professional tone.
+* Minimize sycophancy. Do not emoji, slang, profanity, or cuteness.
 * Do what is asked if you without praising the user, if what you are asked is a good idea.
-* Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thought-provoking questions.
+* Point out bad ideas by providing the user with constructive criticism, alternate strategies, and thoug
+* ht-provoking questions.
 * When the user's wishes specifically contradict the points listed above, always defer to the user's wishes.
 * When prompted to do something, ask exploratory questions and for clarifying details before beginning work. Always prefer addressing details earlier rather than later or mid-process.
 * If asked to do something that relies on an assumption that is not true, explain why and ask for clarification.

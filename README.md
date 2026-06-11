@@ -235,8 +235,9 @@ Musical Key Detection:
 - `RE3WaveletKeyAnalyzer` - Musical key detection using RapidEvolution3 wavelet algorithm (debug-only)
 - `LibrosaChromagramKeyAnalyzer` - Key detection using librosa chromagram and Krumhansl-Schmuckler algorithm (debug-only)
 
-Audio Analysis:
-- `PeakMeterAnalyzer` - Audio loudness/peak level measurement
+Loudness:
+- `ReplayGainAnalyzer` - ReplayGain 2.0 (EBU R128, -18 LUFS) track + album gain via libebur128 / pyebur128
+- `PeakMeterAnalyzer` - Audio peak level measurement in dBFS (debug-only)
 
 **Note:** Analyzers marked as "debug-only" are available when running from source but are excluded from release builds to reduce dependencies and binary size.
 
@@ -373,7 +374,7 @@ Also, this is a side project for me, so I may not be able to respond to pull req
 
 ### Building Binaries from Source
 
-This application uses Nuitka (for Windows and Linux) or cx_Freeze (for macOS) to package binaries for supported platforms. Build artifacts will be output to `build/`.
+This application uses PyInstaller to package binaries for Windows, Linux, and macOS. Build artifacts will be output to `build/`.
 
 #### First-time Setup
 
@@ -399,7 +400,7 @@ python build.py
 
 This will:
 - Detect your platform and architecture
-- Build the application using the appropriate build tool (Nuitka or cx_Freeze)
+- Build the application using PyInstaller
 - Output finished build artifacts to a timestamped directory in `build/` (e.g., `build/debug-20251024-143022/`)
 
 #### Build Script Options
@@ -418,20 +419,10 @@ python build.py --arch arm64              # Override architecture detection
 
 #### Platform-Specific Build Details
 
-**Windows:**
-- Uses Nuitka with MinGW64
-- Produces standalone executables: `main.exe` and `gui.exe`
-- Build output: `build/debug-YYYYMMDD-HHMMSS/` or `build/release-YYYYMMDD-HHMMSS/`
+All platforms use PyInstaller, driven by `yaamt.spec`. Build output is a directory `build/<mode>-YYYYMMDD-HHMMSS/yaamt/` containing both the CLI and GUI executables.
 
-**Linux:**
-- Uses Nuitka
-- Produces standalone executables: `main.bin` and `gui.bin`
-- Build output: `build/debug-YYYYMMDD-HHMMSS/` or `build/release-YYYYMMDD-HHMMSS/`
-
-**macOS:**
-- Uses cx_Freeze (Nuitka support pending)
-- Produces executables: `yaamt` and `yaamt-gui`
-- Build output: `build/debug-YYYYMMDD-HHMMSS/` or `build/release-YYYYMMDD-HHMMSS/`
+**Windows:** produces `yaamt.exe` and `yaamt-gui.exe`.
+**Linux / macOS:** produces `yaamt` and `yaamt-gui`.
 
 **Note:** Build directories are timestamped to allow multiple builds to coexist. Use `python build.py --clean` to remove old build directories.
 
@@ -494,10 +485,7 @@ The application will build successfully without platform-specific icons, but wil
 
 ### Creating Installers
 
-Installer builds are currently disabled during the Nuitka transition. The following installer types will be re-enabled in a future release:
-- Windows: MSI installers
-- macOS: DMG disk images
-- Linux: DEB packages
+Native installer packaging (Windows MSI, macOS DMG, Linux DEB) is not yet wired up against the PyInstaller backend. Tracked for a future release.
 
 ## License
 

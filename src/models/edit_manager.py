@@ -7,6 +7,42 @@ from models.tag_info import TagInfo
 from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_VALUE, KEY_PROVIDER
 from util.logging import log
 
+# Upper bound for blocking on an in-flight background commit (e.g. at quit
+# time). Generous: a commit is a handful of tag writes, not a transcode.
+DEFAULT_COMMIT_WAIT_TIMEOUT_MS = 30_000
+
+# commit_progress is emitted as (percent_complete, 100).
+PROGRESS_TOTAL_PERCENT = 100
+
+
+class _CommitWorker(QObject):
+    """
+    Runs EditManager's save loop inside the commit QThread.
+
+    EditManager itself lives in the GUI thread. Connecting QThread.started
+    directly to one of its methods makes Qt deliver the signal as a queued
+    call in the *receiver's* thread — the GUI thread — so the "background"
+    save silently ran on the main thread and froze the UI during file I/O.
+    Moving this worker to the commit thread makes run() execute there.
+    """
+
+    def __init__(self, edit_manager: "EditManager") -> None:
+        super().__init__()
+        self._edit_manager = edit_manager
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self._edit_manager._save_changes()
+        finally:
+            # Quit the thread's event loop with a direct call (QThread.quit
+            # is thread-safe). Routing this through a signal would queue it
+            # on the GUI thread's event loop, deadlocking any caller that
+            # blocks in wait_for_pending_commit() without spinning events.
+            thread = self.thread()
+            if thread is not None:
+                thread.quit()
+
 
 class EditManager(QObject):
     """
@@ -60,10 +96,16 @@ class EditManager(QObject):
             return
         super().__init__()
         # Structure: {file_id: {KEY_TAG_GENERIC: {tag: value}, KEY_TAG_INTERNAL: {tag: {KEY_VALUE: value, KEY_PROVIDER: provider}}}}
-        self._staged_changes: dict[str, dict[str, dict]] = {}
-        self._media_files: dict[str, MediaFile] = {}
-        self._autosave = True #always enable for now
-        self._commit_thread = None
+        self._staged_changes: dict[int, dict[str, dict]] = {}
+        self._media_files: dict[int, MediaFile] = {}
+        self._autosave = True
+        self._commit_thread: QThread | None = None
+        self._commit_worker: _CommitWorker | None = None
+        # Serializes whole save operations against each other (background
+        # commit vs. quit-time sync save). Distinct from _write_lock, which
+        # only guards the staged-changes dict and must never be held across
+        # file I/O — staging from the GUI thread would block on it.
+        self._save_lock = threading.Lock()
         self._playback_coordinator = None
         self._initialized = True
 
@@ -154,42 +196,68 @@ class EditManager(QObject):
             Tuple of ``(saved_file_ids, errors)``.
         """
         log.debug("Starting save operation...")
-        saved_file_ids = []
-        errors = []
-        try:
+        saved_file_ids: list[int] = []
+        unsavable_file_ids: list[int] = []
+        errors: list[str] = []
+
+        with self._save_lock:
+            # Snapshot the staged changes so the dict lock is not held across
+            # file I/O. The snapshot is also what lets us unstage selectively
+            # afterward: only what was actually written, and only if the user
+            # did not stage a newer value for that file mid-save.
             with self._write_lock:
-                total_files = len(self._staged_changes)
-                if total_files == 0:
-                    return saved_file_ids, errors
+                snapshot = {
+                    file_id: {
+                        KEY_TAG_GENERIC: dict(changes[KEY_TAG_GENERIC]),
+                        KEY_TAG_INTERNAL: dict(changes[KEY_TAG_INTERNAL]),
+                    }
+                    for file_id, changes in self._staged_changes.items()
+                }
 
-                for file_id, changes in self._staged_changes.items():
-                    media_file = self._media_files.get(file_id)
-                    if media_file:
-                        try:
-                            if self._playback_coordinator:
-                                self._playback_coordinator.acquire_file(media_file.file_path)
-                            media_file.save(changes)
-                            saved_file_ids.append(file_id)
-                        except Exception as e:
-                            log.error(f"Error saving file {media_file.file_path}: {e}")
-                            errors.append(f"{media_file.file_path}: {e}")
-                        finally:
-                            if self._playback_coordinator:
-                                self._playback_coordinator.release_file(media_file.file_path)
+            total_files = len(snapshot)
+            if total_files == 0:
+                return saved_file_ids, errors
 
-                self._staged_changes.clear()
-                self.staged_changes_exist.emit(False)
+            for index, (file_id, changes) in enumerate(snapshot.items()):
+                media_file = self._media_files.get(file_id)
+                if media_file is None:
+                    # Cannot ever succeed; drop the entry below rather than
+                    # leaving it to fail on every subsequent save.
+                    log.error(f"No MediaFile registered for file id {file_id}; dropping its staged changes")
+                    errors.append(f"file id {file_id}: no registered MediaFile instance")
+                    unsavable_file_ids.append(file_id)
+                    continue
+                try:
+                    if self._playback_coordinator:
+                        self._playback_coordinator.acquire_file(media_file.file_path)
+                    media_file.save(changes)
+                    saved_file_ids.append(file_id)
+                except Exception as e:
+                    log.error(f"Error saving file {media_file.file_path}: {e}")
+                    errors.append(f"{media_file.file_path}: {e}")
+                finally:
+                    if self._playback_coordinator:
+                        self._playback_coordinator.release_file(media_file.file_path)
+                self.commit_progress.emit(
+                    int((index + 1) * PROGRESS_TOTAL_PERCENT / total_files), PROGRESS_TOTAL_PERCENT)
 
-        except Exception as e:
-            log.error(f"An unexpected error occurred in save: {e}")
-            errors.append(f"An unexpected error occurred: {e}")
+            with self._write_lock:
+                # Files that failed to save keep their staged edits so the
+                # user's work is never silently discarded; they stay marked
+                # as pending and a later save retries them.
+                for file_id in saved_file_ids:
+                    if self._staged_changes.get(file_id) == snapshot[file_id]:
+                        del self._staged_changes[file_id]
+                for file_id in unsavable_file_ids:
+                    self._staged_changes.pop(file_id, None)
+                self.staged_changes_exist.emit(self.has_staged_changes())
 
         return saved_file_ids, errors
 
-    @Slot()
     def _save_changes(self):
         """
-        Saves staged changes to files. This method is designed to be run in a separate thread.
+        Saves staged changes and reports the outcome via signals. Runs inside
+        the commit thread via _CommitWorker (see commit_changes()).
         """
         saved_file_ids, errors = self._save_changes_impl()
 
@@ -197,8 +265,6 @@ class EditManager(QObject):
             self.commit_failed.emit(errors)
         else:
             self.commit_finished.emit(saved_file_ids)
-
-        self._commit_thread.quit()
 
     def commit_changes(self, autosave_override: bool = False) -> bool:
         """
@@ -210,13 +276,12 @@ class EditManager(QObject):
         """
 
         if not self.autosave and not autosave_override:
-            log.error("Autosave is disabled, save aborted!")
+            # Normal flow, not an error: with autosave off every edit ends
+            # here and stays staged until the user explicitly saves.
+            log.debug("Autosave is disabled; changes remain staged until an explicit save.")
             return False
 
-        log.debug("Saving changes in a background thread...")
-
-        # do not use self._commit_thread.isFinished() here, it will crash as the thread is already deleted!
-        if hasattr(self, '_commit_thread') and self._commit_thread and not self._commit_thread.finished and self._commit_thread.isRunning():
+        if self._commit_thread is not None and self._commit_thread.isRunning():
             log.warning("Save is already in progress.")
             return False
 
@@ -224,18 +289,42 @@ class EditManager(QObject):
             self.staged_changes_exist.emit(False)
             return False
 
-        self._commit_thread = QThread()
-        worker = QObject()
-        worker.moveToThread(self._commit_thread)
-        self._commit_thread.started.connect(self._save_changes)
-        self.commit_finished.connect(self._commit_thread.quit)
-        self.commit_failed.connect(self._commit_thread.quit)
-        self._commit_thread.finished.connect(worker.deleteLater)
-        self._commit_thread.finished.connect(self._commit_thread.deleteLater)
+        log.debug("Saving changes in a background thread...")
+        thread = QThread()
+        worker = _CommitWorker(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        thread.finished.connect(worker.deleteLater)
+        # Identity-checked cleanup: if a newer commit replaced the
+        # references before this (queued) cleanup runs, leave them alone.
+        thread.finished.connect(lambda t=thread: self._on_commit_thread_finished(t))
+
+        # Keep Python references so neither object is garbage-collected
+        # while the thread runs; released in _on_commit_thread_finished.
+        self._commit_thread = thread
+        self._commit_worker = worker
 
         self.commit_started.emit()
-        self._commit_thread.start()
+        thread.start()
         return True
+
+    def _on_commit_thread_finished(self, thread: QThread) -> None:
+        if self._commit_thread is thread:
+            self._commit_thread = None
+            self._commit_worker = None
+
+    def wait_for_pending_commit(self, timeout_ms: int = DEFAULT_COMMIT_WAIT_TIMEOUT_MS) -> bool:
+        """
+        Block until any in-flight background commit has finished.
+
+        Used at quit time (and by tests) so the process does not tear down
+        a QThread mid-write. Returns True if no commit was running or it
+        completed within the timeout.
+        """
+        thread = self._commit_thread
+        if thread is None:
+            return True
+        return thread.wait(timeout_ms)
 
     def commit_changes_sync(self) -> tuple[list[int], list[str]]:
         """
@@ -268,6 +357,21 @@ class EditManager(QObject):
                     del self._staged_changes[file_id]
             self.staged_changes_exist.emit(self.has_staged_changes())
 
+    def unstage_change(self, media_files: list[MediaFile], tag: str, is_internal_tag: bool = False) -> None:
+        """
+        Remove a staged change for one or more files, restoring the tag to
+        its on-disk value. The inverse of stage_change(); used by revert
+        controls. Unstaged tags are not written on the next save.
+        """
+        with self._write_lock:
+            for media_file in media_files:
+                file_changes = self._staged_changes.get(media_file.file_id)
+                if not file_changes:
+                    continue
+                bucket = file_changes[KEY_TAG_INTERNAL if is_internal_tag else KEY_TAG_GENERIC]
+                bucket.pop(tag, None)
+            self.staged_changes_exist.emit(self.has_staged_changes())
+
     def has_staged_changes(self) -> bool:
         """
         Check if there are any staged changes.
@@ -278,6 +382,17 @@ class EditManager(QObject):
                 result = True
                 break
         return result
+
+    def get_staged_file_ids(self) -> list[int]:
+        """
+        File ids that currently have at least one staged change. Lets the
+        UI know which rows to refresh after a reset.
+        """
+        return [
+            file_id
+            for file_id, changes in self._staged_changes.items()
+            if changes[KEY_TAG_GENERIC] or changes[KEY_TAG_INTERNAL]
+        ]
 
 
     def get_staged_value_for_file(self, media_file: MediaFile, tag: str, is_internal_tag: bool = False) -> Any | None:

@@ -263,8 +263,10 @@ class TestEditManager:
         emitted_data = []
         self.edit_manager.staged_changes_exist.connect(emitted_data.append)
 
-        media_file1 = temp_media_file_factory('sample_dtmf_ansi.mp3')
-        media_file2 = temp_media_file_factory('sample_dtmf_nometa.flac')
+        # enable_write=True: read-only MediaFiles make every save raise, and
+        # failed files (correctly) keep their staged changes now.
+        media_file1 = temp_media_file_factory('sample_dtmf_ansi.mp3', enable_write=True)
+        media_file2 = temp_media_file_factory('sample_dtmf_nometa.flac', enable_write=True)
         self.edit_manager.register_media_files([media_file1, media_file2])
 
         # Stage some changes
@@ -279,6 +281,8 @@ class TestEditManager:
         self.edit_manager.commit_failed.connect(loop.quit)
         self.edit_manager.commit_changes()
         loop.exec()
+        assert self.edit_manager.wait_for_pending_commit()
+        qapp.processEvents()
 
         # Verify staged changes were cleared
         assert self.edit_manager._staged_changes == {}
@@ -305,6 +309,104 @@ class TestEditManager:
         # Verify signal was emitted (reset_changes always emits signal)
         assert len(emitted_data) == 1
         assert emitted_data[0] is False
+
+    def test_failed_save_keeps_staged_changes(self):
+        """A failed write must not discard the user's staged edits.
+
+        Regression: _save_changes_impl used to clear ALL staged changes even
+        when a file's save raised, silently losing the edit.
+        """
+        self.edit_manager.stage_change([self.dummy_media_file], 'title', 'Keep Me')
+
+        with patch.object(self.dummy_media_file, 'save', side_effect=OSError("disk full")):
+            saved, errors = self.edit_manager.commit_changes_sync()
+
+        assert saved == []
+        assert len(errors) == 1
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title') == 'Keep Me'
+        assert self.edit_manager.has_staged_changes() is True
+
+        # A later, successful save picks the retained edit back up.
+        saved, errors = self.edit_manager.commit_changes_sync()
+        assert saved == [self.dummy_media_file.file_id]
+        assert errors == []
+        assert self.edit_manager.has_staged_changes() is False
+
+    def test_partial_failure_keeps_only_failed_files_staged(self, temp_media_file_factory):
+        """When one of several files fails, only that file stays staged."""
+        ok_file = temp_media_file_factory('sample_dtmf_ansi.mp3', enable_write=True)
+        bad_file = temp_media_file_factory('sample_dtmf_nometa.flac', enable_write=True)
+        self.edit_manager.register_media_files([ok_file, bad_file])
+
+        self.edit_manager.stage_change([ok_file], 'title', 'Written')
+        self.edit_manager.stage_change([bad_file], 'title', 'Retained')
+
+        with patch.object(bad_file, 'save', side_effect=OSError("disk full")):
+            saved, errors = self.edit_manager.commit_changes_sync()
+
+        assert saved == [ok_file.file_id]
+        assert len(errors) == 1
+        assert self.edit_manager.get_staged_value_for_file(ok_file, 'title') is None
+        assert self.edit_manager.get_staged_value_for_file(bad_file, 'title') == 'Retained'
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner with: Fatal Python error: Aborted on qapp")
+    def test_commit_changes_runs_save_off_the_gui_thread(self, qapp):
+        """The background commit must perform file I/O off the GUI thread.
+
+        Regression: QThread.started was connected straight to an EditManager
+        method, so Qt delivered it as a queued call in the GUI thread and the
+        'threaded' save silently blocked the UI.
+        """
+        import threading as threading_mod
+
+        self.edit_manager.stage_change([self.dummy_media_file], 'title', 'Thread Check')
+
+        save_thread_ids = []
+        with patch.object(self.dummy_media_file, 'save',
+                          side_effect=lambda changes: save_thread_ids.append(threading_mod.get_ident())):
+            loop = QEventLoop()
+            self.edit_manager.commit_finished.connect(loop.quit)
+            self.edit_manager.commit_failed.connect(lambda errors: pytest.fail(f"Commit failed: {errors}"))
+            assert self.edit_manager.commit_changes() is True
+            loop.exec()
+
+        assert self.edit_manager.wait_for_pending_commit()
+        qapp.processEvents()
+
+        assert len(save_thread_ids) == 1
+        assert save_thread_ids[0] != threading_mod.get_ident()
+
+    def test_unstage_change_removes_single_tag(self):
+        """unstage_change removes one staged tag, leaving others intact."""
+        emitted_data = []
+        self.edit_manager.staged_changes_exist.connect(emitted_data.append)
+
+        self.edit_manager.stage_change([self.dummy_media_file], 'title', 'New Title')
+        self.edit_manager.stage_change([self.dummy_media_file], 'artist', 'New Artist')
+
+        self.edit_manager.unstage_change([self.dummy_media_file], 'title')
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'title') is None
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'artist') == 'New Artist'
+        assert self.edit_manager.has_staged_changes() is True
+
+        self.edit_manager.unstage_change([self.dummy_media_file], 'artist')
+        assert self.edit_manager.has_staged_changes() is False
+        assert emitted_data[-1] is False
+
+    def test_get_staged_file_ids(self, temp_media_file_factory):
+        """get_staged_file_ids reports files with pending edits only."""
+        assert self.edit_manager.get_staged_file_ids() == []
+
+        other_file = temp_media_file_factory('sample_dtmf_ansi.mp3')
+        self.edit_manager.register_media_files([other_file])
+        self.edit_manager.stage_change([self.dummy_media_file], 'title', 'A')
+        self.edit_manager.stage_change([other_file], 'artist', 'B')
+
+        assert sorted(self.edit_manager.get_staged_file_ids()) == sorted(
+            [self.dummy_media_file.file_id, other_file.file_id])
+
+        self.edit_manager.unstage_change([other_file], 'artist')
+        assert self.edit_manager.get_staged_file_ids() == [self.dummy_media_file.file_id]
 
     def test_reset_changes_no_changes_staged(self):
         """Test reset_changes when no changes are staged."""
@@ -543,6 +645,7 @@ class TestEditManager:
         self.edit_manager.commit_failed.connect(lambda errors: pytest.fail(f"Commit failed with errors: {errors}"))
         self.edit_manager.commit_changes()
         loop.exec()
+        assert self.edit_manager.wait_for_pending_commit()
 
         # Verify signal was emitted with correct data
         assert len(emitted_data) == 1

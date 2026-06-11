@@ -7,8 +7,8 @@ The Analyzer System enables automated analysis of audio files to extract metadat
 ## Design Decisions Summary
 
 1. **Concurrency**: Thread pool-based design, initially configured with pool size of 1 (sequential), expandable later
-2. **Save Strategy**: Analyzers stage results to MediaFile using generic tags; autosave handles persistence
-3. **Result Handling**: Analyzers return results as dictionaries; dispatcher applies them to MediaFile
+2. **Save Strategy**: Analyzers stage their results through ``EditManager.stage_change``; the dispatcher commits them synchronously at end-of-batch when ``autosave`` is on, or leaves them as pending edits when it is off
+3. **Result Handling**: Analyzers return results as dictionaries; dispatcher merges them into staged changes
 4. **Dispatcher**: Singleton service living for application lifetime
 5. **Progress Reporting**: Qt signals from dispatcher to UI components
 6. **Error States**: Success, Failed, Skipped
@@ -18,6 +18,7 @@ The Analyzer System enables automated analysis of audio files to extract metadat
 10. **Audio Streams**: Analyzers receive AudioStreamBase instances; dispatcher minimizes stream creation to reduce memory usage
 11. **Menu Structure**: "Analyze" submenu shows categories only (one level deep); analyzer selection happens in dialog
 12. **Menu Sharing**: Same "Analyze" submenu construction used in both File menu and right-click context menu
+13. **Batch Analyzers**: Analyzers needing cross-file aggregation (e.g. album ReplayGain) extend ``BatchAnalyzerBase``; the dispatcher defers their tag writes until every per-file task has completed, then calls ``aggregate_results`` to compute and merge cross-file fields before staging
 
 ## Architecture
 
@@ -58,11 +59,15 @@ The Analyzer System enables automated analysis of audio files to extract metadat
                                   Return results
                                         │
                                         ↓
-                    ┌─────────────────────────────────┐
-                    │ Dispatcher applies to MediaFile │
-                    │ MediaFile.save(changes)         │
-                    │ (autosave handles persistence)  │
-                    └─────────────────────────────────┘
+                    ┌────────────────────────────────────────┐
+                    │ Dispatcher merges results              │
+                    │ → BatchAnalyzerBase.aggregate_results()│
+                    │   for cross-file fields (album gain)   │
+                    │ → EditManager.stage_change(...)        │
+                    │ → EditManager.commit_changes_sync()    │
+                    │   (no-op if autosave is off — stays    │
+                    │   as pending edits)                    │
+                    └────────────────────────────────────────┘
                                         │
                                         ↓
                               AnalyzerSummaryDialog
@@ -89,11 +94,17 @@ class AnalyzerResult:
                  success: bool,
                  data: Optional[Dict[str, Any]] = None,
                  error: Optional[str] = None,
-                 skipped: bool = False):
+                 skipped: bool = False,
+                 aggregation_data: Optional[Dict[str, Any]] = None):
         self.success = success
         self.data = data or {}  # Dict of generic_tag_name: value
         self.error = error
         self.skipped = skipped
+        # Optional intermediate per-file payload used by BatchAnalyzerBase
+        # subclasses to carry state into aggregate_results(). Never written
+        # to tags. Must be picklable so it survives the dispatcher's
+        # process pool when thread_pool_size > 1.
+        self.aggregation_data = aggregation_data
 
 class AnalyzerBase(ABC):
     """Base class for all audio file analyzers."""
@@ -168,6 +179,19 @@ class AnalyzerBase(ABC):
 - Cancellation support via `cancel()` and `is_cancelled` property
 - Optional settings UI via `get_settings_widget()`
 - File validation via `validate_file()` class method
+
+### 1a. BatchAnalyzerBase (subclass of AnalyzerBase)
+
+For analyzers whose final output depends on data aggregated across multiple files (e.g. ReplayGain album gain needs LUFS measurements from every track in the album).
+
+**Contract**:
+- ``analyze()`` populates ``AnalyzerResult.aggregation_data`` with whatever per-file payload the aggregator needs (typically scalars and small arrays — must be picklable).
+- ``aggregate_results(completed_tasks, options)`` is a classmethod called once after every per-file task in the batch has completed. It receives the list of successful, non-skipped tasks and returns a ``dict[file_path, dict[generic_tag, value]]`` whose entries are merged into each task's ``result.data`` before staging.
+
+**Dispatcher behavior for BatchAnalyzerBase**:
+- Per-file tag writes are *deferred* (no per-task ``_apply_results`` during ``_on_worker_finished``) until ``_finish_processing`` runs aggregation.
+- ``task_completed`` signals still fire per task so the progress UI updates incrementally.
+- If the user cancels mid-batch, aggregation is skipped and only per-task results from completed tasks are staged.
 
 ### 2. AnalyzerDispatcher (Singleton)
 
@@ -273,7 +297,18 @@ class AnalyzerDispatcher(QObject):
         pass
 
     def _apply_results(self, task: AnalysisTask):
-        """Apply analyzer results to MediaFile and handle autosave."""
+        """Stage analyzer results via EditManager.stage_change()."""
+        pass
+
+    def _run_batch_aggregation(self):
+        """For BatchAnalyzerBase runs, call aggregate_results() on the
+        successful tasks and merge per-file extras into result.data
+        before staging."""
+        pass
+
+    def _finalize_writes(self):
+        """At end of batch, EditManager.commit_changes_sync() if autosave
+        is on; otherwise leave staged changes pending."""
         pass
 ```
 
@@ -282,7 +317,9 @@ class AnalyzerDispatcher(QObject):
 - Uses `QThreadPool` for thread management (initially max=1 thread)
 - Emits Qt signals for UI updates (thread-safe)
 - Manages task queue and execution lifecycle
-- Applies results to MediaFile and respects autosave settings
+- Routes all tag writes through `EditManager.stage_change()` so the autosave preference gates whether they hit disk
+- Commits synchronously at end-of-batch — `analysis_completed` does not fire until disk writes are done, avoiding the race where post-analysis UI refresh runs before the save thread completes
+- For `BatchAnalyzerBase` analyzers, defers per-file `_apply_results` until after `aggregate_results` runs in `_finish_processing`
 - Provides summary data for the summary dialog
 
 ### 3. AnalyzerSetupDialog
@@ -385,21 +422,27 @@ class AnalyzerDispatcher(QObject):
 src/
 └── providers/
     └── analysis/
-        ├── __init__.py           # Auto-discover analyzers, build registry
-        ├── base.py               # AnalyzerBase, AnalyzerResult
+        ├── __init__.py            # AnalyzerCategory enum
+        ├── _manifest.py           # Static analyzer-module manifest (PyInstaller-friendly)
+        ├── base.py                # AnalyzerBase, BatchAnalyzerBase, AnalyzerResult
         ├── bpm/
         │   ├── __init__.py
-        │   ├── librosa_bpm.py    # LibrosaBPMAnalyzer
-        │   └── essentia_bpm.py   # EssentiaBPMAnalyzer (future)
+        │   ├── aubio_bpm.py       # AubioBPMAnalyzer
+        │   ├── librosa_bpm.py     # LibrosaBeatTrackingBPMAnalyzer
+        │   ├── re3_bpm.py         # RE3BPMAnalyzer
+        │   └── stub_bpm.py        # StubBPMAnalyzer (debug_only)
         ├── key/
         │   ├── __init__.py
-        │   └── keyfinder.py      # KeyFinderAnalyzer
-        ├── gain/
+        │   ├── librosa_key.py     # LibrosaChromagramKeyAnalyzer
+        │   ├── musical_cnn_key.py # MusicalKeyCNNAnalyzer
+        │   └── re3_key.py         # RE3WaveletKeyAnalyzer
+        ├── fingerprint/
         │   ├── __init__.py
-        │   └── replaygain.py     # ReplayGainAnalyzer
-        └── musicbrainz/
+        │   └── musicbrainz_acoustid.py  # MusicBrainzAcoustIDAnalyzer
+        └── loudness/
             ├── __init__.py
-            └── acoustid.py       # AcoustIDAnalyzer
+            ├── replaygain.py      # ReplayGainAnalyzer (default; BatchAnalyzerBase)
+            └── peak_meter.py      # PeakMeterAnalyzer (debug_only)
 ```
 
 **Auto-Discovery Pattern** (`providers/analysis/__init__.py`):
