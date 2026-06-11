@@ -909,8 +909,11 @@ class MainWindow(QMainWindow):
         else:
             # Create menu item for each category
             for category in categories:
-                # Capitalize category name for display
-                display_name = category.value
+                # Capitalize category name for display. The trailing ellipsis
+                # follows the standard GUI convention that the item opens a
+                # further dialog (the analyzer setup dialog) rather than acting
+                # immediately.
+                display_name = f"{category.value}..."
                 action = QAction(display_name, self)
                 action.setData(category)
                 action.triggered.connect(lambda checked, cat=category: self._on_analyze_category_selected(cat))
