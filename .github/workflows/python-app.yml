@@ -21,6 +21,17 @@ jobs:
     timeout-minutes: 7
     steps:
     - uses: actions/checkout@v4
+    - name: Free disk space
+      # ReplayGain's torchaudio dependency pulls in ~5 GB of CUDA wheels,
+      # which exceeds what the standard hosted runner has free after the
+      # base image. Purge unused pre-installed toolchains to make room.
+      # This is a transitional workaround; the Woodpecker self-hosted
+      # runners introduced in this PR do not have the same constraint.
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                    /opt/hostedtoolcache/CodeQL \
+                    /usr/local/share/boost /usr/local/share/powershell || true
+        df -h /
     - name: Set up Python 3.12
       uses: actions/setup-python@v5
       with:
