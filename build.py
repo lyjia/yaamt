@@ -195,10 +195,13 @@ class DependencyInstaller:
         print("Installing Linux dependencies...")
         deps = DEBIAN_LINUX_DEPS
 
+        # CI containers run as root with no sudo binary; dev machines
+        # need privilege escalation.
+        prefix = [] if os.geteuid() == 0 else ["sudo"]
         try:
-            subprocess.run(["sudo", "apt-get", "update"], check=True)
-            subprocess.run(["sudo", "apt-get", "install", "-y"] + deps, check=True)
-        except subprocess.CalledProcessError as e:
+            subprocess.run(prefix + ["apt-get", "update"], check=True)
+            subprocess.run(prefix + ["apt-get", "install", "-y"] + deps, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
             print(f"Warning: Failed to install some dependencies: {e}")
 
     def _install_macos_deps(self):

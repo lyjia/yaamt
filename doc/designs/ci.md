@@ -65,12 +65,17 @@ this is acceptable as an interim state but blocks v1 public release.
 
 ### Linux agent (already connected)
 
-Already running. Apply runner labels `platform=linux/amd64` and
-`os=linux`. The agent must have docker + git available (Woodpecker
-defaults). Build pipelines additionally require `nfpm` available in
-the build container - the official `python:3.12` image does not
-include it, so either bake a custom image or `curl`-install nfpm in
-the install-deps step.
+Already running. No custom labels required: the Linux pipelines route
+on `platform=linux/amd64`, which every agent advertises by default.
+The agent must have docker + git available (Woodpecker defaults).
+Build pipelines `curl`-install `nfpm` inside the build container (the
+official `python:3.12` image does not include it).
+
+Note on Docker steps: each step runs in a fresh container and only
+the workspace directory persists between steps. Pipeline steps must
+be self-contained - apt/pip installs from one step do not exist in
+the next. (Bare-metal local-backend agents do not have this
+constraint.)
 
 ### Windows agent (to provision)
 

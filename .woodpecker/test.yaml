@@ -2,6 +2,11 @@
 # Linux-only by design - tests are platform-agnostic and we want fast
 # feedback.
 #
+# Each step runs in its own container; only the workspace persists
+# between steps. Steps must therefore be self-contained (install what
+# they need themselves) - dependencies installed in one step do not
+# exist in the next.
+#
 # Trust tier: untrusted (fork PRs run here after maintainer approval).
 # Must not depend on any secret. See doc/designs/ci.md.
 
@@ -9,15 +14,9 @@ when:
   - event: [push, pull_request]
 
 labels:
-  os: linux
   platform: linux/amd64
 
 steps:
-  - name: install-deps
-    image: python:3.12
-    commands:
-      - python build.py --install-deps
-
   - name: lint
     image: python:3.12
     commands:
@@ -26,15 +25,13 @@ steps:
       - flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
       # Soft-warn on everything else.
       - flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    depends_on:
-      - install-deps
 
-  - name: pytest
+  - name: test
     image: python:3.12
     environment:
       QT_QPA_PLATFORM: offscreen
       GITHUB_ACTIONS: "true"   # used by tests to skip Qt-widget cases
+      DEBIAN_FRONTEND: noninteractive
     commands:
+      - python build.py --install-deps
       - pytest
-    depends_on:
-      - install-deps

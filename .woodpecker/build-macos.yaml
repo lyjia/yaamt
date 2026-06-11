@@ -44,6 +44,7 @@ steps:
         else
           TAG="nightly"
         fi
-        python3 scripts/release_upload.py --repo lyjia/yaamt --tag "$TAG" dist/*.dmg
+        # Installers land in build/release-<timestamp>/ (see build.py).
+        python3 scripts/release_upload.py --repo lyjia/yaamt --tag "$TAG" build/release-*/*.dmg
     depends_on:
       - build
