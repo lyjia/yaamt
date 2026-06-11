@@ -176,20 +176,24 @@ install step.
 
 ## Cutover Plan
 
-1. Land this design doc and the four `.woodpecker/*.yaml` files.
-2. Wire up the `GITHUB_RELEASE_TOKEN` secret on the Woodpecker server.
-3. Validate `test.yaml` runs green on the Linux agent for a feature PR.
-4. Provision the Windows and macOS agents per the sections above.
-5. Validate each `build-*.yaml` pipeline produces the expected artifact
+1. ~~Land this design doc and the four `.woodpecker/*.yaml` files.~~ Done.
+2. ~~Wire up the `GITHUB_RELEASE_TOKEN` secret on the Woodpecker
+   server.~~ Done.
+3. ~~Validate `test.yaml` runs green on the Linux agent for a feature
+   PR.~~ Done.
+4. ~~Delete the GitHub Actions workflows (`python-app.yml`,
+   `cleanup-artifacts.yml`, `.github/actions/setup-deps/`).~~ Done -
+   lint+test now run exclusively on Woodpecker. (Originally scheduled
+   after step 6, pulled forward once test.yaml was validated; GH
+   Actions never built artifacts, so nothing else was lost.)
+5. Point GitHub branch protection's required status check at
+   `ci/woodpecker/pr/test` (repo settings; maintainer action).
+6. Provision the Windows and macOS agents per the sections above.
+7. Validate each `build-*.yaml` pipeline produces the expected artifact
    on its target runner.
-6. Push a throwaway tag (e.g. `v0.0.0-test`) and confirm the upload
-   script populates a release with all three platforms' artifacts.
-7. Delete `.github/workflows/python-app.yml` and
-   `.github/workflows/cleanup-artifacts.yml`. Delete
-   `.github/actions/setup-deps/`. The migration is complete.
-
-Step 7 happens in a separate PR after step 6 succeeds. Until then, the
-GitHub Actions workflow stays as a fallback safety net.
+8. Push a throwaway tag (e.g. `v0.0.0-test`) and confirm the upload
+   script populates a release with all three platforms' artifacts. The
+   migration is then complete.
 
 ## Files
 
@@ -198,7 +202,7 @@ GitHub Actions workflow stays as a fallback safety net.
 - `.woodpecker/build-windows.yaml` (new)
 - `.woodpecker/build-macos.yaml` (new)
 - `scripts/release_upload.py` (new)
-- `.github/workflows/` (unchanged in this PR; deleted post-cutover)
+- `.github/workflows/`, `.github/actions/` (deleted)
 
 ## Verification
 
