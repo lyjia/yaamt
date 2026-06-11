@@ -181,6 +181,8 @@ def test_close_with_autosave_on_commits_staged_changes(qapp, sample_file):
     edit_manager.commit_failed.connect(loop.quit)
     window.close()
     loop.exec()
+    assert edit_manager.wait_for_pending_commit()
+    qapp.processEvents()
 
     assert not edit_manager.has_staged_changes()
     reread = MediaFile(sample_file.file_path)
@@ -232,8 +234,11 @@ def test_unrelated_commit_does_not_close_window(qapp, sample_file):
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_commit_request_handling(qapp, sample_file):
-    """Test that PropertiesWindow handles commit requests from EditManager."""
+    """The background commit saves the staged changes through MediaFile.save()."""
+    from PySide6.QtCore import QEventLoop
+
     edit_manager = EditManager()
+    edit_manager.reset_changes()
     window = PropertiesWindow([sample_file], edit_manager)
 
     # Stage some changes
@@ -242,18 +247,16 @@ def test_commit_request_handling(qapp, sample_file):
 
     # Mock the save method to avoid actual file I/O
     with patch.object(sample_file, 'save') as mock_save:
-        # Simulate commit request - use the window's file_id to ensure exact match
-        commit_data = {
-            str(sample_file.file_id): {
-                KEY_TAG_GENERIC: {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
-                KEY_TAG_INTERNAL: {}
-            }
-        }
-        # Connect the handle_commit function to the commit_requested signal
-        window.edit_manager.commit_started.connect(lambda: sample_file.save(commit_data[str(sample_file.file_id)]))
+        loop = QEventLoop()
+        window.edit_manager.commit_finished.connect(loop.quit)
+        window.edit_manager.commit_failed.connect(loop.quit)
+        assert window.edit_manager.commit_changes() is True
+        loop.exec()
+        assert window.edit_manager.wait_for_pending_commit()
+        qapp.processEvents()
 
-        # Commit changes via EditManager (this will emit the commit_requested signal)
-        window.edit_manager.commit_changes()
-
-        # Verify save was called with correct changes
-        mock_save.assert_called_once_with(commit_data[str(sample_file.file_id)])
+        # Verify save was called with the staged changes
+        mock_save.assert_called_once_with({
+            KEY_TAG_GENERIC: {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
+            KEY_TAG_INTERNAL: {}
+        })

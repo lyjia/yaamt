@@ -124,8 +124,8 @@ class AdvancedTab(QWidget):
         self.tree.setItemWidget(item, 2, revert_button)
 
     def revert_change(self, tag_name: str) -> None:
-        original_value = self.media_files[0].get_tag_simple(tag_name, is_internal_tag_key=True)
-        provider = self._get_provider_for_tag(tag_name)
-        if provider:
-            self.edit_manager.stage_change(self.media_files, tag_name, original_value, is_internal_tag=True, provider=provider)
+        # A revert removes the staged entry entirely. The old approach of
+        # re-staging the on-disk value kept the tag marked as a pending
+        # change (and rewrote it on save) even though nothing differed.
+        self.edit_manager.unstage_change(self.media_files, tag_name, is_internal_tag=True)
         self.refresh()
