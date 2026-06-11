@@ -93,7 +93,7 @@ def _format_peak(peak: float) -> str:
     return f"{peak:.6f}"
 
 
-def _measure_track(media_file) -> tuple["R128State", float, float] | None:
+def _measure_track(media_file) -> tuple[Any, float, float] | None:
     """
     Read the audio for ``media_file`` and return
     ``(R128State, integrated_lufs, sample_peak_max_of_channels)``.
