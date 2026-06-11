@@ -82,9 +82,13 @@ class MainTab(QWidget):
         self.refresh()
 
     def _wire_editable_field(self, line_edit: QLineEdit, tag_key: str) -> None:
-        """Attach focus / textChanged / returnPressed handlers to an editable field."""
+        """Attach focus / textEdited / returnPressed handlers to an editable field."""
         line_edit.focusInEvent = lambda event, w=line_edit: self._clear_placeholder_on_focus(event, w)
-        line_edit.textChanged.connect(lambda text, key=tag_key: self._on_edited(key, text))
+        # textEdited (not textChanged): it only fires on user input, never on
+        # the programmatic setText() calls refresh() uses to populate fields.
+        # textChanged here staged a phantom edit for every populated field the
+        # moment the window opened.
+        line_edit.textEdited.connect(lambda text, key=tag_key: self._on_edited(key, text))
         line_edit.returnPressed.connect(self._on_return_pressed)
 
     def _on_edited(self, generic_tag_name, new_value):

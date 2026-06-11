@@ -1,5 +1,6 @@
 from typing import Any
 
+from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QPushButton, QHeaderView, QSizePolicy
 )
@@ -26,6 +27,13 @@ class AdvancedTab(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
+        # Rebuilding the tree must not be observable as user edits:
+        # QTreeWidgetItem setText/setFlags/setFont all emit itemChanged,
+        # which on_item_changed would stage as phantom changes.
+        with QSignalBlocker(self.tree):
+            self._rebuild_tree()
+
+    def _rebuild_tree(self) -> None:
         self.tree.clear()
 
         if not self.media_files or len(self.media_files) > 1:
@@ -116,10 +124,8 @@ class AdvancedTab(QWidget):
         self.tree.setItemWidget(item, 2, revert_button)
 
     def revert_change(self, tag_name: str) -> None:
-        self.tree.blockSignals(True)
         original_value = self.media_files[0].get_tag_simple(tag_name, is_internal_tag_key=True)
         provider = self._get_provider_for_tag(tag_name)
         if provider:
             self.edit_manager.stage_change(self.media_files, tag_name, original_value, is_internal_tag=True, provider=provider)
         self.refresh()
-        self.tree.blockSignals(False)

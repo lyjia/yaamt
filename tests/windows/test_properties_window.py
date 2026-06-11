@@ -22,6 +22,61 @@ def sample_file(tmp_path):
     return MediaFile(str(temp_file), enable_write=True)
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_open_window_stages_nothing(qapp, sample_file):
+    """Regression: opening the Properties window must not stage any changes.
+
+    MainTab used to connect textChanged (which fires on the programmatic
+    setText() calls that populate the form), staging a phantom edit for
+    every non-empty field the moment the window opened. The visible symptom
+    was file-view cells turning bold after opening and closing the window
+    without touching anything.
+    """
+    edit_manager = EditManager()
+    edit_manager.reset_changes()
+
+    window = PropertiesWindow([sample_file], edit_manager)
+    qapp.processEvents()
+
+    assert not edit_manager.has_staged_changes(), (
+        f"opening the window staged: {edit_manager.get_staged_changes_for_file(sample_file)}"
+    )
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_refresh_tabs_stages_nothing(qapp, sample_file):
+    """Regression: re-populating the tabs (analyzer completion path) must not
+    stage changes either — it runs the same setText()/tree-rebuild code as
+    the constructor."""
+    edit_manager = EditManager()
+    edit_manager.reset_changes()
+
+    window = PropertiesWindow([sample_file], edit_manager)
+    qapp.processEvents()
+    window.refresh_tabs()
+    qapp.processEvents()
+
+    assert not edit_manager.has_staged_changes()
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_user_keystrokes_still_stage_changes(qapp, sample_file):
+    """Typing into a Main tab field (real key events, not setText) must stage."""
+    from PySide6.QtTest import QTest
+
+    edit_manager = EditManager()
+    edit_manager.reset_changes()
+
+    window = PropertiesWindow([sample_file], edit_manager)
+    qapp.processEvents()
+
+    QTest.keyClicks(window.main_tab.title_edit, "X")
+
+    staged = edit_manager.get_staged_value_for_file(sample_file, KEY_TITLE)
+    assert staged is not None
+    assert staged.endswith("X")
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
 def test_properties_window_initialization(qapp, sample_file):
     """Test that PropertiesWindow initializes correctly with EditManager."""
     edit_manager = EditManager()
