@@ -19,7 +19,7 @@ when:
 # must see release tags even on branch-push (nightly) builds.
 clone:
   - name: clone
-    image: woodpecker/plugin-git
+    image: woodpeckerci/plugin-git
     settings:
       recursive: false
       tags: true
