@@ -5,11 +5,11 @@ This document outlines the design for packaging and distributing YAAMT for Windo
 ## 1. Objectives
 
 - Generate standalone application binaries for both the CLI (`src/yaamt.py`) and GUI (`src/yaamt-gui.py`).
-- Create platform-specific installers (currently deferred — PyInstaller produces the binaries; native installer wiring is future work):
-    - `.msi` for Windows
+- Create platform-specific installers from that output via `build.py --installer` (see `installers.md` for per-platform detail):
+    - `.exe` (Inno Setup) for Windows
     - `.dmg` for macOS
-    - `.deb` for Debian-based Linux distributions
-- Implement dynamic versioning based on Git tags and revision hashes.
+    - `.deb` / `.rpm` for Linux
+- Implement dynamic versioning based on Git tags and revision hashes (see `versioning.md`).
 - Display the application version in the CLI and the GUI's "About" window.
 
 ## 2. Implementation Plan
@@ -27,7 +27,7 @@ Driven by `build.py` (the high-level orchestrator), which:
 
 ### 2.2. Dynamic Versioning
 
-`build.py` runs `git describe --tags --dirty --always` and patches the result into `src/util/const.py`'s `VERSION_STRING` constant in the temp build workspace. The runtime application reads that constant directly — no separate `VERSION` file is generated.
+`build.py` resolves the version by calling `util.version.get_version_from_git()` — the same helper the running application uses — and patches the result into `src/util/const.py`'s `VERSION_STRING` constant in the temp build workspace. The runtime application reads that constant directly — no separate `VERSION` file is generated. Version format, derivation, and failure modes are defined in `versioning.md`.
 
 ### 2.3. Platform-Specific Output
 
@@ -37,7 +37,7 @@ Driven by `build.py` (the high-level orchestrator), which:
 | Linux   | `yaamt`, `yaamt-gui` (one-folder bundle) |
 | macOS   | `yaamt`, `yaamt-gui` (one-folder bundle) |
 
-Native installer formats (MSI / DMG / DEB) are not yet wired through `build.py`. Tracked as future work.
+Native installers (`.exe` / `.deb` + `.rpm` / `.dmg`) are produced from this output by the installer dispatcher in `build.py`. See `installers.md`.
 
 ### 2.4. Displaying the Version in the Application
 
@@ -56,8 +56,12 @@ python build.py
 # Release build (excludes debug-only analyzers via IS_DEBUG_BUILD patch)
 python build.py --release
 
-# Tar/zip the build for distribution
-python build.py --release --archive --version-name v1.0.0
+# Tar/zip the build for distribution (version defaults to the git-derived
+# string; --version-name overrides it)
+python build.py --release --archive
+
+# Build a platform-native installer
+python build.py --release --installer
 ```
 
 ## 4. Diagram: Build Workflow
@@ -74,5 +78,8 @@ graph TD
     G --> H;
     H --> I{--archive?};
     I -->|yes| J[Tar/zip artifact];
-    I -->|no| K[Done];
+    I -->|no| K{--installer?};
+    J --> K;
+    K -->|yes| L[Installer dispatcher: .exe / .deb+.rpm / .dmg];
+    K -->|no| M[Done];
 ```

@@ -25,10 +25,11 @@ YAAMT currently uses [mutagen](https://mutagen.readthedocs.io/en/latest/) for re
 -   **Batch Processing:** Operate on single files or entire directories.
 -   **Metadata Analysis:** Analyze audio files to generate metadata like BPM and key.
 -   **Audio Playback:** A simple built-in player to preview audio files.
+-   **Update Notifications:** Optional, strictly opt-in check that tells you when a new release is available (never downloads or installs anything).
 
 ## Installation (from binaries)
 
-Binary builds are currently a work-in-progress. Check back soon for updates!
+Native installers for Windows (`.exe`), Linux (`.deb`/`.rpm`), and macOS (`.dmg`) are published on the [GitHub Releases page](https://github.com/lyjia/yaamt/releases) as they become available. Tagged releases carry stable builds; the rolling `nightly` prerelease tracks the latest development snapshot. See [doc/designs/installers.md](doc/designs/installers.md) for per-platform installation details and filesystem layout.
 
 ## Installation (from source code)
 
@@ -326,6 +327,15 @@ The evaluator generates two types of CSV reports:
 1. **Summary CSV** (`eval_summary_{criteria}_{timestamp}.csv`): Aggregate statistics for all analyzers
 2. **Detailed CSV** (`eval_{analyzer_name}_{criteria}_{timestamp}.csv`): Per-file results for each analyzer
 
+### Checking for Updates
+
+YAAMT can tell you when a newer release is available. It only notifies — it never downloads or installs anything on its own, and the startup check is **off by default** (no network calls happen unless you opt in).
+
+- **GUI:** enable *Check for updates on startup* under **Preferences → General → Updates**. A manual check is always available via **Help → About → Check for updates**, regardless of the toggle.
+- **CLI:** `./yaamt.sh --check-update`
+
+Results are cached for 24 hours to stay friendly to the GitHub API. See [doc/designs/self_update.md](doc/designs/self_update.md) for the full design.
+
 ## Contributing
 
 ### Development Setup
@@ -372,9 +382,19 @@ Contributions are welcome! If you'd like to contribute, please follow these step
 
 Also, this is a side project for me, so I may not be able to respond to pull requests immediately. Your patience is appreciated.
 
+### Continuous Integration
+
+CI runs on a self-hosted [Woodpecker CI](https://woodpecker-ci.org/) server; pipeline definitions live in `.woodpecker/`:
+
+- **Pull requests** run lint + the full pytest suite. The status check to watch is `ci/woodpecker/pr/test`.
+- **Pushes to `master`/`development`** additionally build installers and refresh the rolling `nightly` GitHub Release.
+- **Tag pushes (`v*.*.*`)** build installers on all platforms and upload them to a versioned GitHub Release.
+
+Pull requests from forks require maintainer approval before their pipeline runs on our hardware. See [doc/designs/ci.md](doc/designs/ci.md) for the full trigger matrix, agent provisioning steps, and security model.
+
 ### Building Binaries from Source
 
-This application uses PyInstaller to package binaries for Windows, Linux, and macOS. Build artifacts will be output to `build/`.
+This application uses PyInstaller to package binaries for Windows, Linux, and macOS. Build artifacts will be output to `build/`. See [doc/designs/packaging.md](doc/designs/packaging.md) for the build system design.
 
 #### First-time Setup
 
@@ -409,13 +429,25 @@ This will:
 python build.py --help                    # Show all options
 python build.py --install-deps            # Install dependencies and exit (no build)
 python build.py --release                 # Build a release version (excludes debug-only analyzers)
+python build.py --release --installer     # Build and package a native installer (see "Creating Installers")
 python build.py --clean                   # Clean up old timestamped build directories
 python build.py --archive                 # Create an archive of build artifacts
-python build.py --version-name v1.0.0     # Specify version name for archive
+python build.py --version-name v1.0.0     # Override version stamp in archive/installer names
+                                          # (defaults to the git-derived version)
 python build.py --output-dir dist         # Specify custom output directory
 python build.py --platform linux          # Override platform detection
 python build.py --arch arm64              # Override architecture detection
 ```
+
+#### Versioning
+
+Version strings are derived from git tags — there is no version constant to edit by hand. Tag a release as `v<major>.<minor>.<patch>`:
+
+- A build on the tag itself reports `0.3.0`.
+- A build N commits past the tag reports `0.3.0+5.<short-hash>`; a dirty working tree appends `.dirty`.
+- Anything containing a `+` is by definition not a release build.
+
+The build system stamps this string into the binary automatically, and `yaamt --version` / the About window report it at runtime. See [doc/designs/versioning.md](doc/designs/versioning.md) for the format rules, and [doc/RELEASING.md](doc/RELEASING.md) for the release workflow.
 
 #### Platform-Specific Build Details
 
@@ -485,7 +517,23 @@ The application will build successfully without platform-specific icons, but wil
 
 ### Creating Installers
 
-Native installer packaging (Windows MSI, macOS DMG, Linux DEB) is not yet wired up against the PyInstaller backend. Tracked for a future release.
+Native installers are produced from the PyInstaller output with a single command on each platform:
+
+```bash
+python build.py --release --installer
+```
+
+| Platform | Output | Requires |
+|---|---|---|
+| Windows | `yaamt-<version>-windows-<arch>-setup.exe` | [Inno Setup 6](https://jrsoftware.org/isdl.php) (`iscc` on PATH) |
+| Linux | `.deb` and `.rpm` packages | [nfpm](https://nfpm.goreleaser.com/install/) |
+| macOS | `yaamt-<version>-macos-<arch>.dmg` | `create-dmg` (`brew install create-dmg`) |
+
+Installers land in the same timestamped `build/release-*/` directory as the build output. Installer configs live in `installer/`. See [doc/designs/installers.md](doc/designs/installers.md) for per-platform details and the installed filesystem layout, and [doc/RELEASING.md](doc/RELEASING.md) for how releases are cut and published.
+
+### Releasing
+
+Releases are cut by pushing a `v<major>.<minor>.<patch>` tag; CI builds installers for every platform and publishes them to GitHub Releases. Nightly development builds are refreshed automatically on every push to `master`/`development`. The complete maintainer playbook — including hotfixes, manual/offline publishing, and recovering from a botched release — is in [doc/RELEASING.md](doc/RELEASING.md).
 
 ## License
 

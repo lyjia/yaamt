@@ -1,7 +1,7 @@
 """General preferences pane."""
 from PySide6.QtWidgets import (
     QVBoxLayout, QGroupBox, QRadioButton, QLineEdit, QPushButton,
-    QLabel, QComboBox, QHBoxLayout, QFileDialog, QStyleFactory
+    QLabel, QComboBox, QHBoxLayout, QFileDialog, QStyleFactory, QCheckBox
 )
 from PySide6.QtGui import QIcon
 
@@ -9,7 +9,8 @@ from models.settings import get_qsettings
 from util.const import (
     SETTINGS_STARTUP_DIR_MODE, SETTINGS_PREFERRED_DIRECTORY,
     SETTINGS_PREFERRED_AUDIO_DEVICE, SETTINGS_UI_SKIN,
-    STARTUP_DIR_MODE_DEFAULT,
+    SETTINGS_CHECK_FOR_UPDATES_ON_STARTUP,
+    STARTUP_DIR_MODE_DEFAULT, CHECK_FOR_UPDATES_ON_STARTUP_DEFAULT,
 )
 from windows.preferences.base import PreferencePaneBase
 
@@ -64,10 +65,22 @@ class GeneralPane(PreferencePaneBase):
         appearance_layout.addWidget(self.ui_skin_combo)
         appearance_group.setLayout(appearance_layout)
 
+        # Updates group
+        updates_group = QGroupBox("Updates")
+        updates_layout = QVBoxLayout()
+        self.check_updates_checkbox = QCheckBox("Check for updates on startup")
+        self.check_updates_checkbox.setToolTip(
+            "When enabled, YAAMT contacts the GitHub Releases API on startup "
+            "to see if a newer release is available. Off by default."
+        )
+        updates_layout.addWidget(self.check_updates_checkbox)
+        updates_group.setLayout(updates_layout)
+
         # Add all groups to main layout
         layout.addWidget(startup_group)
         layout.addWidget(playback_group)
         layout.addWidget(appearance_group)
+        layout.addWidget(updates_group)
         layout.addStretch()
 
         # Connect signals
@@ -146,6 +159,14 @@ class GeneralPane(PreferencePaneBase):
         else:
             self.ui_skin_combo.setCurrentIndex(0)  # Default to system default
 
+        # Load update-check toggle
+        check_updates = self.settings.value(
+            SETTINGS_CHECK_FOR_UPDATES_ON_STARTUP,
+            CHECK_FOR_UPDATES_ON_STARTUP_DEFAULT,
+            type=bool,
+        )
+        self.check_updates_checkbox.setChecked(check_updates)
+
     def save_to_settings(self) -> None:
         """Write widget values to QSettings."""
         # Save startup directory mode
@@ -163,6 +184,12 @@ class GeneralPane(PreferencePaneBase):
         skin = self.ui_skin_combo.currentData()
         self.settings.setValue(SETTINGS_UI_SKIN, skin)
 
+        # Save update-check toggle
+        self.settings.setValue(
+            SETTINGS_CHECK_FOR_UPDATES_ON_STARTUP,
+            self.check_updates_checkbox.isChecked(),
+        )
+
     def validate(self) -> tuple[bool, str]:
         """Validate all settings in this pane."""
         # If "Always use this directory" is selected, path must not be empty
@@ -177,3 +204,4 @@ class GeneralPane(PreferencePaneBase):
         self.dir_path_edit.setText("")
         self.audio_device_combo.setCurrentIndex(0)
         self.ui_skin_combo.setCurrentIndex(0)
+        self.check_updates_checkbox.setChecked(CHECK_FOR_UPDATES_ON_STARTUP_DEFAULT)

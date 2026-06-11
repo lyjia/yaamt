@@ -1,0 +1,60 @@
+# macOS release build pipeline.
+# Runs on pushes to master/development (-> nightly release) and on
+# v*.*.* tags (-> versioned release).
+#
+# Trust tier: trusted. Has access to GITHUB_RELEASE_TOKEN.
+# Runs on a self-hosted macOS agent using Woodpecker's *local* backend
+# (no Docker). On the local backend the `image` field names the shell
+# used to run the commands, not a container image. The agent must have
+# Python 3.12, git, and create-dmg pre-installed; see doc/designs/ci.md.
+
+when:
+  - event: push
+    branch: [master, development]
+  - event: tag
+    ref: refs/tags/v*.*.*
+
+# Skip the references/ submodules (reference material only). Fetch
+# tags explicitly: version stamping runs `git describe --tags` and
+# must see release tags even on branch-push (nightly) builds.
+clone:
+  - name: clone
+    image: woodpeckerci/plugin-git
+    settings:
+      recursive: false
+      tags: true
+
+labels:
+  backend: local
+  os: macos
+  platform: darwin/arm64
+
+steps:
+  - name: install-deps
+    image: bash
+    commands:
+      - python3 build.py --install-deps
+
+  - name: build
+    image: bash
+    commands:
+      - python3 build.py --release --installer
+    depends_on:
+      - install-deps
+
+  - name: upload
+    image: bash
+    environment:
+      GITHUB_RELEASE_TOKEN:
+        from_secret: github_release_token
+    commands:
+      - |
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          TAG="$CI_COMMIT_TAG"
+        else
+          TAG="nightly"
+        fi
+        # Installers land in build/release-<timestamp>/ (see build.py).
+        python3 scripts/release_upload.py --repo lyjia/yaamt --tag "$TAG" build/release-*/*.dmg
+    depends_on:
+      - build

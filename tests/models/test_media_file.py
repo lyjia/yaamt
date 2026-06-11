@@ -129,6 +129,10 @@ def test_empty_file(tmp_path):
     mf = MediaFile(str(temp_file_path))
     assert mf.get_internal_data(KEY_IS_MEDIA) is False
 
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="root bypasses file permission bits, so chmod 444 cannot trigger PermissionError",
+)
 def test_write_permissions_error(tmp_path):
     """
     Tests that a PermissionError is raised when trying to write to a file without write permissions.

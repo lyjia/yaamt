@@ -1,0 +1,59 @@
+# Linux release build pipeline.
+# Runs on pushes to master/development (-> nightly release) and on
+# v*.*.* tags (-> versioned release).
+#
+# Each step runs in its own container; only the workspace persists.
+# Deps + build therefore live in a single step. The upload step only
+# needs the stdlib and the artifacts left in the workspace.
+#
+# Trust tier: trusted. Has access to GITHUB_RELEASE_TOKEN.
+# See doc/designs/ci.md.
+
+when:
+  - event: push
+    branch: [master, development]
+  - event: tag
+    ref: refs/tags/v*.*.*
+
+# Skip the references/ submodules (reference material only). Fetch
+# tags explicitly: version stamping runs `git describe --tags` and
+# must see release tags even on branch-push (nightly) builds.
+clone:
+  - name: clone
+    image: woodpeckerci/plugin-git
+    settings:
+      recursive: false
+      tags: true
+
+labels:
+  platform: linux/amd64
+
+steps:
+  - name: build
+    image: python:3.12
+    environment:
+      DEBIAN_FRONTEND: noninteractive
+    commands:
+      - python build.py --install-deps
+      # nfpm is not on the python image; fetch the latest release binary.
+      - curl -sSL https://github.com/goreleaser/nfpm/releases/latest/download/nfpm_amd64.deb -o /tmp/nfpm.deb
+      - apt-get update && apt-get install -y /tmp/nfpm.deb
+      - python build.py --release --installer
+
+  - name: upload
+    image: python:3.12
+    environment:
+      GITHUB_RELEASE_TOKEN:
+        from_secret: github_release_token
+    commands:
+      # Tag pushes -> versioned release; branch pushes -> rolling nightly.
+      # Installers land in build/release-<timestamp>/ (see build.py).
+      - |
+        if [ "$CI_COMMIT_TAG" != "" ]; then
+          TAG="$CI_COMMIT_TAG"
+        else
+          TAG="nightly"
+        fi
+        python scripts/release_upload.py --repo lyjia/yaamt --tag "$TAG" build/release-*/*.deb build/release-*/*.rpm
+    depends_on:
+      - build
