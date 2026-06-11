@@ -3,8 +3,10 @@
 # v*.*.* tags (-> versioned release).
 #
 # Trust tier: trusted. Has access to GITHUB_RELEASE_TOKEN.
-# Runs on a self-hosted macOS agent (no Docker - the agent must have
-# Python 3.12, git, and create-dmg pre-installed; see doc/designs/ci.md).
+# Runs on a self-hosted macOS agent using Woodpecker's *local* backend
+# (no Docker). On the local backend the `image` field names the shell
+# used to run the commands, not a container image. The agent must have
+# Python 3.12, git, and create-dmg pre-installed; see doc/designs/ci.md.
 
 when:
   - event: push
@@ -13,22 +15,25 @@ when:
     ref: refs/tags/v*.*.*
 
 labels:
+  backend: local
   os: macos
   platform: darwin/arm64
 
 steps:
   - name: install-deps
+    image: bash
     commands:
       - python3 build.py --install-deps
 
   - name: build
+    image: bash
     commands:
       - python3 build.py --release --installer
     depends_on:
       - install-deps
 
   - name: upload
-    secrets: [github_release_token]
+    image: bash
     environment:
       GITHUB_RELEASE_TOKEN:
         from_secret: github_release_token
@@ -39,6 +44,6 @@ steps:
         else
           TAG="nightly"
         fi
-      - python3 scripts/release_upload.py --repo lyjia/yaamt --tag "$TAG" dist/*.dmg
+        python3 scripts/release_upload.py --repo lyjia/yaamt --tag "$TAG" dist/*.dmg
     depends_on:
       - build

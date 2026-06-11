@@ -17,6 +17,16 @@ platform. The current `python-app.yml` workflow only runs lint + pytest,
 not builds, because the artifacts cannot fit. Woodpecker on self-hosted
 runners removes both the storage cap and the per-minute meter.
 
+## Server Version
+
+The pipeline files target Woodpecker **3.x** (server currently runs
+3.15.0). Notable 3.x schema rules the configs depend on: the step-level
+`secrets:` property no longer exists (secrets are injected via
+`environment:` + `from_secret`), and every step requires an `image`
+(interpreted as the shell name on local-backend agents). Validate
+changes locally with a matching CLI before pushing:
+`woodpecker-cli lint .woodpecker/`.
+
 ## Pipeline Topology
 
 Four pipeline files under `.woodpecker/`:
@@ -74,10 +84,15 @@ the install-deps step.
 3. Create a dedicated low-privilege Windows user (`woodpecker-agent`).
    Do not use Administrator.
 4. Install `woodpecker-agent` from the official release. Run it as a
-   Windows service under the dedicated user.
+   Windows service under the dedicated user, configured with
+   `WOODPECKER_BACKEND=local` (no Docker on this host). Note: on the
+   local backend, the `image` field in pipeline steps names the shell
+   used to run commands (`powershell` in `build-windows.yaml`), not a
+   container image.
 5. Configure the agent with a unique agent token issued by the
    Woodpecker server (one token per agent, rotate independently).
-6. Apply runner labels: `platform=windows/amd64`, `os=windows`.
+6. Apply runner labels: `backend=local`, `platform=windows/amd64`,
+   `os=windows`.
 7. Smoke test: trigger `build-windows.yaml` from the Woodpecker UI and
    confirm the artifact is produced.
 
@@ -93,9 +108,12 @@ the install-deps step.
    - `create-dmg` (via Homebrew is fine; only the Python install is
      pinned)
 3. Create a dedicated user `woodpecker-agent`.
-4. Install `woodpecker-agent` and run under launchd as that user.
-5. Apply runner labels: `platform=darwin/arm64` (or `darwin/amd64`),
-   `os=macos`.
+4. Install `woodpecker-agent` and run under launchd as that user,
+   configured with `WOODPECKER_BACKEND=local` (no Docker on this
+   host). As on Windows, the `image` field in pipeline steps names the
+   shell (`bash` in `build-macos.yaml`), not a container image.
+5. Apply runner labels: `backend=local`, `platform=darwin/arm64` (or
+   `darwin/amd64`), `os=macos`.
 6. Smoke test as above.
 
 ### Cross-cutting agent rules
