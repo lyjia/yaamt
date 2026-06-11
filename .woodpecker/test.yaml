@@ -1,6 +1,13 @@
-# Lint and test pipeline. Runs on every push and every PR.
+# Lint and test pipeline.
 # Linux-only by design - tests are platform-agnostic and we want fast
 # feedback.
+#
+# Pushing to a branch with an open PR fires BOTH a push and a
+# pull_request webhook; matching both would run this pipeline twice
+# per push. Dedup: PR events always run; push events only on the
+# long-lived branches (which never have PRs from themselves). A push
+# to a feature branch with no open PR runs nothing - CI starts when
+# the PR is opened.
 #
 # Each step runs in its own container; only the workspace persists
 # between steps. Steps must therefore be self-contained (install what
@@ -11,7 +18,9 @@
 # Must not depend on any secret. See doc/designs/ci.md.
 
 when:
-  - event: [push, pull_request]
+  - event: pull_request
+  - event: push
+    branch: [master, development]
 
 labels:
   platform: linux/amd64
