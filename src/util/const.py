@@ -286,6 +286,8 @@ SETTINGS_STARTUP_DIR_MODE = "General/StartupDirectoryMode"
 SETTINGS_PREFERRED_DIRECTORY = "General/PreferredDirectory"
 SETTINGS_PREFERRED_AUDIO_DEVICE = "General/PreferredAudioDevice"
 SETTINGS_UI_SKIN = "General/UiSkin"
+SETTINGS_AUTOSAVE = "General/Autosave"
+AUTOSAVE_DEFAULT = True
 
 # Debug / playback adaptation settings
 SETTINGS_DEBUG_PLAYBACK_ADAPTATION = "Debug/PlaybackFormatAdaptationEnabled"

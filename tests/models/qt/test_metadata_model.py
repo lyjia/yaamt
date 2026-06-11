@@ -174,6 +174,59 @@ def test_set_data_not_writable(model):
     assert not model.setData(index, "New Artist", role=Qt.ItemDataRole.EditRole)
 
 
+def test_pending_edit_bold_only_when_autosave_off(model, edit_manager):
+    """FontRole marks staged edits bold only while autosave is off.
+
+    Per the autosave spec: with autosave on, edits persist immediately, so
+    the file view must never present them as pending changes.
+    """
+    media_file = MediaFile(test_files[0])
+    model._data = [MetadataTableModel.get_metadata_from_media_file(media_file)]
+    edit_manager.register_media_files([media_file])
+    edit_manager.reset_changes()
+
+    index = model.createIndex(0, 0)
+    original_autosave = edit_manager.autosave
+    try:
+        # No staged edit: never bold, regardless of autosave.
+        edit_manager.autosave = False
+        assert model.data(index, Qt.ItemDataRole.FontRole) is None
+
+        edit_manager.stage_change([media_file], KEY_TITLE, "Pending Value")
+
+        font = model.data(index, Qt.ItemDataRole.FontRole)
+        assert font is not None and font.bold()
+
+        edit_manager.autosave = True
+        assert model.data(index, Qt.ItemDataRole.FontRole) is None
+    finally:
+        edit_manager.reset_changes()
+        edit_manager.autosave = original_autosave
+
+
+def test_reset_then_refresh_restores_original_values(model, edit_manager):
+    """The Reset Changes flow: clearing staged edits and refreshing the
+    affected rows must restore on-disk values. setData mutates the row dict
+    for display, so without the refresh the discarded value kept showing
+    as if it had been saved."""
+    media_file = MediaFile(test_files[0])
+    original_title = media_file.get_tag_simple(KEY_TITLE)
+    model._data = [MetadataTableModel.get_metadata_from_media_file(media_file)]
+    edit_manager.register_media_files([media_file])
+    edit_manager.reset_changes()
+
+    index = model.createIndex(0, 0)
+    assert model.setData(index, "Discarded Edit", role=Qt.ItemDataRole.EditRole)
+    assert model._data[0][KEY_TITLE] == "Discarded Edit"
+
+    file_ids = edit_manager.get_staged_file_ids()
+    edit_manager.reset_changes()
+    model.refresh_files(file_ids, edit_manager)
+
+    assert model._data[0][KEY_TITLE] == original_title
+    assert model.data(index, Qt.ItemDataRole.DisplayRole) == original_title
+
+
 # Tests for seamless file loading feature
 
 def test_add_rows(model):

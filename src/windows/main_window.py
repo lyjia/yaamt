@@ -29,6 +29,7 @@ from util.const import (
     SETTINGS_DEBUG_PLAYBACK_SAMPLE_FORMAT, SETTINGS_UI_SKIN,
     SETTINGS_GROUP_FAVORITES, SETTINGS_ARRAY_FAVORITES_LOCATIONS,
     SETTINGS_GROUP_FILE_LIST, SETTINGS_ARRAY_FILE_LIST_COLUMNS,
+    SETTINGS_AUTOSAVE, AUTOSAVE_DEFAULT,
 )
 from windows.rename.setup_dialog import RenameSetupDialog
 from workers.rename_dispatcher import RenameDispatcher
@@ -133,11 +134,17 @@ class MainWindow(QMainWindow):
 
         # Connect to EditManager signals
         self.edit_manager = EditManager()
+        # Apply the persisted autosave preference before wiring the signal
+        # handlers: on_autosave_changed touches menu actions that are not
+        # created until create_file_menu_actions().
+        self.edit_manager.set_autosave(
+            settings.value(SETTINGS_AUTOSAVE, AUTOSAVE_DEFAULT, type=bool))
         self.edit_manager.commit_started.connect(self.on_commit_started)
         self.edit_manager.commit_progress.connect(self.update_progress)
         self.edit_manager.commit_finished.connect(self.on_commit_finished)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
         self.edit_manager.autosave_changed.connect(self.on_autosave_changed)
+        self.edit_manager.staged_changes_exist.connect(self.on_staged_changes_changed)
 
         # Coordinate playback pause/resume around file writes
         from workers.gui.playback_coordinator import PlaybackCoordinator
@@ -257,13 +264,13 @@ class MainWindow(QMainWindow):
             )
 
             if reply == QMessageBox.Save:
-                # Save changes and then close
-                self.edit_manager.commit_changes(autosave_override=True)
-                # We don't have a direct signal to know when the override save is done,
-                # so we'll assume for now that if commit_changes is called, it will handle its state.
-                # A more robust solution might involve connecting to commit_finished/failed
-                # and then closing, but that adds complexity.
-                # For now, we proceed with closing after initiating the save.
+                # Quit-time saves run synchronously: a background commit
+                # thread would be torn down mid-write as the application
+                # exits. Wait out any commit already in flight first.
+                self.edit_manager.wait_for_pending_commit()
+                _, errors = self.edit_manager.commit_changes_sync()
+                if errors:
+                    self._show_error_message("Error Saving Changes", "\n".join(errors))
                 self._save_column_settings()
                 super().closeEvent(event)
             elif reply == QMessageBox.Discard:
@@ -580,12 +587,13 @@ class MainWindow(QMainWindow):
         self.action_autosave.toggled.connect(self.edit_manager.set_autosave)
 
         self.action_save = QAction("Save Changes", self)
-        self.action_save.setEnabled(not self.edit_manager.autosave) # Enabled if autosave is off
         self.action_save.triggered.connect(lambda: self.edit_manager.commit_changes(autosave_override=True))
 
         self.action_reset = QAction("Reset Changes", self)
-        self.action_reset.setEnabled(not self.edit_manager.autosave) # Enabled if autosave is off
-        self.action_reset.triggered.connect(self.edit_manager.reset_changes)
+        self.action_reset.triggered.connect(self.on_reset_changes)
+
+        # Enabled while autosave is off and edits are queued
+        self._update_save_reset_actions()
 
         self.action_properties = QAction("Properties...", self)
         self.action_properties.setEnabled(False)
@@ -1385,25 +1393,53 @@ class MainWindow(QMainWindow):
         self.action_rename_from_metadata.setEnabled(
             len(selected_rows) > 0 and is_media_file
         )
-        # Save and Reset actions are enabled/disabled by on_autosave_changed
-        # but they also require staged changes to be meaningful.
-        # We can further refine their state here if needed, e.g., disable if no staged changes.
-        # For now, they are enabled/disabled solely by the autosave state.
-        # if not self.edit_manager.autosave:
-        #     self.action_save.setEnabled(self.edit_manager.has_staged_changes())
-        #     self.action_reset.setEnabled(self.edit_manager.has_staged_changes())
+
+    def _update_save_reset_actions(self):
+        """
+        Save/Reset are only meaningful while autosave is off and edits are
+        queued. With autosave on, commits happen automatically and there is
+        never anything to save or reset.
+        """
+        if not hasattr(self, 'action_save'):
+            return  # menu actions not created yet (early init)
+        enabled = not self.edit_manager.autosave and self.edit_manager.has_staged_changes()
+        self.action_save.setEnabled(enabled)
+        self.action_reset.setEnabled(enabled)
+
+    @Slot(bool)
+    def on_staged_changes_changed(self, has_changes: bool):
+        """
+        Handles the staged_changes_exist signal from EditManager. Staging can
+        happen outside this window's model (Properties window, analyzer), so
+        repaint the file view to show/hide the bold pending-edit indicators.
+        """
+        self._update_save_reset_actions()
+        self.files_view.viewport().update()
 
     @Slot(bool)
     def on_autosave_changed(self, enabled: bool):
         """
-        Handles the autosave_changed signal from EditManager.
-        Enables or disables the Save and Reset actions based on the autosave state.
+        Handles the autosave_changed signal from EditManager: persists the
+        preference, syncs the menu state, and repaints the file view (bold
+        pending-edit indicators are only shown while autosave is off).
         """
-        self.action_save.setEnabled(not enabled)
-        self.action_reset.setEnabled(not enabled)
+        settings.setValue(SETTINGS_AUTOSAVE, enabled)
+        self._update_save_reset_actions()
         # Also update the checked state of the autosave action itself in case it was changed programmatically
         if self.action_autosave.isChecked() != enabled:
             self.action_autosave.setChecked(enabled)
+        self.files_view.viewport().update()
+
+    def on_reset_changes(self):
+        """
+        Discard all staged edits and restore the affected rows' displayed
+        values from the files' real metadata. Without the row refresh the
+        view kept showing the discarded values as if they had been saved.
+        """
+        file_ids = self.edit_manager.get_staged_file_ids()
+        self.edit_manager.reset_changes()
+        if file_ids:
+            self.file_model.refresh_files(file_ids, self.edit_manager)
 
     def on_commit_started(self):
         self.status_label.setText("Saving changes...")
