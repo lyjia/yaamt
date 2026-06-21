@@ -4,7 +4,7 @@
     <option name="sdkName" value="Python 3.12 (audio-metadata-tool)" />
   </component>
   <component name="FrameworkDetectionExcludesConfiguration" detection-enabled="false" />
-  <component name="ProjectRootManager" version="2" languageLevel="JDK_21" default="true" project-jdk-name="Python 3.12 (audio-metadata-tool)" project-jdk-type="Python SDK">
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_21" default="true" project-jdk-name="liberica-21 (21.0.2-nik)" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>

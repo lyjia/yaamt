@@ -561,3 +561,25 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# cx_freeze build folder
+build/*
+VERSION
+
+# python venv
+.venv/*
+venv/*
+
+# nuitka build folders
+*.dist
+*.build
+*.onefile-build
+*.exe
+build/
+dist/
+nuitka-crash-report.xml
+nul
+tmp/*
+
+# PyInstaller (keep yaamt.spec - our unified build spec)
+*.spec
+!yaamt.spec

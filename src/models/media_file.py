@@ -1,8 +1,9 @@
 import os
+from typing import Any
 
 from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
-    KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_IS_MEDIA, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
-    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_WRITABLE
+    KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_MEDIA, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_FILE_ID
 from providers.metadata.mutagen_provider import MutagenProvider
 from util.logging import log
 
@@ -23,6 +24,11 @@ class MediaFile:
     providers will potentially see the same data it is important to disambiguate which provider should be used for which
     tag.
 
+    Another use-case might be for WAV files with both ID3 and ACID tags. Each of these tag formats provides different
+    (and possibly overlapping, like with BPM) tags for a given audio file. The ACID tags may also have markers or regions
+    defined. What if the user then loads that WAV into Serato and sets cue points and loop regions? We have to tame
+    the inevitable tagging madness!
+
     Also, note that we have a couple different categories of 'tags':
     * "generic" tags, which reference the labels we present to the user, and are names used internally by YAAMT
     * "internal" tags, which are tags that are used internally by the Provider but not exposed to the user. 
@@ -30,12 +36,14 @@ class MediaFile:
     ** It is the provider's responsibility to accept generic tag names and route them to whatever internal name that provider uses.
     ** Mapping between these two is handled by `get_internal_tag_name_for_generic()`
     """
-    def __init__(self, file_path: str, enable_write=False):
+    def __init__(self, file_path: str, enable_write: bool = False) -> None:
         self._file_path = os.path.abspath(file_path)
+        self._file_id = hash(self._file_path)
         self._file_name = os.path.basename(file_path)
         self._providers = self._get_providers_for_file()
         self._write_enabled = enable_write
-        self._pending_changes = {}
+        self._generic_to_internal_map = {}
+        self._internal_to_generic_map = {}
 
         # read combined metadata in as-needed, not at load
         self._combined_metadata = {
@@ -49,7 +57,7 @@ class MediaFile:
                 KEY_FILE_CTIME: os.path.getctime(file_path),
                 # KEY_FILE_ATIME: os.path.getatime(file_path),
                 KEY_IS_MEDIA: False,
-                KEY_IS_WRITABLE: False
+                KEY_IS_WRITABLE: False,
             }
         }
 
@@ -70,11 +78,11 @@ class MediaFile:
         for provider in self._providers:
             # TODO: provider should be added only if it supports the kind of metadata reporting its being registered to
 
-            available_tags = provider.available_tags()
+            available_internal_tags = provider.available_internal_tags()
 
             self._registered_providers[KEY_TAGS].append({
                 KEY_PROVIDER: provider,
-                KEY_AVAIL_KEYS: available_tags,
+                KEY_AVAIL_KEYS: available_internal_tags,
             })
 
             self._registered_providers[KEY_STREAM_INFO].append({
@@ -84,12 +92,16 @@ class MediaFile:
 
             # create a lookup of available providers on a per-key basis
             # to be used for JIT loading of tag data
-            for tag_info in available_tags:
-                if not tag_info.name in self._tag_provider_lookup[KEY_TAGS]:
-                    self._tag_provider_lookup[KEY_TAGS][tag_info.name] = []
-                self._tag_provider_lookup[KEY_TAGS][tag_info.name].append(provider)
-                if tag_info.is_writable and not tag_info.name in self._tag_writers[KEY_TAGS]: #just store the first provider
-                    self._tag_writers[KEY_TAGS][tag_info.name] = [ provider ]
+            for tag_info in available_internal_tags:
+                if tag_info.generic_tag_name:
+                    self._generic_to_internal_map[tag_info.generic_tag_name] = tag_info.internal_tag_name
+                    self._internal_to_generic_map[tag_info.internal_tag_name] = tag_info.generic_tag_name
+
+                if not tag_info.internal_tag_name in self._tag_provider_lookup[KEY_TAGS]:
+                    self._tag_provider_lookup[KEY_TAGS][tag_info.internal_tag_name] = []
+                self._tag_provider_lookup[KEY_TAGS][tag_info.internal_tag_name].append(provider)
+                if tag_info.is_writable and not tag_info.internal_tag_name in self._tag_writers[KEY_TAGS]: #just store the first provider
+                    self._tag_writers[KEY_TAGS][tag_info.internal_tag_name] = [ provider ]
 
             for key in provider.available_stream_info_keys():
                 if not key in self._tag_provider_lookup[KEY_STREAM_INFO]:
@@ -110,35 +122,22 @@ class MediaFile:
         # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
         #     self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
-        pass #for debugger attach
+    def get_tag_all_values(self, key: str, is_internal_tag_key: bool = False) -> list | None:
+        actual_key = key
+        if not is_internal_tag_key and key in self._generic_to_internal_map:
+            actual_key = self._generic_to_internal_map[key]
 
-    def get_tag_all_values(self, key):
-        if key in self._pending_changes:
-            return self._pending_changes[key]
-        if not self._combined_metadata[KEY_TAGS].get(key):
-            self.load_meta_for_tag(key)
-        return self._combined_metadata[KEY_TAGS].get(key, {}).get(KEY_VALUE)
+        if not self._combined_metadata[KEY_TAGS].get(actual_key):
+            self.load_meta_for_tag(actual_key)
+        return self._combined_metadata[KEY_TAGS].get(actual_key, {}).get(KEY_VALUE)
 
-    def get_tag_simple(self, key):
-        grab = self.get_tag_all_values(key)
+    def get_tag_simple(self, key: str, is_internal_tag_key: bool = False) -> Any:
+        grab = self.get_tag_all_values(key, is_internal_tag_key)
         if grab:
             return grab[0]
         return None
 
-    def set_tag(self, key, value, is_internal_tag_key=False):
-        """
-        Sets a tag value in the pending changes.
-        :param key: The tag key to set.
-        :param value: The value to set for the tag.
-        :param is_internal_tag_key: Whether the key is an internal tag key.
-        """
-
-        if key in self._tag_writers[KEY_TAGS] and self._tag_writers[KEY_TAGS][key][0].is_writable():
-            self._pending_changes[key] = [value]
-        else:
-            raise PermissionError(f"Tag '{key}' is not writable. (Writable tags: {list(self._tag_writers[KEY_TAGS].keys())})")
-
-    def load_meta_for_tag(self, key):
+    def load_meta_for_tag(self, key: str) -> None:
         providers = self._tag_provider_lookup[KEY_TAGS].get(key, [])
         if len(providers) > 0:
             provider_to_use = providers[0]
@@ -149,14 +148,31 @@ class MediaFile:
         else:
             self._combined_metadata[KEY_TAGS][key] = {}
 
-    def get_stream_info_value(self, key):
+    def invalidate_tag_cache(self) -> None:
+        """
+        Drop every cached tag value and force every provider to reread its
+        underlying file on the next ``get_tag_*`` call.
+
+        ``MediaFile.save()`` already invalidates entries for tags it just
+        wrote, but tags written through a *different* MediaFile instance
+        (e.g. the analyzer dispatcher operates on its own MediaFile while
+        a Properties window holds another instance pointed at the same
+        file on disk) are invisible to that local invalidation. Long-lived
+        UI surfaces should call this when they receive a signal that says
+        "the file may have been touched by something else".
+        """
+        self._combined_metadata[KEY_TAGS].clear()
+        for provider in self._providers:
+            provider.reload()
+
+    def get_stream_info_value(self, key: str) -> Any:
         if not self._combined_metadata[KEY_STREAM_INFO].get(key):
             self.load_meta_for_stream_info(key)
         if key in self._combined_metadata[KEY_STREAM_INFO]:
             return self._combined_metadata[KEY_STREAM_INFO][key].get(KEY_VALUE)  # only return first value in array of values
         return None
 
-    def load_meta_for_stream_info(self, key):
+    def load_meta_for_stream_info(self, key: str) -> None:
         if key in self._tag_provider_lookup[KEY_STREAM_INFO]:
             provider_to_use = self._tag_provider_lookup[KEY_STREAM_INFO][key][0]
             self._combined_metadata[KEY_STREAM_INFO][key] = {
@@ -164,36 +180,79 @@ class MediaFile:
                 KEY_PROVIDER: provider_to_use
             }
 
-    def get_internal_data(self, key):
+    def get_internal_data(self, key: str) -> Any:
         return self._combined_metadata[KEY_INTERNAL].get(key)
 
-    def save(self):
+    def save(self, changes: dict | None = None, bypass_transformations: bool = False) -> None:
+        """
+        Save changes to the media file.
+
+        Args:
+            changes: Dictionary of changes with KEY_TAG_GENERIC and KEY_TAG_INTERNAL keys
+            bypass_transformations: If True, skip transformation pipeline entirely
+
+        Raises:
+            PermissionError: If write is not enabled for this file
+            ValueError: If transformation fails for any tag
+        """
         if not self._write_enabled:
             raise PermissionError("Write is not enabled for this file.")
 
-        if not self._pending_changes:
+        if changes is None:
             return
+
+        # Apply transformations to generic tags if not bypassed
+        transformed_changes = changes.copy()
+        if not bypass_transformations and KEY_TAG_GENERIC in changes:
+            from providers.metadata.tag_transformers import apply_transformations
+            from models.settings import settings as app_settings
+
+            transformed_generic_tags = {}
+            for tag, value in changes[KEY_TAG_GENERIC].items():
+                try:
+                    log.debug(f"Transforming tag '{tag}': {repr(value)}")
+                    transformed_value = apply_transformations(tag, value, app_settings)
+                    transformed_generic_tags[tag] = transformed_value
+                    log.debug(f"Transformed result: {repr(transformed_value)}")
+                except ValueError as e:
+                    log.error(f"Transformation failed for tag '{tag}': {e}")
+                    raise ValueError(f"Failed to transform tag '{tag}': {e}")
+
+            transformed_changes[KEY_TAG_GENERIC] = transformed_generic_tags
 
         modified_providers = set()
 
-        for key, value in self._pending_changes.items():
-            if key in self._tag_provider_lookup[KEY_TAGS]:
-                # Write to the first available provider
-                provider = self._tag_provider_lookup[KEY_TAGS][key][0]
-                provider.set_tag(key, value)
+        # Process generic tag changes (potentially transformed)
+        for tag, value in transformed_changes.get(KEY_TAG_GENERIC, {}).items():
+            internal_tag = self._generic_to_internal_map.get(tag, tag)
+            if internal_tag in self._tag_writers[KEY_TAGS]:
+                provider = self._tag_writers[KEY_TAGS][internal_tag][0]
+                provider.set_tag(internal_tag, [value])
                 modified_providers.add(provider)
+
+        # Process internal tag changes (never transformed)
+        for tag, tag_data in transformed_changes.get(KEY_TAG_INTERNAL, {}).items():
+            provider = tag_data[KEY_PROVIDER]
+            provider.set_tag(tag, [tag_data[KEY_VALUE]])
+            modified_providers.add(provider)
+            # Update internal metadata after saving
+            self._combined_metadata[KEY_INTERNAL][tag] = tag_data[KEY_VALUE]
 
         for provider in modified_providers:
             provider.save()
 
         # Clear the cache for the tags that were changed
-        for key in self._pending_changes.keys():
-            if key in self._combined_metadata[KEY_TAGS]:
-                del self._combined_metadata[KEY_TAGS][key]
+        for tag in transformed_changes.get(KEY_TAG_GENERIC, {}).keys():
+            internal_tag = self._generic_to_internal_map.get(tag, tag)
+            if internal_tag in self._combined_metadata[KEY_TAGS]:
+                del self._combined_metadata[KEY_TAGS][internal_tag]
 
-        self._pending_changes.clear()
+        for tag in transformed_changes.get(KEY_TAG_INTERNAL, {}).keys():
+            if tag in self._combined_metadata[KEY_TAGS]:
+                del self._combined_metadata[KEY_TAGS][tag]
 
-    def to_dict(self):
+
+    def to_dict(self) -> dict:
         """
         Returns a dictionary representation of the media file's metadata.
         """
@@ -205,9 +264,9 @@ class MediaFile:
 
         for key in self._tag_provider_lookup[KEY_TAGS].keys():
             to_ret[KEY_TAGS][key] = {
-                KEY_VALUE: self.get_tag_simple(key),
+                KEY_VALUE: self.get_tag_simple(key, is_internal_tag_key=True),
                 KEY_PROVIDER: self._tag_provider_lookup[KEY_TAGS][key][0].__class__.__name__,
-                KEY_ALL_VALUES: self.get_tag_all_values(key),
+                KEY_ALL_VALUES: self.get_tag_all_values(key, is_internal_tag_key=True),
                 KEY_ALL_PROVIDERS: [x.__class__.__name__ for x in self._tag_provider_lookup[KEY_TAGS][key]]
             }
 
@@ -217,22 +276,66 @@ class MediaFile:
                 KEY_PROVIDER: self._tag_provider_lookup[KEY_STREAM_INFO][key][0].__class__.__name__,
             }
 
-        to_ret[KEY_INTERNAL] = self._combined_metadata[KEY_INTERNAL]
+        # Include all internal data that has been set
+        for key, value in self._combined_metadata[KEY_INTERNAL].items():
+            to_ret[KEY_INTERNAL][key] = value
 
         return to_ret
 
-    def is_readable(self):
+    def is_readable(self) -> bool:
         return self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA]
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict:
         return self.to_dict()
 
-    def _get_providers_for_file(self):
+    @property
+    def file_path(self) -> str:
+        return self._file_path
+
+    @property
+    def file_id(self) -> int:
+        return self._file_id
+
+    @property
+    def length_in_seconds(self) -> float:
+        """
+        Get the audio file duration in seconds.
+
+        Returns:
+            Duration in seconds as a float, or 0.0 if unavailable
+        """
+        from util.const import KEY_LENGTH
+        length = self.get_stream_info_value(KEY_LENGTH)
+        return float(length) if length is not None else 0.0
+
+    def get_internal_tag_name_for_generic(self, generic_tag_name: str) -> str | None:
+        return self._generic_to_internal_map.get(generic_tag_name)
+
+    def get_generic_tag_name_for_internal(self, internal_tag_name: str) -> str | None:
+        return self._internal_to_generic_map.get(internal_tag_name)
+
+    def get_audio_stream(self, format_descriptor: Any | None = None) -> Any:
+        """
+        Get an audio stream for reading audio data from this file.
+
+        Args:
+            format_descriptor: Optional AudioFormatDescriptor specifying the
+                desired audio format. If None, returns stream in native format.
+                If provided, returns stream adapted to match requested format.
+
+        Returns:
+            AudioStreamBase instance for reading audio data
+
+        Raises:
+            Exception if audio stream cannot be created
+        """
+        from providers.audio.factory import AudioStreamFactory
+        return AudioStreamFactory.get_stream(self._file_path, format_descriptor)
+
+    def _get_providers_for_file(self) -> list:
         """
         Get the MetadataProvider instance(s) most appropriate for the given file in order of preference.
-        :param file_path:
-        :return:
         """
         potential_providers = [ MutagenProvider ]
         to_ret = []

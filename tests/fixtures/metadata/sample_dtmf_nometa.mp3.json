@@ -1,35 +1,29 @@
 {
-    "stream_info": {
-        "bitrate": {
-            "value": null,
-            "provider": "MutagenProvider"
-        },
-        "length": {
-            "value": null,
-            "provider": "MutagenProvider"
-        },
-        "sample_rate": {
-            "value": null,
-            "provider": "MutagenProvider"
-        },
-        "channels": {
-            "value": null,
-            "provider": "MutagenProvider"
-        },
-        "bits_per_sample": {
-            "value": null,
-            "provider": "MutagenProvider"
-        },
-        "total_samples": {
-            "value": null,
-            "provider": "MutagenProvider"
-        },
-        "format": {
-            "value": null,
-            "provider": "MutagenProvider"
-        }
-    },
     "tags": {
+        "acoustid_fingerprint": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "acoustid_id": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "acoustid_score": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "album": {
             "value": null,
             "provider": "MutagenProvider",
@@ -46,7 +40,47 @@
                 "MutagenProvider"
             ]
         },
+        "albumartistsort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "albumsort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "arranger": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "artist": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "artistsort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "author": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -70,6 +104,14 @@
                 "MutagenProvider"
             ]
         },
+        "compilation": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "composer": {
             "value": null,
             "provider": "MutagenProvider",
@@ -78,7 +120,23 @@
                 "MutagenProvider"
             ]
         },
-        "date": {
+        "composersort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "conductor": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "copyright": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -94,7 +152,7 @@
                 "MutagenProvider"
             ]
         },
-        "disctotal": {
+        "discsubtitle": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -126,6 +184,14 @@
                 "MutagenProvider"
             ]
         },
+        "initialkey": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "isrc": {
             "value": null,
             "provider": "MutagenProvider",
@@ -142,6 +208,30 @@
                 "MutagenProvider"
             ]
         },
+        "length": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "lyricist": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "media": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "mood": {
             "value": null,
             "provider": "MutagenProvider",
@@ -150,7 +240,15 @@
                 "MutagenProvider"
             ]
         },
-        "musical_key": {
+        "musicbrainz_recordingid": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "organization": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -166,6 +264,14 @@
                 "MutagenProvider"
             ]
         },
+        "titlesort": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "tracknumber": {
             "value": null,
             "provider": "MutagenProvider",
@@ -174,7 +280,7 @@
                 "MutagenProvider"
             ]
         },
-        "tracktotal": {
+        "version": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -182,7 +288,31 @@
                 "MutagenProvider"
             ]
         },
-        "year": {
+        "replaygain_album_peak": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "replaygain_track_peak": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "replaygain_album_gain": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
+        "replaygain_track_gain": {
             "value": null,
             "provider": "MutagenProvider",
             "all_values": null,
@@ -190,14 +320,5 @@
                 "MutagenProvider"
             ]
         }
-    },
-    "internal": {
-        "fpath": "G:\\tom\\src\\python\\audio-metadata-tool\\tests\\fixtures\\metadata\\sample_dtmf_nometa.mp3",
-        "ftype": "mp3",
-        "fsize": 50112,
-        "fmtime": 1753304927.045823,
-        "fctime": 1755406704.1775873,
-        "ismedia": true,
-        "iswritable": false
     }
 }

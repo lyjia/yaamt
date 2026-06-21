@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(pytest:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:github.com)",
+      "Bash(gh pr commits:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(.venv/Scripts/python -m pytest:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(git push)",
+      "Bash(./yaamt.exe analyze:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

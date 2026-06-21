@@ -1,5 +1,6 @@
 import os
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QThread, Signal
+from PySide6.QtGui import QMovie
 from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
@@ -7,76 +8,107 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QWidget,
-    QTreeWidget,
-    QTreeWidgetItem,
     QLabel,
     QStyle,
-    QHeaderView,
-    QSizePolicy,
-    QFormLayout,
-    QLineEdit,
-    QGroupBox,
 )
-from models.media_file import MediaFile
-from util.const import (
-    KEY_INTERNAL, KEY_STREAM_INFO, KEY_TAGS, KEY_TITLE, KEY_ARTIST, KEY_ALBUM,
-    KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE, KEY_COMMENT, KEY_COMPOSER,
-    KEY_TRACK_NUMBER, KEY_DISC_NUMBER, KEY_BPM, KEY_MUSICAL_KEY,
-    KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN
-)
+from models.edit_manager import EditManager
+from windows.properties_tabs.main_tab import MainTab
+from windows.properties_tabs.details_tab import DetailsTab
+from windows.properties_tabs.advanced_tab import AdvancedTab
+from windows.properties_tabs.artwork_tab import ArtworkTab
+import windows.__resources_rc
 
 
 class PropertiesWindow(QMainWindow):
-    def __init__(self, file_path, parent=None):
+    def __init__(self, media_files: list, edit_manager: EditManager, parent=None):
         super().__init__(parent)
 
-        self.changes = {}
-        self.original_values = {}
+        self.media_files = media_files
+        self.edit_manager = edit_manager
+        self.edit_manager.register_media_files(self.media_files)
 
-        self.file_path = file_path
-        self.media_file = MediaFile(file_path)
-        self.setWindowTitle(f"Properties for {os.path.basename(file_path)}")
-        self.resize(720, 480)
-        self.setMinimumSize(400, 300)
-        self.setWindowIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
-        )
+        # True while a commit started by this window's OK button is in
+        # flight. EditManager is a singleton, so commit_finished /
+        # commit_failed also fire for commits initiated elsewhere (File >
+        # Save Changes, analyzer batches); those must not close this window
+        # or toggle its save UI.
+        self._commit_initiated = False
 
-        # Central widget and main layout
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        # Drop any per-MediaFile tag cache before the tabs are constructed so
+        # the first read always reflects current on-disk state. The window's
+        # MediaFiles can be passed in pre-populated by callers (e.g. the file
+        # model) where the cache may hold stale values from a prior load.
+        for mf in self.media_files:
+            mf.invalidate_tag_cache()
+        if len(self.media_files) == 1:
+            self.setWindowTitle(f"Properties for {os.path.basename(self.media_files[0].file_path)}")
+        else:
+            self.setWindowTitle(f"Properties for {len(self.media_files)} files")
 
-        # Tab widget
-        tab_widget = QTabWidget()
-        main_layout.addWidget(tab_widget)
+        # Default tall enough to show the Main tab's full form including the
+        # ReplayGain group box. Deliberately NO setMinimumSize() call here:
+        # with no explicit minimum, Qt imposes the layouts' computed minimum
+        # on the window (currently ~549 px for the Main tab's 15 form rows),
+        # so the user cannot resize the window small enough to clip the form.
+        # An explicit minimum like the old setMinimumSize(400, 300) OVERRIDES
+        # that layout-derived floor and is exactly what allowed the ReplayGain
+        # group to be crushed out of view.
+        self.resize(720, 600)
+        self.setWindowIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon))
+
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        main_layout = QVBoxLayout(self.central_widget)
+
+        self.tab_widget = QTabWidget()
+        main_layout.addWidget(self.tab_widget)
 
         # Create and set up tabs
-        self.basic_info_tab = QWidget()
-        self.details_tab = QWidget()
-        self.advanced_tab = QWidget()
+        self.main_tab = MainTab(self.media_files, self.edit_manager)
+        self.artwork_tab = ArtworkTab(self.media_files)
+        self.tab_widget.addTab(self.main_tab, "Main")
+        self.tab_widget.addTab(self.artwork_tab, "Artwork")
 
-        tab_widget.addTab(self.basic_info_tab, "Basic Info")
-        tab_widget.addTab(self.details_tab, "Details")
-        tab_widget.addTab(self.advanced_tab, "Advanced")
+        # Connect MainTab's return_pressed signal
+        self.main_tab.return_pressed.connect(self.on_ok_clicked)
 
-        self.setup_basic_info_tab(self.basic_info_tab)
-        self.setup_details_tab(self.details_tab)
-        self.setup_advanced_tab(self.advanced_tab)
+        if len(self.media_files) == 1:
+            self.details_tab = DetailsTab(self.media_files)
+            self.advanced_tab = AdvancedTab(self.media_files, self.edit_manager)
+            self.tab_widget.addTab(self.details_tab, "Details")
+            self.tab_widget.addTab(self.advanced_tab, "Advanced")
+
+        # Connect to EditManager signals
+        self.edit_manager.staged_changes_exist.connect(self.on_staged_changes_changed)
+        self.edit_manager.commit_finished.connect(self.on_save_finished)
+        self.edit_manager.commit_failed.connect(self.on_commit_failed)
+
+        # Refresh the tabs whenever the analyzer dispatcher finishes a batch:
+        # the analyzer writes through a different MediaFile instance, so this
+        # window's cached tag values would otherwise stay stale.
+        from workers.analyzer_dispatcher import AnalyzerDispatcher
+        AnalyzerDispatcher().analysis_completed.connect(self.refresh_tabs)
 
         # Bottom button layout
         self.bottom_layout = QHBoxLayout()
-
-        # Left-aligned button
         tools_button = QPushButton("Tools")
         self.bottom_layout.addWidget(tools_button)
-
         self.bottom_layout.addStretch()
 
-        # Right-aligned buttons
+        self.status_label = QLabel("Writing changes...")
+        self.spinner = QLabel()
+        movie = QMovie(":/icons/spinner.gif")
+        self.spinner.setMovie(movie)
+        movie.start()
+        self.bottom_layout.addWidget(self.spinner)
+        self.bottom_layout.addWidget(self.status_label)
+        self.spinner.hide()
+        self.status_label.hide()
+
         self.close_button = QPushButton("Close")
         self.ok_button = QPushButton("OK")
         self.ok_button.setEnabled(False)
+        self.ok_button.setDefault(True)
 
         self.ok_button.clicked.connect(self.on_ok_clicked)
         self.close_button.clicked.connect(self.close)
@@ -85,237 +117,83 @@ class PropertiesWindow(QMainWindow):
         self.bottom_layout.addWidget(self.close_button)
 
         main_layout.addLayout(self.bottom_layout)
+        
+        self.update_button_states()
 
     def on_ok_clicked(self):
-        self.setEnabled(False)
+        # If autosave or another process has already committed the changes,
+        # there might be nothing left to save. In this case, just close.
+        if not self.edit_manager.has_staged_changes():
+            self.close()
+            return
 
-        status_label = QLabel("Writing changes...")
-        self.bottom_layout.insertWidget(1, status_label)
+        self.central_widget.setEnabled(False)
 
-        for provider_name, tags in self.changes.items():
-            for tag_name, new_value in tags.items():
-                print(
-                    f"Provider: {provider_name}, Tag: {tag_name}, New Value: {new_value}"
-                )
-        self.close()
+        self.ok_button.hide()
+        self.close_button.hide()
+        self.spinner.show()
+        self.status_label.show()
+
+        self._commit_initiated = True
+        if not self.edit_manager.commit_changes():
+            # Nothing was committed (autosave off: edits stay queued in
+            # EditManager until File > Save Changes). Just close.
+            self._commit_initiated = False
+            self.close()
+
+    def closeEvent(self, event):
+        """
+        With autosave on, closing the window is the commit trigger: edits
+        made here persist as soon as the window closes. With autosave off,
+        staged changes stay queued in EditManager (shown bold in the file
+        view) until the user invokes File > Save Changes.
+        """
+        if (not self._commit_initiated
+                and self.edit_manager.autosave
+                and self.edit_manager.has_staged_changes()):
+            # Fire-and-forget: EditManager outlives this window, the commit
+            # thread keeps running, and the main window refreshes rows on
+            # commit_finished. Errors surface via the main window's
+            # commit_failed handler.
+            self.edit_manager.commit_changes()
+        super().closeEvent(event)
+
+    def on_save_finished(self, file_ids):
+        if self._commit_initiated:
+            self._commit_initiated = False
+            self.close()
+
+    def refresh_tabs(self) -> None:
+        """
+        Drop cached metadata on every open MediaFile and re-populate the
+        tabs. Wired to the analyzer dispatcher's ``analysis_completed`` so
+        the window picks up tags written by a background batch.
+        """
+        for mf in self.media_files:
+            mf.invalidate_tag_cache()
+        if hasattr(self, 'main_tab'):
+            self.main_tab.refresh()
+        if hasattr(self, 'advanced_tab'):
+            self.advanced_tab.refresh()
+
+    def on_staged_changes_changed(self, has_changes):
+        self.update_button_states()
 
     def update_button_states(self):
-        if self.changes:
-            self.ok_button.setEnabled(True)
-            self.close_button.setText("Cancel")
-        else:
-            self.ok_button.setEnabled(False)
-            self.close_button.setText("Close")
+        # The button is always "Close": it never discards edits. With
+        # autosave on, closing commits them; with autosave off, they stay
+        # queued until File > Save Changes.
+        self.ok_button.setEnabled(self.edit_manager.has_staged_changes())
 
-    def setup_basic_info_tab(self, tab_widget):
-        layout = QFormLayout(tab_widget)
-        
-        # Metadata fields
-        self.title_edit = QLineEdit()
-        self.artist_edit = QLineEdit()
-        self.album_edit = QLineEdit()
-        self.album_artist_edit = QLineEdit()
-        self.date_edit = QLineEdit()
-        self.genre_edit = QLineEdit()
-        self.comment_edit = QLineEdit()
-        self.composer_edit = QLineEdit()
-        self.publisher_edit = QLineEdit()
-        self.track_num_edit = QLineEdit()
-        self.disc_num_edit = QLineEdit()
-        self.bpm_edit = QLineEdit()
-        self.key_edit = QLineEdit()
+    def on_commit_failed(self, errors):
+        # Only react to a commit this window started; the main window owns
+        # the error dialog (its commit_failed handler shows it globally).
+        if not self._commit_initiated:
+            return
+        self._commit_initiated = False
 
-        layout.addRow("Title:", self.title_edit)
-        layout.addRow("Artist:", self.artist_edit)
-        layout.addRow("Album:", self.album_edit)
-        layout.addRow("Album Artist:", self.album_artist_edit)
-        layout.addRow("Date:", self.date_edit)
-        layout.addRow("Genre:", self.genre_edit)
-        layout.addRow("Comment:", self.comment_edit)
-        layout.addRow("Composer:", self.composer_edit)
-        layout.addRow("Publisher:", self.publisher_edit)
-        layout.addRow("Track #:", self.track_num_edit)
-        layout.addRow("Disc #:", self.disc_num_edit)
-        layout.addRow("BPM:", self.bpm_edit)
-        layout.addRow("Key:", self.key_edit)
-
-        # ReplayGain GroupBox
-        replaygain_group = QGroupBox("ReplayGain")
-        replaygain_layout = QFormLayout()
-        replaygain_group.setLayout(replaygain_layout)
-
-        self.replaygain_track_edit = QLineEdit()
-        self.replaygain_track_edit.setReadOnly(True)
-        self.replaygain_album_edit = QLineEdit()
-        self.replaygain_album_edit.setReadOnly(True)
-
-        replaygain_layout.addRow("Track:", self.replaygain_track_edit)
-        replaygain_layout.addRow("Album:", self.replaygain_album_edit)
-        
-        layout.addRow(replaygain_group)
-
-        # Populate fields
-        self.title_edit.setText(str(self.media_file.get_tag_simple(KEY_TITLE) or ''))
-        self.artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ARTIST) or ''))
-        self.album_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM) or ''))
-        self.album_artist_edit.setText(str(self.media_file.get_tag_simple(KEY_ALBUM_ARTIST) or ''))
-        self.date_edit.setText(str(self.media_file.get_tag_simple(KEY_DATE) or ''))
-        self.genre_edit.setText(str(self.media_file.get_tag_simple(KEY_GENRE) or ''))
-        self.comment_edit.setText(str(self.media_file.get_tag_simple(KEY_COMMENT) or ''))
-        self.composer_edit.setText(str(self.media_file.get_tag_simple(KEY_COMPOSER) or ''))
-        self.track_num_edit.setText(str(self.media_file.get_tag_simple(KEY_TRACK_NUMBER) or ''))
-        self.disc_num_edit.setText(str(self.media_file.get_tag_simple(KEY_DISC_NUMBER) or ''))
-        self.bpm_edit.setText(str(self.media_file.get_tag_simple(KEY_BPM) or ''))
-        self.key_edit.setText(str(self.media_file.get_tag_simple(KEY_MUSICAL_KEY) or ''))
-
-        self.replaygain_track_edit.setText(str(self.media_file.get_tag_simple(KEY_REPLAYGAIN_TRACK_GAIN) or ''))
-        self.replaygain_album_edit.setText(str(self.media_file.get_tag_simple(KEY_REPLAYGAIN_ALBUM_GAIN) or ''))
-
-    def setup_details_tab(self, tab_widget):
-        layout = QVBoxLayout(tab_widget)
-        tree = QTreeWidget()
-        tree.setColumnCount(2)
-        tree.setHeaderLabels(["Property", "Value"])
-        layout.addWidget(tree)
-
-        # File section
-        file_item = QTreeWidgetItem(tree, ["File"])
-        font = file_item.font(0)
-        font.setBold(True)
-        file_item.setFont(0, font)
-
-        metadata = self.media_file.metadata
-        if KEY_INTERNAL in metadata:
-            for key, value in metadata[KEY_INTERNAL].items():
-                child = QTreeWidgetItem(file_item, [key, str(value)])
-                child.setFlags(child.flags() & ~Qt.ItemIsEditable)
-
-        # Stream section
-        stream_item = QTreeWidgetItem(tree, ["Stream"])
-        stream_item.setFont(0, font)
-
-        if KEY_STREAM_INFO in metadata:
-            for key, value in metadata[KEY_STREAM_INFO].items():
-                child = QTreeWidgetItem(stream_item, [key, str(value["value"])])
-                child.setFlags(child.flags() & ~Qt.ItemIsEditable)
-
-        tree.expandAll()
-        for i in range(tree.columnCount()):
-            tree.resizeColumnToContents(i)
-
-    def setup_advanced_tab(self, tab_widget):
-        layout = QVBoxLayout(tab_widget)
-        tree = QTreeWidget()
-        tree.setColumnCount(3)
-        tree.setHeaderLabels(["Tag", "Value", ""])
-        layout.addWidget(tree)
-        tree.itemChanged.connect(self.on_advanced_item_changed)
-
-        self.advanced_tree = tree
-
-        metadata = self.media_file.metadata
-        providers_to_tags = {}
-
-        if KEY_TAGS in metadata:
-            for tag_name, tag_info in metadata[KEY_TAGS].items():
-                provider_name = tag_info.get("provider", "Unknown")
-                if provider_name not in providers_to_tags:
-                    providers_to_tags[provider_name] = []
-                providers_to_tags[provider_name].append((tag_name, tag_info.get("value")))
-
-        for provider_name, tags in providers_to_tags.items():
-            provider_item = QTreeWidgetItem(tree, [provider_name])
-            font = provider_item.font(0)
-            font.setBold(True)
-            provider_item.setFont(0, font)
-            provider_item.setFlags(provider_item.flags() & ~Qt.ItemIsEditable)
-
-            for tag_name, tag_value in sorted(tags):
-                display_value = ""
-                if isinstance(tag_value, list):
-                    display_value = "; ".join(map(str, tag_value))
-                elif isinstance(tag_value, bytes):
-                    display_value = "(binary data)"
-                else:
-                    display_value = str(tag_value)
-
-                child = QTreeWidgetItem(provider_item, [tag_name, display_value])
-                child.setFlags(child.flags() | Qt.ItemIsEditable)
-
-                if isinstance(tag_value, bytes):
-                    child.setFlags(child.flags() & ~Qt.ItemIsEditable)
-
-        header = tree.header()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-
-    def on_advanced_item_changed(self, item, column):
-        if column == 1 and item.parent():
-            provider_name = item.parent().text(0)
-            tag_name = item.text(0)
-            new_value = item.text(1)
-
-            # Store original value if it's the first change
-            if provider_name not in self.original_values or tag_name not in self.original_values.get(provider_name, {}):
-                original_value = self.media_file.metadata.get(KEY_TAGS, {}).get(tag_name, {}).get("value")
-                display_value = ""
-                if isinstance(original_value, list):
-                    display_value = "; ".join(map(str, original_value))
-                elif isinstance(original_value, bytes):
-                    display_value = "(binary data)"
-                else:
-                    display_value = str(original_value)
-
-                if provider_name not in self.original_values:
-                    self.original_values[provider_name] = {}
-                self.original_values[provider_name][tag_name] = display_value
-
-            if provider_name not in self.changes:
-                self.changes[provider_name] = {}
-            self.changes[provider_name][tag_name] = new_value
-
-            # Make font bold
-            font = item.font(1)
-            font.setBold(True)
-            item.setFont(1, font)
-
-            # Add revert button
-            revert_button = QPushButton("Revert")
-            revert_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
-            revert_button.clicked.connect(
-                lambda: self.revert_change(item, provider_name, tag_name)
-            )
-            self.advanced_tree.setItemWidget(item, 2, revert_button)
-
-            self.update_button_states()
-
-    def revert_change(self, item, provider_name, tag_name):
-        self.advanced_tree.blockSignals(True) # we do this because it stops the value from being bolded after reverting the change. TODO: is this the best way to handle this? It seems to address the underlying issue in an unnecessarily oblique fashion
-        original_value = self.original_values[provider_name][tag_name]
-
-        # Update item in QTreeWidget
-        item.setText(1, original_value)
-
-        # Reset font
-        font = item.font(1)
-        font.setBold(False)
-        item.setFont(1, font)
-
-        # Remove from changes
-        if provider_name in self.changes and tag_name in self.changes[provider_name]:
-            del self.changes[provider_name][tag_name]
-            if not self.changes[provider_name]:
-                del self.changes[provider_name]
-
-        # Remove from original_values
-        if provider_name in self.original_values and tag_name in self.original_values[provider_name]:
-            del self.original_values[provider_name][tag_name]
-            if not self.original_values[provider_name]:
-                del self.original_values[provider_name]
-
-        # Remove revert button
-        self.advanced_tree.setItemWidget(item, 2, None)
-        self.advanced_tree.blockSignals(False) # see comment where we set this to true
-
-        self.update_button_states()
+        self.central_widget.setEnabled(True)
+        self.spinner.hide()
+        self.status_label.hide()
+        self.ok_button.show()
+        self.close_button.show()

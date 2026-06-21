@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from typing import Any
+
 from models.tag_info import TagInfo
 
 
@@ -6,35 +8,25 @@ class MetadataProviderBase(ABC):
     """
     An abstract base class that defines the interface for metadata providers.
     """
-    @property
     @abstractmethod
-    def get_tag(self, key):
+    def get_tag(self, key: str) -> list | None:
         '''Abstract method to get a tag value.'''
         pass
 
-    @property
     @abstractmethod
-    def set_tag(self, key, values):
+    def set_tag(self, key: str, value: list) -> None:
         pass
 
-    @property
     @abstractmethod
-    def get_stream_info(self, key):
+    def get_stream_info(self, key: str) -> Any:
         pass
 
-    @property
     @abstractmethod
-    def available_tags(self) -> list[TagInfo]:
+    def available_internal_tags(self) -> list[TagInfo]:
         pass
 
-    @property
     @abstractmethod
-    def available_stream_info_keys(self):
-        pass
-
-    @property
-    @abstractmethod
-    def available_tags(self):
+    def available_stream_info_keys(self) -> list[str]:
         pass
 
 
@@ -111,6 +103,16 @@ class MetadataProviderBase(ABC):
     #     pass
 
     @abstractmethod
-    def save(self):
+    def save(self) -> None:
         """Abstract method to save changes to the file."""
         pass
+
+    def reload(self) -> None:
+        """
+        Re-read the underlying file so subsequent ``get_tag`` calls see any
+        changes that landed via a different provider instance pointing at
+        the same path. Default implementation is a no-op for providers that
+        always read from disk; concrete providers that hold cached parsed
+        state (mutagen) should override this to refresh that state.
+        """
+        return None

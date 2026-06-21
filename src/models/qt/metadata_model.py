@@ -1,98 +1,470 @@
 import os
+from typing import Any
+
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtGui import QFont, QColor
+from PySide6.QtWidgets import QWidget
 from models.settings import ColumnSettings
+from models.media_file import MediaFile
+from models.edit_manager import EditManager
 
 from util.const import (
     KEY_FILE_PATH, KEY_FILE_SIZE, KEY_FILE_MTIME, KEY_FILE_SIZE_HUMAN, KEY_FILE_MTIME_HUMAN,
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_FILE_TYPE, KEY_FILE_TYPE_HUMAN, KEY_IS_MEDIA,
-    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED
+    COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, COL_MAIN_DATE_CREATED,
+    COL_MAIN_ACOUSTID_ID, COL_MAIN_MBID,
+    KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_FILE_ID, LOADING_PLACEHOLDER,
+    KEY_ACOUSTID_ID, KEY_ACOUSTID_SCORE, KEY_MUSICBRAINZ_RECORDING_ID,
 )
 from util.display import human_readable_size, human_readable_timestamp
+from util.logging import log
+
+
+_CHECKMARK = "\u2713"  # Rendered as-is — no HTML in QTableView cells.
+
+
+def _format_acoustid_id_cell(acoustid_id: Any, score: Any) -> str:
+    """Render the AcoustID ID column cell.
+
+    Checkmark when the acoustid_id tag is set (meaning a match was
+    confirmed); ``" (0.9523)"`` appended when the AcoustID score tag is
+    also present. Empty string if no AcoustID ID is on the file — no
+    "no match" glyph, matching the user's spec.
+
+    The AcoustID ID is the identity of the cluster AcoustID matched our
+    fingerprint to, so the presence of the ID is the true signal of "a
+    match happened" — not the raw Chromaprint fingerprint (which is
+    just a local hash and says nothing about match success).
+    """
+    if not acoustid_id:
+        return ""
+    score_str = ""
+    if score not in (None, ""):
+        try:
+            score_str = f" ({float(score):.4f})"
+        except (TypeError, ValueError):
+            # Defensive: some odd provider wrote a non-float into the
+            # acoustid_score tag. Just omit the score rather than blowing
+            # up the cell.
+            pass
+    return f"{_CHECKMARK}{score_str}"
+
+
+def _format_mbid_cell(mbid: Any) -> str:
+    """Render the MusicBrainz Recording ID column cell.
+
+    Just a checkmark when the MBID tag is present. No score: the AcoustID
+    match score describes the AcoustID cluster, not a specific recording.
+    """
+    return _CHECKMARK if mbid else ""
 
 
 class MetadataTableModel(QAbstractTableModel):
-    def __init__(self, columns: list[ColumnSettings], parent=None):
+    def __init__(self, columns: list[ColumnSettings], edit_manager: EditManager,
+                 parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._data = []
+        self._data: list[dict] = []
         self._columns = columns
+        self.edit_manager = edit_manager
 
-    def rowCount(self, parent=QModelIndex()):
+        if self.edit_manager is None:
+            raise ValueError("edit_manager cannot be None!")
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self._data)
 
-    def columnCount(self, parent=QModelIndex()):
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self._columns)
 
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
 
         if not index.isValid():
             return None
 
         row_data = self._data[index.row()]
+        file_id = row_data.get(KEY_FILE_ID)
+        column = self._columns[index.column()]
 
         if role == KEY_IS_MEDIA:
             return row_data.get(KEY_IS_MEDIA) is True
 
-        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.UserRole:
-            column = self._columns[index.column()]
+        # Helper to get staged value, assuming generic tags for columns handled by this model
+        staged_value = None
+        if file_id and column.id:
+            staged_value = self.edit_manager.get_staged_value(file_id, column.id)
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            if staged_value is not None:
+                return staged_value
 
             if column.id == COL_MAIN_FILENAME:
                 return os.path.basename(row_data.get(KEY_FILE_PATH, ""))
 
             elif column.id == COL_MAIN_SIZE:
                 fsize = row_data.get(KEY_FILE_SIZE, 0)
-
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return human_readable_size( fsize )
-                else:
-                    return fsize
+                return human_readable_size(fsize)
 
             elif column.id == COL_MAIN_TYPE:
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return row_data.get(KEY_FILE_TYPE_HUMAN)
-                else:
-                    return row_data.get(KEY_FILE_TYPE)
+                return row_data.get(KEY_FILE_TYPE_HUMAN)
 
             elif column.id == COL_MAIN_DATE_MODIFIED:
                 fmtime = row_data.get(KEY_FILE_MTIME)
+                return human_readable_timestamp(fmtime)
 
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return human_readable_timestamp( fmtime )
-                else:
-                    return fmtime
-
-            elif column.id == "date_created":
+            elif column.id == COL_MAIN_DATE_CREATED:
                 fctime = row_data.get(KEY_FILE_CTIME)
+                return human_readable_timestamp(fctime)
 
-                if role == Qt.ItemDataRole.DisplayRole:
-                    return human_readable_timestamp( fctime )
-                else:
-                    return fctime
+            elif column.id == COL_MAIN_ACOUSTID_ID:
+                # Present when the analyzer recorded an AcoustID match
+                # for this file. The score (AcoustID's confidence in the
+                # cluster assignment) naturally lives alongside the ID.
+                return _format_acoustid_id_cell(
+                    row_data.get(KEY_ACOUSTID_ID),
+                    row_data.get(KEY_ACOUSTID_SCORE),
+                )
+
+            elif column.id == COL_MAIN_MBID:
+                return _format_mbid_cell(row_data.get(KEY_MUSICBRAINZ_RECORDING_ID))
 
             # elif header == "Last Accessed":
             #     fatime = row_data.get(KEY_FILE_ATIME)
-            #
-            #     if role == Qt.ItemDataRole.DisplayRole:
-            #         return human_readable_timestamp( fatime )
-            #     else:
-            #         return fatime
+            #     return human_readable_timestamp(fatime)
+
+            else:
+                return row_data.get(column.id, "")
+        
+        elif role == Qt.ItemDataRole.FontRole:
+            # Bold marks a pending (staged, not yet saved) edit. Only shown
+            # while autosave is off: with autosave on, edits persist
+            # immediately, so the view must never present them as pending.
+            if staged_value is not None and not self.edit_manager.autosave:
+                font = QFont()
+                font.setBold(True)
+                return font
+
+        elif role == Qt.ItemDataRole.ForegroundRole:
+            # Display loading placeholder in gray
+            value = row_data.get(column.id, "")
+            if value == LOADING_PLACEHOLDER:
+                return QColor(Qt.GlobalColor.lightGray)
+
+        elif role == Qt.ItemDataRole.UserRole or role == Qt.ItemDataRole.EditRole:
+            # For EditRole, return the current value from row_data, which should be consistent
+            # with staged changes due to setData's behavior.
+            if column.id == COL_MAIN_FILENAME:
+                return os.path.basename(row_data.get(KEY_FILE_PATH, ""))
+
+            elif column.id == COL_MAIN_SIZE:
+                return row_data.get(KEY_FILE_SIZE, 0)
+
+            elif column.id == COL_MAIN_TYPE:
+                return row_data.get(KEY_FILE_TYPE)
+
+            elif column.id == COL_MAIN_DATE_MODIFIED:
+                return row_data.get(KEY_FILE_MTIME)
+
+            elif column.id == COL_MAIN_DATE_CREATED:
+                return row_data.get(KEY_FILE_CTIME)
+
+            # elif header == "Last Accessed":
+            #     return row_data.get(KEY_FILE_ATIME)
 
             else:
                 return row_data.get(column.id, "")
                 
         return None
 
-    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        """
+        Return the item flags for the given index.
+        This determines whether a cell is editable and selectable.
+
+        Args:
+            index: The model index
+
+        Returns:
+            Qt.ItemFlags: The flags for the item
+        """
+        if not index.isValid():
+            return Qt.ItemFlag.NoItemFlags
+
+        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+        # Check if this column is writable
+        column_settings = self._columns[index.column()]
+        if column_settings.is_writable:
+            flags |= Qt.ItemFlag.ItemIsEditable
+
+        return flags
+
+    def setData(self, index: QModelIndex, value: Any,
+                role: int = Qt.ItemDataRole.EditRole) -> bool:
+        """
+        Set the data for the item at the given index.
+
+        Args:
+            index: The model index
+            value: The new value to set
+            role: The role for which to set data
+
+        Returns:
+            bool: True if the data was set successfully
+        """
+        if not index.isValid() or role != Qt.ItemDataRole.EditRole:
+            log.error(f"Invalid index or role for setData(): {index.isValid()}, {role}. Save aborted!")
+            return False
+
+        column_settings = self._columns[index.column()]
+        if not column_settings.is_writable:
+            log.error(f"Column {column_settings.id} is not writable! Save aborted!")
+            return False
+
+        row_data = self._data[index.row()]
+        file_path = row_data.get(KEY_FILE_PATH)
+
+        # Get the MediaFile object for this row
+        media_file = MediaFile(file_path, enable_write=True)
+        self.edit_manager.register_media_files([ media_file ])
+
+        if media_file is None:
+            log.error(f"media_file is None for row {index.row()}! Save aborted!")
+            return False
+
+        # Stage the change with the EditManager
+        self.edit_manager.stage_change([media_file], column_settings.id, value)
+
+        # Update the internal data immediately for UI responsiveness
+        row_data[column_settings.id] = value
+        self._data[index.row()] = row_data
+
+        # Emit data changed signal
+        self.dataChanged.emit(index, index, [role])
+
+        return True
+
+    def setDataForRows(self, rows: list[int], column: int, value: Any,
+                       role: int = Qt.ItemDataRole.EditRole) -> bool:
+        """
+        Stage a change for multiple rows at once. Does NOT call finished_with_edits();
+        the caller must do that separately.
+
+        Args:
+            rows: List of source model row indices
+            column: The column index
+            value: The new value to set
+            role: The data role
+
+        Returns:
+            bool: True if at least one row was updated
+        """
+        if role != Qt.ItemDataRole.EditRole:
+            return False
+
+        column_settings = self._columns[column]
+        if not column_settings.is_writable:
+            log.error(f"Column {column_settings.id} is not writable! Save aborted!")
+            return False
+
+        media_files = []
+        updated_rows = []
+
+        for row in rows:
+            if row < 0 or row >= len(self._data):
+                log.error(f"Invalid row index for setDataForRows: {row}")
+                continue
+
+            row_data = self._data[row]
+            file_path = row_data.get(KEY_FILE_PATH)
+            if not file_path or not row_data.get(KEY_IS_MEDIA):
+                continue
+
+            media_file = MediaFile(file_path, enable_write=True)
+            media_files.append(media_file)
+
+            # Update internal data immediately for UI responsiveness
+            row_data[column_settings.id] = value
+            self._data[row] = row_data
+            updated_rows.append(row)
+
+        if not media_files:
+            return False
+
+        self.edit_manager.register_media_files(media_files)
+        self.edit_manager.stage_change(media_files, column_settings.id, value)
+
+        for row in updated_rows:
+            idx = self.createIndex(row, column)
+            self.dataChanged.emit(idx, idx, [role])
+
+        log.debug(f"setDataForRows: staged '{column_settings.id}' = '{value}' for {len(media_files)} files")
+        return True
+
+    def finished_with_edits(self) -> None:
+        log.debug("Finished with edits. Saving changes...")
+        self.edit_manager.commit_changes()
+
+    def get_media_file_for_row(self, row: int) -> MediaFile | None:
+        """
+        Get the MediaFile object for a given row index.
+
+        Args:
+            row: The row index
+
+        Returns:
+            MediaFile or None: The MediaFile object if found
+        """
+        if row < 0 or row >= len(self._data):
+            log.error(f"Invalid row index: {row} (of {len(self._data)})!")
+            return None
+
+        row_data = self._data[row]
+        file_id = row_data.get(KEY_FILE_ID)
+        if file_id:
+            # We need to access the EditManager's media files
+            # This will be set external to this model when it's created
+            return self.edit_manager.get_media_file(file_id)
+        else:
+            log.error(f"Row {row} does not have a file ID!")
+
+        return None
+
+    def headerData(self, section: int, orientation: Qt.Orientation,
+                   role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             return self._columns[section].label
         return None
 
-    def set_data(self, data):
+    def get_data_for_row(self, row: int) -> dict:
+        return self._data[row]
+
+    def set_entire_data(self, data: list[dict]) -> None:
         self.beginResetModel()
         self._data = data
         self.endResetModel()
 
-    def sort(self, column, order):
+    def add_rows(self, rows_data: list[dict]) -> None:
+        """
+        Append new rows to the model (used during Stage 1 discovery).
+
+        Args:
+            rows_data: List of dictionaries containing basic file data
+        """
+        if not rows_data:
+            return
+
+        # Insert rows at the end
+        position = len(self._data)
+        self.beginInsertRows(QModelIndex(), position, position + len(rows_data) - 1)
+        self._data.extend(rows_data)
+        self.endInsertRows()
+
+    def update_row(self, index: int, metadata: dict) -> None:
+        """
+        Update an existing row with enriched metadata (used during Stage 2 enrichment).
+
+        Args:
+            index: Row index to update
+            metadata: Dictionary containing full metadata
+        """
+        if index < 0 or index >= len(self._data):
+            log.error(f"Invalid row index for update: {index} (total rows: {len(self._data)})")
+            return
+
+        # Update the row data
+        self._data[index] = metadata
+
+        # Emit dataChanged signal for this row
+        start_index = self.createIndex(index, 0)
+        end_index = self.createIndex(index, self.columnCount() - 1)
+        self.dataChanged.emit(start_index, end_index, [])
+
+    def sort(self, column: int, order: Qt.SortOrder) -> None:
         self.layoutAboutToBeChanged.emit()
         column_settings = self._columns[column]
-        self._data.sort(key=lambda x: x.get(column_settings.id, ""), reverse=order == Qt.SortOrder.DescendingOrder)
+
+        # Handle None values in sort key by converting them to empty strings
+        def sort_key(x):
+            value = x.get(column_settings.id, "")
+            # Convert None to empty string for comparison
+            return value if value is not None else ""
+
+        self._data.sort(key=sort_key, reverse=order == Qt.SortOrder.DescendingOrder)
         self.layoutChanged.emit()
+
+    @staticmethod
+    def get_metadata_from_media_file(media_file: MediaFile) -> dict:
+        """
+        Given a MediaFile object, return a dictionary of its metadata.
+
+        Args:
+            media_file: The MediaFile object to get metadata from.
+
+        Returns:
+            A dictionary of metadata.
+        """
+        return {
+            # fs attributes
+            KEY_FILE_PATH: media_file.file_path,
+            KEY_FILE_SIZE: media_file.get_internal_data(KEY_FILE_SIZE),
+            KEY_FILE_MTIME: media_file.get_internal_data(KEY_FILE_MTIME),
+            KEY_FILE_CTIME: media_file.get_internal_data(KEY_FILE_CTIME),
+            KEY_FILE_TYPE: media_file.get_internal_data(KEY_FILE_TYPE),
+            KEY_FILE_TYPE_HUMAN: media_file.get_stream_info_value(KEY_FORMAT),
+
+            # tag attributes
+            KEY_TITLE: media_file.get_tag_simple(KEY_TITLE),
+            KEY_ARTIST: media_file.get_tag_simple(KEY_ARTIST),
+            KEY_ALBUM: media_file.get_tag_simple(KEY_ALBUM),
+            KEY_GENRE: media_file.get_tag_simple(KEY_GENRE),
+            KEY_BPM: media_file.get_tag_simple(KEY_BPM),
+            KEY_INITIAL_KEY: media_file.get_tag_simple(KEY_INITIAL_KEY),
+
+            # Fingerprint-analyzer-produced tags. Included so the
+            # AcoustID ID and MusicBrainz Recording ID columns can
+            # render their checkmark / score composites without
+            # re-querying the tag provider on every data() call.
+            KEY_ACOUSTID_ID: media_file.get_tag_simple(KEY_ACOUSTID_ID),
+            KEY_ACOUSTID_SCORE: media_file.get_tag_simple(KEY_ACOUSTID_SCORE),
+            KEY_MUSICBRAINZ_RECORDING_ID: media_file.get_tag_simple(KEY_MUSICBRAINZ_RECORDING_ID),
+
+            # internal
+            KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA),
+            KEY_FILE_ID: media_file.file_id
+        }
+
+    def refresh_files(self, file_ids: list[int], edit_manager: EditManager) -> None:
+        """
+        Refresh the metadata for specific files in the model.
+
+        Args:
+            file_ids: List of file ids to refresh
+            edit_manager: The EditManager instance
+        """
+        log.debug(f"Refreshing metadata for files: {file_ids}...")
+        updated_rows = []
+        #TODO: this iterates through every file in a folder just to find the file ids to redraw,
+        # because we do not index file ID in self._data.
+        # We should figure out some way to easily reference a row in self._data by file ID without having to
+        # enumerate the whole thing. This logic is also mostly the same as the logic in MetadataLoader.run(), we should
+        # consolidate that.
+        for row_index, row_data in enumerate(self._data):
+            file_id = row_data.get(KEY_FILE_ID)
+            if file_id in file_ids:
+                media_file = edit_manager.get_media_file(file_id)
+                if not media_file:
+                    continue
+
+                # Re-fetch metadata from the MediaFile object
+                new_metadata = self.get_metadata_from_media_file(media_file)
+                # Update the row data with new metadata
+                self._data[row_index] = new_metadata
+                updated_rows.append(row_index)
+
+        # Emit signals for the updated rows
+        if updated_rows:
+            for row in updated_rows:
+                start_index = self.createIndex(row, 0)
+                end_index = self.createIndex(row, self.columnCount() - 1)
+                self.dataChanged.emit(start_index, end_index, [])
