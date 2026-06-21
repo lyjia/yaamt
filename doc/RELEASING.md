@@ -106,36 +106,104 @@ If `master` has *not* moved on, skip the branch: just commit the fix to
 ## Scenario 4: Manual / Offline Publishing
 
 Use this when a CI agent for some platform is down or not yet
-provisioned, and you need that platform's artifact anyway.
+provisioned, and you need that platform's artifact anyway. This is the
+current path for Windows and macOS until their Woodpecker agents are
+online (see `doc/designs/ci.md`).
 
-1. On a machine of the target platform, with the installer prerequisite
-   present (Inno Setup / nfpm / create-dmg - see the table in
-   README.md "Creating Installers"):
+The shape is identical on every platform: create the tag once, then on
+each build machine check that tag out, build, and upload. The exact
+per-platform sequences follow. They use `v0.1.0` as the example tag -
+substitute the version you are shipping.
 
-   ```bash
-   git fetch --tags
-   git checkout v0.3.0
-   python build.py --install-deps   # first time on this machine only
-   python build.py --release --installer
-   ```
+### Step 0: Create and push the tag (once)
 
-2. The installer lands in `build/release-<timestamp>/`. Upload it either:
-   - **By hand:** drag it onto the existing GitHub Release for the tag.
-   - **By script** (same path CI uses; needs a GitHub token with
-     `contents: write` on the repo):
+Do this a single time, from any clone. Every build machine then fetches
+the same tag, so all artifacts stamp the identical version.
 
-     ```bash
-     export GITHUB_RELEASE_TOKEN=<token>
-     python scripts/release_upload.py --repo lyjia/yaamt --tag v0.3.0 build/release-*/yaamt-*-setup.exe
-     ```
+```bash
+git checkout master            # or development, pre-1.0
+git pull
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+### Prerequisites per platform
+
+| Platform | Build host must have                                                              |
+|----------|----------------------------------------------------------------------------------|
+| Windows  | Python 3.12, Git, Inno Setup 6 (`iscc` on PATH)                                   |
+| macOS    | Python 3.12, Xcode Command Line Tools, `create-dmg` (`brew install create-dmg`)   |
+| Linux    | Python 3.12, Git, `nfpm` (https://nfpm.goreleaser.com/install/)                   |
+
+### Windows (PowerShell) -> `*-setup.exe`
+
+```powershell
+git fetch --tags
+git checkout v0.1.0
+cd src; python -m util.version; cd ..   # expect bare "0.1.0" (no '+' or '.dirty')
+python build.py --install-deps          # first time on this machine only
+python build.py --release --installer
+# Installer lands at: build\release-<timestamp>\yaamt-0.1.0-windows-x64-setup.exe
+```
+
+### macOS (bash) -> `.dmg`
+
+```bash
+git fetch --tags
+git checkout v0.1.0
+(cd src && python3 -m util.version)     # expect bare "0.1.0" (no '+' or '.dirty')
+python3 build.py --install-deps         # first time on this machine only
+python3 build.py --release --installer
+# Installer lands at: build/release-<timestamp>/yaamt-0.1.0-macos-<arch>.dmg
+```
+
+### Linux (bash) -> `.deb` + `.rpm`
+
+```bash
+git fetch --tags
+git checkout v0.1.0
+(cd src && python -m util.version)      # expect bare "0.1.0" (no '+' or '.dirty')
+python build.py --install-deps          # first time on this machine only
+python build.py --release --installer
+# Packages land at: build/release-<timestamp>/yaamt-0.1.0-linux-x64.{deb,rpm}
+```
+
+### Uploading the artifacts
+
+From each build host, choose one:
+
+- **By hand (recommended for a release candidate):** in the GitHub UI,
+  create the release for the tag *first* and tick "Set as a pre-release"
+  (or save it as a draft), then drag each platform's artifact onto it.
+  Promote it to a full release once you have validated the build. This
+  is the supported way to get release-candidate behavior, since the
+  version scheme has no `-rcN` tag form.
+- **By script** (same path CI uses; needs a GitHub token with
+  `contents: write` on the repo):
+
+  ```bash
+  # bash (macOS / Linux)
+  export GITHUB_RELEASE_TOKEN=<token>
+  python scripts/release_upload.py --repo lyjia/yaamt --tag v0.1.0 build/release-*/*.dmg
+  ```
+
+  ```powershell
+  # PowerShell (Windows)
+  $env:GITHUB_RELEASE_TOKEN = "<token>"
+  python scripts/release_upload.py --repo lyjia/yaamt --tag v0.1.0 (Get-ChildItem build\release-*\*-setup.exe).FullName
+  ```
 
 The upload script creates the release if it does not exist yet, so the
-fully-manual flow (no CI at all) is just: run the build on each
-platform, then run the upload from each.
+fully-manual flow (no CI at all) is just: build on each platform, then
+upload from each. It only sets the prerelease flag when it *creates* a
+release; if you pre-created the release as a pre-release in the UI, the
+script reuses it and your flag is preserved (see
+`scripts/release_upload.py`).
 
 Checking out the tag matters: building from a later commit would stamp
-`0.3.0+N.<hash>` into the binary, and the artifact would advertise
-itself as a non-release build.
+`0.1.0+N.<hash>` into the binary, and the artifact would advertise
+itself as a non-release build. The `python -m util.version` check in
+each sequence above catches this before you spend time on a build.
 
 ---
 
