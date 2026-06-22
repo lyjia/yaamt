@@ -14,7 +14,9 @@
       "Bash(.venv/Scripts/python -m pytest:*)",
       "Bash(python -m py_compile:*)",
       "Bash(git push)",
-      "Bash(./yaamt.exe analyze:*)"
+      "Bash(./yaamt.exe analyze:*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
     ],
     "deny": [],
     "ask": []

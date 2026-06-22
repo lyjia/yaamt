@@ -1,0 +1,79 @@
+# Manually-triggered macOS release build.
+#
+# This is NOT automatic CI. It fires only when a maintainer clicks
+# "Run workflow" (workflow_dispatch) and names a tag. Automatic CI
+# (lint + test) still lives exclusively on Woodpecker; see
+# doc/designs/ci.md. This workflow exists for the interim period where
+# no self-hosted macOS agent is provisioned (doc/RELEASING.md, Scenario 4).
+#
+# It builds the .dmg from a chosen tag and uploads it straight to the
+# matching GitHub Release. The artifact is a *release asset*, not an
+# Actions artifact, so the 500 MB Actions storage cap that drove CI to
+# Woodpecker does not apply here.
+#
+# Cost: standard GitHub-hosted runners are free and unlimited for public
+# repositories. A run is a single ~10-minute macOS build.
+name: Release (macOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v0.1.0). Must already exist and be pushed."
+        required: true
+        type: string
+
+permissions:
+  contents: write   # lets the built-in GITHUB_TOKEN create/edit the release
+
+jobs:
+  build-macos:
+    # macos-14 is Apple Silicon -> arm64 .dmg, matching build-macos.yaml's
+    # darwin/arm64 target. Add a macos-13 job if you also need an x64 build.
+    runs-on: macos-14
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          # Full history + tags: version.py runs `git describe --tags --long`
+          # to stamp the build, which needs the release tags and the commit
+          # graph back to them. A shallow clone would mis-stamp the version.
+          fetch-depth: 0
+          submodules: false   # references/ is reference material only
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify the checkout is exactly on the tag
+        # Guard against publishing a non-release build: if a branch (not a
+        # tag) was passed, the version carries a '+N.hash' suffix and we stop.
+        run: |
+          VER=$(cd src && python3 -m util.version)
+          echo "Build will stamp version: $VER"
+          case "$VER" in
+            *+*|*dirty*)
+              echo "::error::Version '$VER' is not a clean release build (contains '+' or 'dirty'). Pass a release tag, not a branch.";
+              exit 1 ;;
+          esac
+
+      - name: Install dependencies
+        run: |
+          python3 build.py --install-deps
+          # --install-deps installs portaudio + ccache but not the installer
+          # tool; the build's --installer step needs create-dmg on PATH.
+          brew install create-dmg
+
+      - name: Build release and installer
+        run: python3 build.py --release --installer
+
+      - name: Upload .dmg to the GitHub Release
+        env:
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/release_upload.py \
+            --repo "${{ github.repository }}" \
+            --tag "${{ inputs.tag }}" \
+            build/release-*/*.dmg
