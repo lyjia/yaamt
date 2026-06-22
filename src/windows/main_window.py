@@ -50,7 +50,7 @@ class MainWindow(QMainWindow):
     def __init__(self, path=None):
         super().__init__()
         version = get_version()
-        self.setWindowTitle(f"YAAMT v{version} - USE AT YOUR OWN RISK!!!")
+        self.setWindowTitle(f"YAAMT")
         self.resize(1024, 768)
         self.setMinimumSize(640, 480)
 
@@ -104,6 +104,11 @@ class MainWindow(QMainWindow):
         # Status Bar
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
+
+        # Standing warning that this tool writes to the user's audio files
+        self.risk_label = QLabel("USE AT YOUR OWN RISK -- MAKE BACKUPS FIRST!")
+        self.risk_label.setStyleSheet("color: red; font-weight: bold;")
+        self.status_bar.addWidget(self.risk_label)
 
         self.status_label = QLabel("Ready")
         self.status_bar.addPermanentWidget(self.status_label)
