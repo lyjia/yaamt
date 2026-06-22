@@ -23,6 +23,10 @@ class AboutWindow(QDialog):
             f"""
             <p>A simple tool for editing audio metadata.</p>
             <p>Version: {version}</p>
+            <br>
+            <p>This program is FREE and licensed to you under the terms of the Affero General Public License (AGPL) version 3.</p>
+            <p>All original code © 2026 Lyjia</p>
+            
             """
         )
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

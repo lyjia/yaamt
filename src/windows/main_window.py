@@ -49,7 +49,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self, path=None):
         super().__init__()
-        self.setWindowTitle("YAAMT")
+        version = get_version()
+        self.setWindowTitle(f"YAAMT v{version} - USE AT YOUR OWN RISK!!!")
         self.resize(1024, 768)
         self.setMinimumSize(640, 480)
 
