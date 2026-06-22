@@ -16,6 +16,13 @@
   #define Arch "x64"
 #endif
 
+; Where the compiled installer is written. build.py passes the build's
+; release-<timestamp> directory via /DOutputDir; the fallback matches Inno
+; Setup's own default so the script still compiles if opened standalone.
+#ifndef OutputDir
+  #define OutputDir "Output"
+#endif
+
 [Setup]
 AppName=YAAMT
 AppVersion={#AppVersion}
@@ -26,6 +33,7 @@ DefaultDirName={autopf}\YAAMT
 DefaultGroupName=YAAMT
 AllowNoIcons=yes
 ; Output settings
+OutputDir={#OutputDir}
 OutputBaseFilename=yaamt-{#AppVersion}-windows-{#Arch}-setup
 Compression=lzma2/ultra64
 SolidCompression=yes
