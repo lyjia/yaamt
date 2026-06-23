@@ -39,6 +39,10 @@ def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecuto
     """
     Get or create the global process pool executor.
 
+    Built once on first use and reused for the life of the process. The size is
+    fixed (the caller passes os.cpu_count()), so there is nothing to rebuild; if
+    that ever needs to change at runtime, recreate the pool explicitly.
+
     Args:
         max_workers: Maximum number of worker processes
 
@@ -48,16 +52,9 @@ def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecuto
     global _process_pool_executor
 
     with _process_pool_lock:  # ponytail: serialize create; the race was the whole bug
-        if _process_pool_executor is None or _process_pool_executor._max_workers != max_workers:
-            # Shutdown existing pool if it exists
-            if _process_pool_executor is not None:
-                log.info(f"Shutting down existing process pool (was {_process_pool_executor._max_workers} workers)")
-                _process_pool_executor.shutdown(wait=True)  # Wait for pending tasks
-
-            # Create new pool with requested size
+        if _process_pool_executor is None:
             _process_pool_executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
             log.info(f"Created process pool with {max_workers} workers")
-
         return _process_pool_executor
 
 
