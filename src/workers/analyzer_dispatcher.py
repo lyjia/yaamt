@@ -616,9 +616,12 @@ class AnalyzerDispatcher(QObject):
         # Emit task completed signal
         self.task_completed.emit(task.media_file.file_path, task.result)
 
-        # Update progress
+        # Update progress. Total must count every bucket a task can live in —
+        # completed, still-queued, AND in-flight — otherwise it shrinks below the
+        # run's real size as workers drain the queue into active_tasks, showing a
+        # full bar (e.g. "1/1") while other files are still being processed.
         completed = len(self.completed_tasks)
-        total = completed + len(self.queue)
+        total = completed + len(self.queue) + len(self.active_tasks)
         self.progress_updated.emit(completed, total)
 
         # Emit updated active tasks list

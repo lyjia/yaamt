@@ -239,3 +239,38 @@ class TestAutosaveIntegration:
         assert not em.has_staged_changes()
         mf2 = MediaFile(str(flac_copies[0]))
         assert mf2.get_tag_simple(KEY_COMMENT) == "stub per-file"
+
+
+class TestProgressTotal:
+    """The progress total must stay equal to the run size across the whole
+    run, even when the queue drains into in-flight tasks before any finish."""
+
+    def test_total_counts_in_flight_tasks(self):
+        from unittest.mock import MagicMock
+
+        d = _dispatcher_for(_StubNonBatchAnalyzer, write_to_tags=False)
+        d._is_running = True
+
+        progress: list[tuple[int, int]] = []
+        d.progress_updated.connect(lambda c, t: progress.append((c, t)))
+
+        # Simulate the state _process_next produces with a multi-worker pool:
+        # all 3 tasks popped from the queue into active_tasks, none finished.
+        tasks = []
+        for i in range(3):
+            t = AnalysisTask(_StubNonBatchAnalyzer, MagicMock(), {})
+            t.result = AnalyzerResult(success=True, data={})
+            t.media_file.file_path = f"f{i}.flac"
+            d.active_tasks[i] = (t, 1)
+            tasks.append(t)
+        d._active_workers = 3
+        d.threads_in_use = 3
+
+        # Finish workers one at a time; the total must read 3 every time, never 1.
+        for worker_id, task in enumerate(tasks):
+            d._on_worker_finished(worker_id, task)
+
+        totals = [t for _, t in progress]
+        assert all(t == 3 for t in totals), totals
+        # Completed climbs 1 -> 2 -> 3.
+        assert [c for c, _ in progress] == [1, 2, 3]
