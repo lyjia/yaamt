@@ -9,6 +9,7 @@ from typing import Any
 import time
 import concurrent.futures
 import os
+import threading
 from PySide6.QtCore import QObject, Signal, QThreadPool, QRunnable, Slot
 
 from models.media_file import MediaFile
@@ -25,8 +26,13 @@ from util.const import (
 from util.logging import log
 
 
-# Global process pool executor (module-level to be shared across instances)
+# Global process pool executor (module-level to be shared across instances).
+# The lock serializes get-or-create: without it, the ~N Qt worker threads that
+# start together each see the pool as None and each create their own
+# ProcessPoolExecutor, spawning N*max_workers subprocesses and exhausting the
+# machine until the OS kills workers (BrokenProcessPool).
 _process_pool_executor: concurrent.futures.ProcessPoolExecutor | None = None
+_process_pool_lock = threading.Lock()
 
 
 def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecutor:
@@ -41,17 +47,18 @@ def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecuto
     """
     global _process_pool_executor
 
-    if _process_pool_executor is None or _process_pool_executor._max_workers != max_workers:
-        # Shutdown existing pool if it exists
-        if _process_pool_executor is not None:
-            log.info(f"Shutting down existing process pool (was {_process_pool_executor._max_workers} workers)")
-            _process_pool_executor.shutdown(wait=True)  # Wait for pending tasks
+    with _process_pool_lock:  # ponytail: serialize create; the race was the whole bug
+        if _process_pool_executor is None or _process_pool_executor._max_workers != max_workers:
+            # Shutdown existing pool if it exists
+            if _process_pool_executor is not None:
+                log.info(f"Shutting down existing process pool (was {_process_pool_executor._max_workers} workers)")
+                _process_pool_executor.shutdown(wait=True)  # Wait for pending tasks
 
-        # Create new pool with requested size
-        _process_pool_executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
-        log.info(f"Created process pool with {max_workers} workers")
+            # Create new pool with requested size
+            _process_pool_executor = concurrent.futures.ProcessPoolExecutor(max_workers=max_workers)
+            log.info(f"Created process pool with {max_workers} workers")
 
-    return _process_pool_executor
+        return _process_pool_executor
 
 
 def _analyze_in_process(analyzer_class_name: str, file_path: str, options: dict[str, Any]) -> AnalyzerResult:
@@ -206,14 +213,18 @@ class AnalyzerWorker(QRunnable):
                     self.task.result = result
                 except concurrent.futures.process.BrokenProcessPool as e:
                     log.error(f"Process pool worker crashed while analyzing {file_path}: {e}", exc_info=True)
-                    # Attempt to recreate the process pool
+                    # Reset the pool so the next batch recreates it. Only the
+                    # first reporter clears it (and only if it's still the pool
+                    # we used) — and we don't cancel_futures, which would poison
+                    # sibling workers still waiting on the same broken pool.
                     global _process_pool_executor
-                    if _process_pool_executor is not None:
-                        try:
-                            _process_pool_executor.shutdown(wait=False, cancel_futures=True)
-                        except Exception:
-                            pass
-                        _process_pool_executor = None
+                    with _process_pool_lock:  # ponytail: only the first reporter resets; don't cancel siblings
+                        if _process_pool_executor is process_pool:
+                            try:
+                                _process_pool_executor.shutdown(wait=False)
+                            except Exception:
+                                pass
+                            _process_pool_executor = None
 
                     result = AnalyzerResult(
                         success=False,
