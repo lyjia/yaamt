@@ -39,31 +39,31 @@ CAMELOT_MAP = {
 # Open Key mapping: (pitch_class, is_minor) -> Open Key notation
 OPEN_KEY_MAP = {
     # Minor keys (m suffix)
-    (0, True): "5m",   # C minor
-    (1, True): "12m",  # C♯/D♭ minor
-    (2, True): "7m",   # D minor
-    (3, True): "2m",   # D♯/E♭ minor
-    (4, True): "9m",   # E minor
-    (5, True): "4m",   # F minor
-    (6, True): "11m",  # F♯/G♭ minor
-    (7, True): "6m",   # G minor
-    (8, True): "1m",   # G♯/A♭ minor
-    (9, True): "8m",   # A minor
-    (10, True): "3m",  # A♯/B♭ minor
-    (11, True): "10m", # B minor
+    (0, True): "10m",  # C minor
+    (1, True): "5m",   # C♯/D♭ minor
+    (2, True): "12m",  # D minor
+    (3, True): "7m",   # D♯/E♭ minor
+    (4, True): "2m",   # E minor
+    (5, True): "9m",   # F minor
+    (6, True): "4m",   # F♯/G♭ minor
+    (7, True): "11m",  # G minor
+    (8, True): "6m",   # G♯/A♭ minor
+    (9, True): "1m",   # A minor
+    (10, True): "8m",  # A♯/B♭ minor
+    (11, True): "3m",  # B minor
     # Major keys (d suffix)
-    (0, False): "8d",  # C major
-    (1, False): "3d",  # C♯/D♭ major
-    (2, False): "10d", # D major
-    (3, False): "5d",  # D♯/E♭ major
-    (4, False): "12d", # E major
-    (5, False): "7d",  # F major
-    (6, False): "2d",  # F♯/G♭ major
-    (7, False): "9d",  # G major
-    (8, False): "4d",  # G♯/A♭ major
-    (9, False): "11d", # A major
-    (10, False): "6d", # A♯/B♭ major
-    (11, False): "1d", # B major
+    (0, False): "1d",   # C major
+    (1, False): "8d",   # C♯/D♭ major
+    (2, False): "3d",   # D major
+    (3, False): "10d",  # D♯/E♭ major
+    (4, False): "5d",   # E major
+    (5, False): "12d",  # F major
+    (6, False): "7d",   # F♯/G♭ major
+    (7, False): "2d",   # G major
+    (8, False): "9d",   # G♯/A♭ major
+    (9, False): "4d",   # A major
+    (10, False): "11d", # A♯/B♭ major
+    (11, False): "6d",  # B major
 }
 
 # Note name to pitch class mapping -- accidental will modify these numbers +1/-1

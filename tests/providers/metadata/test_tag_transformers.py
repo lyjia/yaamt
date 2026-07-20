@@ -383,7 +383,8 @@ class TestMusicalKeyFormatter:
         assert formatter.transform("5A", 'key') == "Cmin"
 
         # Open Key format
-        assert formatter.transform("5m", 'key') == "Cmin"
+        assert formatter.transform("10m", 'key') == "Cmin"
+        assert formatter.transform("5m", 'key') == "C#min"  # Open Key 5m is C#/Db minor, not C minor
 
     def test_empty_key(self, mock_settings):
         """Test handling of empty key value."""
