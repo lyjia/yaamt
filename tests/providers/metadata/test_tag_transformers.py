@@ -369,6 +369,15 @@ class TestMusicalKeyFormatter:
         assert formatter.transform("Cmin", 'key') == "5A"  # standard_abbrev -> Camelot
         assert formatter.transform("Cm", 'key') == "5A"  # standard_single -> Camelot
 
+    def test_transform_converts_to_open_key(self, mock_settings):
+        """Test conversion to Open Key notation."""
+        mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "open_key")
+        formatter = MusicalKeyFormatter(mock_settings)
+        assert formatter.transform("Cmaj", 'key') == "1d"   # C major -> 1d
+        assert formatter.transform("Amin", 'key') == "1m"   # A minor -> 1m
+        assert formatter.transform("Cmin", 'key') == "10m"  # C minor -> 10m
+        assert formatter.transform("5A", 'key') == "10m"    # Camelot C minor -> Open Key 10m
+
     def test_transform_handles_various_input_formats(self, mock_settings):
         """Test that transform can parse various input formats."""
         mock_settings.setValue("Analyzers/CategoryOptions/key/notation_format", "standard_abbrev")
@@ -398,6 +407,13 @@ class TestMusicalKeyFormatter:
         # Invalid keys should return the original value with a warning logged
         assert formatter.transform("invalid", 'key') == "invalid"
         assert formatter.transform("Z minor", 'key') == "Z minor"
+
+    def test_invalid_non_string_key_returns_string(self, mock_settings):
+        """Test that unparseable non-string values are returned as strings."""
+        formatter = MusicalKeyFormatter(mock_settings)
+        result = formatter.transform(123, 'key')
+        assert result == "123"
+        assert isinstance(result, str)
 
     def test_applicable_tags(self):
         """Test that MusicalKeyFormatter declares applicable tags."""
