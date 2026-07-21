@@ -70,6 +70,15 @@ _LEADING_NUMERIC_RE = re.compile(r"^(-?)(\d+)(.*)$", re.DOTALL)
 FILENAME_RESERVED_CHARS = r'/\:*?"<>|'
 FILENAME_REPLACEMENT_CHAR = "_"
 
+# Windows reserves these device names regardless of extension ("CON.mp3" is
+# just as invalid as "CON"). Checked against the portion of the name before
+# the first dot, case-insensitively, on all platforms for portability.
+WINDOWS_RESERVED_DEVICE_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{n}" for n in range(1, 10)}
+    | {f"LPT{n}" for n in range(1, 10)}
+)
+
 # AST node kinds for the parsed format string.
 _NODE_LITERAL = "literal"
 _NODE_TAG = "tag"
@@ -418,6 +427,13 @@ def sanitize_filename(name: str) -> str:
     # Guard against names that are solely '.' or ''.
     if cleaned in ("", ".", ".."):
         return ""
+
+    # Windows reserves device names by the portion before the first dot, so
+    # "CON" and "CON.mix" are both unusable once an extension is appended.
+    # Append the replacement char to the reserved stem to defuse it.
+    stem, dot, rest = cleaned.partition(".")
+    if stem.upper() in WINDOWS_RESERVED_DEVICE_NAMES:
+        cleaned = f"{stem}{FILENAME_REPLACEMENT_CHAR}{dot}{rest}"
     return cleaned
 
 
