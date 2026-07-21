@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -323,6 +324,163 @@ def test_case_only_rename_exact_cased_name(tmp_path):
     assert result.success is True and result.skipped is False
     assert os.path.basename(result.new_path) == "Foo.mp3"
     assert sorted(p.name for p in tmp_path.iterdir()) == ["Foo.mp3"]
+
+
+class _InlinePool:
+    """Synchronous stand-in for QThreadPool: runs each worker immediately.
+
+    Signal emission then happens on the calling thread via direct
+    connections, so dispatcher orchestration is testable without a Qt event
+    loop (and therefore in the GitHub runner).
+    """
+
+    def start(self, runnable):
+        runnable.run()
+
+
+def _copy_fixtures(tmp_path, names):
+    """Copy two distinct audio fixtures into tmp_path under the given names."""
+    sources = [
+        os.path.join(FIXTURE_ROOT, "sample_dtmf_nometa.mp3"),
+        os.path.join(FIXTURE_ROOT, "sample_dtmf_unicode.mp3"),
+    ]
+    paths = []
+    for name, fixture in zip(names, sources):
+        dest = tmp_path / name
+        shutil.copy(fixture, dest)
+        paths.append(str(dest))
+    return paths
+
+
+def _run_batch(tasks):
+    """Drive a dispatcher over pre-built tasks synchronously; return summary."""
+    from workers.rename_dispatcher import RenameDispatcher
+
+    dispatcher = RenameDispatcher(thread_pool=_InlinePool())
+    dispatcher.enqueue_tasks(tasks)
+    dispatcher.start()
+    return dispatcher.get_summary()
+
+
+@pytest.mark.parametrize("mode", [
+    RENAME_COLLISION_AUTO_DISAMBIGUATE,
+    RENAME_COLLISION_SKIP,
+    RENAME_COLLISION_OVERWRITE,
+])
+def test_chain_rename_no_data_loss(tmp_path, mode):
+    """Renaming 1.mp3 -> 2.mp3 while 2.mp3 -> 3.mp3 must lose no audio."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import plan_rename
+
+    path_1, path_2 = _copy_fixtures(tmp_path, ["1.mp3", "2.mp3"])
+    content_1 = Path(path_1).read_bytes()
+    content_2 = Path(path_2).read_bytes()
+    assert content_1 != content_2
+
+    tasks = [
+        plan_rename(MediaFile(path_1), "2", mode),
+        plan_rename(MediaFile(path_2), "3", mode),
+    ]
+    summary = _run_batch(tasks)
+
+    assert summary["successful"] == 2, summary
+    assert not summary["failed"] and not summary["skipped"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["2.mp3", "3.mp3"]
+    assert (tmp_path / "2.mp3").read_bytes() == content_1
+    assert (tmp_path / "3.mp3").read_bytes() == content_2
+
+
+def test_swap_rename_no_data_loss(tmp_path):
+    """Swapping a.mp3 <-> b.mp3 must exchange contents with no leftovers."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import plan_rename
+
+    path_a, path_b = _copy_fixtures(tmp_path, ["a.mp3", "b.mp3"])
+    content_a = Path(path_a).read_bytes()
+    content_b = Path(path_b).read_bytes()
+
+    tasks = [
+        plan_rename(MediaFile(path_a), "b", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+        plan_rename(MediaFile(path_b), "a", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+    ]
+    summary = _run_batch(tasks)
+
+    assert summary["successful"] == 2, summary
+    assert not summary["failed"] and not summary["skipped"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.mp3", "b.mp3"]
+    assert (tmp_path / "a.mp3").read_bytes() == content_b
+    assert (tmp_path / "b.mp3").read_bytes() == content_a
+
+
+def test_mid_batch_failure_reports_accurate_results(tmp_path, monkeypatch):
+    """A failed rename cancels its dependents instead of clobbering them."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import plan_rename
+
+    path_1, path_2 = _copy_fixtures(tmp_path, ["1.mp3", "2.mp3"])
+    content_1 = Path(path_1).read_bytes()
+    content_2 = Path(path_2).read_bytes()
+
+    # Fail the 2.mp3 -> 3.mp3 rename so 2.mp3 never vacates its name.
+    real_replace = os.replace
+
+    def failing_replace(src, dst):
+        if os.path.basename(dst) == "3.mp3":
+            raise OSError("simulated I/O error")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+
+    tasks = [
+        plan_rename(MediaFile(path_1), "2", RENAME_COLLISION_OVERWRITE),
+        plan_rename(MediaFile(path_2), "3", RENAME_COLLISION_OVERWRITE),
+    ]
+    summary = _run_batch(tasks)
+
+    # Per-task accounting: the failing task and its cancelled dependent.
+    assert summary["successful"] == 0
+    assert len(summary["failed"]) == 2, summary
+    errors = {os.path.basename(p): e for p, e in summary["failed"]}
+    assert "simulated I/O error" in errors["2.mp3"]
+    assert "prerequisite" in errors["1.mp3"]
+    # No bytes lost: both files remain intact under their original names.
+    assert (tmp_path / "1.mp3").read_bytes() == content_1
+    assert (tmp_path / "2.mp3").read_bytes() == content_2
+
+
+def test_cycle_failure_restores_staged_file(tmp_path, monkeypatch):
+    """When a swap's second rename fails, the staged file returns home."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import plan_rename
+
+    path_a, path_b = _copy_fixtures(tmp_path, ["a.mp3", "b.mp3"])
+    content_a = Path(path_a).read_bytes()
+    content_b = Path(path_b).read_bytes()
+
+    # Fail only the b.mp3 -> a.mp3 leg. Matching on the source keeps the
+    # staging rename and the temp-file restore (both of which touch a.mp3's
+    # name from other paths) working.
+    real_link = os.link
+
+    def failing_link(src, dst, **kwargs):
+        if os.path.basename(src) == "b.mp3":
+            raise OSError(5, "simulated I/O error")  # EIO
+        return real_link(src, dst, **kwargs)
+
+    monkeypatch.setattr(os, "link", failing_link)
+
+    tasks = [
+        plan_rename(MediaFile(path_a), "b", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+        plan_rename(MediaFile(path_b), "a", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+    ]
+    summary = _run_batch(tasks)
+
+    assert summary["successful"] == 0
+    assert len(summary["failed"]) == 2, summary
+    # Both files are back at (or still at) their original names, intact.
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.mp3", "b.mp3"]
+    assert (tmp_path / "a.mp3").read_bytes() == content_a
+    assert (tmp_path / "b.mp3").read_bytes() == content_b
 
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt signals require running event loop")

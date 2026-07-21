@@ -272,47 +272,56 @@ class RenameSummary:
 class _RenameWorkerSignals(QObject):
     """Internal cross-thread signal bus."""
 
-    worker_finished = Signal(int, object)  # (worker_id, RenameTask)
+    worker_finished = Signal(int, object)  # (worker_id, RenameOp)
 
 
 class _RenameWorker(QRunnable):
-    """Runs a single rename operation in a worker thread."""
+    """Runs a single planned rename operation in a worker thread."""
 
-    def __init__(self, task: RenameTask, signals: _RenameWorkerSignals, worker_id: int):
+    def __init__(
+        self,
+        op: RenameOp,
+        planned_target_keys: set[str],
+        case_insensitive: bool,
+        signals: _RenameWorkerSignals,
+        worker_id: int,
+    ):
         super().__init__()
-        self.task = task
+        self.op = op
+        self.planned_target_keys = planned_target_keys
+        self.case_insensitive = case_insensitive
         self.signals = signals
         self.worker_id = worker_id
 
     @Slot()
     def run(self) -> None:
+        op = self.op
+        task = op.task
         try:
-            source = self.task.media_file.file_path
-            destination = self.task.target_path
-
-            if not destination:
-                self.task.result = RenameResult(
-                    success=False,
-                    error="Rendered filename is empty after sanitization",
-                )
+            if op.is_staging:
+                _rename_no_clobber(op.source, op.dest)
             else:
-                self.task.result = perform_rename(
-                    source,
-                    destination,
-                    self.task.collision_mode,
-                    disambig_base=self.task.disambig_base,
+                task.result = perform_rename(
+                    op.source,
+                    op.dest,
+                    task.collision_mode,
+                    disambig_base=task.disambig_base,
+                    planned_target_keys=self.planned_target_keys,
+                    case_insensitive=self.case_insensitive,
                 )
-                if self.task.result.success and not self.task.result.skipped:
-                    log.info(f"Renamed {source} -> {self.task.result.new_path}")
+                if task.result.success and not task.result.skipped:
+                    log.info(f"Renamed {op.source} -> {task.result.new_path}")
 
         except Exception as e:
-            log.error(f"Rename failed for {self.task.media_file.file_path}: {e}",
-                      exc_info=True)
-            self.task.result = RenameResult(
-                success=False, error=f"Unexpected error: {e}"
-            )
+            log.error(f"Rename failed for {op.source}: {e}", exc_info=True)
+            if op.is_staging:
+                op.staging_error = f"Unexpected error: {e}"
+            else:
+                task.result = RenameResult(
+                    success=False, error=f"Unexpected error: {e}"
+                )
 
-        self.signals.worker_finished.emit(self.worker_id, self.task)
+        self.signals.worker_finished.emit(self.worker_id, op)
 
 
 def plan_rename(
@@ -485,6 +494,15 @@ class BatchPlan:
         """Tasks participating in the given staged cycle."""
         return [op.task for op in self.ops
                 if op.cycle_id == cycle_id and not op.is_staging]
+
+    def staging_for(self, task: RenameTask) -> tuple[int, str, str] | None:
+        """(cycle_id, temp_path, original_source) if task is a staged cycle
+        member, else None."""
+        for op in self.ops:
+            if op.is_staging and op.task is task:
+                temp_path, original_source = self.cycle_stages[op.cycle_id]
+                return op.cycle_id, temp_path, original_source
+        return None
 
 
 def _fail_task(task: RenameTask, error: str) -> None:
@@ -685,21 +703,27 @@ class RenameDispatcher(QObject):
     progress_updated = Signal(int, int)  # (completed, total)
     active_tasks_updated = Signal(list)  # [(file_path, label)]
 
-    def __init__(self, parent: QObject | None = None):
+    def __init__(self, parent: QObject | None = None,
+                 thread_pool: QThreadPool | None = None):
         super().__init__(parent)
-        self.queue: list[RenameTask] = []
+        self.queue: list[RenameOp] = []
         self.completed_tasks: list[RenameTask] = []
         self._is_running = False
         self._active_workers = 0
         self._next_worker_id = 0
         self._cancelled = False
+        self._plans: list[BatchPlan] = []
+        self._total_tasks = 0
+        # cycle_id -> BatchPlan for staging renames that have completed, so a
+        # stranded staged file can be restored if its cycle later fails.
+        self._completed_stagings: dict[int, BatchPlan] = {}
 
         # Background threads emit through these signals so result application
         # happens on the main thread.
         self._signals = _RenameWorkerSignals()
         self._signals.worker_finished.connect(self._on_worker_finished)
 
-        self._thread_pool = QThreadPool.globalInstance()
+        self._thread_pool = thread_pool or QThreadPool.globalInstance()
 
     # -- public API ---------------------------------------------------------
 
@@ -709,18 +733,40 @@ class RenameDispatcher(QObject):
         format_string: str,
         collision_mode: str,
     ) -> None:
-        """
-        Plan a rename for each media file and enqueue the resulting tasks.
+        """Plan a rename for each media file and enqueue the planned operations."""
+        self.enqueue_tasks(
+            [plan_rename(mf, format_string, collision_mode) for mf in media_files]
+        )
 
-        Tasks whose rendering fails (parse error, empty sanitized result) are
-        pre-marked as failures and skipped over at run time.
+    def enqueue_tasks(self, tasks: list[RenameTask]) -> None:
         """
-        tasks = [plan_rename(mf, format_string, collision_mode) for mf in media_files]
-        resolve_within_batch_collisions(tasks)
+        Plan and enqueue pre-built rename tasks as one batch.
+
+        The whole batch is planned against virtual filesystem state first:
+        renames are ordered so no task can destroy another task's source,
+        cycles are staged through temporary names, and tasks that cannot
+        succeed (render failure, unavailable target) are pre-marked as failed.
+        """
+        # Exact no-ops are decided here so they never reach the disk and never
+        # count as name collisions.
+        for task in tasks:
+            if (task.target_path and os.path.abspath(task.media_file.file_path)
+                    == os.path.abspath(task.target_path)):
+                task.result = RenameResult(
+                    success=True,
+                    skipped=True,
+                    error="Source and target filenames are identical",
+                    new_path=task.target_path,
+                )
+
+        case_insensitive = default_case_insensitive()
+        resolve_within_batch_collisions(tasks, case_insensitive)
+        plan = plan_batch(tasks, case_insensitive)
+        self._plans.append(plan)
 
         for task in tasks:
             if task.result is not None:
-                # Already failed during planning; surface in summary.
+                # Resolved during planning; surface in summary.
                 self.completed_tasks.append(task)
             elif not task.target_path:
                 task.result = RenameResult(
@@ -728,11 +774,12 @@ class RenameDispatcher(QObject):
                     error="Format string rendered to an empty/invalid filename",
                 )
                 self.completed_tasks.append(task)
-            else:
-                self.queue.append(task)
 
-        log.info(f"Rename dispatcher enqueued {len(self.queue)} runnable tasks, "
-                 f"{len(self.completed_tasks)} pre-failed")
+        self.queue.extend(plan.ops)
+        self._total_tasks += len(tasks)
+
+        log.info(f"Rename dispatcher enqueued {len(plan.ops)} operations, "
+                 f"{len(self.completed_tasks)} tasks resolved at planning")
 
     def start(self) -> None:
         """Begin processing the queue."""
@@ -747,26 +794,33 @@ class RenameDispatcher(QObject):
         self._cancelled = False
         self.analysis_started.emit()
 
-        total = len(self.queue) + len(self.completed_tasks)
-        self.progress_updated.emit(len(self.completed_tasks), total)
+        self.progress_updated.emit(len(self.completed_tasks), self._total_tasks)
 
         if not self.queue:
-            # Everything pre-failed; nothing to run.
+            # Everything resolved at planning; nothing to run.
             self._finish()
             return
 
         self._process_next()
 
     def cancel_all(self) -> None:
-        """Drain remaining queued tasks; in-flight tasks complete naturally."""
+        """Drain remaining queued operations; in-flight ops complete naturally."""
         log.info("Rename dispatcher cancelling remaining tasks")
         self._cancelled = True
-        cancelled = self.queue
+        remaining = self.queue
         self.queue = []
-        for task in cancelled:
+        seen: set[int] = set()
+        for op in remaining:
+            task = op.task
+            if id(task) in seen or task.result is not None:
+                continue
+            seen.add(id(task))
             task.result = RenameResult(
                 success=False, skipped=True, error="Cancelled by user"
             )
+            plan = self._plan_for_task(task)
+            if plan is not None:
+                self._restore_staged_if_needed(plan, task)
             self.completed_tasks.append(task)
         if self._active_workers == 0:
             self._finish()
@@ -790,7 +844,7 @@ class RenameDispatcher(QObject):
     # -- internals ----------------------------------------------------------
 
     def _process_next(self) -> None:
-        """Launch the next queued task. Serial: only one worker at a time."""
+        """Launch the next queued operation. Serial: only one worker at a time."""
         if not self._is_running:
             return
         if self._cancelled or not self.queue:
@@ -798,22 +852,42 @@ class RenameDispatcher(QObject):
                 self._finish()
             return
 
-        task = self.queue.pop(0)
+        op = self.queue.pop(0)
         worker_id = self._next_worker_id
         self._next_worker_id += 1
         self._active_workers += 1
 
-        self.task_started.emit(task.media_file.file_path, RENAME_TASK_LABEL)
-        self.active_tasks_updated.emit(
-            [(task.media_file.file_path, RENAME_TASK_LABEL)]
-        )
+        if not op.is_staging:
+            # Staging renames are internal plumbing; only a task's final
+            # rename is surfaced in the progress dialog.
+            self.task_started.emit(op.task.media_file.file_path,
+                                   RENAME_TASK_LABEL)
+            self.active_tasks_updated.emit(
+                [(op.task.media_file.file_path, RENAME_TASK_LABEL)]
+            )
 
-        worker = _RenameWorker(task, self._signals, worker_id)
+        plan = self._plan_for_task(op.task)
+        planned_keys = plan.planned_target_keys if plan else set()
+        case_insensitive = (plan.case_insensitive if plan
+                            else default_case_insensitive())
+        worker = _RenameWorker(op, planned_keys, case_insensitive,
+                               self._signals, worker_id)
         self._thread_pool.start(worker)
 
     @Slot(int, object)
-    def _on_worker_finished(self, worker_id: int, task: RenameTask) -> None:
+    def _on_worker_finished(self, worker_id: int, op: RenameOp) -> None:
         self._active_workers -= 1
+        task = op.task
+        plan = self._plan_for_task(task)
+
+        if op.is_staging:
+            if op.staging_error:
+                self._abort_cycle(plan, op)
+            else:
+                self._completed_stagings[op.cycle_id] = plan
+            self._process_next()
+            return
+
         if task.result is None:
             task.result = RenameResult(
                 success=False, error="Worker returned without a result"
@@ -827,11 +901,82 @@ class RenameDispatcher(QObject):
             task.media_file.update_file_path(task.result.new_path)
 
         self.task_completed.emit(task.media_file.file_path, task.result)
-        total = len(self.queue) + len(self.completed_tasks)
-        self.progress_updated.emit(len(self.completed_tasks), total)
+
+        if not task.result.success and plan is not None:
+            # Tasks renaming onto this task's source can no longer succeed;
+            # cancel them instead of letting them clobber or mis-resolve.
+            self._cancel_dependents(plan, task)
+
+        self.progress_updated.emit(len(self.completed_tasks),
+                                   self._total_tasks)
         self.active_tasks_updated.emit([])
 
         self._process_next()
+
+    def _plan_for_task(self, task: RenameTask) -> BatchPlan | None:
+        for plan in self._plans:
+            if id(task) in plan._index_by_task:
+                return plan
+        return None
+
+    def _cancel_dependents(self, plan: BatchPlan, failed_task: RenameTask) -> None:
+        """Pre-fail every task that needed failed_task's source to vacate."""
+        for dependent in plan.transitive_dependents(failed_task):
+            if dependent.result is not None:
+                continue
+            self.queue = [o for o in self.queue if o.task is not dependent]
+            _fail_task(dependent, _prerequisite_error(failed_task))
+            self._restore_staged_if_needed(plan, dependent)
+            self.completed_tasks.append(dependent)
+            self.task_completed.emit(dependent.media_file.file_path,
+                                     dependent.result)
+
+    def _abort_cycle(self, plan: BatchPlan | None, staging_op: RenameOp) -> None:
+        """A cycle's staging rename failed: nothing in the cycle has moved,
+        so fail all its tasks (and their dependents) with clear errors."""
+        cycle_id = staging_op.cycle_id
+        staged_task = staging_op.task
+        self.queue = [o for o in self.queue if o.cycle_id != cycle_id]
+        if plan is None:
+            return
+        for task in plan.cycle_tasks(cycle_id):
+            if task.result is not None:
+                continue
+            if task is staged_task:
+                _fail_task(task, staging_op.staging_error)
+            else:
+                _fail_task(task, _prerequisite_error(staged_task))
+            self.completed_tasks.append(task)
+            self.task_completed.emit(task.media_file.file_path, task.result)
+            self._cancel_dependents(plan, task)
+        self.progress_updated.emit(len(self.completed_tasks),
+                                   self._total_tasks)
+
+    def _restore_staged_if_needed(self, plan: BatchPlan,
+                                  task: RenameTask) -> None:
+        """
+        If task's file was already staged at a temporary name and its final
+        rename has been cancelled, try to move it back to its original name.
+        When the original name has already been taken by another cycle member,
+        report the temporary location so the file is never lost track of.
+        """
+        staging = plan.staging_for(task)
+        if staging is None:
+            return
+        cycle_id, temp_path, original_source = staging
+        if cycle_id not in self._completed_stagings:
+            return  # Never staged; the file is still at its original name.
+        del self._completed_stagings[cycle_id]
+        try:
+            _rename_no_clobber(temp_path, original_source)
+        except OSError:
+            if task.result is not None:
+                task.result.error += (f"; file left at temporary name "
+                                      f"'{os.path.basename(temp_path)}'")
+                task.result.new_path = temp_path
+            task.media_file.update_file_path(temp_path)
+            log.error(f"Could not restore staged file {temp_path} "
+                      f"to {original_source}")
 
     def _finish(self) -> None:
         self._is_running = False
