@@ -9,6 +9,7 @@ this runs tasks serially in a single QRunnable via the global thread pool.
 
 from __future__ import annotations
 
+import errno
 import os
 import sys
 from dataclasses import dataclass, field
@@ -54,6 +55,173 @@ def canonical_path_key(path: str, case_insensitive: bool) -> str:
     """Canonical key for comparing paths within a rename batch."""
     key = os.path.abspath(path)
     return key.casefold() if case_insensitive else key
+
+
+# Errnos meaning "this filesystem cannot hardlink" - fall back to a checked
+# rename instead of failing the task. ENOTSUP is missing on some platforms.
+_HARDLINK_FALLBACK_ERRNOS = frozenset(
+    e for e in (
+        errno.EPERM,
+        errno.EACCES,
+        errno.ENOSYS,
+        errno.EMLINK,
+        errno.EOPNOTSUPP,
+        getattr(errno, "ENOTSUP", errno.EOPNOTSUPP),
+    )
+)
+
+
+def _rename_no_clobber(source: str, destination: str) -> None:
+    """
+    Rename source to destination, refusing to overwrite an existing file.
+
+    Raises FileExistsError when the destination is occupied (including a
+    dangling symlink). On Windows, os.rename already refuses to clobber. On
+    POSIX, os.rename silently replaces the destination, so the move is done
+    as hardlink + unlink, which fails atomically with EEXIST when the
+    destination appears - closing the check-then-rename race. Filesystems
+    without hardlink support fall back to a checked rename (small race
+    window, best effort).
+    """
+    if os.name == "nt":
+        os.rename(source, destination)
+        return
+
+    try:
+        os.link(source, destination, follow_symlinks=False)
+    except FileExistsError:
+        raise
+    except (NotImplementedError, OSError) as e:
+        if isinstance(e, OSError) and e.errno not in _HARDLINK_FALLBACK_ERRNOS:
+            raise
+        if os.path.lexists(destination):
+            raise FileExistsError(
+                errno.EEXIST, "Destination already exists", destination
+            )
+        os.rename(source, destination)
+        return
+
+    try:
+        os.unlink(source)
+    except OSError:
+        # Undo the link so the file does not end up with two names.
+        try:
+            os.unlink(destination)
+        except OSError:
+            pass
+        raise
+
+
+def _is_case_only_rename(
+    source: str, destination: str, case_insensitive: bool
+) -> bool:
+    """
+    True when destination is the same file as source under a different case.
+
+    samefile alone is not enough: on some network shares st_ino is 0 (false
+    positives), and a pre-existing hardlink of the source is samefile without
+    being a case variant. Requiring canonical-key equality restricts the fast
+    path to genuine case-only renames.
+    """
+    if canonical_path_key(source, case_insensitive) != canonical_path_key(
+        destination, case_insensitive
+    ):
+        return False
+    try:
+        return os.path.samefile(source, destination)
+    except OSError:
+        return False
+
+
+def _auto_disambig_candidates(destination: str, disambig_base: str):
+    """Yield destination, then " (2)", " (3)", ... variants of its base name."""
+    yield destination
+    directory = os.path.dirname(destination)
+    ext = os.path.splitext(destination)[1]
+    if disambig_base:
+        base = os.path.join(directory, disambig_base)
+    else:
+        base = os.path.splitext(destination)[0]
+    for n in range(2, _MAX_DISAMBIG_SUFFIX + 1):
+        candidate = f"{base} ({n}){ext}"
+        if candidate != destination:
+            yield candidate
+
+
+def perform_rename(
+    source: str,
+    destination: str,
+    collision_mode: str,
+    disambig_base: str = "",
+    planned_target_keys: set[str] | None = None,
+    case_insensitive: bool | None = None,
+) -> RenameResult:
+    """
+    Execute a single rename against on-disk state and return its result.
+
+    Pure filesystem logic - no Qt, no MediaFile mutation - so it is directly
+    testable. planned_target_keys are canonical keys reserved by other tasks
+    in the batch; auto-disambiguation retries never take one of those names.
+    """
+    if planned_target_keys is None:
+        planned_target_keys = set()
+    if case_insensitive is None:
+        case_insensitive = default_case_insensitive()
+
+    if os.path.abspath(source) == os.path.abspath(destination):
+        # Exact no-op: report as a skip so the summary says nothing changed.
+        return RenameResult(
+            success=True,
+            skipped=True,
+            error="Source and target filenames are identical",
+            new_path=destination,
+        )
+
+    occupied = os.path.lexists(destination)
+    if occupied and _is_case_only_rename(source, destination, case_insensitive):
+        # Same file under a different case: a plain rename re-cases it; this
+        # must never be treated as a collision.
+        os.rename(source, destination)
+        return RenameResult(success=True, new_path=destination)
+
+    if collision_mode == RENAME_COLLISION_OVERWRITE:
+        # Deliberate clobber; batch planning guarantees the destination is
+        # never another batch file's still-pending source.
+        os.replace(source, destination)
+        return RenameResult(success=True, new_path=destination)
+
+    if collision_mode == RENAME_COLLISION_SKIP:
+        already_exists = RenameResult(
+            success=False,
+            error=f"Target file already exists: {os.path.basename(destination)}",
+        )
+        if occupied:
+            return already_exists
+        try:
+            _rename_no_clobber(source, destination)
+        except FileExistsError:
+            return already_exists
+        return RenameResult(success=True, new_path=destination)
+
+    # Auto-disambiguate: try the planned name, then " (n)" variants, never
+    # taking a name another task in the batch has planned.
+    for candidate in _auto_disambig_candidates(destination, disambig_base):
+        if candidate != destination:
+            key = canonical_path_key(candidate, case_insensitive)
+            if key in planned_target_keys:
+                continue
+        if os.path.lexists(candidate):
+            continue
+        try:
+            _rename_no_clobber(source, candidate)
+        except FileExistsError:
+            continue
+        return RenameResult(success=True, new_path=candidate)
+
+    return RenameResult(
+        success=False,
+        error=f"No available name found for: {os.path.basename(destination)}",
+    )
 
 
 @dataclass
@@ -127,35 +295,15 @@ class _RenameWorker(QRunnable):
                     success=False,
                     error="Rendered filename is empty after sanitization",
                 )
-            elif os.path.abspath(source) == os.path.abspath(destination):
-                # No-op: new name matches current. Treat as a skip so the
-                # summary tells the user nothing changed.
-                self.task.result = RenameResult(
-                    success=True,
-                    skipped=True,
-                    error="Source and target filenames are identical",
-                    new_path=destination,
-                )
             else:
-                final_dest = self._resolve_destination(source, destination)
-                if final_dest is None:
-                    # Skip mode with an existing target.
-                    self.task.result = RenameResult(
-                        success=False,
-                        error=f"Target file already exists: "
-                              f"{os.path.basename(destination)}",
-                    )
-                else:
-                    if self.task.collision_mode == RENAME_COLLISION_OVERWRITE:
-                        os.replace(source, final_dest)
-                    else:
-                        os.rename(source, final_dest)
-                    # Update the MediaFile's cached path so the UI can reflect it.
-                    self.task.media_file._file_path = final_dest
-                    self.task.result = RenameResult(
-                        success=True, new_path=final_dest
-                    )
-                    log.info(f"Renamed {source} -> {final_dest}")
+                self.task.result = perform_rename(
+                    source,
+                    destination,
+                    self.task.collision_mode,
+                    disambig_base=self.task.disambig_base,
+                )
+                if self.task.result.success and not self.task.result.skipped:
+                    log.info(f"Renamed {source} -> {self.task.result.new_path}")
 
         except Exception as e:
             log.error(f"Rename failed for {self.task.media_file.file_path}: {e}",
@@ -165,29 +313,6 @@ class _RenameWorker(QRunnable):
             )
 
         self.signals.worker_finished.emit(self.worker_id, self.task)
-
-    def _resolve_destination(self, source: str, destination: str) -> str | None:
-        """
-        Apply the task's collision policy against on-disk state.
-
-        Returns the final destination path to use, or None if the task should
-        be treated as a failure (skip mode with existing target).
-        """
-        mode = self.task.collision_mode
-        if not os.path.exists(destination):
-            return destination
-
-        if mode == RENAME_COLLISION_OVERWRITE:
-            return destination
-        if mode == RENAME_COLLISION_SKIP:
-            return None
-        # Auto-disambiguate: append " (2)", " (3)", ... before the extension.
-        base, ext = os.path.splitext(destination)
-        for n in range(2, _MAX_DISAMBIG_SUFFIX + 1):
-            candidate = f"{base} ({n}){ext}"
-            if not os.path.exists(candidate):
-                return candidate
-        return None
 
 
 def plan_rename(
@@ -453,6 +578,12 @@ class RenameDispatcher(QObject):
                 success=False, error="Worker returned without a result"
             )
         self.completed_tasks.append(task)
+
+        # Repoint the MediaFile at its new location here, on the main thread,
+        # rather than mutating it from the worker thread.
+        if (task.result.success and not task.result.skipped
+                and task.result.new_path):
+            task.media_file.update_file_path(task.result.new_path)
 
         self.task_completed.emit(task.media_file.file_path, task.result)
         total = len(self.queue) + len(self.completed_tasks)

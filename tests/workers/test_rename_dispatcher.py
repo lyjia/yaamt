@@ -1,6 +1,7 @@
 """Tests for workers.rename_dispatcher."""
 import os
 import shutil
+import sys
 import tempfile
 
 import pytest
@@ -168,6 +169,100 @@ def test_resolve_within_batch_case_only_owner_keeps_name():
     assert t_owner.target_path == "/tmp/Foo.mp3"
     assert t_owner.result is None
     assert t_other.target_path == "/tmp/foo (2).mp3"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX rename semantics")
+def test_rename_no_clobber_raises_and_preserves_source(tmp_path):
+    from workers.rename_dispatcher import _rename_no_clobber
+
+    source = tmp_path / "source.mp3"
+    target = tmp_path / "target.mp3"
+    source.write_bytes(b"source audio")
+    target.write_bytes(b"precious existing audio")
+
+    with pytest.raises(FileExistsError):
+        _rename_no_clobber(str(source), str(target))
+
+    # Neither file may be altered by the refused rename.
+    assert source.read_bytes() == b"source audio"
+    assert target.read_bytes() == b"precious existing audio"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks unreliable on Windows CI")
+def test_dangling_symlink_target_not_clobbered(tmp_path):
+    from workers.rename_dispatcher import perform_rename
+
+    source = tmp_path / "source.mp3"
+    source.write_bytes(b"source audio")
+    target = tmp_path / "target.mp3"
+    target.symlink_to(tmp_path / "does-not-exist")
+
+    result = perform_rename(str(source), str(target), RENAME_COLLISION_SKIP)
+
+    assert result.success is False
+    assert "already exists" in result.error
+    # The dangling symlink and the source are both untouched.
+    assert os.path.islink(target)
+    assert source.read_bytes() == b"source audio"
+
+
+def test_perform_rename_auto_continues_numbering(tmp_path):
+    from workers.rename_dispatcher import perform_rename
+
+    # The planner already assigned "same (2)"; that name is now taken on
+    # disk, so the retry must continue to "same (3)" - never "same (2) (2)".
+    source = tmp_path / "source.mp3"
+    source.write_bytes(b"source audio")
+    (tmp_path / "same (2).mp3").write_bytes(b"occupied")
+
+    result = perform_rename(
+        str(source), str(tmp_path / "same (2).mp3"),
+        RENAME_COLLISION_AUTO_DISAMBIGUATE, disambig_base="same",
+    )
+
+    assert result.success is True
+    assert os.path.basename(result.new_path) == "same (3).mp3"
+
+
+def test_perform_rename_auto_skips_planner_reserved_names(tmp_path):
+    from workers.rename_dispatcher import canonical_path_key, perform_rename
+
+    # "same.mp3" is taken on disk and "same (2).mp3" is another batch task's
+    # planned target: the retry must jump to "same (3)" instead of stealing it.
+    source = tmp_path / "source.mp3"
+    source.write_bytes(b"source audio")
+    (tmp_path / "same.mp3").write_bytes(b"occupied")
+    reserved = {canonical_path_key(str(tmp_path / "same (2).mp3"), False)}
+
+    result = perform_rename(
+        str(source), str(tmp_path / "same.mp3"),
+        RENAME_COLLISION_AUTO_DISAMBIGUATE,
+        planned_target_keys=reserved, case_insensitive=False,
+    )
+
+    assert result.success is True
+    assert os.path.basename(result.new_path) == "same (3).mp3"
+    assert not os.path.exists(tmp_path / "same (2).mp3")
+
+
+@pytest.mark.skipif(
+    sys.platform not in ("win32", "darwin"),
+    reason="requires a case-insensitive filesystem",
+)
+def test_case_only_rename_exact_cased_name(tmp_path):
+    from workers.rename_dispatcher import perform_rename
+
+    source = tmp_path / "foo.mp3"
+    source.write_bytes(b"audio")
+
+    result = perform_rename(
+        str(source), str(tmp_path / "Foo.mp3"),
+        RENAME_COLLISION_AUTO_DISAMBIGUATE,
+    )
+
+    assert result.success is True and result.skipped is False
+    assert os.path.basename(result.new_path) == "Foo.mp3"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["Foo.mp3"]
 
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt signals require running event loop")
