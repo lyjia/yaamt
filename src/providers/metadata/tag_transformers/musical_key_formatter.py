@@ -12,7 +12,7 @@ from util.const import (
     KEY_INITIAL_KEY, KEY_NOTATION_FORMAT_DEFAULT, SETTINGS_KEY_NOTATION_FORMAT,
 )
 from util.logging import log
-from util.diatonic_key import CAMELOT_MAP, OPEN_KEY_MAP, NOTE_TO_PITCH, parse_key, format_key, NotationFormat
+from util.diatonic_key import parse_key, format_key, NotationFormat
 from .base import TransformerBase
 
 class MusicalKeyFormatter(TransformerBase):
@@ -23,7 +23,7 @@ class MusicalKeyFormatter(TransformerBase):
     - "standard_abbrev": Cmin, Amaj, Dbmin, F#maj
     - "standard_single": Cm, A, Dbm, F#
     - "camelot": 6A, 8B, 2A, 7B
-    - "open_key": 6m, 8d, 2m, 7d
+    - "open_key": 11m, 1d, 7m, 12d
 
     Reads preference from the ``SETTINGS_KEY_NOTATION_FORMAT`` QSettings key.
     Default: "standard_abbrev"
@@ -68,10 +68,9 @@ class MusicalKeyFormatter(TransformerBase):
             tag_name: The generic tag name (should be 'key' or 'musical_key')
 
         Returns:
-            Formatted key string
-
-        Raises:
-            ValueError: If the key notation cannot be parsed
+            Formatted key string. If the key notation cannot be parsed, the
+            input rendered as a string is returned unchanged and a warning
+            is logged.
         """
         # Handle empty string
         if value == "" or value is None:
@@ -83,9 +82,8 @@ class MusicalKeyFormatter(TransformerBase):
         # Parse the key
         parsed = parse_key(key_str)
         if parsed is None:
-            # raise ValueError(f"Invalid musical key notation: {key_str}")
             log.warning(f"Invalid musical key notation: '{key_str}'. Ignoring...")
-            return value
+            return key_str
 
         pitch_class, is_minor = parsed
 
