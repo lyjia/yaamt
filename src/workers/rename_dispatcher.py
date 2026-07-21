@@ -426,6 +426,247 @@ def resolve_within_batch_collisions(
                 )
 
 
+@dataclass
+class RenameOp:
+    """One filesystem operation in a planned batch, in execution order."""
+
+    task: RenameTask
+    source: str
+    dest: str
+    # Staging ops park a cycle member at a temporary name so the rest of the
+    # cycle can proceed; they carry no task result of their own.
+    is_staging: bool = False
+    cycle_id: int = -1
+    staging_error: str = ""
+
+
+@dataclass
+class BatchPlan:
+    """
+    Execution plan for a rename batch, computed against virtual filesystem
+    state before anything touches the disk.
+
+    Tasks are ordered so that a rename onto another task's source only runs
+    after that source has been vacated; swap/rotation cycles are broken by
+    staging one member at a temporary name. Tasks that can never succeed
+    (target held by a batch file that is not moving) are pre-failed here.
+    """
+
+    ops: list[RenameOp] = field(default_factory=list)
+    tasks: list[RenameTask] = field(default_factory=list)
+    planned_target_keys: set[str] = field(default_factory=set)
+    # Direct dependents by task index: dependents[j] lists tasks whose target
+    # is task j's source, i.e. tasks that must be cancelled if j fails.
+    dependents: dict[int, list[int]] = field(default_factory=dict)
+    # cycle_id -> (temp_path, original_source) for restoring a staged file
+    # when the rest of its cycle fails.
+    cycle_stages: dict[int, tuple[str, str]] = field(default_factory=dict)
+    case_insensitive: bool = False
+    _index_by_task: dict[int, int] = field(default_factory=dict)
+
+    def transitive_dependents(self, task: RenameTask) -> list[RenameTask]:
+        """All tasks that directly or indirectly require this task's rename."""
+        start = self._index_by_task.get(id(task))
+        if start is None:
+            return []
+        out: list[RenameTask] = []
+        pending = list(self.dependents.get(start, []))
+        seen: set[int] = set()
+        while pending:
+            i = pending.pop()
+            if i in seen:
+                continue
+            seen.add(i)
+            out.append(self.tasks[i])
+            pending.extend(self.dependents.get(i, []))
+        return out
+
+    def cycle_tasks(self, cycle_id: int) -> list[RenameTask]:
+        """Tasks participating in the given staged cycle."""
+        return [op.task for op in self.ops
+                if op.cycle_id == cycle_id and not op.is_staging]
+
+
+def _fail_task(task: RenameTask, error: str) -> None:
+    task.result = RenameResult(success=False, error=error)
+
+
+def _prerequisite_error(prerequisite: RenameTask) -> str:
+    source = (prerequisite.media_file.file_path
+              if prerequisite.media_file else prerequisite.target_path)
+    return (f"Not renamed: prerequisite rename of "
+            f"'{os.path.basename(source)}' did not complete")
+
+
+def _make_staging_path(
+    directory: str, extension: str, cycle_id: int,
+    avoid_keys: set[str], case_insensitive: bool,
+) -> str:
+    """Pick a temporary name in directory that nothing on disk or in the
+    batch is using."""
+    for n in range(_MAX_DISAMBIG_SUFFIX + 1):
+        name = f".yaamt-rename-{os.getpid()}-{cycle_id}-{n}{extension}"
+        candidate = os.path.join(directory, name)
+        key = canonical_path_key(candidate, case_insensitive)
+        if key in avoid_keys or os.path.lexists(candidate):
+            continue
+        return candidate
+    raise RuntimeError(f"No available staging name in {directory}")
+
+
+def plan_batch(
+    tasks: list[RenameTask], case_insensitive: bool | None = None
+) -> BatchPlan:
+    """
+    Order a batch of rename tasks so no rename can destroy another task's
+    source, and emit the resulting operation list.
+
+    Run after resolve_within_batch_collisions. Dependency rule: task A must
+    run after task B when A's target is B's source. Chains are ordered
+    topologically; cycles (swaps/rotations) are broken by staging one member
+    at a temporary name first and completing it last. A task whose target is
+    the source of a batch file that will never move (pre-failed, no-op, or
+    the batch was cancelled at planning) is pre-failed with a clear error
+    instead of clobbering, suffixing, or spuriously reporting a collision.
+    """
+    if case_insensitive is None:
+        case_insensitive = default_case_insensitive()
+    plan = BatchPlan(tasks=list(tasks), case_insensitive=case_insensitive)
+    plan._index_by_task = {id(t): i for i, t in enumerate(tasks)}
+
+    def source_key(task: RenameTask) -> str | None:
+        if task.media_file is None:
+            return None
+        return canonical_path_key(task.media_file.file_path, case_insensitive)
+
+    def target_key(task: RenameTask) -> str:
+        return canonical_path_key(task.target_path, case_insensitive)
+
+    runnable = [i for i, t in enumerate(tasks)
+                if t.target_path and t.result is None]
+    plan.planned_target_keys = {target_key(tasks[i]) for i in runnable}
+
+    # Partition batch sources into ones that will vacate their name (movers)
+    # and ones that keep it (pre-failed tasks, no-ops, case-only renames).
+    movers: dict[str, int] = {}
+    holders: dict[str, int] = {}
+    runnable_set = set(runnable)
+    for i, task in enumerate(tasks):
+        skey = source_key(task)
+        if skey is None:
+            continue
+        if i in runnable_set and target_key(task) != skey:
+            movers[skey] = i
+        else:
+            holders[skey] = i
+
+    # Each runnable task depends on at most one other (source keys are
+    # unique), so the graph is disjoint chains and simple cycles.
+    dep: dict[int, int] = {}
+    failed: set[int] = set()
+    for i in runnable:
+        tkey = target_key(tasks[i])
+        if tkey in movers and movers[tkey] != i:
+            dep[i] = movers[tkey]
+        elif tkey in holders and holders[tkey] != i:
+            _fail_task(tasks[i],
+                       f"Target name '{os.path.basename(tasks[i].target_path)}'"
+                       f" is kept by another file in this batch")
+            failed.add(i)
+
+    for i, j in dep.items():
+        plan.dependents.setdefault(j, []).append(i)
+
+    # Tasks depending on a plan-time failure can never succeed either.
+    changed = True
+    while changed:
+        changed = False
+        for i, j in dep.items():
+            if j in failed and i not in failed:
+                _fail_task(tasks[i], _prerequisite_error(tasks[j]))
+                failed.add(i)
+                changed = True
+
+    active = [i for i in runnable if i not in failed]
+    active_set = set(active)
+
+    def emit_ready(emitted: set[int]) -> None:
+        """Emit ops for every active task whose dependency is satisfied,
+        in stable index order, until no progress is made."""
+        progress = True
+        while progress:
+            progress = False
+            for i in active:
+                if i in emitted:
+                    continue
+                j = dep.get(i)
+                if j is not None and j in active_set and j not in emitted:
+                    continue
+                task = tasks[i]
+                plan.ops.append(RenameOp(
+                    task=task, source=task.media_file.file_path,
+                    dest=task.target_path,
+                ))
+                emitted.add(i)
+                progress = True
+
+    emitted: set[int] = set()
+    emit_ready(emitted)
+
+    # Whatever is left sits on a cycle (or hangs off one). Break each cycle
+    # by staging its lowest-index member, then let the ready sweep finish.
+    next_cycle_id = 0
+    while len(emitted) < len(active):
+        walk = next(i for i in active if i not in emitted)
+        seen_order: list[int] = []
+        seen_set: set[int] = set()
+        while walk not in seen_set:
+            seen_order.append(walk)
+            seen_set.add(walk)
+            walk = dep[walk]
+        # walk is now the first repeated node: the cycle starts there.
+        cycle = seen_order[seen_order.index(walk):]
+
+        cycle_id = next_cycle_id
+        next_cycle_id += 1
+        staged_index = min(cycle)
+        staged = tasks[staged_index]
+        avoid = plan.planned_target_keys | set(movers) | set(holders)
+        temp_path = _make_staging_path(
+            os.path.dirname(staged.media_file.file_path), staged.extension,
+            cycle_id, avoid, case_insensitive,
+        )
+        plan.cycle_stages[cycle_id] = (temp_path,
+                                       staged.media_file.file_path)
+        plan.ops.append(RenameOp(
+            task=staged, source=staged.media_file.file_path, dest=temp_path,
+            is_staging=True, cycle_id=cycle_id,
+        ))
+
+        # With the staged member's name vacated, the rest of the cycle is a
+        # chain: follow reverse-dependency order from the staged member.
+        reverse_dep = {dep[i]: i for i in cycle}
+        current = reverse_dep[staged_index]
+        while current != staged_index:
+            task = tasks[current]
+            plan.ops.append(RenameOp(
+                task=task, source=task.media_file.file_path,
+                dest=task.target_path, cycle_id=cycle_id,
+            ))
+            emitted.add(current)
+            current = reverse_dep[current]
+        plan.ops.append(RenameOp(
+            task=staged, source=temp_path, dest=staged.target_path,
+            cycle_id=cycle_id,
+        ))
+        emitted.add(staged_index)
+
+        # Tasks hanging off this cycle are now unblocked.
+        emit_ready(emitted)
+
+    return plan
+
+
 class RenameDispatcher(QObject):
     """
     Queue + runner for a batch of file-rename operations.

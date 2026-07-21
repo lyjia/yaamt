@@ -171,6 +171,66 @@ def test_resolve_within_batch_case_only_owner_keeps_name():
     assert t_other.target_path == "/tmp/foo (2).mp3"
 
 
+def test_plan_batch_orders_chain():
+    from workers.rename_dispatcher import plan_batch
+
+    # 1.mp3 -> 2.mp3 while 2.mp3 -> 3.mp3: the second task must run first.
+    t1 = _bare_task("/tmp/2.mp3", source_path="/tmp/1.mp3")
+    t2 = _bare_task("/tmp/3.mp3", source_path="/tmp/2.mp3")
+    plan = plan_batch([t1, t2], case_insensitive=False)
+
+    assert [op.dest for op in plan.ops] == ["/tmp/3.mp3", "/tmp/2.mp3"]
+    assert not any(op.is_staging for op in plan.ops)
+    assert t1.result is None and t2.result is None
+
+
+def test_plan_batch_swap_cycle_stages_one_member():
+    from workers.rename_dispatcher import plan_batch
+
+    # a <-> b swap: one member is parked at a temp name, the other renames,
+    # then the parked member completes from the temp.
+    ta = _bare_task("/tmp/b.mp3", source_path="/tmp/a.mp3")
+    tb = _bare_task("/tmp/a.mp3", source_path="/tmp/b.mp3")
+    plan = plan_batch([ta, tb], case_insensitive=False)
+
+    assert len(plan.ops) == 3
+    stage, mid, final = plan.ops
+    assert stage.is_staging and stage.source == "/tmp/a.mp3"
+    assert mid.source == "/tmp/b.mp3" and mid.dest == "/tmp/a.mp3"
+    assert final.source == stage.dest and final.dest == "/tmp/b.mp3"
+    assert plan.cycle_stages[stage.cycle_id] == (stage.dest, "/tmp/a.mp3")
+
+
+def test_plan_batch_case_only_rename_is_single_plain_op():
+    from workers.rename_dispatcher import plan_batch
+
+    task = _bare_task("/tmp/Foo.mp3", source_path="/tmp/foo.mp3")
+    plan = plan_batch([task], case_insensitive=True)
+
+    assert len(plan.ops) == 1
+    assert not plan.ops[0].is_staging
+    assert task.result is None
+
+
+def test_plan_batch_prefails_dependents_of_immovable_tasks():
+    from workers.rename_dispatcher import RenameResult, plan_batch
+
+    # t_stuck failed at planning (e.g. render error) so its source never
+    # vacates; t_a targets that source and t_b targets t_a's source. Neither
+    # may run - in overwrite mode running t_a would destroy t_stuck's file.
+    t_stuck = _bare_task("/tmp/whatever.mp3", source_path="/tmp/held.mp3")
+    t_stuck.result = RenameResult(success=False, error="render failed")
+    t_a = _bare_task("/tmp/held.mp3", source_path="/tmp/a.mp3")
+    t_b = _bare_task("/tmp/a.mp3", source_path="/tmp/b.mp3")
+    plan = plan_batch([t_stuck, t_a, t_b], case_insensitive=False)
+
+    assert plan.ops == []
+    assert t_a.result is not None and t_a.result.success is False
+    assert "kept by another file" in t_a.result.error
+    assert t_b.result is not None and t_b.result.success is False
+    assert "prerequisite" in t_b.result.error
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX rename semantics")
 def test_rename_no_clobber_raises_and_preserves_source(tmp_path):
     from workers.rename_dispatcher import _rename_no_clobber
