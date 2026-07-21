@@ -10,6 +10,7 @@ this runs tasks serially in a single QRunnable via the global thread pool.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,23 @@ RENAME_TASK_LABEL = "Rename"
 _MAX_DISAMBIG_SUFFIX = 999
 
 
+def default_case_insensitive() -> bool:
+    """
+    Best-effort guess whether filesystem paths are case-insensitive.
+
+    A platform heuristic, not ground truth (macOS can run case-sensitive APFS;
+    Linux can mount FAT/SMB). The execution-time same-file guard and
+    non-clobbering renames are the safety net when the guess is wrong.
+    """
+    return os.name == "nt" or sys.platform == "darwin"
+
+
+def canonical_path_key(path: str, case_insensitive: bool) -> str:
+    """Canonical key for comparing paths within a rename batch."""
+    key = os.path.abspath(path)
+    return key.casefold() if case_insensitive else key
+
+
 @dataclass
 class RenameResult:
     """Outcome of a single rename task."""
@@ -59,6 +77,9 @@ class RenameTask:
     # Populated at planning time so within-batch collisions can be resolved up
     # front and surfaced in the preview.
     target_path: str = ""
+    # Basename before any auto-disambiguation suffix was applied, so run-time
+    # retries can continue the "(n)" numbering instead of nesting suffixes.
+    disambig_base: str = ""
     result: RenameResult | None = None
 
 
@@ -215,7 +236,9 @@ def plan_rename(
     )
 
 
-def resolve_within_batch_collisions(tasks: list[RenameTask]) -> None:
+def resolve_within_batch_collisions(
+    tasks: list[RenameTask], case_insensitive: bool | None = None
+) -> None:
     """
     When multiple tasks in a batch target the same path, adjust them in-place
     according to each task's collision mode.
@@ -223,26 +246,54 @@ def resolve_within_batch_collisions(tasks: list[RenameTask]) -> None:
     - Auto-disambiguate: append " (2)", " (3)" suffixes so all targets are unique.
     - Skip: mark later duplicates with a preset failing result.
     - Overwrite: leave as-is (last write wins at run time).
+
+    Paths are compared case-insensitively only on platforms whose filesystems
+    are, so distinct Foo.mp3/foo.mp3 targets on Linux are not false collisions.
+    A task whose target is its own source under the canonical key (a no-op or
+    a case-only rename) already owns that name and is never suffixed or
+    skipped; competing tasks in its bucket are resolved against it.
     """
-    # Group by target_path for tasks that have a non-empty target.
+    if case_insensitive is None:
+        case_insensitive = default_case_insensitive()
+
+    # Group by canonical target key for tasks that have a non-empty target.
     seen: dict[str, list[RenameTask]] = {}
     for task in tasks:
         if not task.target_path:
             continue
-        seen.setdefault(os.path.abspath(task.target_path).lower(), []).append(task)
+        key = canonical_path_key(task.target_path, case_insensitive)
+        seen.setdefault(key, []).append(task)
 
-    for _, bucket in seen.items():
+    for key, bucket in seen.items():
         if len(bucket) <= 1:
             continue
+        # A task keeping its own name (case-only rename or no-op) wins the
+        # name outright; move it to the front so it is the keeper.
+        for pos, task in enumerate(bucket):
+            if task.media_file is None:
+                continue
+            source_key = canonical_path_key(task.media_file.file_path,
+                                            case_insensitive)
+            if source_key == key:
+                bucket.insert(0, bucket.pop(pos))
+                break
+
         mode = bucket[0].collision_mode
         if mode == RENAME_COLLISION_AUTO_DISAMBIGUATE:
             # First task keeps the original; subsequent get " (2)", " (3)", ...
-            for i, task in enumerate(bucket[1:], start=2):
+            suffix_n = 2
+            for task in bucket[1:]:
+                if task.result is not None:
+                    continue  # Pre-failed tasks keep their rendered name.
                 base, ext = os.path.splitext(task.target_path)
-                task.target_path = f"{base} ({i}){ext}"
-                task.target_basename = f"{task.target_basename} ({i})"
+                task.disambig_base = task.target_basename
+                task.target_path = f"{base} ({suffix_n}){ext}"
+                task.target_basename = f"{task.target_basename} ({suffix_n})"
+                suffix_n += 1
         elif mode == RENAME_COLLISION_SKIP:
             for task in bucket[1:]:
+                if task.result is not None:
+                    continue
                 task.result = RenameResult(
                     success=False,
                     error=(f"Another file in this batch also targets "

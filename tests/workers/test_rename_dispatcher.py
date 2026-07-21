@@ -112,6 +112,64 @@ def test_resolve_within_batch_collisions_skip_marks_later_failures():
     assert "Another file in this batch" in t2.result.error
 
 
+def _bare_task(target_path, mode=RENAME_COLLISION_AUTO_DISAMBIGUATE,
+               source_path=None):
+    """Build a RenameTask for pure collision/planner tests."""
+    import types
+    from workers.rename_dispatcher import RenameTask
+
+    media_file = (
+        types.SimpleNamespace(file_path=source_path) if source_path else None
+    )
+    base = os.path.splitext(os.path.basename(target_path))[0]
+    return RenameTask(
+        media_file=media_file, target_basename=base,
+        extension=os.path.splitext(target_path)[1],
+        collision_mode=mode, target_path=target_path,
+    )
+
+
+def test_resolve_within_batch_case_sensitive_no_suffix():
+    from workers.rename_dispatcher import resolve_within_batch_collisions
+
+    # On a case-sensitive filesystem Foo.mp3 and foo.mp3 are distinct targets;
+    # neither may be suffixed.
+    t1 = _bare_task("/tmp/Foo.mp3")
+    t2 = _bare_task("/tmp/foo.mp3")
+    resolve_within_batch_collisions([t1, t2], case_insensitive=False)
+
+    assert t1.target_path == "/tmp/Foo.mp3"
+    assert t2.target_path == "/tmp/foo.mp3"
+    assert t1.result is None and t2.result is None
+
+
+def test_resolve_within_batch_case_insensitive_suffixes():
+    from workers.rename_dispatcher import resolve_within_batch_collisions
+
+    # On a case-insensitive filesystem the same pair collides.
+    t1 = _bare_task("/tmp/Foo.mp3")
+    t2 = _bare_task("/tmp/foo.mp3")
+    resolve_within_batch_collisions([t1, t2], case_insensitive=True)
+
+    assert t1.target_path == "/tmp/Foo.mp3"
+    assert t2.target_path == "/tmp/foo (2).mp3"
+    assert t2.disambig_base == "foo"
+
+
+def test_resolve_within_batch_case_only_owner_keeps_name():
+    from workers.rename_dispatcher import resolve_within_batch_collisions
+
+    # t_owner is a case-only rename (foo.mp3 -> Foo.mp3): it already owns the
+    # name and must keep it even when listed after a competing task.
+    t_other = _bare_task("/tmp/foo.mp3", source_path="/tmp/bar.mp3")
+    t_owner = _bare_task("/tmp/Foo.mp3", source_path="/tmp/foo.mp3")
+    resolve_within_batch_collisions([t_other, t_owner], case_insensitive=True)
+
+    assert t_owner.target_path == "/tmp/Foo.mp3"
+    assert t_owner.result is None
+    assert t_other.target_path == "/tmp/foo (2).mp3"
+
+
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt signals require running event loop")
 def test_dispatcher_renames_file_end_to_end(qapp, tmp_audio_copy):
     from models.media_file import MediaFile
