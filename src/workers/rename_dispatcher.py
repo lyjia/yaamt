@@ -4,7 +4,18 @@ Rename dispatcher for renaming media files based on a format string.
 The dispatcher is intentionally shaped like AnalyzerDispatcher so the existing
 AnalyzerProgressDialog and AnalyzerSummaryDialog can consume it by duck typing.
 Unlike the analyzer dispatcher, renames are quick filesystem operations, so
-this runs tasks serially in a single QRunnable via the global thread pool.
+this runs tasks serially, one worker at a time, via the global thread pool.
+
+Safety model: a batch is fully planned before anything touches the disk.
+Renames never leave their directory, so the batch splits into independent
+per-directory chunks. Within each chunk, every file whose current name is
+another task's new name is first staged at a temporary name (pass 1), then
+all renames are committed (pass 2). With contested names vacated up front, no
+rename can overwrite another task's still-pending source - chains and swaps
+need no special ordering. If a staging rename fails, the chunk is rolled back
+and aborted; if a committing rename fails, its staged file is moved back to
+its original name once the chunk finishes (or, when that name has been taken,
+the temporary location is reported so the file is never lost track of).
 """
 
 from __future__ import annotations
@@ -13,7 +24,6 @@ import errno
 import os
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot, QThreadPool
@@ -39,6 +49,10 @@ RENAME_TASK_LABEL = "Rename"
 # Safety cap for auto-disambiguation iteration.
 _MAX_DISAMBIG_SUFFIX = 999
 
+# Prefix for temporary staging names. Descriptive on purpose: if the process
+# dies mid-batch, ".yaamt-rename-<originalname>" is recoverable by hand.
+_STAGING_NAME_PREFIX = ".yaamt-rename-"
+
 
 def default_case_insensitive() -> bool:
     """
@@ -55,6 +69,53 @@ def canonical_path_key(path: str, case_insensitive: bool) -> str:
     """Canonical key for comparing paths within a rename batch."""
     key = os.path.abspath(path)
     return key.casefold() if case_insensitive else key
+
+
+@dataclass
+class RenameResult:
+    """Outcome of a single rename task."""
+
+    success: bool = False
+    skipped: bool = False
+    error: str = ""
+    # The file's actual current path whenever it moved - even on failure
+    # (e.g. a file left at a staging name after its cycle partner failed).
+    new_path: str = ""
+
+
+@dataclass
+class RenameTask:
+    """A single file-rename task."""
+
+    media_file: MediaFile
+    target_basename: str  # without extension, may be empty if rendering failed
+    extension: str
+    collision_mode: str
+    # Populated at planning time so within-batch collisions can be resolved up
+    # front and surfaced in the preview.
+    target_path: str = ""
+    # Basename before any auto-disambiguation suffix was applied, so run-time
+    # retries can continue the "(n)" numbering instead of nesting suffixes.
+    disambig_base: str = ""
+    result: RenameResult | None = None
+
+
+@dataclass
+class RenameSummary:
+    """Summary of a completed rename batch - matches AnalyzerDispatcher's shape."""
+
+    total: int = 0
+    successful: int = 0
+    failed: list[tuple[str, str]] = field(default_factory=list)
+    skipped: list[tuple[str, str]] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "total": self.total,
+            "successful": self.successful,
+            "failed": list(self.failed),
+            "skipped": list(self.skipped),
+        }
 
 
 # Errnos meaning "this filesystem cannot hardlink" - fall back to a checked
@@ -224,106 +285,6 @@ def perform_rename(
     )
 
 
-@dataclass
-class RenameResult:
-    """Outcome of a single rename task."""
-
-    success: bool = False
-    skipped: bool = False
-    error: str = ""
-    new_path: str = ""
-
-
-@dataclass
-class RenameTask:
-    """A single file-rename task."""
-
-    media_file: MediaFile
-    target_basename: str  # without extension, may be empty if rendering failed
-    extension: str
-    collision_mode: str
-    # Populated at planning time so within-batch collisions can be resolved up
-    # front and surfaced in the preview.
-    target_path: str = ""
-    # Basename before any auto-disambiguation suffix was applied, so run-time
-    # retries can continue the "(n)" numbering instead of nesting suffixes.
-    disambig_base: str = ""
-    result: RenameResult | None = None
-
-
-@dataclass
-class RenameSummary:
-    """Summary of a completed rename batch - matches AnalyzerDispatcher's shape."""
-
-    total: int = 0
-    successful: int = 0
-    failed: list[tuple[str, str]] = field(default_factory=list)
-    skipped: list[tuple[str, str]] = field(default_factory=list)
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "total": self.total,
-            "successful": self.successful,
-            "failed": list(self.failed),
-            "skipped": list(self.skipped),
-        }
-
-
-class _RenameWorkerSignals(QObject):
-    """Internal cross-thread signal bus."""
-
-    worker_finished = Signal(int, object)  # (worker_id, RenameOp)
-
-
-class _RenameWorker(QRunnable):
-    """Runs a single planned rename operation in a worker thread."""
-
-    def __init__(
-        self,
-        op: RenameOp,
-        planned_target_keys: set[str],
-        case_insensitive: bool,
-        signals: _RenameWorkerSignals,
-        worker_id: int,
-    ):
-        super().__init__()
-        self.op = op
-        self.planned_target_keys = planned_target_keys
-        self.case_insensitive = case_insensitive
-        self.signals = signals
-        self.worker_id = worker_id
-
-    @Slot()
-    def run(self) -> None:
-        op = self.op
-        task = op.task
-        try:
-            if op.is_staging:
-                _rename_no_clobber(op.source, op.dest)
-            else:
-                task.result = perform_rename(
-                    op.source,
-                    op.dest,
-                    task.collision_mode,
-                    disambig_base=task.disambig_base,
-                    planned_target_keys=self.planned_target_keys,
-                    case_insensitive=self.case_insensitive,
-                )
-                if task.result.success and not task.result.skipped:
-                    log.info(f"Renamed {op.source} -> {task.result.new_path}")
-
-        except Exception as e:
-            log.error(f"Rename failed for {op.source}: {e}", exc_info=True)
-            if op.is_staging:
-                op.staging_error = f"Unexpected error: {e}"
-            else:
-                task.result = RenameResult(
-                    success=False, error=f"Unexpected error: {e}"
-                )
-
-        self.signals.worker_finished.emit(self.worker_id, op)
-
-
 def plan_rename(
     media_file: MediaFile, format_string: str, collision_mode: str
 ) -> RenameTask:
@@ -442,115 +403,79 @@ class RenameOp:
     task: RenameTask
     source: str
     dest: str
-    # Staging ops park a cycle member at a temporary name so the rest of the
-    # cycle can proceed; they carry no task result of their own.
+    # Staging ops park a contested file at a temporary name so the rest of
+    # its directory can proceed; they carry no task result of their own.
     is_staging: bool = False
-    cycle_id: int = -1
+    # Index of the per-directory chunk this op belongs to. Chunks are
+    # independent: a failure in one never affects another.
+    chunk_id: int = 0
     staging_error: str = ""
 
 
 @dataclass
 class BatchPlan:
     """
-    Execution plan for a rename batch, computed against virtual filesystem
-    state before anything touches the disk.
+    Execution plan for a rename batch, computed before anything touches disk.
 
-    Tasks are ordered so that a rename onto another task's source only runs
-    after that source has been vacated; swap/rotation cycles are broken by
-    staging one member at a temporary name. Tasks that can never succeed
-    (target held by a batch file that is not moving) are pre-failed here.
+    Per directory: contested files (whose current name is another task's new
+    name) are staged at temporary names first, then all renames commit. Tasks
+    that can never succeed - target held by a batch file that is not moving -
+    are pre-failed here with a clear error.
     """
 
     ops: list[RenameOp] = field(default_factory=list)
     tasks: list[RenameTask] = field(default_factory=list)
     planned_target_keys: set[str] = field(default_factory=set)
-    # Direct dependents by task index: dependents[j] lists tasks whose target
-    # is task j's source, i.e. tasks that must be cancelled if j fails.
-    dependents: dict[int, list[int]] = field(default_factory=dict)
-    # cycle_id -> (temp_path, original_source) for restoring a staged file
-    # when the rest of its cycle fails.
-    cycle_stages: dict[int, tuple[str, str]] = field(default_factory=dict)
+    # id(task) -> (temp_path, original_source) for contested files that get
+    # staged out of the way in pass 1.
+    stagings: dict[int, tuple[str, str]] = field(default_factory=dict)
     case_insensitive: bool = False
-    _index_by_task: dict[int, int] = field(default_factory=dict)
-
-    def transitive_dependents(self, task: RenameTask) -> list[RenameTask]:
-        """All tasks that directly or indirectly require this task's rename."""
-        start = self._index_by_task.get(id(task))
-        if start is None:
-            return []
-        out: list[RenameTask] = []
-        pending = list(self.dependents.get(start, []))
-        seen: set[int] = set()
-        while pending:
-            i = pending.pop()
-            if i in seen:
-                continue
-            seen.add(i)
-            out.append(self.tasks[i])
-            pending.extend(self.dependents.get(i, []))
-        return out
-
-    def cycle_tasks(self, cycle_id: int) -> list[RenameTask]:
-        """Tasks participating in the given staged cycle."""
-        return [op.task for op in self.ops
-                if op.cycle_id == cycle_id and not op.is_staging]
-
-    def staging_for(self, task: RenameTask) -> tuple[int, str, str] | None:
-        """(cycle_id, temp_path, original_source) if task is a staged cycle
-        member, else None."""
-        for op in self.ops:
-            if op.is_staging and op.task is task:
-                temp_path, original_source = self.cycle_stages[op.cycle_id]
-                return op.cycle_id, temp_path, original_source
-        return None
+    _task_ids: set[int] = field(default_factory=set)
 
 
 def _fail_task(task: RenameTask, error: str) -> None:
     task.result = RenameResult(success=False, error=error)
 
 
-def _prerequisite_error(prerequisite: RenameTask) -> str:
-    source = (prerequisite.media_file.file_path
-              if prerequisite.media_file else prerequisite.target_path)
-    return (f"Not renamed: prerequisite rename of "
-            f"'{os.path.basename(source)}' did not complete")
-
-
 def _make_staging_path(
-    directory: str, extension: str, cycle_id: int,
-    avoid_keys: set[str], case_insensitive: bool,
+    source: str, avoid_keys: set[str], case_insensitive: bool
 ) -> str:
-    """Pick a temporary name in directory that nothing on disk or in the
+    """Pick a temporary name beside source that nothing on disk or in the
     batch is using."""
-    for n in range(_MAX_DISAMBIG_SUFFIX + 1):
-        name = f".yaamt-rename-{os.getpid()}-{cycle_id}-{n}{extension}"
-        candidate = os.path.join(directory, name)
-        key = canonical_path_key(candidate, case_insensitive)
-        if key in avoid_keys or os.path.lexists(candidate):
-            continue
-        return candidate
-    raise RuntimeError(f"No available staging name in {directory}")
+    directory, basename = os.path.split(source)
+    candidate = os.path.join(directory, f"{_STAGING_NAME_PREFIX}{basename}")
+    n = 1
+    while (canonical_path_key(candidate, case_insensitive) in avoid_keys
+           or os.path.lexists(candidate)):
+        n += 1
+        if n > _MAX_DISAMBIG_SUFFIX:
+            raise RuntimeError(f"No available staging name for {source}")
+        candidate = os.path.join(
+            directory, f"{_STAGING_NAME_PREFIX}{n}-{basename}"
+        )
+    return candidate
 
 
 def plan_batch(
     tasks: list[RenameTask], case_insensitive: bool | None = None
 ) -> BatchPlan:
     """
-    Order a batch of rename tasks so no rename can destroy another task's
-    source, and emit the resulting operation list.
+    Plan a batch so no rename can destroy another task's source.
 
-    Run after resolve_within_batch_collisions. Dependency rule: task A must
-    run after task B when A's target is B's source. Chains are ordered
-    topologically; cycles (swaps/rotations) are broken by staging one member
-    at a temporary name first and completing it last. A task whose target is
-    the source of a batch file that will never move (pre-failed, no-op, or
-    the batch was cancelled at planning) is pre-failed with a clear error
-    instead of clobbering, suffixing, or spuriously reporting a collision.
+    Run after resolve_within_batch_collisions. Targets always live in their
+    source's directory (see plan_rename), so the batch splits into independent
+    per-directory chunks. In each chunk, files whose current name is another
+    task's target are staged at temporary names first; once those names are
+    vacated, the commit pass cannot collide with any pending source, however
+    the renames chain or swap. A task targeting the name of a batch file that
+    will never move (pre-failed, no-op, or case-only rename) is pre-failed
+    with a clear error instead of clobbering, suffixing, or spuriously
+    reporting a collision.
     """
     if case_insensitive is None:
         case_insensitive = default_case_insensitive()
     plan = BatchPlan(tasks=list(tasks), case_insensitive=case_insensitive)
-    plan._index_by_task = {id(t): i for i, t in enumerate(tasks)}
+    plan._task_ids = {id(t) for t in tasks}
 
     def source_key(task: RenameTask) -> str | None:
         if task.media_file is None:
@@ -560,129 +485,133 @@ def plan_batch(
     def target_key(task: RenameTask) -> str:
         return canonical_path_key(task.target_path, case_insensitive)
 
-    runnable = [i for i, t in enumerate(tasks)
-                if t.target_path and t.result is None]
-    plan.planned_target_keys = {target_key(tasks[i]) for i in runnable}
+    def runnable_tasks() -> list[RenameTask]:
+        return [t for t in tasks if t.target_path and t.result is None]
 
-    # Partition batch sources into ones that will vacate their name (movers)
-    # and ones that keep it (pre-failed tasks, no-ops, case-only renames).
-    movers: dict[str, int] = {}
-    holders: dict[str, int] = {}
-    runnable_set = set(runnable)
-    for i, task in enumerate(tasks):
-        skey = source_key(task)
-        if skey is None:
-            continue
-        if i in runnable_set and target_key(task) != skey:
-            movers[skey] = i
-        else:
-            holders[skey] = i
+    plan.planned_target_keys = {target_key(t) for t in runnable_tasks()}
 
-    # Each runnable task depends on at most one other (source keys are
-    # unique), so the graph is disjoint chains and simple cycles.
-    dep: dict[int, int] = {}
-    failed: set[int] = set()
-    for i in runnable:
-        tkey = target_key(tasks[i])
-        if tkey in movers and movers[tkey] != i:
-            dep[i] = movers[tkey]
-        elif tkey in holders and holders[tkey] != i:
-            _fail_task(tasks[i],
-                       f"Target name '{os.path.basename(tasks[i].target_path)}'"
-                       f" is kept by another file in this batch")
-            failed.add(i)
-
-    for i, j in dep.items():
-        plan.dependents.setdefault(j, []).append(i)
-
-    # Tasks depending on a plan-time failure can never succeed either.
+    # Pre-fail tasks whose target is a batch source that never vacates (a
+    # pre-failed task, a no-op, or a case-only rename all keep their name).
+    # Loop to a fixpoint: each newly failed task now holds its own name too.
     changed = True
     while changed:
         changed = False
-        for i, j in dep.items():
-            if j in failed and i not in failed:
-                _fail_task(tasks[i], _prerequisite_error(tasks[j]))
-                failed.add(i)
+        runnable = runnable_tasks()
+        runnable_ids = {id(t) for t in runnable}
+        held: dict[str, RenameTask] = {}
+        for task in tasks:
+            skey = source_key(task)
+            if skey is None:
+                continue
+            if id(task) not in runnable_ids or target_key(task) == skey:
+                held[skey] = task
+        for task in runnable:
+            holder = held.get(target_key(task))
+            if holder is not None and holder is not task:
+                _fail_task(
+                    task,
+                    f"Target name '{os.path.basename(task.target_path)}' is "
+                    f"kept by another file in this batch",
+                )
                 changed = True
 
-    active = [i for i in runnable if i not in failed]
-    active_set = set(active)
-
-    def emit_ready(emitted: set[int]) -> None:
-        """Emit ops for every active task whose dependency is satisfied,
-        in stable index order, until no progress is made."""
-        progress = True
-        while progress:
-            progress = False
-            for i in active:
-                if i in emitted:
-                    continue
-                j = dep.get(i)
-                if j is not None and j in active_set and j not in emitted:
-                    continue
-                task = tasks[i]
-                plan.ops.append(RenameOp(
-                    task=task, source=task.media_file.file_path,
-                    dest=task.target_path,
-                ))
-                emitted.add(i)
-                progress = True
-
-    emitted: set[int] = set()
-    emit_ready(emitted)
-
-    # Whatever is left sits on a cycle (or hangs off one). Break each cycle
-    # by staging its lowest-index member, then let the ready sweep finish.
-    next_cycle_id = 0
-    while len(emitted) < len(active):
-        walk = next(i for i in active if i not in emitted)
-        seen_order: list[int] = []
-        seen_set: set[int] = set()
-        while walk not in seen_set:
-            seen_order.append(walk)
-            seen_set.add(walk)
-            walk = dep[walk]
-        # walk is now the first repeated node: the cycle starts there.
-        cycle = seen_order[seen_order.index(walk):]
-
-        cycle_id = next_cycle_id
-        next_cycle_id += 1
-        staged_index = min(cycle)
-        staged = tasks[staged_index]
-        avoid = plan.planned_target_keys | set(movers) | set(holders)
-        temp_path = _make_staging_path(
-            os.path.dirname(staged.media_file.file_path), staged.extension,
-            cycle_id, avoid, case_insensitive,
+    # Split into per-directory chunks, preserving first-appearance order.
+    chunks: dict[str, list[RenameTask]] = {}
+    for task in runnable_tasks():
+        dir_key = canonical_path_key(
+            os.path.dirname(task.media_file.file_path), case_insensitive
         )
-        plan.cycle_stages[cycle_id] = (temp_path,
-                                       staged.media_file.file_path)
-        plan.ops.append(RenameOp(
-            task=staged, source=staged.media_file.file_path, dest=temp_path,
-            is_staging=True, cycle_id=cycle_id,
-        ))
+        chunks.setdefault(dir_key, []).append(task)
 
-        # With the staged member's name vacated, the rest of the cycle is a
-        # chain: follow reverse-dependency order from the staged member.
-        reverse_dep = {dep[i]: i for i in cycle}
-        current = reverse_dep[staged_index]
-        while current != staged_index:
-            task = tasks[current]
+    for chunk_id, chunk_tasks in enumerate(chunks.values()):
+        # A file is contested when another task in the chunk targets its
+        # current name; it must be staged out of the way before the commits.
+        target_owner: dict[str, RenameTask] = {}
+        for task in chunk_tasks:
+            target_owner.setdefault(target_key(task), task)
+
+        avoid = set(plan.planned_target_keys)
+        avoid.update(k for k in (source_key(t) for t in chunk_tasks) if k)
+
+        for task in chunk_tasks:
+            skey = source_key(task)
+            claimant = target_owner.get(skey) if skey else None
+            if claimant is None or claimant is task:
+                continue
+            temp_path = _make_staging_path(
+                task.media_file.file_path, avoid, case_insensitive
+            )
+            avoid.add(canonical_path_key(temp_path, case_insensitive))
+            plan.stagings[id(task)] = (temp_path, task.media_file.file_path)
             plan.ops.append(RenameOp(
-                task=task, source=task.media_file.file_path,
-                dest=task.target_path, cycle_id=cycle_id,
+                task=task, source=task.media_file.file_path, dest=temp_path,
+                is_staging=True, chunk_id=chunk_id,
             ))
-            emitted.add(current)
-            current = reverse_dep[current]
-        plan.ops.append(RenameOp(
-            task=staged, source=temp_path, dest=staged.target_path,
-            cycle_id=cycle_id,
-        ))
-        emitted.add(staged_index)
 
-        # Tasks hanging off this cycle are now unblocked.
-        emit_ready(emitted)
+        for task in chunk_tasks:
+            staging = plan.stagings.get(id(task))
+            source = staging[0] if staging else task.media_file.file_path
+            plan.ops.append(RenameOp(
+                task=task, source=source, dest=task.target_path,
+                chunk_id=chunk_id,
+            ))
 
     return plan
+
+
+class _RenameWorkerSignals(QObject):
+    """Internal cross-thread signal bus."""
+
+    worker_finished = Signal(int, object)  # (worker_id, RenameOp)
+
+
+class _RenameWorker(QRunnable):
+    """Runs a single planned rename operation in a worker thread."""
+
+    def __init__(
+        self,
+        op: RenameOp,
+        planned_target_keys: set[str],
+        case_insensitive: bool,
+        signals: _RenameWorkerSignals,
+        worker_id: int,
+    ):
+        super().__init__()
+        self.op = op
+        self.planned_target_keys = planned_target_keys
+        self.case_insensitive = case_insensitive
+        self.signals = signals
+        self.worker_id = worker_id
+
+    @Slot()
+    def run(self) -> None:
+        op = self.op
+        task = op.task
+        try:
+            if op.is_staging:
+                _rename_no_clobber(op.source, op.dest)
+            else:
+                task.result = perform_rename(
+                    op.source,
+                    op.dest,
+                    task.collision_mode,
+                    disambig_base=task.disambig_base,
+                    planned_target_keys=self.planned_target_keys,
+                    case_insensitive=self.case_insensitive,
+                )
+                if task.result.success and not task.result.skipped:
+                    log.info(f"Renamed {op.source} -> {task.result.new_path}")
+
+        except Exception as e:
+            log.error(f"Rename failed for {op.source}: {e}", exc_info=True)
+            if op.is_staging:
+                op.staging_error = f"Unexpected error: {e}"
+            else:
+                task.result = RenameResult(
+                    success=False, error=f"Unexpected error: {e}"
+                )
+
+        self.signals.worker_finished.emit(self.worker_id, op)
 
 
 class RenameDispatcher(QObject):
@@ -714,9 +643,14 @@ class RenameDispatcher(QObject):
         self._cancelled = False
         self._plans: list[BatchPlan] = []
         self._total_tasks = 0
-        # cycle_id -> BatchPlan for staging renames that have completed, so a
-        # stranded staged file can be restored if its cycle later fails.
-        self._completed_stagings: dict[int, BatchPlan] = {}
+        self._next_chunk_offset = 0
+        # id(task) for staging renames that completed, so a staged file can
+        # be moved back if its committing rename never succeeds.
+        self._completed_stagings: set[int] = set()
+        # Failed staged tasks awaiting a restore attempt at their chunk's end
+        # (restoring earlier could hand the name back to a file that another
+        # pending rename in the chunk is about to take).
+        self._pending_restores: list[tuple[BatchPlan, RenameTask]] = []
 
         # Background threads emit through these signals so result application
         # happens on the main thread.
@@ -742,10 +676,10 @@ class RenameDispatcher(QObject):
         """
         Plan and enqueue pre-built rename tasks as one batch.
 
-        The whole batch is planned against virtual filesystem state first:
-        renames are ordered so no task can destroy another task's source,
-        cycles are staged through temporary names, and tasks that cannot
-        succeed (render failure, unavailable target) are pre-marked as failed.
+        The whole batch is planned before anything touches the disk: contested
+        files are staged per directory so no rename can destroy another task's
+        source, and tasks that cannot succeed (render failure, unavailable
+        target) are pre-marked as failed.
         """
         # Exact no-ops are decided here so they never reach the disk and never
         # count as name collisions.
@@ -762,6 +696,14 @@ class RenameDispatcher(QObject):
         case_insensitive = default_case_insensitive()
         resolve_within_batch_collisions(tasks, case_insensitive)
         plan = plan_batch(tasks, case_insensitive)
+
+        # Make chunk ids unique across enqueue calls so queue filtering by
+        # chunk is unambiguous.
+        for op in plan.ops:
+            op.chunk_id += self._next_chunk_offset
+        if plan.ops:
+            self._next_chunk_offset = plan.ops[-1].chunk_id + 1
+
         self._plans.append(plan)
 
         for task in tasks:
@@ -818,10 +760,18 @@ class RenameDispatcher(QObject):
             task.result = RenameResult(
                 success=False, skipped=True, error="Cancelled by user"
             )
-            plan = self._plan_for_task(task)
-            if plan is not None:
-                self._restore_staged_if_needed(plan, task)
             self.completed_tasks.append(task)
+
+        # Put already-staged files back where they were (or report the
+        # temporary location if their old name has been taken).
+        pending, self._pending_restores = self._pending_restores, []
+        for plan, task in pending:
+            self._restore_staged(plan, task)
+        for op in remaining:
+            plan = self._plan_for_task(op.task)
+            if plan is not None:
+                self._restore_staged(plan, op.task)
+
         if self._active_workers == 0:
             self._finish()
 
@@ -858,7 +808,7 @@ class RenameDispatcher(QObject):
         self._active_workers += 1
 
         if not op.is_staging:
-            # Staging renames are internal plumbing; only a task's final
+            # Staging renames are internal plumbing; only a task's committing
             # rename is surfaced in the progress dialog.
             self.task_started.emit(op.task.media_file.file_path,
                                    RENAME_TASK_LABEL)
@@ -882,9 +832,10 @@ class RenameDispatcher(QObject):
 
         if op.is_staging:
             if op.staging_error:
-                self._abort_cycle(plan, op)
+                self._abort_chunk(plan, op)
             else:
-                self._completed_stagings[op.cycle_id] = plan
+                self._completed_stagings.add(id(task))
+            self._flush_restores_at_chunk_boundary(op)
             self._process_next()
             return
 
@@ -902,71 +853,71 @@ class RenameDispatcher(QObject):
 
         self.task_completed.emit(task.media_file.file_path, task.result)
 
-        if not task.result.success and plan is not None:
-            # Tasks renaming onto this task's source can no longer succeed;
-            # cancel them instead of letting them clobber or mis-resolve.
-            self._cancel_dependents(plan, task)
+        if (not task.result.success and plan is not None
+                and id(task) in self._completed_stagings):
+            # The file sits at its staging name; try to send it home once the
+            # rest of its chunk has finished with the contested names.
+            self._pending_restores.append((plan, task))
 
         self.progress_updated.emit(len(self.completed_tasks),
                                    self._total_tasks)
         self.active_tasks_updated.emit([])
 
+        self._flush_restores_at_chunk_boundary(op)
         self._process_next()
 
     def _plan_for_task(self, task: RenameTask) -> BatchPlan | None:
         for plan in self._plans:
-            if id(task) in plan._index_by_task:
+            if id(task) in plan._task_ids:
                 return plan
         return None
 
-    def _cancel_dependents(self, plan: BatchPlan, failed_task: RenameTask) -> None:
-        """Pre-fail every task that needed failed_task's source to vacate."""
-        for dependent in plan.transitive_dependents(failed_task):
-            if dependent.result is not None:
-                continue
-            self.queue = [o for o in self.queue if o.task is not dependent]
-            _fail_task(dependent, _prerequisite_error(failed_task))
-            self._restore_staged_if_needed(plan, dependent)
-            self.completed_tasks.append(dependent)
-            self.task_completed.emit(dependent.media_file.file_path,
-                                     dependent.result)
-
-    def _abort_cycle(self, plan: BatchPlan | None, staging_op: RenameOp) -> None:
-        """A cycle's staging rename failed: nothing in the cycle has moved,
-        so fail all its tasks (and their dependents) with clear errors."""
-        cycle_id = staging_op.cycle_id
-        staged_task = staging_op.task
-        self.queue = [o for o in self.queue if o.cycle_id != cycle_id]
-        if plan is None:
-            return
-        for task in plan.cycle_tasks(cycle_id):
-            if task.result is not None:
-                continue
-            if task is staged_task:
-                _fail_task(task, staging_op.staging_error)
-            else:
-                _fail_task(task, _prerequisite_error(staged_task))
+    def _abort_chunk(self, plan: BatchPlan | None, staging_op: RenameOp) -> None:
+        """
+        A staging rename failed, so some contested name was never vacated and
+        the chunk's commits can no longer be trusted not to collide. Nothing
+        has committed yet (staging ops all precede commits within a chunk), so
+        roll the chunk back: restore its staged files - their original names
+        are still free - and fail all its tasks. Other chunks are unaffected.
+        """
+        chunk_id = staging_op.chunk_id
+        removed = [o for o in self.queue if o.chunk_id == chunk_id]
+        self.queue = [o for o in self.queue if o.chunk_id != chunk_id]
+        chunk_tasks: list[RenameTask] = []
+        seen_ids: set[int] = set()
+        for task in [staging_op.task] + [o.task for o in removed]:
+            if id(task) not in seen_ids:
+                seen_ids.add(id(task))
+                chunk_tasks.append(task)
+        aborted_name = os.path.basename(staging_op.source)
+        for task in chunk_tasks:
+            if task.result is None:
+                if task is staging_op.task:
+                    _fail_task(task, staging_op.staging_error)
+                else:
+                    _fail_task(
+                        task,
+                        f"Not renamed: renames in this folder were aborted "
+                        f"because '{aborted_name}' could not be staged",
+                    )
+            if plan is not None:
+                self._restore_staged(plan, task)
             self.completed_tasks.append(task)
             self.task_completed.emit(task.media_file.file_path, task.result)
-            self._cancel_dependents(plan, task)
         self.progress_updated.emit(len(self.completed_tasks),
                                    self._total_tasks)
 
-    def _restore_staged_if_needed(self, plan: BatchPlan,
-                                  task: RenameTask) -> None:
+    def _restore_staged(self, plan: BatchPlan, task: RenameTask) -> None:
         """
-        If task's file was already staged at a temporary name and its final
-        rename has been cancelled, try to move it back to its original name.
-        When the original name has already been taken by another cycle member,
-        report the temporary location so the file is never lost track of.
+        Move a staged file back to its original name. When that name has been
+        taken (by a rename that already committed), report the temporary
+        location instead so the file is never lost track of.
         """
-        staging = plan.staging_for(task)
-        if staging is None:
+        staging = plan.stagings.get(id(task))
+        if staging is None or id(task) not in self._completed_stagings:
             return
-        cycle_id, temp_path, original_source = staging
-        if cycle_id not in self._completed_stagings:
-            return  # Never staged; the file is still at its original name.
-        del self._completed_stagings[cycle_id]
+        self._completed_stagings.discard(id(task))
+        temp_path, original_source = staging
         try:
             _rename_no_clobber(temp_path, original_source)
         except OSError:
@@ -977,6 +928,14 @@ class RenameDispatcher(QObject):
             task.media_file.update_file_path(temp_path)
             log.error(f"Could not restore staged file {temp_path} "
                       f"to {original_source}")
+
+    def _flush_restores_at_chunk_boundary(self, op: RenameOp) -> None:
+        """Once a chunk's last op finishes, restore its failed staged files."""
+        if self.queue and self.queue[0].chunk_id == op.chunk_id:
+            return
+        pending, self._pending_restores = self._pending_restores, []
+        for plan, task in pending:
+            self._restore_staged(plan, task)
 
     def _finish(self) -> None:
         self._is_running = False

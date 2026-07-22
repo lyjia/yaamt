@@ -172,34 +172,39 @@ def test_resolve_within_batch_case_only_owner_keeps_name():
     assert t_other.target_path == "/tmp/foo (2).mp3"
 
 
-def test_plan_batch_orders_chain():
+def test_plan_batch_stages_contested_source_in_chain():
     from workers.rename_dispatcher import plan_batch
 
-    # 1.mp3 -> 2.mp3 while 2.mp3 -> 3.mp3: the second task must run first.
+    # 1.mp3 -> 2.mp3 while 2.mp3 -> 3.mp3: 2.mp3's current name is another
+    # task's target, so it is staged out of the way before the commits.
     t1 = _bare_task("/tmp/2.mp3", source_path="/tmp/1.mp3")
     t2 = _bare_task("/tmp/3.mp3", source_path="/tmp/2.mp3")
     plan = plan_batch([t1, t2], case_insensitive=False)
 
-    assert [op.dest for op in plan.ops] == ["/tmp/3.mp3", "/tmp/2.mp3"]
-    assert not any(op.is_staging for op in plan.ops)
+    assert len(plan.ops) == 3
+    stage, commit1, commit2 = plan.ops
+    assert stage.is_staging and stage.source == "/tmp/2.mp3"
+    assert commit1.source == "/tmp/1.mp3" and commit1.dest == "/tmp/2.mp3"
+    assert commit2.source == stage.dest and commit2.dest == "/tmp/3.mp3"
     assert t1.result is None and t2.result is None
 
 
-def test_plan_batch_swap_cycle_stages_one_member():
+def test_plan_batch_swap_stages_both_members():
     from workers.rename_dispatcher import plan_batch
 
-    # a <-> b swap: one member is parked at a temp name, the other renames,
-    # then the parked member completes from the temp.
+    # a <-> b swap: both names are contested, so both files stage first and
+    # the commits cannot collide in either order.
     ta = _bare_task("/tmp/b.mp3", source_path="/tmp/a.mp3")
     tb = _bare_task("/tmp/a.mp3", source_path="/tmp/b.mp3")
     plan = plan_batch([ta, tb], case_insensitive=False)
 
-    assert len(plan.ops) == 3
-    stage, mid, final = plan.ops
-    assert stage.is_staging and stage.source == "/tmp/a.mp3"
-    assert mid.source == "/tmp/b.mp3" and mid.dest == "/tmp/a.mp3"
-    assert final.source == stage.dest and final.dest == "/tmp/b.mp3"
-    assert plan.cycle_stages[stage.cycle_id] == (stage.dest, "/tmp/a.mp3")
+    assert [op.is_staging for op in plan.ops] == [True, True, False, False]
+    stage_a, stage_b, commit_a, commit_b = plan.ops
+    assert stage_a.source == "/tmp/a.mp3"
+    assert stage_b.source == "/tmp/b.mp3"
+    assert commit_a.source == stage_a.dest and commit_a.dest == "/tmp/b.mp3"
+    assert commit_b.source == stage_b.dest and commit_b.dest == "/tmp/a.mp3"
+    assert plan.stagings[id(ta)] == (stage_a.dest, "/tmp/a.mp3")
 
 
 def test_plan_batch_case_only_rename_is_single_plain_op():
@@ -213,7 +218,18 @@ def test_plan_batch_case_only_rename_is_single_plain_op():
     assert task.result is None
 
 
-def test_plan_batch_prefails_dependents_of_immovable_tasks():
+def test_plan_batch_splits_directories_into_chunks():
+    from workers.rename_dispatcher import plan_batch
+
+    t1 = _bare_task("/tmp/one/x.mp3", source_path="/tmp/one/a.mp3")
+    t2 = _bare_task("/tmp/two/y.mp3", source_path="/tmp/two/b.mp3")
+    plan = plan_batch([t1, t2], case_insensitive=False)
+
+    assert len(plan.ops) == 2
+    assert plan.ops[0].chunk_id != plan.ops[1].chunk_id
+
+
+def test_plan_batch_prefails_tasks_targeting_immovable_names():
     from workers.rename_dispatcher import RenameResult, plan_batch
 
     # t_stuck failed at planning (e.g. render error) so its source never
@@ -229,7 +245,7 @@ def test_plan_batch_prefails_dependents_of_immovable_tasks():
     assert t_a.result is not None and t_a.result.success is False
     assert "kept by another file" in t_a.result.error
     assert t_b.result is not None and t_b.result.success is False
-    assert "prerequisite" in t_b.result.error
+    assert "kept by another file" in t_b.result.error
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX rename semantics")
@@ -413,7 +429,7 @@ def test_swap_rename_no_data_loss(tmp_path):
 
 
 def test_mid_batch_failure_reports_accurate_results(tmp_path, monkeypatch):
-    """A failed rename cancels its dependents instead of clobbering them."""
+    """A failed commit strands nothing silently and clobbers nothing."""
     from models.media_file import MediaFile
     from workers.rename_dispatcher import plan_rename
 
@@ -421,7 +437,8 @@ def test_mid_batch_failure_reports_accurate_results(tmp_path, monkeypatch):
     content_1 = Path(path_1).read_bytes()
     content_2 = Path(path_2).read_bytes()
 
-    # Fail the 2.mp3 -> 3.mp3 rename so 2.mp3 never vacates its name.
+    # Fail the (staged) 2.mp3 -> 3.mp3 commit after 1.mp3 -> 2.mp3 has taken
+    # the vacated name.
     real_replace = os.replace
 
     def failing_replace(src, dst):
@@ -437,19 +454,22 @@ def test_mid_batch_failure_reports_accurate_results(tmp_path, monkeypatch):
     ]
     summary = _run_batch(tasks)
 
-    # Per-task accounting: the failing task and its cancelled dependent.
-    assert summary["successful"] == 0
-    assert len(summary["failed"]) == 2, summary
-    errors = {os.path.basename(p): e for p, e in summary["failed"]}
-    assert "simulated I/O error" in errors["2.mp3"]
-    assert "prerequisite" in errors["1.mp3"]
-    # No bytes lost: both files remain intact under their original names.
-    assert (tmp_path / "1.mp3").read_bytes() == content_1
-    assert (tmp_path / "2.mp3").read_bytes() == content_2
+    # Per-task accounting: the first rename really succeeded; the second
+    # failed with its file's actual location reported (its old name is now
+    # legitimately taken, so it stays at the staging name).
+    assert summary["successful"] == 1
+    assert len(summary["failed"]) == 1, summary
+    failed_path, failed_error = summary["failed"][0]
+    assert "simulated I/O error" in failed_error
+    assert "temporary name" in failed_error
+    # No bytes lost: 2.mp3 holds file 1's audio, and file 2's audio is intact
+    # at the reported staging location.
+    assert (tmp_path / "2.mp3").read_bytes() == content_1
+    assert Path(failed_path).read_bytes() == content_2
 
 
-def test_cycle_failure_restores_staged_file(tmp_path, monkeypatch):
-    """When a swap's second rename fails, the staged file returns home."""
+def test_staging_failure_rolls_back_directory(tmp_path, monkeypatch):
+    """If staging fails, already-staged files return home and nothing commits."""
     from models.media_file import MediaFile
     from workers.rename_dispatcher import plan_rename
 
@@ -457,9 +477,8 @@ def test_cycle_failure_restores_staged_file(tmp_path, monkeypatch):
     content_a = Path(path_a).read_bytes()
     content_b = Path(path_b).read_bytes()
 
-    # Fail only the b.mp3 -> a.mp3 leg. Matching on the source keeps the
-    # staging rename and the temp-file restore (both of which touch a.mp3's
-    # name from other paths) working.
+    # In an a <-> b swap both files stage first; fail b.mp3's staging rename
+    # so the whole directory is rolled back before any commit runs.
     real_link = os.link
 
     def failing_link(src, dst, **kwargs):
@@ -477,10 +496,85 @@ def test_cycle_failure_restores_staged_file(tmp_path, monkeypatch):
 
     assert summary["successful"] == 0
     assert len(summary["failed"]) == 2, summary
-    # Both files are back at (or still at) their original names, intact.
+    errors = {os.path.basename(p): e for p, e in summary["failed"]}
+    assert "simulated I/O error" in errors["b.mp3"]
+    assert "aborted" in errors["a.mp3"]
+    # Both files are back at their original names, intact - no temp leftovers.
     assert sorted(p.name for p in tmp_path.iterdir()) == ["a.mp3", "b.mp3"]
     assert (tmp_path / "a.mp3").read_bytes() == content_a
     assert (tmp_path / "b.mp3").read_bytes() == content_b
+
+
+def test_failed_commits_restore_staged_files(tmp_path, monkeypatch):
+    """Staged files whose commits fail are moved back to their old names."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import _STAGING_NAME_PREFIX, plan_rename
+
+    path_a, path_b = _copy_fixtures(tmp_path, ["a.mp3", "b.mp3"])
+    content_a = Path(path_a).read_bytes()
+    content_b = Path(path_b).read_bytes()
+
+    # Swap where both commits fail (their sources are staging names); both
+    # old names stay free, so both restores must succeed. A restore renames
+    # ".yaamt-rename-x.mp3" back to "x.mp3"; only fail the other moves.
+    real_link = os.link
+
+    def failing_link(src, dst, **kwargs):
+        src_name = os.path.basename(src)
+        dst_name = os.path.basename(dst)
+        is_restore = src_name == f"{_STAGING_NAME_PREFIX}{dst_name}"
+        if src_name.startswith(_STAGING_NAME_PREFIX) and not is_restore:
+            raise OSError(5, "simulated I/O error")  # EIO
+        return real_link(src, dst, **kwargs)
+
+    monkeypatch.setattr(os, "link", failing_link)
+
+    tasks = [
+        plan_rename(MediaFile(path_a), "b", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+        plan_rename(MediaFile(path_b), "a", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+    ]
+    summary = _run_batch(tasks)
+
+    assert summary["successful"] == 0
+    assert len(summary["failed"]) == 2, summary
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.mp3", "b.mp3"]
+    assert (tmp_path / "a.mp3").read_bytes() == content_a
+    assert (tmp_path / "b.mp3").read_bytes() == content_b
+
+
+def test_directory_failure_does_not_affect_other_directories(tmp_path, monkeypatch):
+    """Chunks are independent: an aborted directory leaves others untouched."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import plan_rename
+
+    dir_one = tmp_path / "one"
+    dir_two = tmp_path / "two"
+    dir_one.mkdir()
+    dir_two.mkdir()
+    path_a, path_b = _copy_fixtures(dir_one, ["a.mp3", "b.mp3"])
+    (path_c,) = _copy_fixtures(dir_two, ["c.mp3"])
+
+    # Abort dir_one's swap at staging time; dir_two's rename must proceed.
+    real_link = os.link
+
+    def failing_link(src, dst, **kwargs):
+        if os.path.basename(src) == "b.mp3":
+            raise OSError(5, "simulated I/O error")  # EIO
+        return real_link(src, dst, **kwargs)
+
+    monkeypatch.setattr(os, "link", failing_link)
+
+    tasks = [
+        plan_rename(MediaFile(path_a), "b", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+        plan_rename(MediaFile(path_b), "a", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+        plan_rename(MediaFile(path_c), "renamed", RENAME_COLLISION_AUTO_DISAMBIGUATE),
+    ]
+    summary = _run_batch(tasks)
+
+    assert summary["successful"] == 1
+    assert len(summary["failed"]) == 2, summary
+    assert sorted(p.name for p in dir_one.iterdir()) == ["a.mp3", "b.mp3"]
+    assert sorted(p.name for p in dir_two.iterdir()) == ["renamed.mp3"]
 
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt signals require running event loop")
