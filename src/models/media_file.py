@@ -297,6 +297,17 @@ class MediaFile:
     def file_id(self) -> int:
         return self._file_id
 
+    def update_file_path(self, new_path: str) -> None:
+        """
+        Point this MediaFile at a new on-disk location after a rename.
+
+        Only the cached path is updated. _file_id (and the identity keys that
+        EditManager and the file model derive from it) intentionally remain
+        based on the original path until the file-identity refactor lands;
+        callers such as the rename flow trigger a full rescan afterwards.
+        """
+        self._file_path = os.path.abspath(new_path)
+
     @property
     def length_in_seconds(self) -> float:
         """

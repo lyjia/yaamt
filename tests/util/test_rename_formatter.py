@@ -269,6 +269,24 @@ def test_sanitize_filename_empty_input():
     assert sanitize_filename("///") == ""
 
 
+def test_sanitize_filename_defuses_windows_reserved_device_names():
+    # Reserved regardless of case; the appended '_' keeps the name usable.
+    assert sanitize_filename("CON") == "CON_"
+    assert sanitize_filename("con") == "con_"
+    assert sanitize_filename("PRN") == "PRN_"
+    assert sanitize_filename("NUL") == "NUL_"
+    assert sanitize_filename("COM3") == "COM3_"
+    assert sanitize_filename("LPT9") == "LPT9_"
+    # Windows reserves by the portion before the first dot.
+    assert sanitize_filename("CON.mix") == "CON_.mix"
+
+
+def test_sanitize_filename_leaves_non_reserved_names_alone():
+    assert sanitize_filename("CONCERT") == "CONCERT"
+    assert sanitize_filename("COM10") == "COM10"
+    assert sanitize_filename("Console.Wars") == "Console.Wars"
+
+
 def test_build_token_map_from_dict_uses_uppercase_keys():
     tokens = build_token_map_from_dict(SAMPLE_RENAME_METADATA)
     # Dereference the sample constant directly so these stay green when the

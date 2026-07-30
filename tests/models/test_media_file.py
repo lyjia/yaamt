@@ -286,3 +286,21 @@ def test_initial_key_read_write(tmp_path, monkeypatch):
     media_file_final = MediaFile(str(temp_media_path))
     assert media_file_final.get_tag_simple(KEY_INITIAL_KEY) == new_key, \
         f"Expected final initial_key to be '{new_key}', but got '{media_file_final.get_tag_simple(KEY_INITIAL_KEY)}'"
+
+
+def test_update_file_path(tmp_path):
+    """update_file_path repoints the cached path but leaves file_id untouched."""
+    temp_media_path = tmp_path / SOURCE_FILE.name
+    shutil.copy(SOURCE_FILE, temp_media_path)
+
+    media_file = MediaFile(str(temp_media_path))
+    original_id = media_file.file_id
+
+    new_path = tmp_path / "renamed.mp3"
+    os.rename(temp_media_path, new_path)
+    media_file.update_file_path(str(new_path))
+
+    assert media_file.file_path == os.path.abspath(str(new_path))
+    # Identity intentionally stays keyed to the original path until the
+    # file-identity refactor; EditManager lookups depend on this.
+    assert media_file.file_id == original_id
