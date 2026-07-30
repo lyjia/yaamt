@@ -19,7 +19,7 @@ class PlaybackCoordinator(QObject):
     """
 
     request_release = Signal(str, object)   # file_path, threading.Event
-    request_reacquire = Signal()
+    request_reacquire = Signal(object)      # new file path (str) or None
 
     RELEASE_TIMEOUT_SECONDS = 10.0
 
@@ -67,4 +67,4 @@ class PlaybackCoordinator(QObject):
         if self._released_file_path == normalized:
             log.info(f"PlaybackCoordinator: releasing file after write: {file_path}")
             self._released_file_path = None
-            self.request_reacquire.emit()
+            self.request_reacquire.emit(None)

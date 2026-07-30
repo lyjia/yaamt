@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 import miniaudio
 from unittest.mock import MagicMock, patch, PropertyMock
@@ -49,7 +51,13 @@ def mock_media_file(mock_audio_stream):
 @pytest.fixture
 def playback_worker(qapp):
     """Fixture to create a PlaybackWorker instance."""
-    return PlaybackWorker()
+    worker = PlaybackWorker()
+    yield worker
+    # Deterministic teardown: a started position timer must not outlive the
+    # test, or it fires into a destroyed QObject when a later test pumps the
+    # event loop (intermittent segfault/bus error mid-suite).
+    worker.timer.stop()
+    worker.state = STOPPED
 
 
 @pytest.fixture
@@ -351,3 +359,126 @@ class TestPlaybackWorker:
 
         # Verify get_audio_stream was called with None (all native = no adaptation needed)
         mock_media_file.get_audio_stream.assert_called_once_with(None)
+
+
+class TestPlaybackWorkerReleaseReacquire:
+    """Tests for the release/reacquire handshake used during file writes."""
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_release_for_write_saves_state_and_emits_paused(
+            self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        playback_worker.start_playback(mock_media_file)
+        playback_worker.total_frames_read = 44100 * 3  # 3 seconds in
+
+        paused_spy = MagicMock()
+        playback_worker.playback_paused.connect(paused_spy)
+
+        event = threading.Event()
+        playback_worker.release_for_write("test.mp3", event)
+
+        assert event.is_set()
+        assert playback_worker.state == STOPPED
+        assert playback_worker._release_file_path == "test.mp3"
+        assert playback_worker._release_was_playing is True
+        assert playback_worker._release_saved_position == pytest.approx(3.0)
+        mock_miniaudio['device_mock'].close.assert_called_once()
+        mock_audio_stream.close.assert_called_once()
+        paused_spy.assert_called_once_with("test.mp3", 10.0)
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_release_for_write_non_matching_file_only_sets_event(
+            self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        playback_worker.start_playback(mock_media_file)
+
+        event = threading.Event()
+        playback_worker.release_for_write("other.mp3", event)
+
+        assert event.is_set()
+        assert playback_worker.state == PLAYING
+        assert playback_worker._release_file_path is None
+        mock_audio_stream.close.assert_not_called()
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_reacquire_after_write_resumes_at_position(
+            self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        playback_worker.start_playback(mock_media_file)
+        playback_worker.total_frames_read = 44100 * 3
+        playback_worker.release_for_write("test.mp3", threading.Event())
+
+        with patch('workers.gui.playback_worker.MediaFile',
+                   return_value=mock_media_file) as media_file_cls:
+            playback_worker.reacquire_after_write()
+
+        media_file_cls.assert_called_once_with("test.mp3")
+        assert playback_worker.state == PLAYING
+        assert playback_worker.total_frames_read == 44100 * 3
+        mock_audio_stream.seek.assert_called_with(44100 * 3)
+        assert playback_worker._release_file_path is None
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_reacquire_after_write_repauses_when_was_paused(
+            self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        playback_worker.start_playback(mock_media_file)
+        playback_worker.pause()
+        playback_worker.release_for_write("test.mp3", threading.Event())
+
+        with patch('workers.gui.playback_worker.MediaFile',
+                   return_value=mock_media_file):
+            playback_worker.reacquire_after_write()
+
+        assert playback_worker.state == PAUSED
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_reacquire_with_new_path_opens_new_file(
+            self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        playback_worker.start_playback(mock_media_file)
+        playback_worker.release_for_write("test.mp3", threading.Event())
+
+        renamed_media_file = MagicMock(spec=MediaFile)
+        renamed_media_file.file_path = "renamed.mp3"
+        renamed_media_file.get_audio_stream.return_value = mock_audio_stream
+
+        started_spy = MagicMock()
+        playback_worker.playback_started.connect(started_spy)
+
+        with patch('workers.gui.playback_worker.MediaFile',
+                   return_value=renamed_media_file) as media_file_cls:
+            playback_worker.reacquire_after_write("renamed.mp3")
+
+        media_file_cls.assert_called_once_with("renamed.mp3")
+        assert playback_worker.current_file == "renamed.mp3"
+        started_spy.assert_called_once_with("renamed.mp3", 10.0)
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_stop_during_release_window_cancels_reacquire(
+            self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        playback_worker.start_playback(mock_media_file)
+        playback_worker.release_for_write("test.mp3", threading.Event())
+
+        stopped_spy = MagicMock()
+        playback_worker.playback_stopped.connect(stopped_spy)
+
+        playback_worker.stop()
+
+        stopped_spy.assert_called_once()
+        assert playback_worker._release_file_path is None
+
+        # The write completing must not resurrect playback.
+        with patch('workers.gui.playback_worker.MediaFile') as media_file_cls:
+            playback_worker.reacquire_after_write()
+        media_file_cls.assert_not_called()
+        assert playback_worker.state == STOPPED
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_stop_clears_current_file_so_release_skips(
+            self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        playback_worker.start_playback(mock_media_file)
+        playback_worker.stop()
+
+        assert playback_worker.current_file is None
+
+        event = threading.Event()
+        playback_worker.release_for_write("test.mp3", event)
+
+        assert event.is_set()
+        assert playback_worker._release_file_path is None
