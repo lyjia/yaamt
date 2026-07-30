@@ -591,7 +591,13 @@ class MainWindow(QMainWindow):
         if col_settings:
             col_settings.is_visible = checked
 
-    def setup_columns_in_view_menu(self, view_menu):
+    def _rebuild_column_menu(self) -> None:
+        """
+        Rebuild the Columns submenu to match the current file model columns.
+
+        Only the submenu is rebuilt; the View menu itself is constructed once
+        in _create_menus() so its other actions are never wiped.
+        """
         self.column_menu.clear()
         for i in range(self.file_model.columnCount()):
             action = QAction(self.file_model.headerData(i, Qt.Horizontal), self)
@@ -600,12 +606,6 @@ class MainWindow(QMainWindow):
             action.setData(i)
             action.toggled.connect(lambda checked, index=i: self.toggle_column(index, checked))
             self.column_menu.addAction(action)
-        view_menu.clear()
-        view_menu.addMenu(self.column_menu)
-        action_reset_columns = QAction("Reset Columns", self)
-
-        action_reset_columns.triggered.connect(self._reset_column_settings)
-        self.view_menu.addAction(action_reset_columns)
 
     def open_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Select Folder", self._current_path)
@@ -705,7 +705,11 @@ class MainWindow(QMainWindow):
 
         # View Menu
         self.view_menu = self.menuBar().addMenu("&View")
-        self.setup_columns_in_view_menu(self.view_menu)
+        self._rebuild_column_menu()
+        self.view_menu.addMenu(self.column_menu)
+        action_reset_columns = QAction("Reset Columns", self)
+        action_reset_columns.triggered.connect(self._reset_column_settings)
+        self.view_menu.addAction(action_reset_columns)
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.action_show_playback_panel)
 
@@ -1540,7 +1544,7 @@ class MainWindow(QMainWindow):
         self.file_model = MetadataTableModel(self.file_list_settings.columns, self.edit_manager)
         self.proxy_model.setSourceModel(self.file_model)
         self._apply_column_settings()
-        self.setup_columns_in_view_menu(self.view_menu)
+        self._rebuild_column_menu()
 
     def _get_column_settings_by_logical_index(self, logical_index):
         if logical_index < 0 or logical_index >= len(self._logical_column_ids):
