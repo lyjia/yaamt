@@ -8,10 +8,15 @@ already imported when it runs, and this module imports main_window
 lazily inside the tests (same pattern as the autosave test suite).
 """
 
+import shutil
+
 import pytest
 from unittest.mock import patch
 
-from util.const import IN_GITHUB_RUNNER, KEY_FILE_PATH
+from util.const import IN_GITHUB_RUNNER, KEY_FILE_PATH, KEY_TITLE, PROJECT_ROOT
+
+
+FIXTURE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "sample_dtmf_unicode.mp3"
 
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
@@ -77,11 +82,82 @@ class TestMainWindowRefresh:
     def test_view_menu_survives_reset_columns(self, main_window):
         actions_before = main_window.view_menu.actions()
         assert main_window.action_show_playback_panel in actions_before
+        assert main_window.action_refresh in actions_before
 
         main_window._reset_column_settings()
 
         actions_after = main_window.view_menu.actions()
         assert main_window.action_show_playback_panel in actions_after
+        assert main_window.action_refresh in actions_after
         # The column submenu and Reset Columns entry must still be present.
         assert main_window.column_menu.menuAction() in actions_after
         assert any(a.text() == "Reset Columns" for a in actions_after)
+
+    def test_refresh_action_wiring(self, main_window):
+        from PySide6.QtGui import QKeySequence
+
+        # One action, two surfaces: toolbar and View menu.
+        assert main_window.action_refresh in main_window.toolbar.actions()
+        assert main_window.action_refresh in main_window.view_menu.actions()
+        assert QKeySequence("F5") in main_window.action_refresh.shortcuts()
+
+        with patch.object(main_window, 'on_refresh_requested') as handler:
+            main_window.action_refresh.trigger()
+        handler.assert_called_once()
+
+    def test_refresh_ignored_when_directory_unavailable(self, main_window, tmp_path):
+        gone = tmp_path / "gone"
+        gone.mkdir()
+        with patch.object(main_window.thread_pool, "start"):
+            main_window._load_directory(str(gone))
+            gone.rmdir()
+            worker_id_before = main_window._current_worker_id
+            main_window.on_refresh_requested()
+        assert main_window._current_worker_id == worker_id_before
+
+    def test_directory_pane_rebuild_restores_current_and_reconnects(self, main_window, tmp_path):
+        dir_a = tmp_path / "a"
+        dir_a.mkdir()
+        dir_b = tmp_path / "b"
+        dir_b.mkdir()
+
+        with patch.object(main_window.thread_pool, "start"):
+            main_window._load_directory(str(dir_a))
+            old_model = main_window.dir_model
+            worker_id_before = main_window._current_worker_id
+
+            main_window._refresh_directory_pane()
+
+            # Fresh model installed on the view, current directory restored,
+            # and the signal-blocked restore did not start a competing load.
+            assert main_window.dir_model is not old_model
+            assert main_window.directory_tree.model() is main_window.dir_model
+            current = main_window.directory_tree.currentIndex()
+            assert main_window.dir_model.filePath(current) == str(dir_a)
+            assert main_window._current_worker_id == worker_id_before
+
+            # Real navigation must still reach on_directory_changed through
+            # the recreated selection model.
+            main_window.directory_tree.setCurrentIndex(main_window.dir_model.index(str(dir_b)))
+            assert main_window._current_path == str(dir_b)
+            assert main_window._current_worker_id == worker_id_before + 1
+
+    def test_staged_edits_survive_refresh(self, main_window, tmp_path):
+        from models.media_file import MediaFile
+
+        target = tmp_path / "sample.mp3"
+        shutil.copy(FIXTURE, target)
+
+        edit_manager = main_window.edit_manager
+        edit_manager.set_autosave(False)
+        media_file = MediaFile(str(target))  # read-only; never saved here
+        edit_manager.register_media_files([media_file])
+        edit_manager.stage_change([media_file], KEY_TITLE, "Queued Title")
+        assert edit_manager.has_staged_changes()
+
+        with patch.object(main_window.thread_pool, "start"):
+            main_window._load_directory(str(tmp_path))
+            main_window.on_refresh_requested()
+
+        assert edit_manager.has_staged_changes()
+        assert edit_manager.get_staged_value(media_file.file_id, KEY_TITLE) == "Queued Title"

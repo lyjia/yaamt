@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
     QDialog, QToolButton
 )
-from PySide6.QtGui import QAction, QActionGroup, QIcon
+from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtCore import (
     QDir, QThreadPool, Qt, QSignalBlocker, QSortFilterProxyModel, QThread,
     QTimer, Slot, Signal
@@ -87,8 +87,10 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(action_open)
 
         refresh_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
-        action_refresh = QAction(refresh_icon, "Refresh", self)
-        self.toolbar.addAction(action_refresh)
+        self.action_refresh = QAction(refresh_icon, "Refresh", self)
+        self.action_refresh.setShortcut(QKeySequence(Qt.Key.Key_F5))
+        self.action_refresh.triggered.connect(self.on_refresh_requested)
+        self.toolbar.addAction(self.action_refresh)
 
         # Add Favorites toolbar button
         self.favorites_button = QToolButton()
@@ -136,13 +138,7 @@ class MainWindow(QMainWindow):
 
         # Left Pane (Directory Tree)
         self.directory_tree = QTreeView()
-        self.dir_model = QFileSystemModel()
-        self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
-        self.dir_model.setRootPath("")
-        self.directory_tree.setModel(self.dir_model)
-        self.directory_tree.setRootIndex(self.dir_model.index(""))
-        for i in range(1, self.dir_model.columnCount()):
-            self.directory_tree.hideColumn(i)
+        self._install_dir_model()
         splitter.addWidget(self.directory_tree)
 
         # Connect to EditManager signals
@@ -206,8 +202,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
 
-        # Connect the panes
-        self.directory_tree.selectionModel().currentChanged.connect(self.on_directory_changed)
+        # Connect the panes (the directory tree is wired in _install_dir_model)
         self.files_view.selectionModel().selectionChanged.connect(self.update_file_actions)
 
         # Connect header signals
@@ -350,6 +345,57 @@ class MainWindow(QMainWindow):
         index = self.dir_model.index(path)
         self.directory_tree.setCurrentIndex(index)
         settings.setValue("last_path", path)
+
+    def _install_dir_model(self) -> None:
+        """
+        (Re)create the directory tree's QFileSystemModel and wire it up.
+
+        Shared by __init__ and _refresh_directory_pane: QFileSystemModel has
+        no public API to re-read the filesystem, so a manual refresh installs
+        a fresh model through this same path.
+        """
+        self.dir_model = QFileSystemModel()
+        self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
+        self.dir_model.setRootPath("")
+        self.directory_tree.setModel(self.dir_model)
+        self.directory_tree.setRootIndex(self.dir_model.index(""))
+        for i in range(1, self.dir_model.columnCount()):
+            self.directory_tree.hideColumn(i)
+        # setModel() replaces the view's selection model, so the navigation
+        # signal must be (re)connected on every install.
+        self.directory_tree.selectionModel().currentChanged.connect(self.on_directory_changed)
+
+    def _refresh_directory_pane(self) -> None:
+        """
+        Force the directory tree to re-read the filesystem by replacing its
+        model, then restore the current directory. Revealing the restored
+        index re-expands the path to it, matching the state right after a
+        normal navigation.
+        """
+        old_model = self.dir_model
+        self._install_dir_model()
+        old_model.deleteLater()
+        # Block the fresh selection model's signals: setCurrentIndex would
+        # otherwise emit currentChanged and start a competing load without
+        # the caller's selection restore.
+        with QSignalBlocker(self.directory_tree.selectionModel()):
+            self.directory_tree.setCurrentIndex(self.dir_model.index(self._current_path))
+
+    def on_refresh_requested(self) -> None:
+        """
+        Manually reload both panes (F5 / View > Refresh / toolbar button) as
+        if the user had just navigated to the current directory, restoring
+        the file selection once the reload completes.
+        """
+        if not self._current_path or not os.path.isdir(self._current_path):
+            log.warning(f"Cannot refresh: {self._current_path!r} is not a directory")
+            self.status_label.setText("Cannot refresh: current directory is unavailable.")
+            return
+
+        log.info(f"Manual refresh of {self._current_path}")
+        selected = self._get_selected_file_paths()
+        self._refresh_directory_pane()
+        self._load_directory(self._current_path, restore_selection=selected)
 
     def on_directory_changed(self, current, previous):
         path = self.dir_model.filePath(current)
@@ -741,6 +787,8 @@ class MainWindow(QMainWindow):
         self.view_menu.addAction(action_reset_columns)
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.action_show_playback_panel)
+        self.view_menu.addSeparator()
+        self.view_menu.addAction(self.action_refresh)
 
         # Favorites Menu - shared between menu bar and toolbar
         self.favorites_menu = self._create_favorites_menu()
