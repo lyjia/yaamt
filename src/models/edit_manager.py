@@ -294,7 +294,12 @@ class EditManager(QObject):
         worker = _CommitWorker(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        thread.finished.connect(worker.deleteLater)
+        # The worker is NOT deleteLater'd on the dying thread: that queues
+        # its C++ deletion on the commit thread while the main thread may
+        # concurrently drop the last Python reference, and the two
+        # deletions race (intermittent segfault). Instead both objects are
+        # owned by the Python references below and are released on the
+        # main thread once the OS thread has fully stopped.
         # Identity-checked cleanup: if a newer commit replaced the
         # references before this (queued) cleanup runs, leave them alone.
         thread.finished.connect(lambda t=thread: self._on_commit_thread_finished(t))
@@ -309,6 +314,11 @@ class EditManager(QObject):
         return True
 
     def _on_commit_thread_finished(self, thread: QThread) -> None:
+        # Runs on the main thread (queued) after finished() is emitted.
+        # The OS thread may still be inside its cleanup at that point;
+        # wait() ensures it has fully stopped before the Python references
+        # -- and with them the underlying C++ objects -- are released.
+        thread.wait()
         if self._commit_thread is thread:
             self._commit_thread = None
             self._commit_worker = None
