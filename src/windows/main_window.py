@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction, QActionGroup, QIcon
 from PySide6.QtCore import (
-    QDir, QThreadPool, Qt, QSortFilterProxyModel, QThread, QTimer, Slot, Signal
+    QDir, QThreadPool, Qt, QSignalBlocker, QSortFilterProxyModel, QThread,
+    QTimer, Slot, Signal
 )
 
 import windows
@@ -61,6 +62,9 @@ class MainWindow(QMainWindow):
         self._current_worker_id = 0
         self._saved_sort_column = None
         self._saved_sort_order = None
+        # File paths to re-select once the current load finishes. Only a
+        # manual refresh sets this; normal navigation always clears it.
+        self._pending_selection_paths = None
 
         # Playback components
         self.playback_panel = PlaybackPanel()
@@ -348,13 +352,31 @@ class MainWindow(QMainWindow):
         settings.setValue("last_path", path)
 
     def on_directory_changed(self, current, previous):
+        path = self.dir_model.filePath(current)
+        self._load_directory(path)
+
+    def _load_directory(self, path: str, restore_selection: list[str] | None = None) -> None:
+        """
+        Reload the file pane with the contents of the given directory.
+
+        Args:
+            path: Directory to scan.
+            restore_selection: File paths to re-select once the load
+                finishes. Normal navigation must leave this as None so a
+                superseded refresh never restores a stale selection.
+        """
+        self._pending_selection_paths = restore_selection
+
         # Cancel any existing load operation
         if self._current_load_worker is not None:
             log.debug("Cancelling previous load worker due to directory change")
             self._current_load_worker.cancel()
 
-        path = self.dir_model.filePath(current)
-        self.set_path(path)
+        # set_path re-points the directory tree's current index. Block the
+        # tree's selection signals so that a changed index cannot re-enter
+        # on_directory_changed and start a second, competing load.
+        with QSignalBlocker(self.directory_tree.selectionModel()):
+            self.set_path(path)
 
         # Clear the model for the new directory
         self.file_model.set_entire_data([])
@@ -498,6 +520,13 @@ class MainWindow(QMainWindow):
 
         # Re-enable sorting
         self.files_view.setSortingEnabled(True)
+
+        # Restore the selection captured by a manual refresh. The worker-id
+        # guard above ensures a refresh superseded by navigation never gets
+        # here with a stale pending list.
+        if self._pending_selection_paths:
+            self._on_select_analyzer_files(self._pending_selection_paths)
+        self._pending_selection_paths = None
 
         self.progress_bar.hide()
         self.cancel_button.hide()
@@ -1093,7 +1122,7 @@ class MainWindow(QMainWindow):
         if paths_changed and self._current_path:
             # Full rescan: file paths have changed (e.g. after rename).
             log.info("Batch changed file paths; triggering full directory rescan")
-            self.set_path(self._current_path)
+            self._load_directory(self._current_path)
             return
 
         file_ids = [mf.file_id for mf in media_files]
@@ -1117,19 +1146,7 @@ class MainWindow(QMainWindow):
         then drives a RenameDispatcher through the shared progress/summary
         dialogs and refreshes the file list.
         """
-        selected_indexes = self.files_view.selectionModel().selectedRows()
-        if not selected_indexes:
-            log.debug("No files selected for rename")
-            return
-
-        media_files = []
-        for index in selected_indexes:
-            source_index = self.proxy_model.mapToSource(index)
-            row_data = self.file_model.get_data_for_row(row=source_index.row())
-            file_path = row_data.get(KEY_FILE_PATH)
-            if file_path and row_data.get(KEY_IS_MEDIA):
-                media_files.append(MediaFile(file_path, enable_write=True))
-
+        media_files = self._get_selected_media_files()
         if not media_files:
             log.debug("No valid media files selected for rename")
             return
@@ -1192,7 +1209,7 @@ class MainWindow(QMainWindow):
             # on-completion refresh already updated the list, but a rescan
             # ensures any new files, timestamps, etc. are picked up cleanly.
             if self._current_path:
-                self.set_path(self._current_path)
+                self._load_directory(self._current_path)
 
     @Slot(list)
     def _on_select_analyzer_files(self, file_paths: list):
@@ -1399,21 +1416,33 @@ class MainWindow(QMainWindow):
         menu.clear()
         self._populate_favorites_menu(menu)
 
-    def open_properties_window(self):
-        selected_indexes = self.files_view.selectionModel().selectedRows()
-        log.debug(f"selectedIndexes from selectionModel: {selected_indexes} (type: {type(selected_indexes)})")
-
-        if not selected_indexes:
-            log.debug("No selected indexes, returning.")
-            return
-
-        media_files = []
-        for index in selected_indexes:
+    def _get_selected_row_data(self) -> list[dict]:
+        """Row data dicts for the currently selected file rows."""
+        rows = []
+        for index in self.files_view.selectionModel().selectedRows():
             source_index = self.proxy_model.mapToSource(index)
-            row_data = self.file_model.get_data_for_row( row=source_index.row() )
+            rows.append(self.file_model.get_data_for_row(row=source_index.row()))
+        return rows
+
+    def _get_selected_file_paths(self) -> list[str]:
+        """File paths of all currently selected rows."""
+        return [
+            row_data.get(KEY_FILE_PATH)
+            for row_data in self._get_selected_row_data()
+            if row_data.get(KEY_FILE_PATH)
+        ]
+
+    def _get_selected_media_files(self) -> list[MediaFile]:
+        """Writable MediaFile instances for the selected media-file rows."""
+        media_files = []
+        for row_data in self._get_selected_row_data():
             file_path = row_data.get(KEY_FILE_PATH)
             if file_path and row_data.get(KEY_IS_MEDIA):
                 media_files.append(MediaFile(file_path, enable_write=True))
+        return media_files
+
+    def open_properties_window(self):
+        media_files = self._get_selected_media_files()
 
         if media_files:
             self.properties_window = windows.PropertiesWindow(media_files, self.edit_manager, self)

@@ -11,7 +11,7 @@ lazily inside the tests (same pattern as the autosave test suite).
 import pytest
 from unittest.mock import patch
 
-from util.const import IN_GITHUB_RUNNER
+from util.const import IN_GITHUB_RUNNER, KEY_FILE_PATH
 
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
@@ -29,6 +29,50 @@ class TestMainWindowRefresh:
             window.edit_manager.reset_changes()
             window.edit_manager.set_autosave(True)
             window.close()
+
+    @staticmethod
+    def _complete_load(main_window, directory, file_paths, restore_selection=None):
+        """
+        Drive _load_directory through a synchronous fake of the async load:
+        the thread pool is stubbed out, rows are injected by hand, and the
+        worker-finished handler is invoked directly.
+        """
+        with patch.object(main_window.thread_pool, "start"):
+            main_window._load_directory(str(directory), restore_selection=restore_selection)
+            main_window.file_model.add_rows([{KEY_FILE_PATH: p} for p in file_paths])
+            main_window.on_worker_finished(main_window._current_worker_id)
+
+    def test_refresh_restores_selection_after_load(self, main_window, tmp_path):
+        paths = [str(tmp_path / f"track{i}.mp3") for i in range(3)]
+
+        self._complete_load(main_window, tmp_path, paths,
+                            restore_selection=[paths[0], paths[2]])
+
+        assert sorted(main_window._get_selected_file_paths()) == sorted([paths[0], paths[2]])
+        assert main_window._pending_selection_paths is None
+
+    def test_normal_navigation_does_not_restore_selection(self, main_window, tmp_path):
+        paths = [str(tmp_path / f"track{i}.mp3") for i in range(2)]
+        # A stale pending list from an earlier refresh must be discarded by
+        # plain navigation.
+        main_window._pending_selection_paths = paths
+
+        self._complete_load(main_window, tmp_path, paths)
+
+        assert main_window._get_selected_file_paths() == []
+        assert main_window._pending_selection_paths is None
+
+    def test_stale_worker_does_not_restore_selection(self, main_window, tmp_path):
+        paths = [str(tmp_path / "track0.mp3")]
+
+        with patch.object(main_window.thread_pool, "start"):
+            main_window._load_directory(str(tmp_path), restore_selection=paths)
+            main_window.file_model.add_rows([{KEY_FILE_PATH: p} for p in paths])
+            # A finished signal from a superseded worker must be ignored.
+            main_window.on_worker_finished(main_window._current_worker_id - 1)
+
+        assert main_window._get_selected_file_paths() == []
+        assert main_window._pending_selection_paths == paths
 
     def test_view_menu_survives_reset_columns(self, main_window):
         actions_before = main_window.view_menu.actions()
