@@ -45,7 +45,48 @@ class MultiSelectPreservingTreeView(QTreeView):
     mousePressEvent short-circuits super() in the multi-select case, that
     pressedIndex stays stale and the default handler would not emit
     doubleClicked, so the override emits it explicitly.
+
+    moveCursor is overridden because QTreeView maps MoveNext/MovePrevious
+    (what Qt's editor-close machinery emits on Tab/Backtab) to the same
+    paths as MoveDown/MoveUp, so tabbing out of an inline editor jumps a
+    row instead of a column. The override walks editable cells in visual
+    column order (skipping hidden and read-only columns), wrapping to the
+    next/previous row only past the last/first editable column.
     """
+
+    def moveCursor(
+        self, cursorAction: QTreeView.CursorAction, modifiers: Qt.KeyboardModifier
+    ) -> QModelIndex:
+        tab_actions = (QTreeView.CursorAction.MoveNext, QTreeView.CursorAction.MovePrevious)
+        current = self.currentIndex()
+        if cursorAction not in tab_actions or not current.isValid():
+            return super().moveCursor(cursorAction, modifiers)
+
+        step = 1 if cursorAction == QTreeView.CursorAction.MoveNext else -1
+        header = self.header()
+        visual_order = [
+            header.logicalIndex(v)
+            for v in range(header.count())
+            if not header.isSectionHidden(header.logicalIndex(v))
+        ]
+        if step < 0:
+            visual_order.reverse()
+
+        model = self.model()
+        row = current.row()
+        # Cells strictly after the current one in traversal order: remainder
+        # of the current row, then every cell of subsequent rows. A current
+        # column that is hidden cannot appear in visual_order; restart the
+        # scan of its row from the beginning in that case.
+        start = visual_order.index(current.column()) + 1 if current.column() in visual_order else 0
+        while 0 <= row < model.rowCount():
+            for column in visual_order[start:]:
+                index = model.index(row, column)
+                if index.flags() & Qt.ItemFlag.ItemIsEditable:
+                    return index
+            row += step
+            start = 0
+        return QModelIndex()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if self._is_middle_click_on_index(event):

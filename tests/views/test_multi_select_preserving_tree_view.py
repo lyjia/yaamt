@@ -245,3 +245,91 @@ def test_double_click_on_unselected_row_collapses_selection(qapp):
     )
 
     assert _selected_rows_set(view) == {4}
+
+
+# Tab-navigation tests: 3 rows x 4 columns where columns 0 and 2 are
+# read-only (like Filename/Size in the real file view) and columns 1 and 3
+# are editable. moveCursor(MoveNext/MovePrevious) must walk editable cells
+# column-first, wrapping rows only at the ends.
+TAB_ROWS = 3
+TAB_EDITABLE_COLS = (1, 3)
+
+
+def _make_tab_view(qapp):
+    model = QStandardItemModel(TAB_ROWS, 4)
+    for row in range(TAB_ROWS):
+        for col in range(4):
+            item = QStandardItem(f"r{row}c{col}")
+            item.setEditable(col in TAB_EDITABLE_COLS)
+            model.setItem(row, col, item)
+
+    view = MultiSelectPreservingTreeView()
+    view.setModel(model)
+    view.resize(400, 300)
+    view.show()
+    QTest.qWaitForWindowExposed(view)
+    return view, model
+
+
+def _move(view, model, row, col, action):
+    view.setCurrentIndex(model.index(row, col))
+    return view.moveCursor(action, Qt.KeyboardModifier.NoModifier)
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason=SKIP_REASON)
+def test_tab_moves_to_next_editable_column_in_same_row(qapp):
+    view, model = _make_tab_view(qapp)
+    result = _move(view, model, 0, 1, MultiSelectPreservingTreeView.CursorAction.MoveNext)
+    assert (result.row(), result.column()) == (0, 3)
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason=SKIP_REASON)
+def test_tab_from_last_editable_column_wraps_to_next_row(qapp):
+    view, model = _make_tab_view(qapp)
+    result = _move(view, model, 0, 3, MultiSelectPreservingTreeView.CursorAction.MoveNext)
+    assert (result.row(), result.column()) == (1, 1)
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason=SKIP_REASON)
+def test_backtab_moves_to_previous_editable_column_in_same_row(qapp):
+    view, model = _make_tab_view(qapp)
+    result = _move(view, model, 0, 3, MultiSelectPreservingTreeView.CursorAction.MovePrevious)
+    assert (result.row(), result.column()) == (0, 1)
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason=SKIP_REASON)
+def test_backtab_from_first_editable_column_wraps_to_previous_row(qapp):
+    view, model = _make_tab_view(qapp)
+    result = _move(view, model, 1, 1, MultiSelectPreservingTreeView.CursorAction.MovePrevious)
+    assert (result.row(), result.column()) == (0, 3)
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason=SKIP_REASON)
+def test_tab_at_end_of_last_row_returns_invalid_index(qapp):
+    view, model = _make_tab_view(qapp)
+    result = _move(
+        view, model, TAB_ROWS - 1, 3, MultiSelectPreservingTreeView.CursorAction.MoveNext
+    )
+    assert not result.isValid()
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason=SKIP_REASON)
+def test_backtab_at_start_of_first_row_returns_invalid_index(qapp):
+    view, model = _make_tab_view(qapp)
+    result = _move(view, model, 0, 1, MultiSelectPreservingTreeView.CursorAction.MovePrevious)
+    assert not result.isValid()
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason=SKIP_REASON)
+def test_tab_skips_hidden_editable_column(qapp):
+    view, model = _make_tab_view(qapp)
+    view.header().setSectionHidden(3, True)
+    result = _move(view, model, 0, 1, MultiSelectPreservingTreeView.CursorAction.MoveNext)
+    assert (result.row(), result.column()) == (1, 1)
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason=SKIP_REASON)
+def test_non_tab_cursor_actions_fall_through_to_default(qapp):
+    view, model = _make_tab_view(qapp)
+    result = _move(view, model, 0, 1, MultiSelectPreservingTreeView.CursorAction.MoveDown)
+    assert result.row() == 1
