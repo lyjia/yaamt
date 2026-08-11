@@ -1219,6 +1219,16 @@ class MainWindow(QMainWindow):
         dispatcher = RenameDispatcher(self)
         dispatcher.enqueue(media_files, format_string, collision_mode)
 
+        # If the currently playing file is part of the batch, pause
+        # playback for the batch's duration; the completion handler below
+        # resumes it at the file's new location (analysis_completed fires
+        # on both normal completion and cancel). Connected before the
+        # refresh so playback is repointed before the list reloads.
+        self.playback_coordinator.begin_rename_batch(media_files)
+        dispatcher.analysis_completed.connect(
+            self.playback_coordinator.end_rename_batch
+        )
+
         # Immediate post-completion refresh (before summary dialog shows).
         dispatcher.analysis_completed.connect(
             lambda: self._refresh_after_batch(media_files)
@@ -1239,6 +1249,10 @@ class MainWindow(QMainWindow):
 
         dispatcher.start()
         result = progress_dialog.exec()
+
+        # Safety net (idempotent): if the dialog exited without the batch
+        # emitting analysis_completed, playback must not stay released.
+        self.playback_coordinator.end_rename_batch()
 
         if result == QDialog.DialogCode.Accepted:
             summary_dialog = AnalyzerSummaryDialog(
@@ -1838,9 +1852,10 @@ class MainWindow(QMainWindow):
         """
         log.debug("Cleaning up playback resources")
 
-        # Stop any active playback
-        if self.playback_worker.state != "stopped":
-            self.playback_worker.stop()
+        # Stop any active playback. Called unconditionally: during a
+        # release window the state is already STOPPED but a pending
+        # post-write reacquire must still be cancelled.
+        self.playback_worker.stop()
 
         # Disconnect signals to prevent callbacks to destroyed objects
         try:

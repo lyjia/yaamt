@@ -159,8 +159,27 @@ class MiniaudioStream(AudioStreamBase):
             raise ValueError(f"Unsupported sample format: {sample_format}")
         return mapping
 
+    def _close_generator(self) -> None:
+        """
+        Closes the current stream generator, if any.
+
+        generator.close() raises GeneratorExit inside miniaudio's stream
+        generator, which closes the underlying native file handle
+        deterministically instead of leaving it to garbage collection.
+        """
+        generator = getattr(self, 'stream_generator', None)
+        if generator is None:
+            return
+        try:
+            generator.close()
+        except Exception as e:
+            log.warning("Error closing stream generator for '%s': %s",
+                        self.file_path, e)
+        self.stream_generator = None
+
     def _create_memory_stream(self, seek_frame: int = 0) -> None:
         """Creates (or recreates) a memory-based stream generator."""
+        self._close_generator()
         self.stream_generator = miniaudio.stream_memory(
             self._file_data,
             output_format=self._stream_output_format,
@@ -261,6 +280,7 @@ class MiniaudioStream(AudioStreamBase):
         if self._memory_mode:
             self._create_memory_stream(seek_frame=frame_offset)
         else:
+            self._close_generator()
             self.stream_generator = miniaudio.stream_file(
                 self._resolved_path,
                 output_format=self._stream_output_format,
@@ -278,10 +298,7 @@ class MiniaudioStream(AudioStreamBase):
         Closes the audio stream and releases any associated resources.
         """
         if not self._is_closed:
-            # The miniaudio stream generator doesn't have an explicit close method
-            # in the same way a file object does. It's cleaned up by garbage collection.
-            # We can mark it as closed and set references to None.
-            self.stream_generator = None
+            self._close_generator()
             self.info = None
             self._file_data = None
             self._is_closed = True

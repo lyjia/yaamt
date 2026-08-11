@@ -32,7 +32,6 @@ class PlaybackWorker(QObject):
     playback_paused = Signal(str, float)
     playback_resumed = Signal(str, float)
     error_occurred = Signal(str)
-    file_released = Signal()               # emitted after file lock released for writing
 
     def __init__(self):
         super().__init__()
@@ -245,17 +244,35 @@ class PlaybackWorker(QObject):
             # The generator will resume outputting audio data
             self.playback_resumed.emit(self.current_file, self.duration)
 
+    def _clear_release_state(self) -> None:
+        """Forgets any pending post-write reacquire."""
+        self._release_file_path = None
+        self._release_saved_position = 0.0
+        self._release_was_playing = False
+
     @Slot()
     def stop(self):
         """
         Stop the current playback and clean up resources.
+
+        Also honors a Stop issued while the file is temporarily released
+        for a write: state is already STOPPED then, but the pending
+        reacquire must be cancelled so the file is not resurrected when
+        the write completes.
         """
+        pending_release = self._release_file_path is not None
+        self._clear_release_state()
+        self.current_file = None
+
         if self.state != STOPPED:
             self.state = STOPPED
-            self._release_file_path = None  # Cancel any pending reacquire
             self.timer.stop()
             self.playback_stopped.emit()
             self.cleanup()
+        elif pending_release:
+            # Released for a write: device and stream are already closed,
+            # only the UI needs to hear about the stop.
+            self.playback_stopped.emit()
 
     @Slot(float)
     def seek(self, position_seconds: float):
@@ -307,7 +324,11 @@ class PlaybackWorker(QObject):
             if self.current_file else None
         )
 
-        if normalized_current != normalized_request:
+        if (normalized_current != normalized_request
+                or self.state == STOPPED
+                or self.audio_stream is None):
+            # Not playing this file (or nothing is actually open) --
+            # there is no lock to release and nothing to resume later.
             event.set()
             return
 
@@ -330,26 +351,31 @@ class PlaybackWorker(QObject):
         log.debug(f"File released (was_playing={self._release_was_playing}, "
                    f"position={self._release_saved_position:.2f}s)")
 
-        self.file_released.emit()
+        # Keep the panel truthful during the write: show the interruption
+        # as a pause with the position frozen. While released, Play is a
+        # no-op -- accepted: the window is milliseconds for a metadata
+        # save, and rename batches run under a modal progress dialog.
+        self.playback_paused.emit(self._release_file_path, self.duration)
         event.set()
 
-    @Slot()
-    def reacquire_after_write(self) -> None:
+    @Slot(object)
+    def reacquire_after_write(self, new_path: str | None = None) -> None:
         """
         Reopen and resume playback of a file that was temporarily released for writing.
         Called via signal from PlaybackCoordinator (executes on the playback thread).
+
+        Args:
+            new_path: Where the file now lives, if it was renamed while
+                released. None means it is still at its original path.
         """
         if self._release_file_path is None:
             return  # Nothing to reacquire (user stopped playback during save)
 
-        file_path = self._release_file_path
+        file_path = new_path or self._release_file_path
         saved_position = self._release_saved_position
         was_playing = self._release_was_playing
 
-        # Clear release state before reacquiring
-        self._release_file_path = None
-        self._release_saved_position = 0.0
-        self._release_was_playing = False
+        self._clear_release_state()
 
         log.info(f"Reacquiring file after write: {file_path} at position {saved_position:.2f}s")
 
