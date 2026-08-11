@@ -8,8 +8,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtCore import (
-    QDir, QThreadPool, Qt, QSignalBlocker, QSortFilterProxyModel, QThread,
-    QTimer, Slot, Signal
+    QDir, QModelIndex, QThreadPool, Qt, QSignalBlocker, QSortFilterProxyModel,
+    QThread, QTimer, Slot, Signal
 )
 
 import windows
@@ -175,6 +175,10 @@ class MainWindow(QMainWindow):
         self.files_view.setItemDelegate(self.editable_delegate)
         self.files_view.setSortingEnabled(True)
         self.files_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        # Double-click starts playback and middle-click opens the inline
+        # editor (handled by MultiSelectPreservingTreeView), so drop the
+        # default DoubleClicked edit trigger. F2 still edits.
+        self.files_view.setEditTriggers(QAbstractItemView.EditTrigger.EditKeyPressed)
 
         # Give the delegate access to selection context for multi-file inline editing
         self.editable_delegate.set_selection_model(self.files_view.selectionModel())
@@ -1496,10 +1500,10 @@ class MainWindow(QMainWindow):
             self.properties_window = windows.PropertiesWindow(media_files, self.edit_manager, self)
             self.properties_window.show()
 
-    def on_files_view_double_clicked(self, index):
-        # Inline editing is handled by the delegate for both single and multi-select.
-        # The delegate applies changes to all selected rows via setDataForRows().
-        pass
+    def on_files_view_double_clicked(self, index: QModelIndex) -> None:
+        # Play the file under the cursor, regardless of how many rows are
+        # selected. Inline editing is bound to middle-click in the view.
+        self._start_playback_for_proxy_index(index)
 
     def on_column_resized(self, logical_index, old_size, new_size):
         # This is now handled by _save_column_settings, which reads the visual layout
@@ -1783,13 +1787,22 @@ class MainWindow(QMainWindow):
         """
         selected_indexes = self.files_view.selectionModel().selectedRows()
         if len(selected_indexes) == 1:
-            source_index = self.proxy_model.mapToSource(selected_indexes[0])
-            row_data = self.file_model.get_data_for_row(row=source_index.row())
-            file_path = row_data.get(KEY_FILE_PATH)
-            if file_path and row_data.get(KEY_IS_MEDIA):
-                media_file = MediaFile(file_path)
-                self.playback_panel.show()
-                self.start_playback_signal.emit(media_file)
+            self._start_playback_for_proxy_index(selected_indexes[0])
+
+    def _start_playback_for_proxy_index(self, proxy_index: QModelIndex) -> None:
+        """
+        Starts playback of the media file at the given files_view (proxy)
+        index. Non-media rows and invalid indexes are ignored.
+        """
+        if not proxy_index.isValid():
+            return
+        source_index = self.proxy_model.mapToSource(proxy_index)
+        row_data = self.file_model.get_data_for_row(row=source_index.row())
+        file_path = row_data.get(KEY_FILE_PATH)
+        if file_path and row_data.get(KEY_IS_MEDIA):
+            media_file = MediaFile(file_path)
+            self.playback_panel.show()
+            self.start_playback_signal.emit(media_file)
 
     def on_open_in_file_browser(self):
         """
