@@ -470,6 +470,7 @@ def test_mid_batch_failure_reports_accurate_results(tmp_path, monkeypatch):
 
 def test_staging_failure_rolls_back_directory(tmp_path, monkeypatch):
     """If staging fails, already-staged files return home and nothing commits."""
+    import workers.rename_dispatcher as rd
     from models.media_file import MediaFile
     from workers.rename_dispatcher import plan_rename
 
@@ -478,15 +479,17 @@ def test_staging_failure_rolls_back_directory(tmp_path, monkeypatch):
     content_b = Path(path_b).read_bytes()
 
     # In an a <-> b swap both files stage first; fail b.mp3's staging rename
-    # so the whole directory is rolled back before any commit runs.
-    real_link = os.link
+    # so the whole directory is rolled back before any commit runs. Patch
+    # _rename_no_clobber (the seam every staging/commit/restore rename uses)
+    # rather than os.link, which only the POSIX branch calls.
+    real_rename = rd._rename_no_clobber
 
-    def failing_link(src, dst, **kwargs):
+    def failing_rename(src, dst):
         if os.path.basename(src) == "b.mp3":
             raise OSError(5, "simulated I/O error")  # EIO
-        return real_link(src, dst, **kwargs)
+        return real_rename(src, dst)
 
-    monkeypatch.setattr(os, "link", failing_link)
+    monkeypatch.setattr(rd, "_rename_no_clobber", failing_rename)
 
     tasks = [
         plan_rename(MediaFile(path_a), "b", RENAME_COLLISION_AUTO_DISAMBIGUATE),
@@ -507,6 +510,7 @@ def test_staging_failure_rolls_back_directory(tmp_path, monkeypatch):
 
 def test_failed_commits_restore_staged_files(tmp_path, monkeypatch):
     """Staged files whose commits fail are moved back to their old names."""
+    import workers.rename_dispatcher as rd
     from models.media_file import MediaFile
     from workers.rename_dispatcher import _STAGING_NAME_PREFIX, plan_rename
 
@@ -517,17 +521,17 @@ def test_failed_commits_restore_staged_files(tmp_path, monkeypatch):
     # Swap where both commits fail (their sources are staging names); both
     # old names stay free, so both restores must succeed. A restore renames
     # ".yaamt-rename-x.mp3" back to "x.mp3"; only fail the other moves.
-    real_link = os.link
+    real_rename = rd._rename_no_clobber
 
-    def failing_link(src, dst, **kwargs):
+    def failing_rename(src, dst):
         src_name = os.path.basename(src)
         dst_name = os.path.basename(dst)
         is_restore = src_name == f"{_STAGING_NAME_PREFIX}{dst_name}"
         if src_name.startswith(_STAGING_NAME_PREFIX) and not is_restore:
             raise OSError(5, "simulated I/O error")  # EIO
-        return real_link(src, dst, **kwargs)
+        return real_rename(src, dst)
 
-    monkeypatch.setattr(os, "link", failing_link)
+    monkeypatch.setattr(rd, "_rename_no_clobber", failing_rename)
 
     tasks = [
         plan_rename(MediaFile(path_a), "b", RENAME_COLLISION_AUTO_DISAMBIGUATE),
@@ -544,6 +548,7 @@ def test_failed_commits_restore_staged_files(tmp_path, monkeypatch):
 
 def test_directory_failure_does_not_affect_other_directories(tmp_path, monkeypatch):
     """Chunks are independent: an aborted directory leaves others untouched."""
+    import workers.rename_dispatcher as rd
     from models.media_file import MediaFile
     from workers.rename_dispatcher import plan_rename
 
@@ -555,14 +560,14 @@ def test_directory_failure_does_not_affect_other_directories(tmp_path, monkeypat
     (path_c,) = _copy_fixtures(dir_two, ["c.mp3"])
 
     # Abort dir_one's swap at staging time; dir_two's rename must proceed.
-    real_link = os.link
+    real_rename = rd._rename_no_clobber
 
-    def failing_link(src, dst, **kwargs):
+    def failing_rename(src, dst):
         if os.path.basename(src) == "b.mp3":
             raise OSError(5, "simulated I/O error")  # EIO
-        return real_link(src, dst, **kwargs)
+        return real_rename(src, dst)
 
-    monkeypatch.setattr(os, "link", failing_link)
+    monkeypatch.setattr(rd, "_rename_no_clobber", failing_rename)
 
     tasks = [
         plan_rename(MediaFile(path_a), "b", RENAME_COLLISION_AUTO_DISAMBIGUATE),
