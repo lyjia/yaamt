@@ -6,9 +6,10 @@ from PySide6.QtWidgets import (
     QLineEdit, QSizePolicy, QFileDialog, QAbstractItemView, QVBoxLayout, QWidget,
     QDialog, QToolButton
 )
-from PySide6.QtGui import QAction, QActionGroup, QIcon
+from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtCore import (
-    QDir, QModelIndex, QThreadPool, Qt, QSortFilterProxyModel, QThread, QTimer, Slot, Signal
+    QDir, QModelIndex, QThreadPool, Qt, QSignalBlocker, QSortFilterProxyModel,
+    QThread, QTimer, Slot, Signal
 )
 
 import windows
@@ -61,6 +62,9 @@ class MainWindow(QMainWindow):
         self._current_worker_id = 0
         self._saved_sort_column = None
         self._saved_sort_order = None
+        # File paths to re-select once the current load finishes. Only a
+        # manual refresh sets this; normal navigation always clears it.
+        self._pending_selection_paths = None
 
         # Playback components
         self.playback_panel = PlaybackPanel()
@@ -83,8 +87,10 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(action_open)
 
         refresh_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
-        action_refresh = QAction(refresh_icon, "Refresh", self)
-        self.toolbar.addAction(action_refresh)
+        self.action_refresh = QAction(refresh_icon, "Refresh", self)
+        self.action_refresh.setShortcut(QKeySequence(Qt.Key.Key_F5))
+        self.action_refresh.triggered.connect(self.on_refresh_requested)
+        self.toolbar.addAction(self.action_refresh)
 
         # Add Favorites toolbar button
         self.favorites_button = QToolButton()
@@ -132,13 +138,7 @@ class MainWindow(QMainWindow):
 
         # Left Pane (Directory Tree)
         self.directory_tree = QTreeView()
-        self.dir_model = QFileSystemModel()
-        self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
-        self.dir_model.setRootPath("")
-        self.directory_tree.setModel(self.dir_model)
-        self.directory_tree.setRootIndex(self.dir_model.index(""))
-        for i in range(1, self.dir_model.columnCount()):
-            self.directory_tree.hideColumn(i)
+        self._install_dir_model()
         splitter.addWidget(self.directory_tree)
 
         # Connect to EditManager signals
@@ -206,8 +206,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
 
-        # Connect the panes
-        self.directory_tree.selectionModel().currentChanged.connect(self.on_directory_changed)
+        # Connect the panes (the directory tree is wired in _install_dir_model)
         self.files_view.selectionModel().selectionChanged.connect(self.update_file_actions)
 
         # Connect header signals
@@ -351,14 +350,83 @@ class MainWindow(QMainWindow):
         self.directory_tree.setCurrentIndex(index)
         settings.setValue("last_path", path)
 
+    def _install_dir_model(self) -> None:
+        """
+        (Re)create the directory tree's QFileSystemModel and wire it up.
+
+        Shared by __init__ and _refresh_directory_pane: QFileSystemModel has
+        no public API to re-read the filesystem, so a manual refresh installs
+        a fresh model through this same path.
+        """
+        self.dir_model = QFileSystemModel()
+        self.dir_model.setFilter(QDir.NoDotAndDotDot | QDir.AllDirs)
+        self.dir_model.setRootPath("")
+        self.directory_tree.setModel(self.dir_model)
+        self.directory_tree.setRootIndex(self.dir_model.index(""))
+        for i in range(1, self.dir_model.columnCount()):
+            self.directory_tree.hideColumn(i)
+        # setModel() replaces the view's selection model, so the navigation
+        # signal must be (re)connected on every install.
+        self.directory_tree.selectionModel().currentChanged.connect(self.on_directory_changed)
+
+    def _refresh_directory_pane(self) -> None:
+        """
+        Force the directory tree to re-read the filesystem by replacing its
+        model, then restore the current directory. Revealing the restored
+        index re-expands the path to it, matching the state right after a
+        normal navigation.
+        """
+        old_model = self.dir_model
+        self._install_dir_model()
+        old_model.deleteLater()
+        # Block the fresh selection model's signals: setCurrentIndex would
+        # otherwise emit currentChanged and start a competing load without
+        # the caller's selection restore.
+        with QSignalBlocker(self.directory_tree.selectionModel()):
+            self.directory_tree.setCurrentIndex(self.dir_model.index(self._current_path))
+
+    def on_refresh_requested(self) -> None:
+        """
+        Manually reload both panes (F5 / View > Refresh / toolbar button) as
+        if the user had just navigated to the current directory, restoring
+        the file selection once the reload completes.
+        """
+        if not self._current_path or not os.path.isdir(self._current_path):
+            log.warning(f"Cannot refresh: {self._current_path!r} is not a directory")
+            self.status_label.setText("Cannot refresh: current directory is unavailable.")
+            return
+
+        log.info(f"Manual refresh of {self._current_path}")
+        selected = self._get_selected_file_paths()
+        self._refresh_directory_pane()
+        self._load_directory(self._current_path, restore_selection=selected)
+
     def on_directory_changed(self, current, previous):
+        path = self.dir_model.filePath(current)
+        self._load_directory(path)
+
+    def _load_directory(self, path: str, restore_selection: list[str] | None = None) -> None:
+        """
+        Reload the file pane with the contents of the given directory.
+
+        Args:
+            path: Directory to scan.
+            restore_selection: File paths to re-select once the load
+                finishes. Normal navigation must leave this as None so a
+                superseded refresh never restores a stale selection.
+        """
+        self._pending_selection_paths = restore_selection
+
         # Cancel any existing load operation
         if self._current_load_worker is not None:
             log.debug("Cancelling previous load worker due to directory change")
             self._current_load_worker.cancel()
 
-        path = self.dir_model.filePath(current)
-        self.set_path(path)
+        # set_path re-points the directory tree's current index. Block the
+        # tree's selection signals so that a changed index cannot re-enter
+        # on_directory_changed and start a second, competing load.
+        with QSignalBlocker(self.directory_tree.selectionModel()):
+            self.set_path(path)
 
         # Clear the model for the new directory
         self.file_model.set_entire_data([])
@@ -503,6 +571,13 @@ class MainWindow(QMainWindow):
         # Re-enable sorting
         self.files_view.setSortingEnabled(True)
 
+        # Restore the selection captured by a manual refresh. The worker-id
+        # guard above ensures a refresh superseded by navigation never gets
+        # here with a stale pending list.
+        if self._pending_selection_paths:
+            self._on_select_analyzer_files(self._pending_selection_paths)
+        self._pending_selection_paths = None
+
         self.progress_bar.hide()
         self.cancel_button.hide()
         file_count = self.file_model.rowCount()
@@ -595,7 +670,13 @@ class MainWindow(QMainWindow):
         if col_settings:
             col_settings.is_visible = checked
 
-    def setup_columns_in_view_menu(self, view_menu):
+    def _rebuild_column_menu(self) -> None:
+        """
+        Rebuild the Columns submenu to match the current file model columns.
+
+        Only the submenu is rebuilt; the View menu itself is constructed once
+        in _create_menus() so its other actions are never wiped.
+        """
         self.column_menu.clear()
         for i in range(self.file_model.columnCount()):
             action = QAction(self.file_model.headerData(i, Qt.Horizontal), self)
@@ -604,12 +685,6 @@ class MainWindow(QMainWindow):
             action.setData(i)
             action.toggled.connect(lambda checked, index=i: self.toggle_column(index, checked))
             self.column_menu.addAction(action)
-        view_menu.clear()
-        view_menu.addMenu(self.column_menu)
-        action_reset_columns = QAction("Reset Columns", self)
-
-        action_reset_columns.triggered.connect(self._reset_column_settings)
-        self.view_menu.addAction(action_reset_columns)
 
     def open_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Select Folder", self._current_path)
@@ -709,9 +784,15 @@ class MainWindow(QMainWindow):
 
         # View Menu
         self.view_menu = self.menuBar().addMenu("&View")
-        self.setup_columns_in_view_menu(self.view_menu)
+        self._rebuild_column_menu()
+        self.view_menu.addMenu(self.column_menu)
+        action_reset_columns = QAction("Reset Columns", self)
+        action_reset_columns.triggered.connect(self._reset_column_settings)
+        self.view_menu.addAction(action_reset_columns)
         self.view_menu.addSeparator()
         self.view_menu.addAction(self.action_show_playback_panel)
+        self.view_menu.addSeparator()
+        self.view_menu.addAction(self.action_refresh)
 
         # Favorites Menu - shared between menu bar and toolbar
         self.favorites_menu = self._create_favorites_menu()
@@ -1093,7 +1174,7 @@ class MainWindow(QMainWindow):
         if paths_changed and self._current_path:
             # Full rescan: file paths have changed (e.g. after rename).
             log.info("Batch changed file paths; triggering full directory rescan")
-            self.set_path(self._current_path)
+            self._load_directory(self._current_path)
             return
 
         file_ids = [mf.file_id for mf in media_files]
@@ -1117,19 +1198,7 @@ class MainWindow(QMainWindow):
         then drives a RenameDispatcher through the shared progress/summary
         dialogs and refreshes the file list.
         """
-        selected_indexes = self.files_view.selectionModel().selectedRows()
-        if not selected_indexes:
-            log.debug("No files selected for rename")
-            return
-
-        media_files = []
-        for index in selected_indexes:
-            source_index = self.proxy_model.mapToSource(index)
-            row_data = self.file_model.get_data_for_row(row=source_index.row())
-            file_path = row_data.get(KEY_FILE_PATH)
-            if file_path and row_data.get(KEY_IS_MEDIA):
-                media_files.append(MediaFile(file_path, enable_write=True))
-
+        media_files = self._get_selected_media_files()
         if not media_files:
             log.debug("No valid media files selected for rename")
             return
@@ -1192,7 +1261,7 @@ class MainWindow(QMainWindow):
             # on-completion refresh already updated the list, but a rescan
             # ensures any new files, timestamps, etc. are picked up cleanly.
             if self._current_path:
-                self.set_path(self._current_path)
+                self._load_directory(self._current_path)
 
     @Slot(list)
     def _on_select_analyzer_files(self, file_paths: list):
@@ -1399,21 +1468,33 @@ class MainWindow(QMainWindow):
         menu.clear()
         self._populate_favorites_menu(menu)
 
-    def open_properties_window(self):
-        selected_indexes = self.files_view.selectionModel().selectedRows()
-        log.debug(f"selectedIndexes from selectionModel: {selected_indexes} (type: {type(selected_indexes)})")
-
-        if not selected_indexes:
-            log.debug("No selected indexes, returning.")
-            return
-
-        media_files = []
-        for index in selected_indexes:
+    def _get_selected_row_data(self) -> list[dict]:
+        """Row data dicts for the currently selected file rows."""
+        rows = []
+        for index in self.files_view.selectionModel().selectedRows():
             source_index = self.proxy_model.mapToSource(index)
-            row_data = self.file_model.get_data_for_row( row=source_index.row() )
+            rows.append(self.file_model.get_data_for_row(row=source_index.row()))
+        return rows
+
+    def _get_selected_file_paths(self) -> list[str]:
+        """File paths of all currently selected rows."""
+        return [
+            row_data.get(KEY_FILE_PATH)
+            for row_data in self._get_selected_row_data()
+            if row_data.get(KEY_FILE_PATH)
+        ]
+
+    def _get_selected_media_files(self) -> list[MediaFile]:
+        """Writable MediaFile instances for the selected media-file rows."""
+        media_files = []
+        for row_data in self._get_selected_row_data():
             file_path = row_data.get(KEY_FILE_PATH)
             if file_path and row_data.get(KEY_IS_MEDIA):
                 media_files.append(MediaFile(file_path, enable_write=True))
+        return media_files
+
+    def open_properties_window(self):
+        media_files = self._get_selected_media_files()
 
         if media_files:
             self.properties_window = windows.PropertiesWindow(media_files, self.edit_manager, self)
@@ -1544,7 +1625,7 @@ class MainWindow(QMainWindow):
         self.file_model = MetadataTableModel(self.file_list_settings.columns, self.edit_manager)
         self.proxy_model.setSourceModel(self.file_model)
         self._apply_column_settings()
-        self.setup_columns_in_view_menu(self.view_menu)
+        self._rebuild_column_menu()
 
     def _get_column_settings_by_logical_index(self, logical_index):
         if logical_index < 0 or logical_index >= len(self._logical_column_ids):
