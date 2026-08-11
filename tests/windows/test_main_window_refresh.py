@@ -9,6 +9,7 @@ lazily inside the tests (same pattern as the autosave test suite).
 """
 
 import shutil
+from pathlib import Path
 
 import pytest
 from unittest.mock import patch
@@ -133,13 +134,15 @@ class TestMainWindowRefresh:
             assert main_window.dir_model is not old_model
             assert main_window.directory_tree.model() is main_window.dir_model
             current = main_window.directory_tree.currentIndex()
-            assert main_window.dir_model.filePath(current) == str(dir_a)
+            # QFileSystemModel.filePath returns forward slashes on Windows;
+            # compare as Paths to stay separator-agnostic.
+            assert Path(main_window.dir_model.filePath(current)) == dir_a
             assert main_window._current_worker_id == worker_id_before
 
             # Real navigation must still reach on_directory_changed through
             # the recreated selection model.
             main_window.directory_tree.setCurrentIndex(main_window.dir_model.index(str(dir_b)))
-            assert main_window._current_path == str(dir_b)
+            assert Path(main_window._current_path) == dir_b
             assert main_window._current_worker_id == worker_id_before + 1
 
     def test_staged_edits_survive_refresh(self, main_window, tmp_path):
