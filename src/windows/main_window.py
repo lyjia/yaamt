@@ -383,7 +383,12 @@ class MainWindow(QMainWindow):
         # otherwise emit currentChanged and start a competing load without
         # the caller's selection restore.
         with QSignalBlocker(self.directory_tree.selectionModel()):
-            self.directory_tree.setCurrentIndex(self.dir_model.index(self._current_path))
+            index = self.dir_model.index(self._current_path)
+            self.directory_tree.setCurrentIndex(index)
+            # setCurrentIndex alone leaves the fresh tree collapsed with the
+            # highlighted row hidden; scrollTo expands every ancestor and
+            # brings the current directory into view.
+            self.directory_tree.scrollTo(index)
 
     def on_refresh_requested(self) -> None:
         """

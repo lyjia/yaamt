@@ -138,6 +138,12 @@ class TestMainWindowRefresh:
             # compare as Paths to stay separator-agnostic.
             assert Path(main_window.dir_model.filePath(current)) == dir_a
             assert main_window._current_worker_id == worker_id_before
+            # The restored directory must be revealed, not hidden inside a
+            # collapsed tree: every ancestor of the current index is expanded.
+            ancestor = current.parent()
+            while ancestor.isValid():
+                assert main_window.directory_tree.isExpanded(ancestor)
+                ancestor = ancestor.parent()
 
             # Real navigation must still reach on_directory_changed through
             # the recreated selection model.
