@@ -14,6 +14,10 @@ when:
   - event: tag
     ref: refs/tags/v*.*.*
 
+# Build only after the test workflow (.woodpecker/test.yaml) succeeds.
+depends_on:
+  - test
+
 # Skip the references/ submodules (reference material only). Fetch
 # tags explicitly: version stamping runs `git describe --tags` and
 # must see release tags even on branch-push (nightly) builds.

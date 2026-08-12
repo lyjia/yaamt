@@ -21,6 +21,11 @@ when:
   - event: pull_request
   - event: push
     branch: [master, development]
+  # Tags too: the build workflows depend_on this one, and a workflow
+  # skipped by `when` cannot gate its dependents - so tests must run
+  # on every event that triggers a build.
+  - event: tag
+    ref: refs/tags/v*.*.*
 
 # The references/ submodules are reference material only - tests and
 # builds never touch them. Skip the recursive clone.

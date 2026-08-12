@@ -38,6 +38,11 @@ Four pipeline files under `.woodpecker/`:
 | `build-windows.yaml`| push to master/development, tag `v*.*.*`   | Windows            |
 | `build-macos.yaml`  | push to master/development, tag `v*.*.*`   | macOS              |
 
+Each build pipeline declares a workflow-level `depends_on: [test]`, so
+builds start only after `test.yaml` succeeds; a test failure skips all
+three builds. This is why `test.yaml` also triggers on tag pushes: a
+workflow skipped by its `when` filters cannot gate its dependents.
+
 `test.yaml` produces no artifacts. The three build pipelines invoke
 `build.py --release --installer` and upload the resulting installer to
 GitHub Releases via `scripts/release_upload.py`.
