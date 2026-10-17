@@ -15,6 +15,7 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
+    branches: ["claude/gracious-gauss-mr901i"]   # TEMPORARY: arm64 test run; remove before merge
   workflow_dispatch:
     inputs:
       ref:
