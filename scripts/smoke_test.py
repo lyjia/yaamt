@@ -8,8 +8,8 @@ frozen CLI and GUI executables only - never the source tree.
 
 Checks:
   1. `yaamt --version` prints the expected version (if --expect-version).
-  2. `yaamt --check-update` reaches the GitHub Releases API (proves the
-     frozen build can verify TLS; needs network).
+  2. `yaamt --check-update` verifies TLS to the GitHub Releases API
+     (needs network; an HTTP error such as a rate limit still passes).
   3. `yaamt list analyzers` succeeds (imports every registered analyzer).
   4. A few analyzers run end-to-end on a copy of a test fixture
      (exercises numpy / scipy / librosa / numba / libebur128).
@@ -47,17 +47,17 @@ CLI_TIMEOUT_SECONDS = 300
 GUI_STARTUP_SECONDS = 20
 
 
-def _run_cli(cli: Path, *args: str) -> str:
+def _run_cli(cli: Path, *args: str, check: bool = True) -> str:
     """Run the CLI; return its stdout. stderr is echoed for the CI log."""
     print(f"$ {cli.name} {' '.join(args)}", flush=True)
     result = subprocess.run([str(cli), *args], capture_output=True, text=True,
                             timeout=CLI_TIMEOUT_SECONDS)
     if result.stderr:
         print(result.stderr.strip()[-2000:])
-    if result.returncode != 0:
+    if check and result.returncode != 0:
         print(result.stdout)
         raise RuntimeError(f"{cli.name} {' '.join(args)} exited {result.returncode}")
-    return result.stdout
+    return result.stdout if check else result.stdout + result.stderr
 
 
 def _check_gui(gui: Path) -> None:
@@ -97,7 +97,11 @@ def main() -> int:
         if args.expect_version and version != args.expect_version:
             raise RuntimeError(f"expected version {args.expect_version!r}, got {version!r}")
 
-        print("  " + _run_cli(cli, "--check-update").strip())
+        # Only TLS failures count: CI runners share IPs, so GitHub's
+        # unauthenticated rate limit (HTTP 403) can legitimately be hit.
+        update_output = _run_cli(cli, "--check-update", check=False)
+        if "CERTIFICATE_VERIFY_FAILED" in update_output or "SSL" in update_output:
+            raise RuntimeError("update check could not establish a verified TLS connection")
         _run_cli(cli, "list", "analyzers")
 
         # Never touch the fixture itself; analyze a scratch copy.
