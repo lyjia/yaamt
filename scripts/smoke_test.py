@@ -46,14 +46,16 @@ GUI_STARTUP_SECONDS = 20
 
 
 def _run_cli(cli: Path, *args: str) -> str:
+    """Run the CLI; return its stdout. stderr is echoed for the CI log."""
     print(f"$ {cli.name} {' '.join(args)}", flush=True)
     result = subprocess.run([str(cli), *args], capture_output=True, text=True,
                             timeout=CLI_TIMEOUT_SECONDS)
-    output = result.stdout + result.stderr
+    if result.stderr:
+        print(result.stderr.strip()[-2000:])
     if result.returncode != 0:
-        print(output)
+        print(result.stdout)
         raise RuntimeError(f"{cli.name} {' '.join(args)} exited {result.returncode}")
-    return output
+    return result.stdout
 
 
 def _check_gui(gui: Path) -> None:

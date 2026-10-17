@@ -1,11 +1,9 @@
 # nfpm configuration for YAAMT Linux packages.
 #
-# Build both .deb and .rpm from this single file:
-#   nfpm package --config installer/nfpm.yaml --target dist/ --packager deb
-#   nfpm package --config installer/nfpm.yaml --target dist/ --packager rpm
-#
-# Driven by build.py's _create_linux_installer; the env vars below are
-# populated there.
+# Both .deb and .rpm are built from this single file by build.py's
+# _create_linux_installer (`build.py --release --installer`). It fills in
+# the YAAMT_* placeholders below (nfpm itself does not expand them in
+# `contents`) and writes the rendered config to the build output dir.
 
 name: yaamt
 arch: amd64                      # nfpm normalizes to x86_64 for rpm
@@ -29,6 +27,7 @@ depends:
   - libegl1
   - libxkbcommon0
   - libxcb-cursor0
+  - libxcb-shape0
   # Audio
   - libportaudio2
 

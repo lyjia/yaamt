@@ -25,6 +25,7 @@ import argparse
 import shutil
 import tempfile
 import re
+import string
 from abc import ABC, abstractmethod
 from pathlib import Path
 from datetime import datetime
@@ -37,7 +38,8 @@ from util.version import get_version_from_git  # noqa: E402
 
 DEBIAN_LINUX_DEPS = ["ccache", "patchelf", "alien", "libegl1", "libxkbcommon-x11-0",
                      "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-randr0",
-                     "libxcb-render-util0", "libxcb-xinerama0", "libxcb-xfixes0", "libxcb-cursor0", "xvfb",
+                     "libxcb-render-util0", "libxcb-xinerama0", "libxcb-xfixes0", "libxcb-cursor0",
+                     "libxcb-shape0", "xvfb",
                      "portaudio19-dev", "rpm"]
 
 # Installer tooling is included so `--install-deps` fully provisions a
@@ -646,24 +648,27 @@ def _create_linux_installer(config: BuildConfig, version: str) -> None:
     if not nfpm_config.exists():
         raise RuntimeError(f"nfpm config not found: {nfpm_config}")
 
-    # nfpm consumes ${VAR} substitutions from the environment.
-    env = os.environ.copy()
-    env["YAAMT_VERSION"] = version
-    env["YAAMT_SOURCE_DIR"] = str(source_dir)
-    env["YAAMT_PROJECT_ROOT"] = str(config.project_root)
+    # nfpm only env-expands a few scalar fields (not `contents` paths), so
+    # render the ${VAR} placeholders ourselves into a per-build config.
+    rendered_config = config.output_dir / "nfpm.yaml"
+    rendered_config.write_text(string.Template(nfpm_config.read_text()).substitute(
+        YAAMT_VERSION=version,
+        YAAMT_SOURCE_DIR=source_dir,
+        YAAMT_PROJECT_ROOT=config.project_root,
+    ))
 
     print(f"\n=== Creating Linux installers with nfpm... ===")
     stem = _artifact_stem(version, config.platform, config.arch)
     for packager in ("deb", "rpm"):
         cmd = [
             nfpm, "package",
-            "--config", str(nfpm_config),
+            "--config", str(rendered_config),
             # An explicit file target overrides nfpm's per-format default
             # naming so .deb/.rpm match the other platforms' artifacts.
             "--target", str(config.output_dir / f"{stem}.{packager}"),
             "--packager", packager,
         ]
-        subprocess.run(cmd, check=True, env=env)
+        subprocess.run(cmd, check=True)
     print(f"=== Installers created in {config.output_dir} ===")
 
 

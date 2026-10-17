@@ -9,6 +9,8 @@ Covers:
 """
 
 import importlib.util
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -160,3 +162,25 @@ class TestArchiver:
             names = zf.namelist()
         assert {Path(n).parts[0] for n in names} == {"yaamt-0.3.0-windows-x64"}
         assert "yaamt-0.3.0-windows-x64/yaamt" in names
+
+
+@pytest.mark.skipif(shutil.which("nfpm") is None, reason="nfpm not installed")
+class TestLinuxInstallerWithNfpm:
+    """Runs the real nfpm backend against a stub bundle; guards the
+    placeholder rendering (nfpm does not expand env vars in `contents`)."""
+
+    def test_builds_deb_and_rpm_containing_bundle(self, build_module, fake_config):
+        bundle = fake_config.output_dir / "yaamt"
+        bundle.mkdir()
+        (bundle / "yaamt").write_text("#!/bin/sh\n")
+
+        build_module._create_linux_installer(fake_config, "0.3.0")
+
+        deb = fake_config.output_dir / "yaamt-0.3.0-linux-x64.deb"
+        rpm = fake_config.output_dir / "yaamt-0.3.0-linux-x64.rpm"
+        assert deb.is_file() and rpm.is_file()
+        if shutil.which("dpkg-deb"):
+            listing = subprocess.run(["dpkg-deb", "-c", str(deb)], capture_output=True,
+                                     text=True, check=True).stdout
+            assert "./usr/lib/yaamt/yaamt" in listing
+            assert "./usr/bin/yaamt -> /usr/lib/yaamt/yaamt" in listing

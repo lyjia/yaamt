@@ -51,7 +51,6 @@ def _create_minimal_scipy_stats():
         sys.modules[f'scipy.stats.{submod}'] = types.ModuleType(
             f'scipy.stats.{submod}')
 
-    print("[scipy hook] Minimal scipy.stats module created", file=sys.stderr)
     return stats_module
 
 
@@ -65,10 +64,7 @@ def _initialize_scipy():
         # Try normal scipy.stats import first
         try:
             import scipy.stats
-            if hasattr(scipy.stats, 'scoreatpercentile'):
-                print("[scipy hook] scipy.stats loaded normally",
-                      file=sys.stderr)
-            else:
+            if not hasattr(scipy.stats, 'scoreatpercentile'):
                 # Module loaded but missing expected function
                 _create_minimal_scipy_stats()
         except Exception as e:
@@ -84,8 +80,6 @@ def _initialize_scipy():
         import scipy.signal
         import scipy.fft
         import scipy.linalg
-
-        print("[scipy hook] Core scipy modules loaded", file=sys.stderr)
         return True
 
     except Exception as e:
@@ -95,8 +89,9 @@ def _initialize_scipy():
         return False
 
 
-# Run initialization
-print("[scipy hook] Starting scipy initialization", file=sys.stderr)
+# Run initialization. Only problems are reported: this hook runs before
+# every frozen executable starts, so success-path output would pollute
+# normal CLI output (e.g. `yaamt --version`).
 success = _initialize_scipy()
 
 # Pre-import numpy modules
@@ -104,14 +99,11 @@ try:
     import numpy
     import numpy.fft
     import numpy.linalg
-    print("[scipy hook] Numpy modules initialized", file=sys.stderr)
 except Exception as e:
     print(f"[scipy hook] Warning: Numpy initialization issue: {e}",
           file=sys.stderr)
 
-if success:
-    print("[scipy hook] Scipy hook completed successfully", file=sys.stderr)
-else:
+if not success:
     print("[scipy hook] Scipy hook completed with warnings", file=sys.stderr)
 
 # Restore warnings
