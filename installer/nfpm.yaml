@@ -21,7 +21,7 @@ description: |
   musical key; integrates with MusicBrainz for fingerprint lookup.
 vendor: Lyjia
 homepage: https://github.com/lyjia/yaamt
-license: GPL-3.0-or-later
+license: AGPL-3.0-only
 
 depends:
   # Qt6 / GUI runtime (PySide6 ships its own Qt libs but still needs the
