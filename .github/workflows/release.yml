@@ -1,8 +1,9 @@
 # Release build: Linux, Windows, and macOS artifacts for a v<M>.<m>.<p> tag.
 #
 # Triggers:
-#   - pushing a release tag (v*.*.*)  -> build all platforms, publish to the
-#     tag's GitHub Release
+#   - pushing a release tag (v*.*.*)  -> build all platforms and upload them
+#     to a DRAFT GitHub Release for the tag. Nothing is public until a
+#     maintainer tests the artifacts and clicks Publish (doc/RELEASING.md).
 #   - workflow_dispatch with a tag    -> same, for re-running a release
 #   - workflow_dispatch with a branch -> build + smoke test only (no publish);
 #     use this to test packaging changes before tagging
@@ -26,9 +27,61 @@ on:
 permissions:
   contents: write   # lets the built-in GITHUB_TOKEN create/edit the release
 
+env:
+  REF: ${{ inputs.ref || github.ref_name }}
+
 jobs:
+  # Resolves the version once and, for tags, creates the draft release
+  # before the platform builds run, so parallel uploads never race to
+  # create it (GitHub allows duplicate drafts for one tag).
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      publish: ${{ steps.meta.outputs.publish }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REF }}
+          # Full history + tags: version.py runs `git describe --tags --long`
+          # to stamp the build. A shallow clone would mis-stamp the version.
+          fetch-depth: 0
+          submodules: false   # references/ is reference material only
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve version and publish mode
+        id: meta
+        run: |
+          VER=$(cd src && python -m util.version)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Build will stamp version: $VER"
+          if git show-ref --verify --quiet "refs/tags/$REF"; then
+            # Never publish a non-release build: on a tag the version must be bare M.m.p.
+            case "$VER" in
+              *+*|*dirty*)
+                echo "::error::Version '$VER' is not a clean release build for tag $REF."
+                exit 1 ;;
+            esac
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$REF is not a tag; building and testing without publishing."
+          fi
+
+      - name: Create the draft release
+        if: steps.meta.outputs.publish == 'true'
+        env:
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/release_upload.py --repo "${{ github.repository }}" --tag "$REF"
+
   build:
     name: build (${{ matrix.platform }}-${{ matrix.arch }})
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -63,7 +116,7 @@ jobs:
       run:
         shell: bash
     env:
-      REF: ${{ inputs.ref || github.ref_name }}
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -78,25 +131,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Resolve version and publish mode
-        id: meta
-        run: |
-          VER=$(cd src && python -m util.version | tr -d '\r')
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
-          echo "Build will stamp version: $VER"
-          if git show-ref --verify --quiet "refs/tags/$REF"; then
-            # Never publish a non-release build: on a tag the version must be bare M.m.p.
-            case "$VER" in
-              *+*|*dirty*)
-                echo "::error::Version '$VER' is not a clean release build for tag $REF."
-                exit 1 ;;
-            esac
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::$REF is not a tag; building and testing without publishing."
-          fi
 
       - name: Install dependencies
         run: python build.py --install-deps
@@ -114,14 +148,14 @@ jobs:
 
       - name: Smoke test (bundle)
         if: matrix.platform != 'macos'
-        run: python scripts/smoke_test.py build/release-*/yaamt --expect-version "${{ steps.meta.outputs.version }}"
+        run: python scripts/smoke_test.py build/release-*/yaamt --expect-version "$VERSION"
 
       - name: Smoke test (installed .deb)
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get install -y ./build/release-*/*.deb
-          test "$(yaamt --version | tail -n1)" = "${{ steps.meta.outputs.version }}"
-          python scripts/smoke_test.py /usr/lib/yaamt --expect-version "${{ steps.meta.outputs.version }}"
+          test "$(yaamt --version | tail -n1)" = "$VERSION"
+          python scripts/smoke_test.py /usr/lib/yaamt --expect-version "$VERSION"
 
       - name: Smoke test (installed setup.exe)
         if: matrix.platform == 'windows'
@@ -130,7 +164,7 @@ jobs:
           $setup = (Get-ChildItem build\release-*\*-setup.exe).FullName
           $dir = Join-Path $env:RUNNER_TEMP "yaamt-install"
           Start-Process -Wait -FilePath $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/DIR=`"$dir`""
-          python scripts/smoke_test.py $dir --expect-version "${{ steps.meta.outputs.version }}"
+          python scripts/smoke_test.py $dir --expect-version $env:VERSION
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Smoke test (.app inside .dmg)
@@ -142,10 +176,10 @@ jobs:
           ls -la "$MOUNT"
           codesign --verify --deep --strict --verbose=2 "$MOUNT/YAAMT.app"
           plutil -p "$MOUNT/YAAMT.app/Contents/Info.plist"
-          python scripts/smoke_test.py "$MOUNT/YAAMT.app/Contents/MacOS" --expect-version "${{ steps.meta.outputs.version }}"
+          python scripts/smoke_test.py "$MOUNT/YAAMT.app/Contents/MacOS" --expect-version "$VERSION"
 
-      - name: Upload to the GitHub Release
-        if: steps.meta.outputs.publish == 'true'
+      - name: Upload to the draft GitHub Release
+        if: needs.prepare.outputs.publish == 'true'
         env:
           GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

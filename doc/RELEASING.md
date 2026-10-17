@@ -43,23 +43,36 @@ want to ship.
    ```
 
 3. **CI takes over.** The tag push triggers the GitHub Actions
-   `Release` workflow (`.github/workflows/release.yml`). It builds on
-   Linux (x64 and arm64), Windows, and macOS, smoke-tests each bundle and installed
-   package, and uploads to a GitHub Release named after the tag via
+   `Release` workflow (`.github/workflows/release.yml`). It creates a
+   **draft** GitHub Release for the tag, builds on Linux (x64 and
+   arm64), Windows, and macOS, smoke-tests each bundle and installed
+   package, and uploads the artifacts to the draft via
    `scripts/release_upload.py`. If one platform fails, fix it and
    re-run that job (or dispatch the workflow with the tag); re-uploads
    replace same-named assets.
-4. **Verify.** On the release page, check that all expected assets are
-   present and that the filenames carry the bare version (no `+`):
+
+   A draft is visible only to repo collaborators, and the in-app update
+   check ignores it (GitHub's `releases/latest` skips drafts), so
+   nothing is public yet.
+4. **Test the real binaries.** Open the draft (Releases page, marked
+   "Draft"), check that all expected assets are present and carry the
+   bare version (no `+`):
    - `yaamt-0.3.0-windows-x64.zip`, `yaamt-0.3.0-windows-x64-setup.exe`
    - `yaamt-0.3.0-linux-x64.tar.gz`, `.deb`, `.rpm` (and the same for `linux-arm64`)
    - `yaamt-0.3.0-macos-arm64.dmg`
 
-   Download one and confirm `yaamt --version` (or the About window)
-   shows the tag's version, and that About -> "Check for updates"
-   reports you are on the latest release.
-5. **Write the release notes.** CI creates the release without notes;
-   edit the release on GitHub and summarize changes.
+   Install them on your own machines. Confirm `yaamt --version` and the
+   About window show the tag's version, and exercise whatever the
+   release changed. These are the exact files users will get.
+
+   If something is broken: delete the draft and the tag (Scenario 5),
+   fix, and re-tag the same version. Nobody outside has downloaded it,
+   so re-using the version number is safe at this stage.
+5. **Write the release notes and publish.** Edit the draft, summarize
+   the changes, leave "Set as a pre-release" unticked (pre-releases are
+   invisible to the update checker), and click **Publish release**.
+   After publishing, About -> "Check for updates" on an older build
+   reports the new version.
 
 That's it. No branch ceremony is required for a normal release.
 
@@ -204,12 +217,12 @@ From each build host, choose one:
   python scripts/release_upload.py --repo lyjia/yaamt --tag v0.1.0 (Get-ChildItem build\release-*\*-setup.exe).FullName
   ```
 
-The upload script creates the release if it does not exist yet, so the
-fully-manual flow (no CI at all) is just: build on each platform, then
-upload from each. It only sets the prerelease flag when it *creates* a
-release; if you pre-created the release as a pre-release in the UI, the
-script reuses it and your flag is preserved (see
-`scripts/release_upload.py`).
+The upload script creates a draft release if none exists yet for the
+tag, and otherwise reuses the existing one (draft or published), so the
+fully-manual flow (no CI at all) is: build on each platform, upload from
+each, then test and publish the draft as in Scenario 1. If you
+pre-created the release in the UI, the script reuses it and keeps your
+settings (see `scripts/release_upload.py`).
 
 Checking out the tag matters: building from a later commit would stamp
 `0.1.0+N.<hash>` into the binary, and the artifact would advertise
@@ -259,7 +272,7 @@ cd src && python -m util.version
 
 | I want to...                       | Do this                                          |
 |------------------------------------|--------------------------------------------------|
-| Ship a new version                 | `git tag v0.X.Y && git push origin v0.X.Y`       |
+| Ship a new version                 | `git tag v0.X.Y && git push origin v0.X.Y`, test the draft, Publish |
 | Get a dev build to a tester        | Point them at the `nightly` prerelease           |
 | Fix a shipped release              | Branch from tag, fix, tag `v0.X.(Y+1)`, push     |
 | Build one platform by hand         | Checkout the tag, `build.py --release --archive --installer` |

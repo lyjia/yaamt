@@ -1,13 +1,15 @@
 """
-Unit tests for scripts/release_upload.py release-reuse logic.
+Unit tests for scripts/release_upload.py release lookup and creation.
 
-Each platform uploads to the same versioned release independently, so
-the script must tolerate a release created concurrently by another
-platform and must replace (not duplicate) an asset on re-run. The
-GitHub API is mocked at the script's single _request seam.
+Versioned tags are published as drafts that a maintainer tests and then
+publishes by hand, so lookup must find draft releases (GitHub's by-tag
+endpoint does not return them) and creation must produce a draft. Re-runs
+must replace, not duplicate, same-named assets. The GitHub API is mocked
+at the script's single _request seam.
 """
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +21,7 @@ REPO = "lyjia/yaamt"
 TAG = "v0.3.0"
 TOKEN = "test-token"
 UPLOAD_URL = "https://uploads.github.com/repos/lyjia/yaamt/releases/1/assets{?name,label}"
+RELEASES_URL = "https://api.github.com/repos/lyjia/yaamt/releases"
 
 
 @pytest.fixture(scope="module")
@@ -39,53 +42,81 @@ def artifact(tmp_path):
     return path
 
 
-def _release(assets=None):
-    return {"id": 1, "upload_url": UPLOAD_URL, "html_url": "html", "assets": assets or []}
+def _release(tag=TAG, assets=None, draft=True):
+    return {"id": 1, "tag_name": tag, "draft": draft, "upload_url": UPLOAD_URL,
+            "html_url": "html", "assets": assets or []}
 
 
 class FakeGitHub:
-    """Records calls and answers GET /releases/tags/<tag> from a script."""
+    """Records calls; serves release-list pages and accepts creates."""
 
-    def __init__(self, get_responses, create_error=None):
-        self.get_responses = list(get_responses)
-        self.create_error = create_error
+    def __init__(self, pages):
+        self.pages = list(pages)
         self.calls = []
+        self.created = []
 
     def __call__(self, method, url, token, *, data=None, content_type=None):
         self.calls.append((method, url))
         if method == "GET":
-            response = self.get_responses.pop(0)
-            if response is None:
-                raise RuntimeError(f"GET {url} -> HTTP 404: Not Found")
-            return response
-        if method == "POST" and url.endswith("/releases"):
-            if self.create_error:
-                raise RuntimeError(self.create_error)
-            return _release()
+            return self.pages.pop(0) if self.pages else []
+        if method == "POST" and url == RELEASES_URL:
+            payload = json.loads(data)
+            self.created.append(payload)
+            return _release(tag=payload["tag_name"], draft=payload["draft"])
         return {}
 
+    def uploads(self):
+        return [url for method, url in self.calls if method == "POST" and url != RELEASES_URL]
 
-def test_reuses_release_created_concurrently(upload_module, artifact):
-    fake = FakeGitHub(get_responses=[None, _release()],
-                      create_error="POST /releases -> HTTP 422: already_exists")
+
+def test_creates_draft_when_no_release_exists(upload_module, artifact):
+    fake = FakeGitHub(pages=[[]])
     with patch.object(upload_module, "_request", fake):
         upload_module.upload(REPO, TAG, [artifact], TOKEN)
-    assert ("POST", f"{UPLOAD_URL.split('{')[0]}?name={artifact.name}") in fake.calls
+    assert len(fake.created) == 1
+    assert fake.created[0]["draft"] is True
+    assert fake.created[0]["prerelease"] is False
+    assert len(fake.uploads()) == 1
 
 
-def test_other_create_errors_propagate(upload_module, artifact):
-    fake = FakeGitHub(get_responses=[None], create_error="POST /releases -> HTTP 500: boom")
+def test_reuses_existing_draft(upload_module, artifact):
+    fake = FakeGitHub(pages=[[_release(tag="v0.2.0"), _release()]])
     with patch.object(upload_module, "_request", fake):
-        with pytest.raises(RuntimeError, match="HTTP 500"):
-            upload_module.upload(REPO, TAG, [artifact], TOKEN)
+        upload_module.upload(REPO, TAG, [artifact], TOKEN)
+    assert fake.created == []
+    assert len(fake.uploads()) == 1
+
+
+def test_finds_release_on_later_page(upload_module, artifact):
+    full_page = [_release(tag=f"v0.0.{i}") for i in range(upload_module.RELEASES_PER_PAGE)]
+    fake = FakeGitHub(pages=[full_page, [_release()]])
+    with patch.object(upload_module, "_request", fake):
+        upload_module.upload(REPO, TAG, [artifact], TOKEN)
+    assert fake.created == []
+
+
+def test_no_files_only_ensures_release(upload_module):
+    fake = FakeGitHub(pages=[[]])
+    with patch.object(upload_module, "_request", fake):
+        upload_module.upload(REPO, TAG, [], TOKEN)
+    assert len(fake.created) == 1
+    assert fake.uploads() == []
 
 
 def test_existing_asset_is_replaced(upload_module, artifact):
     asset_url = "https://api.github.com/repos/lyjia/yaamt/releases/assets/9"
     existing = _release(assets=[{"name": artifact.name, "url": asset_url}])
-    fake = FakeGitHub(get_responses=[existing])
+    fake = FakeGitHub(pages=[[existing]])
     with patch.object(upload_module, "_request", fake):
         upload_module.upload(REPO, TAG, [artifact], TOKEN)
-    methods = [c for c in fake.calls if c[0] in ("DELETE", "POST")]
-    assert methods[0] == ("DELETE", asset_url)
-    assert methods[1][0] == "POST"
+    writes = [c for c in fake.calls if c[0] in ("DELETE", "POST")]
+    assert writes[0] == ("DELETE", asset_url)
+    assert writes[1][0] == "POST"
+
+
+def test_nightly_is_published_prerelease(upload_module, artifact):
+    fake = FakeGitHub(pages=[[]])
+    with patch.object(upload_module, "_request", fake):
+        upload_module.upload(REPO, upload_module.NIGHTLY_TAG, [artifact], TOKEN)
+    assert fake.created[0]["draft"] is False
+    assert fake.created[0]["prerelease"] is True

@@ -2,21 +2,24 @@
 """
 Upload build artifacts to a GitHub Release.
 
-Used by the Woodpecker build pipelines to publish:
-  - tag pushes (v<M>.<m>.<p>) -> a versioned release
+Used by CI to publish:
+  - tag pushes (v<M>.<m>.<p>) -> a *draft* versioned release, which a
+    maintainer tests and then publishes by hand (doc/RELEASING.md)
   - branch pushes to master/development -> a rolling 'nightly' release
 
 For the rolling 'nightly' tag, the existing release (if any) is deleted
 and recreated so the asset list always reflects the latest build. For
-versioned tags, the release is created on first upload and assets are
-appended on subsequent uploads.
+versioned tags, an existing release for the tag (draft or published) is
+reused and assets are added or replaced; otherwise a draft is created.
+With no FILE arguments the script only ensures the release exists, which
+lets CI create the draft once before parallel platform uploads.
 
 Stdlib-only: this script must run on Linux, Windows, and macOS agents
 without an extra install step.
 
 Usage:
     GITHUB_RELEASE_TOKEN=... \\
-        python scripts/release_upload.py --repo OWNER/REPO --tag TAG FILE [FILE ...]
+        python scripts/release_upload.py --repo OWNER/REPO --tag TAG [FILE ...]
 """
 
 import argparse
@@ -33,6 +36,7 @@ API_ROOT = "https://api.github.com"
 UPLOAD_ROOT = "https://uploads.github.com"
 NIGHTLY_TAG = "nightly"
 TOKEN_ENV_VAR = "GITHUB_RELEASE_TOKEN"
+RELEASES_PER_PAGE = 100
 
 
 def _request(method: str, url: str, token: str, *, data: bytes | None = None,
@@ -61,14 +65,22 @@ def _request(method: str, url: str, token: str, *, data: bytes | None = None,
         raise RuntimeError(f"{method} {url} -> HTTP {e.code}: {body}") from e
 
 
-def _get_release(repo: str, tag: str, token: str) -> dict | None:
-    url = f"{API_ROOT}/repos/{repo}/releases/tags/{urllib.parse.quote(tag)}"
-    try:
-        return _request("GET", url, token)
-    except RuntimeError as e:
-        if "HTTP 404" in str(e):
+def _find_release(repo: str, tag: str, token: str) -> dict | None:
+    """Find the release for a tag, including drafts.
+
+    GET /releases/tags/<tag> never returns drafts, so page through the
+    release list instead (drafts are listed to users with write access).
+    """
+    page = 1
+    while True:
+        url = f"{API_ROOT}/repos/{repo}/releases?per_page={RELEASES_PER_PAGE}&page={page}"
+        releases = _request("GET", url, token) or []
+        for release in releases:
+            if release.get("tag_name") == tag:
+                return release
+        if len(releases) < RELEASES_PER_PAGE:
             return None
-        raise
+        page += 1
 
 
 def _delete_release(repo: str, release_id: int, token: str) -> None:
@@ -88,12 +100,13 @@ def _delete_tag_ref(repo: str, tag: str, token: str) -> None:
             raise
 
 
-def _create_release(repo: str, tag: str, *, prerelease: bool, token: str) -> dict:
+def _create_release(repo: str, tag: str, *, prerelease: bool, draft: bool, token: str) -> dict:
     url = f"{API_ROOT}/repos/{repo}/releases"
     payload = json.dumps({
         "tag_name": tag,
         "name": tag,
         "prerelease": prerelease,
+        "draft": draft,
         "generate_release_notes": False,
     }).encode("utf-8")
     return _request("POST", url, token, data=payload, content_type="application/json")
@@ -129,27 +142,19 @@ def upload(repo: str, tag: str, files: list[Path], token: str) -> None:
     prerelease = _is_prerelease_tag(tag)
 
     if tag == NIGHTLY_TAG:
-        existing = _get_release(repo, tag, token)
+        existing = _find_release(repo, tag, token)
         if existing:
             print(f"Deleting existing nightly release id={existing['id']}")
             _delete_release(repo, existing["id"], token)
             _delete_tag_ref(repo, tag, token)
-        release = _create_release(repo, tag, prerelease=True, token=token)
+        release = _create_release(repo, tag, prerelease=True, draft=False, token=token)
     else:
-        release = _get_release(repo, tag, token)
+        release = _find_release(repo, tag, token)
         if release is None:
-            print(f"Creating release for tag {tag}")
-            try:
-                release = _create_release(repo, tag, prerelease=prerelease, token=token)
-            except RuntimeError as e:
-                # Each platform's build uploads independently; another one
-                # may have created the release between our GET and POST.
-                if "HTTP 422" not in str(e):
-                    raise
-                release = _get_release(repo, tag, token)
-                if release is None:
-                    raise
-                print(f"Release was created concurrently (id={release['id']}); reusing it")
+            # Draft: nothing is public until a maintainer has tested the
+            # artifacts and clicks Publish (doc/RELEASING.md).
+            print(f"Creating draft release for tag {tag}")
+            release = _create_release(repo, tag, prerelease=prerelease, draft=True, token=token)
         else:
             print(f"Reusing existing release for tag {tag} (id={release['id']})")
 
@@ -169,7 +174,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--repo", required=True, help="GitHub repo as OWNER/REPO")
     parser.add_argument("--tag", required=True, help="Release tag (e.g. v0.3.0 or 'nightly')")
-    parser.add_argument("files", nargs="+", type=Path, help="Artifact files to upload")
+    parser.add_argument("files", nargs="*", type=Path,
+                        help="Artifact files to upload (none: just ensure the release exists)")
     args = parser.parse_args()
 
     token = os.environ.get(TOKEN_ENV_VAR)
