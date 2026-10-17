@@ -15,7 +15,6 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
-    branches: ["claude/gracious-gauss-mr901i"]   # TEMPORARY: packaging test runs; remove before merge
   workflow_dispatch:
     inputs:
       ref:
