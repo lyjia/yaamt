@@ -27,6 +27,19 @@ The pipeline files target Woodpecker **3.x** (server currently runs
 changes locally with a matching CLI before pushing:
 `woodpecker-cli lint .woodpecker/`.
 
+## Tag Releases (GitHub Actions)
+
+Versioned releases are built by `.github/workflows/release.yml`, not
+Woodpecker: pushing a `v<M>.<m>.<p>` tag builds Linux, Windows, and
+macOS on GitHub-hosted runners, smoke-tests each bundle and installed
+package (`scripts/smoke_test.py`), and uploads the artifacts to the
+tag's GitHub Release. Rationale: no Windows/macOS Woodpecker agents
+exist, release assets do not count against the Actions storage cap,
+and standard runners are free for public repositories. Manual dispatch
+with a branch name builds and tests without publishing.
+
+Woodpecker remains responsible for lint/test and the rolling `nightly`.
+
 ## Pipeline Topology
 
 Four pipeline files under `.woodpecker/`:
@@ -34,18 +47,18 @@ Four pipeline files under `.woodpecker/`:
 | File                | Trigger                                    | Runs on            |
 |---------------------|--------------------------------------------|--------------------|
 | `test.yaml`         | every push, every PR                       | Linux              |
-| `build-linux.yaml`  | push to master/development, tag `v*.*.*`   | Linux              |
-| `build-windows.yaml`| push to master/development, tag `v*.*.*`   | Windows            |
-| `build-macos.yaml`  | push to master/development, tag `v*.*.*`   | macOS              |
+| `build-linux.yaml`  | push to master/development                 | Linux              |
+| `build-windows.yaml`| push to master/development                 | Windows            |
+| `build-macos.yaml`  | push to master/development                 | macOS              |
 
 Each build pipeline declares a workflow-level `depends_on: [test]`, so
 builds start only after `test.yaml` succeeds; a test failure skips all
-three builds. This is why `test.yaml` also triggers on tag pushes: a
-workflow skipped by its `when` filters cannot gate its dependents.
+three builds.
 
 `test.yaml` produces no artifacts. The three build pipelines invoke
-`build.py --release --installer` and upload the resulting installer to
-GitHub Releases via `scripts/release_upload.py`.
+`build.py --release --installer` (plus `--archive` on Linux/Windows)
+and upload the results to the `nightly` release via
+`scripts/release_upload.py`.
 
 ## Trigger Matrix
 
@@ -54,7 +67,7 @@ GitHub Releases via `scripts/release_upload.py`.
 | PR (any branch)             | yes       | no           | -                          |
 | push to feature branch      | yes       | no           | -                          |
 | push to master/development  | yes       | yes          | rolling `nightly` release  |
-| push of tag `v<M>.<m>.<p>`  | yes       | yes          | versioned release `v<...>` |
+| push of tag `v<M>.<m>.<p>`  | no        | no (GitHub Actions `release.yml`) | versioned release `v<...>` |
 
 The "nightly" release is a single GitHub Release with the tag `nightly`
 that the upload script recreates with the latest artifacts on every
@@ -64,17 +77,16 @@ stable URL without browsing the workflow run history.
 ## Runner Provisioning
 
 Only the Linux Woodpecker agent is connected today. Windows and macOS
-agents must be brought online before tag pushes can produce a complete
-release. Until they are, tag pushes will publish a Linux-only release;
-this is acceptable as an interim state but blocks v1 public release.
+agents are needed only for Windows/macOS nightlies; tag releases do
+not depend on them (see Tag Releases above).
 
 ### Linux agent (already connected)
 
 Already running. No custom labels required: the Linux pipelines route
 on `platform=linux/amd64`, which every agent advertises by default.
 The agent must have docker + git available (Woodpecker defaults).
-Build pipelines `curl`-install `nfpm` inside the build container (the
-official `python:3.12` image does not include it).
+`build.py --install-deps` installs a pinned `nfpm` inside the build
+container (the official `python:3.12` image does not include it).
 
 Note on Docker steps: each step runs in a fresh container and only
 the workspace directory persists between steps. Pipeline steps must

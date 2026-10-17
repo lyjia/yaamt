@@ -28,9 +28,10 @@ the *workflow* view: what to actually do in each scenario.
 Use this when `master` (or `development`, pre-1.0) is in a state you
 want to ship.
 
-1. **Pre-flight.** Confirm CI is green on the commit you intend to ship,
-   and that the Woodpecker agents for all platforms you want artifacts
-   from are online (Woodpecker UI -> admin -> agents).
+1. **Pre-flight.** Confirm CI is green on the commit you intend to ship.
+   Optionally dry-run packaging first: GitHub -> Actions -> Release ->
+   Run workflow, with the branch name as `ref` (builds and smoke-tests
+   all platforms without publishing).
 2. **Tag the commit.** Pick the next version per semver-ish judgment
    (new features -> bump minor; fixes only -> bump patch):
 
@@ -41,14 +42,22 @@ want to ship.
    git push origin v0.3.0
    ```
 
-3. **CI takes over.** The tag push triggers `build-linux.yaml`,
-   `build-windows.yaml`, and `build-macos.yaml`. Each builds with
-   `build.py --release --installer` and uploads its installer to a
-   GitHub Release named after the tag via `scripts/release_upload.py`.
+3. **CI takes over.** The tag push triggers the GitHub Actions
+   `Release` workflow (`.github/workflows/release.yml`). It builds on
+   Linux, Windows, and macOS, smoke-tests each bundle and installed
+   package, and uploads to a GitHub Release named after the tag via
+   `scripts/release_upload.py`. If one platform fails, fix it and
+   re-run that job (or dispatch the workflow with the tag); re-uploads
+   replace same-named assets.
 4. **Verify.** On the release page, check that all expected assets are
-   present and that the filenames carry the bare version (e.g.
-   `yaamt-0.3.0-linux-x64.deb` - no `+` suffix). Download one and
-   confirm `yaamt --version` prints the tag's version.
+   present and that the filenames carry the bare version (no `+`):
+   - `yaamt-0.3.0-windows-x64.zip`, `yaamt-0.3.0-windows-x64-setup.exe`
+   - `yaamt-0.3.0-linux-x64.tar.gz`, `.deb`, `.rpm`
+   - `yaamt-0.3.0-macos-arm64.dmg`
+
+   Download one and confirm `yaamt --version` (or the About window)
+   shows the tag's version, and that About -> "Check for updates"
+   reports you are on the latest release.
 5. **Write the release notes.** CI creates the release without notes;
    edit the release on GitHub and summarize changes.
 
@@ -59,8 +68,9 @@ That's it. No branch ceremony is required for a normal release.
 ## Scenario 2: Nightly / Development Builds
 
 You do nothing - this is automatic. Every push to `master` or
-`development` rebuilds all platforms and **replaces** the assets on the
-rolling `nightly` prerelease. Consequences worth knowing:
+`development` rebuilds on the connected Woodpecker agents (currently
+Linux only) and **replaces** the assets on the rolling `nightly`
+prerelease. Consequences worth knowing:
 
 - The `nightly` release always reflects the *latest* dev push; older
   nightly artifacts are not retained.
@@ -105,10 +115,8 @@ If `master` has *not* moved on, skip the branch: just commit the fix to
 
 ## Scenario 4: Manual / Offline Publishing
 
-Use this when a CI agent for some platform is down or not yet
-provisioned, and you need that platform's artifact anyway. This is the
-current path for Windows and macOS until their Woodpecker agents are
-online (see `doc/designs/ci.md`).
+Use this when GitHub Actions is unavailable or a platform's job cannot
+build there, and you need that platform's artifact anyway.
 
 The shape is identical on every platform: create the tag once, then on
 each build machine check that tag out, build, and upload. The exact
@@ -132,8 +140,11 @@ git push origin v0.1.0
 | Platform | Build host must have                                                              |
 |----------|----------------------------------------------------------------------------------|
 | Windows  | Python 3.12, Git, Inno Setup 6 (`iscc` on PATH)                                   |
-| macOS    | Python 3.12, Xcode Command Line Tools, `create-dmg` (`brew install create-dmg`)   |
-| Linux    | Python 3.12, Git, `nfpm` (https://nfpm.goreleaser.com/install/)                   |
+| macOS    | Python 3.12, Xcode Command Line Tools, Homebrew                                   |
+| Linux    | Python 3.12, Git, apt (Debian/Ubuntu)                                             |
+
+`python build.py --install-deps` installs the installer tool for each
+platform (Inno Setup via choco, `create-dmg` via brew, a pinned `nfpm`).
 
 ### Windows (PowerShell) -> `*-setup.exe`
 
@@ -142,8 +153,8 @@ git fetch --tags
 git checkout v0.1.0
 cd src; python -m util.version; cd ..   # expect bare "0.1.0" (no '+' or '.dirty')
 python build.py --install-deps          # first time on this machine only
-python build.py --release --installer
-# Installer lands at: build\release-<timestamp>\yaamt-0.1.0-windows-x64-setup.exe
+python build.py --release --archive --installer
+# Artifacts land at: build\release-<timestamp>\yaamt-0.1.0-windows-x64{.zip,-setup.exe}
 ```
 
 ### macOS (bash) -> `.dmg`
@@ -164,8 +175,8 @@ git fetch --tags
 git checkout v0.1.0
 (cd src && python -m util.version)      # expect bare "0.1.0" (no '+' or '.dirty')
 python build.py --install-deps          # first time on this machine only
-python build.py --release --installer
-# Packages land at: build/release-<timestamp>/yaamt-0.1.0-linux-x64.{deb,rpm}
+python build.py --release --archive --installer
+# Packages land at: build/release-<timestamp>/yaamt-0.1.0-linux-x64.{tar.gz,deb,rpm}
 ```
 
 ### Uploading the artifacts
@@ -251,6 +262,7 @@ cd src && python -m util.version
 | Ship a new version                 | `git tag v0.X.Y && git push origin v0.X.Y`       |
 | Get a dev build to a tester        | Point them at the `nightly` prerelease           |
 | Fix a shipped release              | Branch from tag, fix, tag `v0.X.(Y+1)`, push     |
-| Build one platform by hand         | Checkout the tag, `build.py --release --installer` |
+| Build one platform by hand         | Checkout the tag, `build.py --release --archive --installer` |
+| Test packaging without releasing   | Actions -> Release -> Run workflow on a branch   |
 | Undo a bad tag                     | Delete release + tag, fix, re-tag (or hotfix)    |
 | See what version a build would get | `cd src && python -m util.version`               |

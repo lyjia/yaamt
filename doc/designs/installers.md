@@ -52,7 +52,7 @@ skipping the upload step.
 |----------|------------------------------|---------------------------------------------|
 | Windows  | `%PROGRAMFILES%\YAAMT\`      | `%LOCALAPPDATA%\Lyjia\YAAMT\` (QSettings)   |
 | Linux    | `/usr/lib/yaamt/`            | `~/.config/Lyjia/YAAMT/` (XDG)              |
-| macOS    | `/Applications/Yaamt.app/`   | `~/Library/Application Support/Lyjia/YAAMT/`|
+| macOS    | `/Applications/YAAMT.app/`   | `~/Library/Application Support/Lyjia/YAAMT/`|
 
 On Linux, `/usr/bin/yaamt` is a symlink to `/usr/lib/yaamt/yaamt` so
 the CLI is on PATH out of the box. The GUI is launched via the
@@ -81,38 +81,39 @@ nfpm package --config installer/nfpm.yaml --target dist/ --packager rpm
 
 ## macOS: .app + .dmg
 
-The PyInstaller spec produces a folder of binaries, not a `.app`
-bundle. The macOS backend wraps that output:
+`yaamt.spec` adds a PyInstaller `BUNDLE` step on macOS that wraps the
+COLLECT output in `YAAMT.app` (next to the one-folder `yaamt/`).
+PyInstaller places data files in `Contents/Resources`, writes
+`Info.plist` (version from `YAAMT_VERSION`, set by `build.py`), and
+ad-hoc signs the bundle, so Gatekeeper warns rather than refuses.
+`yaamt-gui` is the bundle executable; the CLI ships at
+`YAAMT.app/Contents/MacOS/yaamt`.
 
-```
-installer/yaamt-macos/
-    Yaamt.app/
-        Contents/
-            Info.plist            (templated; %VERSION% substituted)
-            MacOS/                (symlinked or copied from PyInstaller output)
-            Resources/
-                app-icon-gui.icns
-```
+`installer/build_dmg.sh` stages the `.app` and runs `create-dmg` to
+make a drag-to-Applications image:
+`yaamt-<version>-macos-<arch>.dmg`.
 
-`installer/build_dmg.sh` is invoked by the backend and:
+## Release Artifacts
 
-1. Copies the PyInstaller output into a fresh
-   `Yaamt.app/Contents/MacOS/`.
-2. Substitutes the version string into `Info.plist`.
-3. Runs `codesign --sign - --deep --force Yaamt.app` (ad-hoc signing -
-   we are deferring real Developer ID code signing per the plan; this
-   at least makes Gatekeeper warn rather than refuse outright).
-4. Calls `create-dmg --volname "YAAMT <version>" Yaamt.app dist/`.
+All artifacts share the stem `yaamt-<version>-<platform>-<arch>` and
+land in `build/release-<timestamp>/`:
 
-Result: `dist/yaamt-<version>-macos-<arch>.dmg`.
+| Platform | `--archive`                 | `--installer`             |
+|----------|-----------------------------|---------------------------|
+| Windows  | `.zip` (one top-level dir)  | `-setup.exe` (Inno Setup) |
+| Linux    | `.tar.gz` (one top-level dir)| `.deb`, `.rpm` (nfpm)    |
+| macOS    | (not used)                  | `.dmg` containing `.app`  |
+
+Linux builds install torch from the PyTorch CPU-only index; PyPI's
+Linux wheel is a CUDA build that adds ~4 GB of NVIDIA libraries.
 
 ## Files
 
 - `installer/yaamt.iss` (existing) - minor polish: read version via
   `/DAppVersion` (already wired); no structural change.
 - `installer/nfpm.yaml` (new)
-- `installer/yaamt-macos/Info.plist` (new) - templated bundle metadata
-- `installer/build_dmg.sh` (new) - macOS assembly script
+- `yaamt.spec` - macOS `BUNDLE` step (bundle metadata lives here)
+- `installer/build_dmg.sh` (new) - macOS .dmg script
 - `build.py:666` - generalize `_create_installer` into a dispatcher
   with three platform backends
 
@@ -133,14 +134,12 @@ backend.
 
 ## Verification
 
-- `python build.py --release --installer` on a Linux runner produces
-  `dist/yaamt-<version>-linux-<arch>.deb` and
-  `dist/yaamt-<version>-linux-<arch>.rpm`.
-- Same command on Windows produces
-  `dist/yaamt-<version>-windows-<arch>-setup.exe`.
-- Same command on macOS produces
-  `dist/yaamt-<version>-macos-<arch>.dmg`.
-- Each artifact installs cleanly on a fresh VM and launches both the
-  CLI and GUI.
-- `nfpm` and `create-dmg` are documented in `doc/designs/ci.md` as
-  agent-provisioning prerequisites.
+- `.github/workflows/release.yml` builds every platform and runs
+  `scripts/smoke_test.py` against both the raw bundle and the
+  installed package (`.deb` via apt, `setup.exe` silent install, the
+  `.app` inside the mounted `.dmg` plus `codesign --verify`).
+- The smoke test checks the stamped version, imports all analyzers,
+  runs offline analyzers on a fixture copy, and starts the GUI under
+  Qt's offscreen platform.
+- `build.py --install-deps` installs `nfpm`, `create-dmg`, or Inno
+  Setup as appropriate.
