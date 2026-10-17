@@ -8,10 +8,12 @@ frozen CLI and GUI executables only - never the source tree.
 
 Checks:
   1. `yaamt --version` prints the expected version (if --expect-version).
-  2. `yaamt list analyzers` succeeds (imports every registered analyzer).
-  3. A few analyzers run end-to-end on a copy of a test fixture
+  2. `yaamt --check-update` reaches the GitHub Releases API (proves the
+     frozen build can verify TLS; needs network).
+  3. `yaamt list analyzers` succeeds (imports every registered analyzer).
+  4. A few analyzers run end-to-end on a copy of a test fixture
      (exercises numpy / scipy / librosa / numba / libebur128).
-  4. The GUI starts under Qt's offscreen platform and stays up.
+  5. The GUI starts under Qt's offscreen platform and stays up.
 
 Stdlib-only so it runs on every CI runner without an install step.
 
@@ -95,6 +97,7 @@ def main() -> int:
         if args.expect_version and version != args.expect_version:
             raise RuntimeError(f"expected version {args.expect_version!r}, got {version!r}")
 
+        print("  " + _run_cli(cli, "--check-update").strip())
         _run_cli(cli, "list", "analyzers")
 
         # Never touch the fixture itself; analyze a scratch copy.

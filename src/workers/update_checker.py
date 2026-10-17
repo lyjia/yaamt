@@ -11,9 +11,12 @@ directly without instantiating a Qt worker.
 """
 
 import json
+import ssl
 import time
 import urllib.error
 import urllib.request
+
+import certifi
 
 from PySide6.QtCore import QObject, QRunnable, Signal
 
@@ -28,6 +31,7 @@ from util.version import is_newer
 
 USER_AGENT = "yaamt-update-check"
 HTTP_TIMEOUT_SECONDS = 10
+HTTP_NOT_FOUND = 404
 
 
 class UpdateCheckerSignals(QObject):
@@ -41,11 +45,26 @@ class UpdateCheckerSignals(QObject):
     failed = Signal(str)                  # error message
 
 
-def check_latest_release(api_url: str = UPDATE_CHECK_API_URL) -> tuple[str, str]:
+def _tls_context() -> ssl.SSLContext:
+    """TLS context trusting the OS store plus certifi's CA bundle.
+
+    Frozen builds ship their own OpenSSL, which cannot reliably locate the
+    OS trust store (notably on macOS, and on Linux distros with non-Debian
+    certificate paths), so certifi is added. The OS store is kept so
+    organization-installed CAs (e.g. TLS-inspecting proxies) still work.
+    """
+    context = ssl.create_default_context()
+    context.load_verify_locations(cafile=certifi.where())
+    return context
+
+
+def check_latest_release(api_url: str = UPDATE_CHECK_API_URL) -> tuple[str, str] | None:
     """Fetch the latest release tag and HTML URL.
 
-    Returns (tag_without_v_prefix, html_url). Raises on any HTTP or
-    parse error so callers can decide whether to surface it.
+    Returns (tag_without_v_prefix, html_url), or None when the repository
+    has no published (non-prerelease) release yet - GitHub answers 404.
+    Raises on any other HTTP or parse error so callers can decide whether
+    to surface it.
     """
     request = urllib.request.Request(
         api_url,
@@ -55,8 +74,14 @@ def check_latest_release(api_url: str = UPDATE_CHECK_API_URL) -> tuple[str, str]
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )
-    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
-        payload = json.loads(response.read())
+    try:
+        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS,
+                                    context=_tls_context()) as response:
+            payload = json.loads(response.read())
+    except urllib.error.HTTPError as e:
+        if e.code == HTTP_NOT_FOUND:
+            return None
+        raise
 
     tag = payload.get("tag_name", "")
     if not tag:
@@ -128,11 +153,17 @@ class UpdateChecker(QRunnable):
             return
 
         try:
-            latest, html_url = check_latest_release()
+            result = check_latest_release()
         except (urllib.error.URLError, ValueError, json.JSONDecodeError, OSError) as e:
             log.warning(f"Update check failed: {e}")
             self.signals.failed.emit(str(e))
             return
+
+        if result is None:
+            log.info("Update check: no published releases yet")
+            self.signals.no_update.emit()
+            return
+        latest, html_url = result
 
         try:
             self._persist_check(latest)

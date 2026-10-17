@@ -129,11 +129,15 @@ def _cli_check_update() -> int:
 
     current = get_version()
     try:
-        latest, html_url = check_latest_release()
+        result = check_latest_release()
     except Exception as e:
         print(f"Update check failed: {e}", file=sys.stderr)
         return SYS_RETURN_ERROR
 
+    if result is None:
+        print(f"No releases have been published yet (current: {current}).")
+        return SYS_RETURN_SUCCESS
+    latest, html_url = result
     if is_newer(latest, current):
         print(f"Update available: {latest} (current: {current})")
         if html_url:
