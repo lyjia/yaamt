@@ -101,7 +101,7 @@ land in `build/release-<timestamp>/`:
 | Platform | `--archive`                 | `--installer`             |
 |----------|-----------------------------|---------------------------|
 | Windows  | `.zip` (one top-level dir)  | `-setup.exe` (Inno Setup) |
-| Linux    | `.tar.gz` (one top-level dir)| `.deb`, `.rpm` (nfpm)    |
+| Linux    | `.tar.gz` (one top-level dir)| `.deb`, `.rpm` (nfpm); x64 and arm64 |
 | macOS    | (not used)                  | `.dmg` containing `.app`  |
 
 Linux builds install torch from the PyTorch CPU-only index; PyPI's

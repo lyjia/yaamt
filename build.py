@@ -49,14 +49,18 @@ MACOS_HOMEBREW_DEPS = ["portaudio", "ccache", "create-dmg"]
 
 WINDOWS_CHOCO_DEPS = ["ccache", "innosetup"]
 
-# nfpm is not packaged by Debian/Ubuntu; install a pinned release .deb.
-NFPM_DEB_URL = "https://github.com/goreleaser/nfpm/releases/download/v2.47.0/nfpm_2.47.0_amd64.deb"
+# Our arch names -> Debian/nfpm arch names (nfpm maps these to rpm's
+# x86_64 / aarch64 itself).
+DEBIAN_ARCH = {"x64": "amd64", "arm64": "arm64"}
 
-# PyPI's Linux torch wheels are CUDA builds that pull in ~4 GB of NVIDIA
+# nfpm is not packaged by Debian/Ubuntu; install a pinned release .deb.
+NFPM_DEB_URL = "https://github.com/goreleaser/nfpm/releases/download/v2.47.0/nfpm_2.47.0_{arch}.deb"
+
+# PyPI's x86_64 Linux torch wheels are CUDA builds that pull in ~4 GB of NVIDIA
 # libraries (plus triton), all of which PyInstaller bundles. The CPU-only
 # index serves '+cpu' builds of the same pinned versions; pip prefers them
 # because a local version label sorts higher. Windows and macOS PyPI wheels
-# are already CPU-only. MusicalKeyCNN falls back to CPU when CUDA is absent.
+# (and Linux aarch64) are already CPU-only. MusicalKeyCNN falls back to CPU when CUDA is absent.
 LINUX_TORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
 
 FILENAME_SRC_CLI = "src/yaamt.py"
@@ -222,7 +226,8 @@ class DependencyInstaller:
             subprocess.run(prefix + ["apt-get", "install", "-y"] + deps, check=True)
             if not shutil.which("nfpm"):
                 nfpm_deb = Path(tempfile.gettempdir()) / "nfpm.deb"
-                subprocess.run(["curl", "-fsSL", NFPM_DEB_URL, "-o", str(nfpm_deb)], check=True)
+                nfpm_url = NFPM_DEB_URL.format(arch=DEBIAN_ARCH[self.config.arch])
+                subprocess.run(["curl", "-fsSL", nfpm_url, "-o", str(nfpm_deb)], check=True)
                 subprocess.run(prefix + ["apt-get", "install", "-y", str(nfpm_deb)], check=True)
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             print(f"Warning: Failed to install some dependencies: {e}")
@@ -653,6 +658,7 @@ def _create_linux_installer(config: BuildConfig, version: str) -> None:
     rendered_config = config.output_dir / "nfpm.yaml"
     rendered_config.write_text(string.Template(nfpm_config.read_text()).substitute(
         YAAMT_VERSION=version,
+        YAAMT_ARCH=DEBIAN_ARCH[config.arch],
         YAAMT_SOURCE_DIR=source_dir,
         YAAMT_PROJECT_ROOT=config.project_root,
     ))

@@ -30,8 +30,8 @@ changes locally with a matching CLI before pushing:
 ## Tag Releases (GitHub Actions)
 
 Versioned releases are built by `.github/workflows/release.yml`, not
-Woodpecker: pushing a `v<M>.<m>.<p>` tag builds Linux, Windows, and
-macOS on GitHub-hosted runners, smoke-tests each bundle and installed
+Woodpecker: pushing a `v<M>.<m>.<p>` tag builds Linux (x64, arm64), Windows,
+and macOS on GitHub-hosted runners, smoke-tests each bundle and installed
 package (`scripts/smoke_test.py`), and uploads the artifacts to the
 tag's GitHub Release. Rationale: no Windows/macOS Woodpecker agents
 exist, release assets do not count against the Actions storage cap,

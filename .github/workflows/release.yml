@@ -27,22 +27,30 @@ permissions:
 
 jobs:
   build:
-    name: build (${{ matrix.platform }})
+    name: build (${{ matrix.platform }}-${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
         include:
           # 22.04 (glibc 2.35) so the binaries run on older distros too.
           - platform: linux
+            arch: x64
             os: ubuntu-22.04
             build_flags: --archive --installer
             artifacts: "*.tar.gz *.deb *.rpm"
+          - platform: linux
+            arch: arm64
+            os: ubuntu-22.04-arm
+            build_flags: --archive --installer
+            artifacts: "*.tar.gz *.deb *.rpm"
           - platform: windows
+            arch: x64
             os: windows-latest
             build_flags: --archive --installer
             artifacts: "*.zip *-setup.exe"
           # macos-14 is Apple Silicon -> arm64. Add macos-13 for x64.
           - platform: macos
+            arch: arm64
             os: macos-14
             build_flags: --installer
             artifacts: "*.dmg"

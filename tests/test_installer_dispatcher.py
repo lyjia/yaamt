@@ -169,17 +169,22 @@ class TestLinuxInstallerWithNfpm:
     """Runs the real nfpm backend against a stub bundle; guards the
     placeholder rendering (nfpm does not expand env vars in `contents`)."""
 
-    def test_builds_deb_and_rpm_containing_bundle(self, build_module, fake_config):
+    @pytest.mark.parametrize("arch, deb_arch", [("x64", "amd64"), ("arm64", "arm64")])
+    def test_builds_deb_and_rpm_containing_bundle(self, build_module, fake_config, arch, deb_arch):
+        fake_config.arch = arch
         bundle = fake_config.output_dir / "yaamt"
         bundle.mkdir()
         (bundle / "yaamt").write_text("#!/bin/sh\n")
 
         build_module._create_linux_installer(fake_config, "0.3.0")
 
-        deb = fake_config.output_dir / "yaamt-0.3.0-linux-x64.deb"
-        rpm = fake_config.output_dir / "yaamt-0.3.0-linux-x64.rpm"
+        deb = fake_config.output_dir / f"yaamt-0.3.0-linux-{arch}.deb"
+        rpm = fake_config.output_dir / f"yaamt-0.3.0-linux-{arch}.rpm"
         assert deb.is_file() and rpm.is_file()
         if shutil.which("dpkg-deb"):
+            package_arch = subprocess.run(["dpkg-deb", "-f", str(deb), "Architecture"],
+                                          capture_output=True, text=True, check=True).stdout.strip()
+            assert package_arch == deb_arch
             listing = subprocess.run(["dpkg-deb", "-c", str(deb)], capture_output=True,
                                      text=True, check=True).stdout
             assert "./usr/lib/yaamt/yaamt" in listing

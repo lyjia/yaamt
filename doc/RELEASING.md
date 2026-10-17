@@ -44,7 +44,7 @@ want to ship.
 
 3. **CI takes over.** The tag push triggers the GitHub Actions
    `Release` workflow (`.github/workflows/release.yml`). It builds on
-   Linux, Windows, and macOS, smoke-tests each bundle and installed
+   Linux (x64 and arm64), Windows, and macOS, smoke-tests each bundle and installed
    package, and uploads to a GitHub Release named after the tag via
    `scripts/release_upload.py`. If one platform fails, fix it and
    re-run that job (or dispatch the workflow with the tag); re-uploads
@@ -52,7 +52,7 @@ want to ship.
 4. **Verify.** On the release page, check that all expected assets are
    present and that the filenames carry the bare version (no `+`):
    - `yaamt-0.3.0-windows-x64.zip`, `yaamt-0.3.0-windows-x64-setup.exe`
-   - `yaamt-0.3.0-linux-x64.tar.gz`, `.deb`, `.rpm`
+   - `yaamt-0.3.0-linux-x64.tar.gz`, `.deb`, `.rpm` (and the same for `linux-arm64`)
    - `yaamt-0.3.0-macos-arm64.dmg`
 
    Download one and confirm `yaamt --version` (or the About window)

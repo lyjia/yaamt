@@ -6,7 +6,7 @@
 # `contents`) and writes the rendered config to the build output dir.
 
 name: yaamt
-arch: amd64                      # nfpm normalizes to x86_64 for rpm
+arch: ${YAAMT_ARCH}                # Debian name (amd64/arm64); nfpm maps it for rpm
 platform: linux
 version: ${YAAMT_VERSION}
 section: sound
