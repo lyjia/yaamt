@@ -99,6 +99,15 @@ def _create_release(repo: str, tag: str, *, prerelease: bool, token: str) -> dic
     return _request("POST", url, token, data=payload, content_type="application/json")
 
 
+def _delete_existing_asset(release: dict, name: str, token: str) -> None:
+    """Remove a same-named asset so a re-run replaces it instead of
+    failing with HTTP 422 (GitHub rejects duplicate asset names)."""
+    for asset in release.get("assets", []):
+        if asset.get("name") == name:
+            print(f"Replacing existing asset {name}")
+            _request("DELETE", asset["url"], token)
+
+
 def _upload_asset(upload_url_template: str, path: Path, token: str) -> dict:
     # The API returns 'upload_url' as an RFC 6570 template:
     #   "...releases/123/assets{?name,label}"
@@ -130,7 +139,17 @@ def upload(repo: str, tag: str, files: list[Path], token: str) -> None:
         release = _get_release(repo, tag, token)
         if release is None:
             print(f"Creating release for tag {tag}")
-            release = _create_release(repo, tag, prerelease=prerelease, token=token)
+            try:
+                release = _create_release(repo, tag, prerelease=prerelease, token=token)
+            except RuntimeError as e:
+                # Each platform's build uploads independently; another one
+                # may have created the release between our GET and POST.
+                if "HTTP 422" not in str(e):
+                    raise
+                release = _get_release(repo, tag, token)
+                if release is None:
+                    raise
+                print(f"Release was created concurrently (id={release['id']}); reusing it")
         else:
             print(f"Reusing existing release for tag {tag} (id={release['id']})")
 
@@ -139,6 +158,7 @@ def upload(repo: str, tag: str, files: list[Path], token: str) -> None:
         if not path.exists():
             print(f"WARNING: {path} not found, skipping", file=sys.stderr)
             continue
+        _delete_existing_asset(release, path.name, token)
         print(f"Uploading {path.name} ({path.stat().st_size} bytes)")
         _upload_asset(upload_url, path, token)
 
