@@ -104,6 +104,10 @@ land in `build/release-<timestamp>/`:
 | Linux    | `.tar.gz` (one top-level dir)| `.deb`, `.rpm` (nfpm); x64 and arm64 |
 | macOS    | (not used)                  | `.dmg` containing `.app`  |
 
+Linux arm64 binaries need glibc 2.39+ (Ubuntu 24.04, Debian 13,
+Fedora 40 or newer) because PySide6's aarch64 wheels are built against
+it; x64 binaries need glibc 2.35+.
+
 Linux builds install torch from the PyTorch CPU-only index; PyPI's
 Linux wheel is a CUDA build that adds ~4 GB of NVIDIA libraries.
 

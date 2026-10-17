@@ -39,9 +39,12 @@ jobs:
             os: ubuntu-22.04
             build_flags: --archive --installer
             artifacts: "*.tar.gz *.deb *.rpm"
+          # 24.04 (glibc 2.39): PySide6's aarch64 wheels require it, so the
+          # arm64 binaries need a glibc 2.39+ distro (e.g. Ubuntu 24.04,
+          # Debian 13, Fedora 40).
           - platform: linux
             arch: arm64
-            os: ubuntu-22.04-arm
+            os: ubuntu-24.04-arm
             build_flags: --archive --installer
             artifacts: "*.tar.gz *.deb *.rpm"
           - platform: windows
