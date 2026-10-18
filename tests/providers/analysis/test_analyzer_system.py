@@ -115,9 +115,24 @@ class TestAnalyzerBase:
 
 class TestProviderRegistry:
     """Tests for the auto-discovery system."""
-    from providers.analysis.bpm import StubBPMAnalyzer #do not remove this import
+    from providers.analysis.bpm.stub_bpm import StubBPMAnalyzer #do not remove this import
     from providers.analysis.loudness import PeakMeterAnalyzer #do not remove this import
 
+
+    def test_registry_order_matches_manifest(self):
+        """Analyzers are listed best-to-worst; the first in each category is the UI default."""
+        registry = PROVIDER_REGISTRY[ProviderType.ANALYZER]
+        assert [a.__name__ for a in registry[AnalyzerCategory.BPM]][:4] == [
+            "RE3MultibandSpectralBPMAnalyzer",
+            "LibrosaBeatTrackingBPMAnalyzer",
+            "AubioBPMAnalyzer",
+            "StubBPMAnalyzer",
+        ]
+        assert [a.__name__ for a in registry[AnalyzerCategory.KEY]][:3] == [
+            "MusicalKeyCNNAnalyzer",
+            "RE3WaveletKeyAnalyzer",
+            "LibrosaChromagramKeyAnalyzer",
+        ]
 
     def test_registry_populated(self):
         """Test that the registry is populated with discovered analyzers."""

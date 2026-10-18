@@ -1,4 +1,1 @@
-"""BPM analysis module."""
-from .stub_bpm import StubBPMAnalyzer
-from .aubio_bpm import AubioBPMAnalyzer
-from .re3_bpm import RE3MultibandSpectralBPMAnalyzer
+"""BPM analysis module. Analyzers are registered via providers/analysis/_manifest.py."""

@@ -13,16 +13,19 @@ Analyzers decorated with @analyzer(..., debug_only=True) are automatically
 excluded from release builds by the build system. No additional markers needed.
 """
 
+# Within each category, import order is UI display order (best to worst);
+# the first analyzer listed is the default.
+
 # BPM analyzers
-from providers.analysis.bpm import stub_bpm
-from providers.analysis.bpm import aubio_bpm
 from providers.analysis.bpm import re3_bpm
 from providers.analysis.bpm import librosa_bpm
+from providers.analysis.bpm import aubio_bpm
+from providers.analysis.bpm import stub_bpm
 
 # Key analyzers
+from providers.analysis.key import musical_cnn_key
 from providers.analysis.key import re3_key
 from providers.analysis.key import librosa_key
-from providers.analysis.key import musical_cnn_key
 
 # Fingerprint analyzers
 from providers.analysis.fingerprint import musicbrainz_acoustid

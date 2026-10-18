@@ -17,7 +17,7 @@ from util.const import IN_GITHUB_RUNNER, KEY_TAG_GENERIC, KEY_INITIAL_KEY, PROJE
 from providers.analysis import AnalyzerCategory
 from providers import get_analyzers_by_category, get_analyzer_by_name
 
-from providers.analysis.key import RE3WaveletKeyAnalyzer
+from providers.analysis.key.re3_key import RE3WaveletKeyAnalyzer
 from providers.analysis.key.support.wavelet import (
     KeyDetectionMatrix,
     DetectedKey,
