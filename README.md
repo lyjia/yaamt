@@ -2,9 +2,7 @@
 
 <img src="doc/YAAMT_logo.png" alt="YAAMT Logo">
 
-YET ANOTHER powerful, flexible tool for managing audio file metadata, designed for DJs, music producers, and audiophiles. 
-
-Built with love (and AI) by [Lyjia](http://www.lyjia.us)! This is the music tag tool that I've always wanted!
+YET ANOTHER powerful, flexible tool for managing audio file metadata, designed for DJs, music producers, and audio librarians.
 
 **THIS PROGRAM IS INCOMPLETE AND UNDER HEAVY DEVELOPMENT. IT IS NOT YET READY FOR MOST USES. Please check back later!**
 
