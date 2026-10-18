@@ -184,3 +184,26 @@ jobs:
         run: |
           cd build/release-*/
           python ../../scripts/release_upload.py --repo "${{ github.repository }}" --tag "$REF" ${{ matrix.artifacts }}
+
+  # After every platform has uploaded, publish SHA256SUMS.txt built from the
+  # digests GitHub records for each asset (nothing is re-downloaded).
+  checksums:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REF }}
+          submodules: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Publish SHA256SUMS.txt
+        env:
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/release_upload.py --repo "${{ github.repository }}" --tag "$REF" --checksums

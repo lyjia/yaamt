@@ -14,12 +14,16 @@ reused and assets are added or replaced; otherwise a draft is created.
 With no FILE arguments the script only ensures the release exists, which
 lets CI create the draft once before parallel platform uploads.
 
+--checksums writes SHA256SUMS.txt (sha256sum format) to the release from
+the SHA-256 digests GitHub records for every uploaded asset, so nothing
+has to be downloaded or re-hashed. CI runs it once all uploads finish.
+
 Stdlib-only: this script must run on Linux, Windows, and macOS agents
 without an extra install step.
 
 Usage:
     GITHUB_RELEASE_TOKEN=... \\
-        python scripts/release_upload.py --repo OWNER/REPO --tag TAG [FILE ...]
+        python scripts/release_upload.py --repo OWNER/REPO --tag TAG [--checksums] [FILE ...]
 """
 
 import argparse
@@ -37,6 +41,8 @@ UPLOAD_ROOT = "https://uploads.github.com"
 NIGHTLY_TAG = "nightly"
 TOKEN_ENV_VAR = "GITHUB_RELEASE_TOKEN"
 RELEASES_PER_PAGE = 100
+CHECKSUMS_FILENAME = "SHA256SUMS.txt"
+DIGEST_PREFIX = "sha256:"
 
 
 def _request(method: str, url: str, token: str, *, data: bytes | None = None,
@@ -121,15 +127,43 @@ def _delete_existing_asset(release: dict, name: str, token: str) -> None:
             _request("DELETE", asset["url"], token)
 
 
-def _upload_asset(upload_url_template: str, path: Path, token: str) -> dict:
+def _upload_bytes(upload_url_template: str, name: str, data: bytes, token: str) -> dict:
     # The API returns 'upload_url' as an RFC 6570 template:
     #   "...releases/123/assets{?name,label}"
     base = upload_url_template.split("{", 1)[0]
-    url = f"{base}?name={urllib.parse.quote(path.name)}"
-    mime, _ = mimetypes.guess_type(path.name)
+    url = f"{base}?name={urllib.parse.quote(name)}"
+    mime, _ = mimetypes.guess_type(name)
     content_type = mime or "application/octet-stream"
-    data = path.read_bytes()
     return _request("POST", url, token, data=data, content_type=content_type)
+
+
+def _upload_asset(upload_url_template: str, path: Path, token: str) -> dict:
+    return _upload_bytes(upload_url_template, path.name, path.read_bytes(), token)
+
+
+def _checksums_text(release: dict) -> str:
+    """sha256sum-format listing of the release's assets, from GitHub's digests."""
+    lines = []
+    for asset in sorted(release.get("assets", []), key=lambda a: a["name"]):
+        if asset["name"] == CHECKSUMS_FILENAME:
+            continue
+        digest = asset.get("digest") or ""
+        if not digest.startswith(DIGEST_PREFIX):
+            raise RuntimeError(f"GitHub reported no SHA-256 digest for {asset['name']}")
+        lines.append(f"{digest[len(DIGEST_PREFIX):]}  {asset['name']}")
+    if not lines:
+        raise RuntimeError("Release has no assets to checksum")
+    return "\n".join(lines) + "\n"
+
+
+def publish_checksums(repo: str, tag: str, token: str) -> None:
+    release = _find_release(repo, tag, token)
+    if release is None:
+        raise RuntimeError(f"No release found for tag {tag}")
+    text = _checksums_text(release)
+    _delete_existing_asset(release, CHECKSUMS_FILENAME, token)
+    print(f"Uploading {CHECKSUMS_FILENAME}:\n{text}")
+    _upload_bytes(release["upload_url"], CHECKSUMS_FILENAME, text.encode("utf-8"), token)
 
 
 def _is_prerelease_tag(tag: str) -> bool:
@@ -176,6 +210,8 @@ def main() -> int:
     parser.add_argument("--tag", required=True, help="Release tag (e.g. v0.3.0 or 'nightly')")
     parser.add_argument("files", nargs="*", type=Path,
                         help="Artifact files to upload (none: just ensure the release exists)")
+    parser.add_argument("--checksums", action="store_true",
+                        help=f"Write {CHECKSUMS_FILENAME} for the release's assets (after any uploads)")
     args = parser.parse_args()
 
     token = os.environ.get(TOKEN_ENV_VAR)
@@ -184,7 +220,10 @@ def main() -> int:
         return 2
 
     try:
-        upload(args.repo, args.tag, args.files, token)
+        if args.files or not args.checksums:
+            upload(args.repo, args.tag, args.files, token)
+        if args.checksums:
+            publish_checksums(args.repo, args.tag, token)
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
