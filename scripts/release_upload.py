@@ -2,10 +2,9 @@
 """
 Upload build artifacts to a GitHub Release.
 
-Used by CI to publish:
-  - tag pushes (v<M>.<m>.<p>) -> a *draft* versioned release, which a
-    maintainer tests and then publishes by hand (doc/RELEASING.md)
-  - branch pushes to master/development -> a rolling 'nightly' release
+Used by CI to publish tag pushes (v<M>.<m>.<p>) as a *draft* versioned
+release, which a maintainer tests and then publishes by hand
+(doc/RELEASING.md).
 
 For the rolling 'nightly' tag, the existing release (if any) is deleted
 and recreated so the asset list always reflects the latest build. For

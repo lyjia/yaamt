@@ -384,9 +384,8 @@ Also, this is a side project for me, so I may not be able to respond to pull req
 
 CI runs on a self-hosted [Woodpecker CI](https://woodpecker-ci.org/) server; pipeline definitions live in `.woodpecker/`:
 
-- **Pull requests** run lint + the full pytest suite. The status check to watch is `ci/woodpecker/pr/test`.
-- **Pushes to `master`/`development`** additionally build installers and refresh the rolling `nightly` GitHub Release.
-- **Tag pushes (`v*.*.*`)** build installers on all platforms and upload them to a versioned GitHub Release.
+- **Pull requests and pushes to `master`/`development`** run lint + the full pytest suite. The status check to watch is `ci/woodpecker/pr/test`.
+- **Tag pushes (`v*.*.*`)** build installers on all platforms via GitHub Actions and upload them to a draft versioned GitHub Release.
 
 Pull requests from forks require maintainer approval before their pipeline runs on our hardware. See [doc/designs/ci.md](doc/designs/ci.md) for the full trigger matrix, agent provisioning steps, and security model.
 

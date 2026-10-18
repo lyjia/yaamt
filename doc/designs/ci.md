@@ -39,47 +39,29 @@ exist, release assets do not count against the Actions storage cap,
 and standard runners are free for public repositories. Manual dispatch
 with a branch name builds and tests without publishing.
 
-Woodpecker remains responsible for lint/test and the rolling `nightly`.
+Woodpecker is responsible for lint/test only. There are no automatic
+dev builds; packaging is exercised by dispatching `release.yml` by hand.
 
 ## Pipeline Topology
 
-Four pipeline files under `.woodpecker/`:
-
-| File                | Trigger                                    | Runs on            |
-|---------------------|--------------------------------------------|--------------------|
-| `test.yaml`         | every push, every PR                       | Linux              |
-| `build-linux.yaml`  | push to master/development                 | Linux              |
-| `build-windows.yaml`| push to master/development                 | Windows            |
-| `build-macos.yaml`  | push to master/development                 | macOS              |
-
-Each build pipeline declares a workflow-level `depends_on: [test]`, so
-builds start only after `test.yaml` succeeds; a test failure skips all
-three builds.
-
-`test.yaml` produces no artifacts. The three build pipelines invoke
-`build.py --release --installer` (plus `--archive` on Linux/Windows)
-and upload the results to the `nightly` release via
-`scripts/release_upload.py`.
+One pipeline file, `.woodpecker/test.yaml`, on Linux. It runs lint and
+the full pytest suite and produces no artifacts.
 
 ## Trigger Matrix
 
-| Event                       | test.yaml | build-*.yaml | Upload target              |
-|-----------------------------|-----------|--------------|----------------------------|
-| PR (any branch)             | yes       | no           | -                          |
-| push to feature branch      | yes       | no           | -                          |
-| push to master/development  | yes       | yes          | rolling `nightly` release  |
-| push of tag `v<M>.<m>.<p>`  | no        | no (GitHub Actions `release.yml`) | versioned release `v<...>` |
-
-The "nightly" release is a single GitHub Release with the tag `nightly`
-that the upload script recreates with the latest artifacts on every
-master/development push. Anyone can grab the latest dev build from a
-stable URL without browsing the workflow run history.
+| Event                       | Woodpecker `test.yaml` | GitHub Actions `release.yml`      |
+|-----------------------------|------------------------|-----------------------------------|
+| PR (any branch)             | yes                    | no                                |
+| push to feature branch      | no (runs once a PR is open) | no                           |
+| push to master/development  | yes                    | no                                |
+| push of tag `v<M>.<m>.<p>`  | no                     | yes: draft release `v<...>`       |
+| manual dispatch             | -                      | yes: build + smoke test, no upload |
 
 ## Runner Provisioning
 
-Only the Linux Woodpecker agent is connected today. Windows and macOS
-agents are needed only for Windows/macOS nightlies; tag releases do
-not depend on them (see Tag Releases above).
+A single Linux Woodpecker agent. Windows and macOS builds run on
+GitHub-hosted runners (see Tag Releases above), so no other agents are
+needed.
 
 ### Linux agent (already connected)
 
@@ -92,61 +74,15 @@ container (the official `python:3.12` image does not include it).
 Note on Docker steps: each step runs in a fresh container and only
 the workspace directory persists between steps. Pipeline steps must
 be self-contained - apt/pip installs from one step do not exist in
-the next. (Bare-metal local-backend agents do not have this
-constraint.)
+the next.
 
-### Windows agent (to provision)
+### Agent rules
 
-1. Provision a long-lived Windows host (Server 2022 or Win11 Pro). It
-   must reach the Woodpecker server over outbound TCP only - **never
-   expose any port inbound**.
-2. Install:
-   - Python 3.12 (python.org installer, "Add to PATH")
-   - Git for Windows
-   - Inno Setup 6 (`iscc` on PATH; required for installer builds)
-3. Create a dedicated low-privilege Windows user (`woodpecker-agent`).
-   Do not use Administrator.
-4. Install `woodpecker-agent` from the official release. Run it as a
-   Windows service under the dedicated user, configured with
-   `WOODPECKER_BACKEND=local` (no Docker on this host). Note: on the
-   local backend, the `image` field in pipeline steps names the shell
-   used to run commands (`powershell` in `build-windows.yaml`), not a
-   container image.
-5. Configure the agent with a unique agent token issued by the
-   Woodpecker server (one token per agent, rotate independently).
-6. Apply runner labels: `backend=local`, `platform=windows/amd64`,
-   `os=windows`.
-7. Smoke test: trigger `build-windows.yaml` from the Woodpecker UI and
-   confirm the artifact is produced.
-
-### macOS agent (to provision)
-
-1. Provision a long-lived macOS host. Apple Silicon is preferred for
-   `arm64` artifacts; an Intel host can be added separately for `amd64`.
-   Outbound TCP only - no inbound exposure.
-2. Install:
-   - Xcode Command Line Tools (`xcode-select --install`)
-   - Python 3.12 from the python.org installer (avoid Homebrew's Python
-     to keep the build environment minimal and reproducible)
-   - `create-dmg` (via Homebrew is fine; only the Python install is
-     pinned)
-3. Create a dedicated user `woodpecker-agent`.
-4. Install `woodpecker-agent` and run under launchd as that user,
-   configured with `WOODPECKER_BACKEND=local` (no Docker on this
-   host). As on Windows, the `image` field in pipeline steps names the
-   shell (`bash` in `build-macos.yaml`), not a container image.
-5. Apply runner labels: `backend=local`, `platform=darwin/arm64` (or
-   `darwin/amd64`), `os=macos`.
-6. Smoke test as above.
-
-### Cross-cutting agent rules
-
-- One agent token per agent. Tokens never appear in pipeline YAML.
-- No agent ever holds the `GITHUB_RELEASE_TOKEN` as a static config
-  value. The token is a Woodpecker server secret, exposed only to
-  trusted-tier pipelines (see Security below).
-- Agents run as a dedicated low-privilege user. Never as root /
+- The agent token never appears in pipeline YAML.
+- The agent runs as a dedicated low-privilege user. Never as root /
   Administrator.
+- Outbound TCP to the Woodpecker server only - never expose a port
+  inbound.
 
 ## Security Model
 
@@ -155,14 +91,10 @@ attacker controls both the pipeline YAML and the code it runs (tests,
 conftest, build scripts, fixtures). Without controls, a fork PR =
 arbitrary code on our hardware. The mitigation:
 
-- **Trusted vs untrusted tiers.** Two trust levels:
-  - *Untrusted (fork PRs, post-approval):* `test.yaml` only, on Linux,
-    in an ephemeral Docker step. No secrets exposed. No release token,
-    no signing keys. Cannot reach the Windows/macOS hosts.
-  - *Trusted (pushes to master/development by maintainers; tag pushes):*
-    full build matrix on all three runners. `GITHUB_RELEASE_TOKEN`
-    available. Only maintainers can trigger this tier (only they can
-    push to those refs).
+- **No secrets on Woodpecker.** `test.yaml` runs in ephemeral Docker
+  steps and needs no token. Release publishing happens on GitHub
+  Actions with the built-in, per-run `GITHUB_TOKEN`, so there is
+  nothing on our hardware for a malicious PR to exfiltrate.
 - **Manual approval for fork PRs.** Configure Woodpecker to require
   maintainer approval before any fork-PR pipeline runs. The reviewer
   must read the diff before approving and look specifically for
@@ -170,12 +102,8 @@ arbitrary code on our hardware. The mitigation:
   scripts.
 - **Branch and tag protection on GitHub.** Only maintainers can push to
   `master`, `development`, or any `v*.*.*` tag.
-- **Cache isolation.** Do not share `pip` / `ccache` caches across the
-  trust boundary. Either disable caches for fork-PR runs entirely or
-  namespace cache keys by trust tier.
-- **Secrets are server-side only.** `GITHUB_RELEASE_TOKEN` is a
-  Woodpecker server secret, scoped to the trusted-tier pipelines and
-  never echoed in logs.
+- **Cache isolation.** Do not share `pip` caches between fork-PR runs
+  and maintainer runs.
 
 ## Release Upload Script
 
@@ -183,11 +111,11 @@ arbitrary code on our hardware. The mitigation:
 
 - Takes a tag name, a list of artifact paths, and (via the
   `GITHUB_RELEASE_TOKEN` env var) a token.
-- Creates the GitHub Release if it does not exist (or recreates it for
-  the rolling `nightly` tag).
+- Creates a draft GitHub Release if none exists for the tag, otherwise
+  reuses it.
 - Uploads the artifacts as release assets.
-- Marks the release as `prerelease=true` for the `nightly` tag and for
-  any tag whose version string contains a local-version suffix (`+`).
+- Marks the release as `prerelease=true` for any tag whose version
+  string contains a local-version suffix (`+`).
 
 Stdlib-only because it must run on every platform without an extra
 install step.
@@ -206,25 +134,19 @@ install step.
    Actions never built artifacts, so nothing else was lost.)
 5. Point GitHub branch protection's required status check at
    `ci/woodpecker/pr/test` (repo settings; maintainer action).
-6. Provision the Windows and macOS agents per the sections above.
-7. Validate each `build-*.yaml` pipeline produces the expected artifact
-   on its target runner.
-8. Push a throwaway tag (e.g. `v0.0.0-test`) and confirm the upload
-   script populates a release with all three platforms' artifacts. The
-   migration is then complete.
+6. ~~Provision Windows/macOS agents and Woodpecker build pipelines.~~
+   Dropped - tag releases moved to GitHub Actions `release.yml`, and the
+   `build-*.yaml` pipelines and rolling `nightly` release were removed.
 
 ## Files
 
-- `.woodpecker/test.yaml` (new)
-- `.woodpecker/build-linux.yaml` (new)
-- `.woodpecker/build-windows.yaml` (new)
-- `.woodpecker/build-macos.yaml` (new)
-- `scripts/release_upload.py` (new)
-- `.github/workflows/`, `.github/actions/` (deleted)
+- `.woodpecker/test.yaml`
+- `.github/workflows/release.yml`
+- `scripts/release_upload.py`
 
 ## Verification
 
 - `python scripts/release_upload.py --help` returns usage.
-- The four `.woodpecker/*.yaml` files validate against the Woodpecker
-  schema (the server will reject malformed YAML on push).
-- Pipeline runs are observed end-to-end per the cutover plan.
+- `woodpecker-cli lint .woodpecker/` passes.
+- A manual dispatch of `release.yml` builds and smoke-tests every
+  platform.
