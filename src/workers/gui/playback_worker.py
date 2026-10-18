@@ -44,6 +44,12 @@ class PlaybackWorker(QObject):
         self.chunk_size = 1024
         self._playback_finished_flag = False
 
+        # Serialises audio_stream access between miniaudio's callback thread
+        # (which drives _audio_generator) and seek() on the worker thread.
+        # Stream generators are not reentrant: an unguarded seek replaces or
+        # advances the stream's generator while the callback is inside it.
+        self._stream_lock = threading.Lock()
+
         # State for release/reacquire coordination during file writes
         self._release_saved_position: float = 0.0
         self._release_was_playing: bool = False
@@ -113,18 +119,17 @@ class PlaybackWorker(QObject):
                     num_frames = yield b"\x00" * (num_frames * self.audio_stream.sample_width * self.audio_stream.channels_qty)
                     continue
 
-                # Read audio data
-                data = self.audio_stream.read(num_frames)
+                # Read audio data and track position atomically w.r.t. seek()
+                with self._stream_lock:
+                    data = self.audio_stream.read(num_frames)
+                    frames_read = len(data) // (self.audio_stream.sample_width * self.audio_stream.channels_qty)
+                    self.total_frames_read += frames_read
 
                 if not data:
                     # End of stream
                     self._playback_finished_flag = True
                     self.playback_finished.emit()
                     break
-
-                # Track position
-                frames_read = len(data) // (self.audio_stream.sample_width * self.audio_stream.channels_qty)
-                self.total_frames_read += frames_read
 
                 # Yield the audio data and get next frame count request
                 num_frames = yield data
@@ -285,8 +290,9 @@ class PlaybackWorker(QObject):
         if self.audio_stream:
             try:
                 frame_offset = int(position_seconds * self.audio_stream.sample_rate)
-                self.audio_stream.seek(frame_offset)
-                self.total_frames_read = frame_offset
+                with self._stream_lock:
+                    self.audio_stream.seek(frame_offset)
+                    self.total_frames_read = frame_offset
                 self.position_changed.emit(position_seconds)
             except Exception as e:
                 log.error(f"Error seeking: {str(e)}")
