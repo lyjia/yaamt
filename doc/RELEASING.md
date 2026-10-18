@@ -12,6 +12,17 @@ the *workflow* view: what to actually do in each scenario.
 
 ---
 
+## Branches
+
+- `development` is the integration branch. All PRs target it.
+- `master` holds released code only: release merges from `development`
+  and hotfixes. Nothing lands on `master` that is not about to ship.
+
+Because `master` never carries unreleased work, a hotfix can always
+branch from it without dragging in unfinished features.
+
+---
+
 ## How Versions Work (30-second recap)
 
 - The version is derived from git tags shaped `v<major>.<minor>.<patch>`.
@@ -25,24 +36,33 @@ the *workflow* view: what to actually do in each scenario.
 
 ## Scenario 1: Cutting a Normal Release
 
-Use this when `master` (or `development`, pre-1.0) is in a state you
-want to ship.
+Use this when `development` is in a state you want to ship.
 
-1. **Pre-flight.** Confirm CI is green on the commit you intend to ship.
-   Optionally dry-run packaging first: GitHub -> Actions -> Release ->
-   Run workflow, with the branch name as `ref` (builds and smoke-tests
-   all platforms without publishing).
-2. **Tag the commit.** Pick the next version per semver-ish judgment
-   (new features -> bump minor; fixes only -> bump patch):
+1. **Pre-flight.** Confirm CI is green on `development`. Optionally
+   dry-run packaging first: GitHub -> Actions -> Release -> Run
+   workflow, with `development` as `ref` (builds and smoke-tests all
+   platforms without publishing).
+2. **Merge to `master`.** Use `--no-ff` so each release is one
+   identifiable merge commit:
 
    ```bash
    git checkout master
    git pull origin master
+   git merge --no-ff development
+   git push origin master
+   ```
+
+3. **Tag the merge commit.** Pick the next version per semver-ish
+   judgment (new features -> bump minor; fixes only -> bump patch):
+
+   ```bash
    git tag v0.3.0
    git push origin v0.3.0
    ```
 
-3. **CI takes over.** The tag push triggers the GitHub Actions
+   Tag on `master`, not `development`: the tag must sit on the commit
+   `master` points to so hotfixes and `git describe` agree.
+4. **CI takes over.** The tag push triggers the GitHub Actions
    `Release` workflow (`.github/workflows/release.yml`). It creates a
    **draft** GitHub Release for the tag, builds on Linux (x64 and
    arm64), Windows, and macOS, smoke-tests each bundle and installed
@@ -54,7 +74,7 @@ want to ship.
    A draft is visible only to repo collaborators, and the in-app update
    check ignores it (GitHub's `releases/latest` skips drafts), so
    nothing is public yet.
-4. **Test the real binaries.** Open the draft (Releases page, marked
+5. **Test the real binaries.** Open the draft (Releases page, marked
    "Draft"), check that all expected assets are present and carry the
    bare version (no `+`):
    - `yaamt-0.3.0-windows-x64.zip`, `yaamt-0.3.0-windows-x64-setup.exe`
@@ -69,15 +89,13 @@ want to ship.
    If something is broken: delete the draft and the tag (Scenario 5),
    fix, and re-tag the same version. Nobody outside has downloaded it,
    so re-using the version number is safe at this stage.
-5. **Write the release notes and publish.** Edit the draft, summarize
+6. **Write the release notes and publish.** Edit the draft, summarize
    the changes, and paste in the install instructions from the
    [Release Notes Template](#release-notes-template) below (replace
    `<version>`). Leave "Set as a pre-release" unticked (pre-releases are
    invisible to the update checker), and click **Publish release**.
    After publishing, About -> "Check for updates" on an older build
    reports the new version.
-
-That's it. No branch ceremony is required for a normal release.
 
 ---
 
@@ -96,30 +114,39 @@ Scenario 1 instead.
 
 ## Scenario 3: Hotfix to a Shipped Release
 
-Use this when `master` has moved on with unreleased work but a shipped
-version needs an urgent fix.
+Use this when a shipped version needs an urgent fix that cannot wait
+for the next release from `development`.
 
-1. Branch from the release tag:
+1. Branch from `master` (which is always the latest release):
 
    ```bash
-   git checkout -b hotfix/0.3.1 v0.3.0
+   git checkout master
+   git pull origin master
+   git checkout -b hotfix/0.3.1
    ```
 
-2. Apply the fix (cherry-pick from `master`/`development` if it's
-   already fixed there), run `pytest`, and commit.
-3. Tag the hotfix branch tip and push both:
+2. Apply the fix (cherry-pick from `development` if it is already fixed
+   there), run `pytest`, and commit.
+3. Merge into `master`, tag, and push:
 
    ```bash
+   git checkout master
+   git merge --no-ff hotfix/0.3.1
    git tag v0.3.1
-   git push origin hotfix/0.3.1 v0.3.1
+   git push origin master v0.3.1
    ```
 
-4. CI builds and publishes `v0.3.1` exactly as in Scenario 1.
-5. Merge the hotfix branch back to `master`/`development` so the fix is
-   not lost, then delete the branch.
+4. CI builds and publishes `v0.3.1` exactly as in Scenario 1 (from the
+   "CI takes over" step).
+5. Merge `master` back into `development` so the fix is not lost, then
+   delete the hotfix branch:
 
-If `master` has *not* moved on, skip the branch: just commit the fix to
-`master`, tag, and push (Scenario 1 with a patch bump).
+   ```bash
+   git checkout development
+   git merge master
+   git push origin development
+   git branch -d hotfix/0.3.1
+   ```
 
 ---
 
@@ -139,7 +166,7 @@ Do this a single time, from any clone. Every build machine then fetches
 the same tag, so all artifacts stamp the identical version.
 
 ```bash
-git checkout master            # or development, pre-1.0
+git checkout master            # after merging development (Scenario 1, step 2)
 git pull
 git tag v0.1.0
 git push origin v0.1.0
@@ -336,8 +363,8 @@ The `arm64` builds need glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40,
 
 | I want to...                       | Do this                                          |
 |------------------------------------|--------------------------------------------------|
-| Ship a new version                 | `git tag v0.X.Y && git push origin v0.X.Y`, test the draft, Publish |
-| Fix a shipped release              | Branch from tag, fix, tag `v0.X.(Y+1)`, push     |
+| Ship a new version                 | Merge `development` -> `master`, tag `v0.X.Y` on `master`, push, test the draft, Publish |
+| Fix a shipped release              | Branch from `master`, fix, merge to `master`, tag `v0.X.(Y+1)`, push, merge `master` -> `development` |
 | Build one platform by hand         | Checkout the tag, `build.py --release --archive --installer` |
 | Test packaging without releasing   | Actions -> Release -> Run workflow on a branch   |
 | Undo a bad tag                     | Delete release + tag, fix, re-tag (or hotfix)    |
