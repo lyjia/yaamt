@@ -120,3 +120,36 @@ def test_nightly_is_published_prerelease(upload_module, artifact):
         upload_module.upload(REPO, upload_module.NIGHTLY_TAG, [artifact], TOKEN)
     assert fake.created[0]["draft"] is False
     assert fake.created[0]["prerelease"] is True
+
+
+def _asset(name, digest="sha256:" + "ab" * 32, asset_id=1):
+    return {"name": name, "digest": digest,
+            "url": f"https://api.github.com/repos/lyjia/yaamt/releases/assets/{asset_id}"}
+
+
+def test_checksums_listing_uses_github_digests(upload_module):
+    release = _release(assets=[
+        _asset("yaamt-0.3.0-windows-x64.zip", "sha256:" + "22" * 32),
+        _asset("yaamt-0.3.0-linux-x64.deb", "sha256:" + "11" * 32),
+        _asset(upload_module.CHECKSUMS_FILENAME),
+    ])
+    text = upload_module._checksums_text(release)
+    assert text == (f"{'11' * 32}  yaamt-0.3.0-linux-x64.deb\n"
+                    f"{'22' * 32}  yaamt-0.3.0-windows-x64.zip\n")
+
+
+def test_checksums_fail_when_digest_missing(upload_module):
+    release = _release(assets=[_asset("yaamt-0.3.0-linux-x64.deb", digest=None)])
+    with pytest.raises(RuntimeError, match="no SHA-256 digest"):
+        upload_module._checksums_text(release)
+
+
+def test_publish_checksums_replaces_existing_file(upload_module):
+    old_sums = _asset(upload_module.CHECKSUMS_FILENAME, asset_id=9)
+    release = _release(assets=[_asset("yaamt-0.3.0-linux-x64.deb"), old_sums])
+    fake = FakeGitHub(pages=[[release]])
+    with patch.object(upload_module, "_request", fake):
+        upload_module.publish_checksums(REPO, TAG, TOKEN)
+    writes = [c for c in fake.calls if c[0] in ("DELETE", "POST")]
+    assert writes[0] == ("DELETE", old_sums["url"])
+    assert writes[1][1].endswith(f"?name={upload_module.CHECKSUMS_FILENAME}")

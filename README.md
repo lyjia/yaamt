@@ -27,7 +27,7 @@ YAAMT currently uses [mutagen](https://mutagen.readthedocs.io/en/latest/) for re
 
 ## Installation (from binaries)
 
-Native installers for Windows (`.exe`), Linux (`.deb`/`.rpm`), and macOS (`.dmg`) are published on the [GitHub Releases page](https://github.com/lyjia/yaamt/releases) as they become available. Tagged releases carry stable builds; the rolling `nightly` prerelease tracks the latest development snapshot. See [doc/designs/installers.md](doc/designs/installers.md) for per-platform installation details and filesystem layout.
+Installers and portable archives for Windows (`.exe`, `.zip`), Linux (`.deb`/`.rpm`/`.tar.gz`, x64 and arm64), and macOS (`.dmg`, Apple Silicon) are published on the [GitHub Releases page](https://github.com/lyjia/yaamt/releases). Builds are not code-signed yet; each release's notes explain how to get past the first-launch warnings on Windows and macOS. See [doc/designs/installers.md](doc/designs/installers.md) for per-platform installation details and filesystem layout.
 
 ## Installation (from source code)
 
@@ -531,7 +531,7 @@ Installers land in the same timestamped `build/release-*/` directory as the buil
 
 ### Releasing
 
-Releases are cut by pushing a `v<major>.<minor>.<patch>` tag; CI builds installers for every platform and publishes them to GitHub Releases. Nightly development builds are refreshed automatically on every push to `master`/`development`. The complete maintainer playbook — including hotfixes, manual/offline publishing, and recovering from a botched release — is in [doc/RELEASING.md](doc/RELEASING.md).
+Releases are cut by pushing a `v<major>.<minor>.<patch>` tag; CI builds installers for every platform and uploads them to a draft GitHub Release, which a maintainer tests and then publishes. The complete maintainer playbook — including hotfixes, manual/offline publishing, and recovering from a botched release — is in [doc/RELEASING.md](doc/RELEASING.md).
 
 ## License
 

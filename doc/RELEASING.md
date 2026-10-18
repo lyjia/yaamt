@@ -60,6 +60,7 @@ want to ship.
    - `yaamt-0.3.0-windows-x64.zip`, `yaamt-0.3.0-windows-x64-setup.exe`
    - `yaamt-0.3.0-linux-x64.tar.gz`, `.deb`, `.rpm` (and the same for `linux-arm64`)
    - `yaamt-0.3.0-macos-arm64.dmg`
+   - `SHA256SUMS.txt` (written last, from GitHub's digests of the files above)
 
    Install them on your own machines. Confirm `yaamt --version` and the
    About window show the tag's version, and exercise whatever the
@@ -69,7 +70,9 @@ want to ship.
    fix, and re-tag the same version. Nobody outside has downloaded it,
    so re-using the version number is safe at this stage.
 5. **Write the release notes and publish.** Edit the draft, summarize
-   the changes, leave "Set as a pre-release" unticked (pre-releases are
+   the changes, and paste in the install instructions from the
+   [Release Notes Template](#release-notes-template) below (replace
+   `<version>`). Leave "Set as a pre-release" unticked (pre-releases are
    invisible to the update checker), and click **Publish release**.
    After publishing, About -> "Check for updates" on an older build
    reports the new version.
@@ -78,22 +81,16 @@ That's it. No branch ceremony is required for a normal release.
 
 ---
 
-## Scenario 2: Nightly / Development Builds
+## Scenario 2: Testing Builds Before Tagging
 
-You do nothing - this is automatic. Every push to `master` or
-`development` rebuilds on the connected Woodpecker agents (currently
-Linux only) and **replaces** the assets on the rolling `nightly`
-prerelease. Consequences worth knowing:
+There are no automatic nightly builds. To check that packaging still
+works on an untagged commit, run the `Release` workflow by hand
+(GitHub -> Actions -> Release -> Run workflow) with a branch name as
+`ref`: it builds and smoke-tests every platform but publishes nothing,
+and the binaries are discarded when the run ends.
 
-- The `nightly` release always reflects the *latest* dev push; older
-  nightly artifacts are not retained.
-- Nightly artifact versions look like `0.3.0+12.abc1234` - pinned to the
-  last release tag, plus commits-since and hash. A user on a nightly is
-  never nagged by the update checker about a release they are already
-  past.
-- `nightly` is always marked prerelease, so it never shows up as the
-  repo's "latest release" (and the in-app update check, which queries
-  `releases/latest`, never recommends it).
+To test the *exact* binaries users will get, use the draft from
+Scenario 1 instead.
 
 ---
 
@@ -217,8 +214,9 @@ From each build host, choose one:
   python scripts/release_upload.py --repo lyjia/yaamt --tag v0.1.0 (Get-ChildItem build\release-*\*-setup.exe).FullName
   ```
 
-The upload script creates a draft release if none exists yet for the
-tag, and otherwise reuses the existing one (draft or published), so the
+After uploading, run the script once more with `--checksums` (and no
+files) to write `SHA256SUMS.txt`. The upload script creates a draft
+release if none exists yet for the tag, and otherwise reuses the existing one (draft or published), so the
 fully-manual flow (no CI at all) is: build on each platform, upload from
 each, then test and publish the draft as in Scenario 1. If you
 pre-created the release in the UI, the script reuses it and keeps your
@@ -268,12 +266,77 @@ cd src && python -m util.version
 
 ---
 
+## Release Notes Template
+
+Paste this below the change summary in each release's notes and
+replace `<version>` (e.g. `0.3.0`). It covers the first-launch
+warnings caused by the builds not being code-signed yet, and how to
+verify downloads against `SHA256SUMS.txt`.
+
+````markdown
+## Installing
+
+YAAMT is not yet code-signed with a paid Microsoft or Apple certificate, so Windows and macOS will warn the first time you run it. You only need to get past this once per download.
+
+### Windows
+
+**Installer (`yaamt-<version>-windows-x64-setup.exe`)**
+
+1. Your browser may say the file "isn't commonly downloaded". Choose **Keep** (in Edge: **…** → **Keep** → **Show more** → **Keep anyway**).
+2. Run the installer. If you see **"Windows protected your PC"**, click **More info**, then **Run anyway**.
+
+**Portable zip (`yaamt-<version>-windows-x64.zip`)**
+
+1. Before extracting, right-click the zip, choose **Properties**, tick **Unblock** at the bottom of the General tab, and click **OK**. Otherwise Windows warns about every program inside.
+2. Extract it and run `yaamt-gui.exe`. The command-line tool is `yaamt.exe`.
+
+If **Smart App Control** is turned on (Windows 11), unsigned apps are blocked with no "Run anyway" option. It is under Windows Security → App & browser control → Smart App Control. Turning it off cannot be undone without reinstalling Windows.
+
+### macOS (Apple Silicon)
+
+1. Open `yaamt-<version>-macos-arm64.dmg` and drag **YAAMT** into **Applications**.
+2. Open YAAMT from Applications. macOS will say it cannot verify the developer; click **Done** (or **Cancel**).
+3. Open **System Settings → Privacy & Security**, scroll down to the message about YAAMT being blocked, click **Open Anyway**, and confirm with your password or Touch ID.
+4. Open YAAMT again and click **Open** when asked.
+
+On macOS 14 (Sonoma) or earlier you can skip steps 2–3: Control-click YAAMT in Applications, choose **Open**, then click **Open** again.
+
+Alternatively, in Terminal, remove the download quarantine flag from just this app:
+
+```
+xattr -dr com.apple.quarantine /Applications/YAAMT.app
+```
+
+Please do not disable Gatekeeper system-wide (`spctl --master-disable`); that lowers protection for every app.
+
+The command-line tool is inside the app bundle: `/Applications/YAAMT.app/Contents/MacOS/yaamt`. This build is for Apple Silicon Macs (M1 and later); Intel Macs are not supported in this release.
+
+### Linux
+
+No signing step is needed.
+
+- Debian/Ubuntu: `sudo apt install ./yaamt-<version>-linux-<arch>.deb`
+- Fedora/RHEL: `sudo dnf install ./yaamt-<version>-linux-<arch>.rpm`
+- Any distribution: extract the `.tar.gz` and run `yaamt-gui`
+
+The `arm64` builds need glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40, or later).
+
+### Verifying your download
+
+`SHA256SUMS.txt` lists the SHA-256 hash of every file in this release. Compare it with the hash of the file you downloaded:
+
+- Windows (PowerShell): `Get-FileHash .\yaamt-<version>-windows-x64-setup.exe -Algorithm SHA256`
+- macOS: `shasum -a 256 yaamt-<version>-macos-arm64.dmg`
+- Linux: `sha256sum -c SHA256SUMS.txt --ignore-missing` (run in the download folder)
+````
+
+---
+
 ## Quick Reference
 
 | I want to...                       | Do this                                          |
 |------------------------------------|--------------------------------------------------|
 | Ship a new version                 | `git tag v0.X.Y && git push origin v0.X.Y`, test the draft, Publish |
-| Get a dev build to a tester        | Point them at the `nightly` prerelease           |
 | Fix a shipped release              | Branch from tag, fix, tag `v0.X.(Y+1)`, push     |
 | Build one platform by hand         | Checkout the tag, `build.py --release --archive --installer` |
 | Test packaging without releasing   | Actions -> Release -> Run workflow on a branch   |
