@@ -168,6 +168,42 @@ class TestPlaybackWorker:
         assert "Error seeking: Seek error" in spy.call_args[0][0]
 
     @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+    def test_seek_waits_for_in_flight_read(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
+        """A seek issued while the audio callback is mid-read must not touch the stream until the read returns."""
+        playback_worker.start_playback(mock_media_file)
+        generator = mock_miniaudio['device_mock'].start.call_args[0][0]
+
+        read_entered = threading.Event()
+        release_read = threading.Event()
+
+        def blocking_read(n_frames):
+            read_entered.set()
+            release_read.wait(timeout=5)
+            return b'\x00' * 1024
+
+        mock_audio_stream.read.side_effect = blocking_read
+
+        # Simulate miniaudio's callback thread pulling audio from the generator
+        callback_thread = threading.Thread(target=generator.send, args=(256,))
+        callback_thread.start()
+        assert read_entered.wait(timeout=5)
+
+        seek_thread = threading.Thread(target=playback_worker.seek, args=(5.0,))
+        seek_thread.start()
+        seek_thread.join(timeout=0.2)
+        assert seek_thread.is_alive()
+        mock_audio_stream.seek.assert_not_called()
+
+        release_read.set()
+        callback_thread.join(timeout=5)
+        seek_thread.join(timeout=5)
+
+        expected_frame_offset = int(5.0 * mock_audio_stream.sample_rate)
+        mock_audio_stream.seek.assert_called_once_with(expected_frame_offset)
+        # The seek landed after the read, so position reflects the seek target
+        assert playback_worker.total_frames_read == expected_frame_offset
+
+    @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
     def test_stop_when_already_stopped(self, playback_worker, mock_media_file, mock_audio_stream, mock_miniaudio):
         """Test that stop() does nothing when already stopped."""
         # Start and then stop playback
