@@ -2,7 +2,9 @@
 Unit tests for the self-update worker.
 
 Covers:
-  - check_latest_release strips the leading 'v' from the tag
+  - check_latest_release strips the leading 'v' from the tag, returns
+    None when no release is published (HTTP 404), and verifies TLS
+    against the OS store plus certifi's CA bundle
   - cache_is_fresh boundary behavior
   - UpdateChecker.run dispatches the right signal in each scenario
     (network failure, no update, update available, served from cache)
@@ -14,7 +16,7 @@ import json
 import time
 from io import BytesIO
 from unittest.mock import MagicMock, patch
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -83,6 +85,28 @@ class TestCheckLatestRelease:
                 check_latest_release()
 
 
+    def test_returns_none_when_no_release_published(self):
+        not_found = HTTPError("url", 404, "Not Found", {}, None)
+        with patch("workers.update_checker.urllib.request.urlopen", side_effect=not_found):
+            assert check_latest_release() is None
+
+    def test_other_http_errors_propagate(self):
+        server_error = HTTPError("url", 500, "Server Error", {}, None)
+        with patch("workers.update_checker.urllib.request.urlopen", side_effect=server_error):
+            with pytest.raises(HTTPError):
+                check_latest_release()
+
+    def test_verifies_tls_with_certifi_bundle(self):
+        import certifi
+        with patch("workers.update_checker.urllib.request.urlopen",
+                   return_value=_fake_response({"tag_name": "v0.3.5", "html_url": "U"})) as urlopen, \
+                patch("workers.update_checker.ssl.create_default_context") as create_context:
+            check_latest_release()
+        context = create_context.return_value
+        context.load_verify_locations.assert_called_once_with(cafile=certifi.where())
+        assert urlopen.call_args.kwargs["context"] is context
+
+
 class TestCacheIsFresh:
     def test_returns_false_when_no_timestamp(self):
         assert cache_is_fresh(None) is False
@@ -135,6 +159,20 @@ class TestUpdateCheckerRun:
             checker.run()
 
         cb.assert_called_once()
+
+    def test_emits_no_update_when_no_release_published(self):
+        settings = FakeSettings()
+        checker = UpdateChecker(current_version="0.3.0", settings=settings, use_cache=False)
+        no_update, failed = MagicMock(), MagicMock()
+        checker.signals.no_update.connect(no_update)
+        checker.signals.failed.connect(failed)
+
+        with patch("workers.update_checker.urllib.request.urlopen",
+                   side_effect=HTTPError("url", 404, "Not Found", {}, None)):
+            checker.run()
+
+        no_update.assert_called_once()
+        failed.assert_not_called()
 
     def test_persists_check_on_success(self):
         settings = FakeSettings()

@@ -25,6 +25,7 @@ import argparse
 import shutil
 import tempfile
 import re
+import string
 from abc import ABC, abstractmethod
 from pathlib import Path
 from datetime import datetime
@@ -37,16 +38,37 @@ from util.version import get_version_from_git  # noqa: E402
 
 DEBIAN_LINUX_DEPS = ["ccache", "patchelf", "alien", "libegl1", "libxkbcommon-x11-0",
                      "libxcb-icccm4", "libxcb-image0", "libxcb-keysyms1", "libxcb-randr0",
-                     "libxcb-render-util0", "libxcb-xinerama0", "libxcb-xfixes0", "xvfb",
+                     "libxcb-render-util0", "libxcb-xinerama0", "libxcb-xfixes0", "libxcb-cursor0",
+                     "libxcb-shape0", "xvfb",
                      "portaudio19-dev", "rpm"]
 
-MACOS_HOMEBREW_DEPS = ["portaudio", "ccache"]
+# Installer tooling is included so `--install-deps` fully provisions a
+# machine for `--installer` (create-dmg on macOS, Inno Setup on Windows,
+# nfpm on Linux).
+MACOS_HOMEBREW_DEPS = ["portaudio", "ccache", "create-dmg"]
 
-WINDOWS_CHOCO_DEPS = ["ccache"]
+WINDOWS_CHOCO_DEPS = ["ccache", "innosetup"]
+
+# Our arch names -> Debian/nfpm arch names (nfpm maps these to rpm's
+# x86_64 / aarch64 itself).
+DEBIAN_ARCH = {"x64": "amd64", "arm64": "arm64"}
+
+# nfpm is not packaged by Debian/Ubuntu; install a pinned release .deb.
+NFPM_DEB_URL = "https://github.com/goreleaser/nfpm/releases/download/v2.47.0/nfpm_2.47.0_{arch}.deb"
+
+# PyPI's x86_64 Linux torch wheels are CUDA builds that pull in ~4 GB of NVIDIA
+# libraries (plus triton), all of which PyInstaller bundles. The CPU-only
+# index serves '+cpu' builds of the same pinned versions; pip prefers them
+# because a local version label sorts higher. Windows and macOS PyPI wheels
+# (and Linux aarch64) are already CPU-only. MusicalKeyCNN falls back to CPU when CUDA is absent.
+LINUX_TORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
 
 FILENAME_SRC_CLI = "src/yaamt.py"
 FILENAME_SRC_GUI = "src/yaamt-gui.py"
 FILENAME_SRC_EVAL = "src/yaamt-eval.py"
+
+# Must match the BUNDLE name in yaamt.spec.
+MACOS_APP_NAME = "YAAMT.app"
 
 
 class BuildConfig:
@@ -116,8 +138,8 @@ class BuildBackend(ABC):
         pass
 
     @abstractmethod
-    def build(self, dist_dir: Path) -> None:
-        """Build CLI and GUI executables into dist_dir"""
+    def build(self, dist_dir: Path, version: str) -> None:
+        """Build CLI and GUI executables into dist_dir, stamped with version"""
         pass
 
 
@@ -128,7 +150,7 @@ class PyInstallerBuilder(BuildBackend):
     def name(self) -> str:
         return "pyinstaller"
 
-    def build(self, dist_dir: Path) -> None:
+    def build(self, dist_dir: Path, version: str) -> None:
         """Build both CLI and GUI executables using the unified .spec file."""
         dist_dir.mkdir(parents=True, exist_ok=True)
 
@@ -136,6 +158,7 @@ class PyInstallerBuilder(BuildBackend):
         env = os.environ.copy()
         env['BUILD_MODE'] = self.config.build_mode
         env['YAAMT_ICON_DIR'] = str(Path('resources/icons'))
+        env['YAAMT_VERSION'] = version
         if self.config.arch == "arm64":
             env['TARGET_ARCH'] = 'arm64'
         elif self.config.arch == "x64":
@@ -181,14 +204,14 @@ class DependencyInstaller:
 
     def _install_windows_deps(self):
         """Install Windows system dependencies"""
-        print("Installing ccache via choco...")
+        print(f"Installing {', '.join(WINDOWS_CHOCO_DEPS)} via choco...")
         try:
             for dep in WINDOWS_CHOCO_DEPS:
-                subprocess.run(["choco", "install", dep, "-y"], check=True)
+                subprocess.run(["choco", "install", dep, "-y", "--no-progress"], check=True)
         except FileNotFoundError:
-            print("Warning: choco not found. Please install Chocolatey or install ccache manually.")
+            print(f"Warning: choco not found. Please install Chocolatey or install {', '.join(WINDOWS_CHOCO_DEPS)} manually.")
         except subprocess.CalledProcessError as e:
-            print(f"Warning: Failed to install ccache: {e}")
+            print(f"Warning: Failed to install some dependencies: {e}")
 
     def _install_linux_deps(self):
         """Install Linux system dependencies"""
@@ -201,6 +224,11 @@ class DependencyInstaller:
         try:
             subprocess.run(prefix + ["apt-get", "update"], check=True)
             subprocess.run(prefix + ["apt-get", "install", "-y"] + deps, check=True)
+            if not shutil.which("nfpm"):
+                nfpm_deb = Path(tempfile.gettempdir()) / "nfpm.deb"
+                nfpm_url = NFPM_DEB_URL.format(arch=DEBIAN_ARCH[self.config.arch])
+                subprocess.run(["curl", "-fsSL", nfpm_url, "-o", str(nfpm_deb)], check=True)
+                subprocess.run(prefix + ["apt-get", "install", "-y", str(nfpm_deb)], check=True)
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             print(f"Warning: Failed to install some dependencies: {e}")
 
@@ -225,10 +253,12 @@ class DependencyInstaller:
         subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"], check=True)
 
         # Install base requirements
-        subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], check=True)
+        extra_index = ["--extra-index-url", LINUX_TORCH_CPU_INDEX] if self.config.platform == "linux" else []
+        subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"] + extra_index, check=True)
 
-        # Install build dependencies.
-        build_deps = ["ordered-set", "zstandard"]
+        # Install build dependencies. Pillow lets PyInstaller convert the PNG
+        # app icon to .ico / .icns.
+        build_deps = ["ordered-set", "zstandard", "pillow"]
         subprocess.run([sys.executable, "-m", "pip", "install"] + build_deps, check=True)
 
 
@@ -457,7 +487,7 @@ class Builder:
                 dist_dir_relative = self.config.output_dir.relative_to(self.config.project_root)
 
                 # Delegate to the backend
-                backend.build(dist_dir_relative)
+                backend.build(dist_dir_relative, version_string)
 
             finally:
                 # Restore original working directory
@@ -475,8 +505,10 @@ class Builder:
                 # Create parent directory if needed
                 final_build_dir.parent.mkdir(parents=True, exist_ok=True)
 
-                # Copy the entire build directory
-                shutil.copytree(temp_build_dir, final_build_dir, dirs_exist_ok=True)
+                # Copy the entire build directory. Preserve symlinks: the
+                # macOS .app links Contents/Frameworks into Resources, and
+                # following them would break its code signature.
+                shutil.copytree(temp_build_dir, final_build_dir, dirs_exist_ok=True, symlinks=True)
                 print(f"  [OK] Build artifacts copied successfully")
             else:
                 raise RuntimeError(f"Build artifacts not found at {temp_build_dir}")
@@ -519,34 +551,41 @@ class Archiver:
         platform_name = platform_override or self.config.platform
         arch_name = arch_override or self.config.arch
 
+        # Archives unpack into a single top-level folder named after the
+        # archive (never straight into the user's current directory), and
+        # land next to the installers so CI can upload both from one place.
+        stem = _artifact_stem(version_name, platform_name, arch_name)
         if self.config.platform == "windows":
-            archive_name = f"yaamt-{version_name}-{platform_name}-{arch_name}.zip"
-            self._create_zip(build_dir, archive_name)
+            archive_path = self.config.output_dir / f"{stem}.zip"
+            self._create_zip(build_dir, archive_path, stem)
         else:
-            archive_name = f"yaamt-{version_name}-{platform_name}-{arch_name}.tar.gz"
-            self._create_tarball(build_dir, archive_name)
+            archive_path = self.config.output_dir / f"{stem}.tar.gz"
+            self._create_tarball(build_dir, archive_path, stem)
 
-        print(f"\nArchive created: {archive_name}")
-        return archive_name
+        print(f"\nArchive created: {archive_path}")
+        return archive_path
 
-    def _create_zip(self, build_dir, archive_name):
+    def _create_zip(self, build_dir: Path, archive_path: Path, root_name: str) -> None:
         """Create a ZIP archive (Windows)"""
         import zipfile
 
-        archive_path = self.config.project_root / archive_name
         with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for item in build_dir.rglob('*'):
                 if item.is_file():
-                    arcname = item.relative_to(build_dir)
-                    zipf.write(item, arcname)
+                    zipf.write(item, Path(root_name) / item.relative_to(build_dir))
 
-    def _create_tarball(self, build_dir, archive_name):
+    def _create_tarball(self, build_dir: Path, archive_path: Path, root_name: str) -> None:
         """Create a tarball (Linux/macOS)"""
         import tarfile
 
-        archive_path = self.config.project_root / archive_name
         with tarfile.open(archive_path, 'w:gz') as tar:
-            tar.add(build_dir, arcname='.')
+            tar.add(build_dir, arcname=root_name)
+
+
+def _artifact_stem(version: str, platform_name: str, arch: str) -> str:
+    """Common filename stem for every release artifact (archives and
+    installers): yaamt-<version>-<platform>-<arch>."""
+    return f"yaamt-{version}-{platform_name}-{arch}"
 
 
 def _resolve_version_name(config: BuildConfig, override: str | None) -> str:
@@ -614,21 +653,28 @@ def _create_linux_installer(config: BuildConfig, version: str) -> None:
     if not nfpm_config.exists():
         raise RuntimeError(f"nfpm config not found: {nfpm_config}")
 
-    # nfpm consumes ${VAR} substitutions from the environment.
-    env = os.environ.copy()
-    env["YAAMT_VERSION"] = version
-    env["YAAMT_SOURCE_DIR"] = str(source_dir)
-    env["YAAMT_PROJECT_ROOT"] = str(config.project_root)
+    # nfpm only env-expands a few scalar fields (not `contents` paths), so
+    # render the ${VAR} placeholders ourselves into a per-build config.
+    rendered_config = config.output_dir / "nfpm.yaml"
+    rendered_config.write_text(string.Template(nfpm_config.read_text()).substitute(
+        YAAMT_VERSION=version,
+        YAAMT_ARCH=DEBIAN_ARCH[config.arch],
+        YAAMT_SOURCE_DIR=source_dir,
+        YAAMT_PROJECT_ROOT=config.project_root,
+    ))
 
     print(f"\n=== Creating Linux installers with nfpm... ===")
+    stem = _artifact_stem(version, config.platform, config.arch)
     for packager in ("deb", "rpm"):
         cmd = [
             nfpm, "package",
-            "--config", str(nfpm_config),
-            "--target", str(config.output_dir),
+            "--config", str(rendered_config),
+            # An explicit file target overrides nfpm's per-format default
+            # naming so .deb/.rpm match the other platforms' artifacts.
+            "--target", str(config.output_dir / f"{stem}.{packager}"),
             "--packager", packager,
         ]
-        subprocess.run(cmd, check=True, env=env)
+        subprocess.run(cmd, check=True)
     print(f"=== Installers created in {config.output_dir} ===")
 
 
@@ -638,7 +684,11 @@ def _create_macos_installer(config: BuildConfig, version: str) -> None:
             "create-dmg not found on PATH. Install with `brew install create-dmg` and retry."
         )
 
-    source_dir = _require_pyinstaller_output(config)
+    # The .app is produced by the BUNDLE step in yaamt.spec, next to the
+    # one-folder COLLECT output.
+    app_dir = config.output_dir / MACOS_APP_NAME
+    if not app_dir.exists():
+        raise RuntimeError(f"App bundle not found at {app_dir}")
     dmg_script = config.project_root / "installer" / "build_dmg.sh"
     if not dmg_script.exists():
         raise RuntimeError(f"DMG build script not found: {dmg_script}")
@@ -646,10 +696,9 @@ def _create_macos_installer(config: BuildConfig, version: str) -> None:
     print(f"\n=== Creating macOS .dmg with create-dmg... ===")
     cmd = [
         "bash", str(dmg_script),
-        "--source", str(source_dir),
-        "--output", str(config.output_dir),
-        "--version", version,
-        "--arch", config.arch,
+        "--app", str(app_dir),
+        "--dmg", str(config.output_dir / f"{_artifact_stem(version, config.platform, config.arch)}.dmg"),
+        "--volname", f"YAAMT {version}",
     ]
     subprocess.run(cmd, check=True)
     print(f"=== Installer created in {config.output_dir} ===")

@@ -1,6 +1,7 @@
 # Linux release build pipeline.
-# Runs on pushes to master/development (-> nightly release) and on
-# v*.*.* tags (-> versioned release).
+# Runs on pushes to master/development (-> rolling nightly release).
+# Versioned v*.*.* tag releases are built by GitHub Actions instead
+# (.github/workflows/release.yml).
 #
 # Each step runs in its own container; only the workspace persists.
 # Deps + build therefore live in a single step. The upload step only
@@ -12,8 +13,6 @@
 when:
   - event: push
     branch: [master, development]
-  - event: tag
-    ref: refs/tags/v*.*.*
 
 # Build only after the test workflow (.woodpecker/test.yaml) succeeds.
 depends_on:
@@ -38,12 +37,9 @@ steps:
     environment:
       DEBIAN_FRONTEND: noninteractive
     commands:
+      # --install-deps also installs a pinned nfpm (see build.py).
       - python build.py --install-deps
-      # nfpm is not on the python image; fetch a pinned release binary.
-      # (Assets are versioned; there is no unversioned "latest" .deb asset.)
-      - curl -fsSL https://github.com/goreleaser/nfpm/releases/download/v2.47.0/nfpm_2.47.0_amd64.deb -o /tmp/nfpm.deb
-      - apt-get update && apt-get install -y /tmp/nfpm.deb
-      - python build.py --release --installer
+      - python build.py --release --archive --installer
 
   - name: upload
     image: python:3.12
@@ -53,12 +49,6 @@ steps:
     commands:
       # Tag pushes -> versioned release; branch pushes -> rolling nightly.
       # Installers land in build/release-<timestamp>/ (see build.py).
-      - |
-        if [ "$CI_COMMIT_TAG" != "" ]; then
-          TAG="$CI_COMMIT_TAG"
-        else
-          TAG="nightly"
-        fi
-        python scripts/release_upload.py --repo lyjia/yaamt --tag "$TAG" build/release-*/*.deb build/release-*/*.rpm
+      - python scripts/release_upload.py --repo lyjia/yaamt --tag nightly build/release-*/*.tar.gz build/release-*/*.deb build/release-*/*.rpm
     depends_on:
       - build

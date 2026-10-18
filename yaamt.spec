@@ -9,6 +9,7 @@ Environment variables (set by build.py):
     BUILD_MODE      - 'debug' or 'release' (default: 'debug')
     TARGET_ARCH     - 'x86_64', 'arm64', or None (auto-detect)
     YAAMT_ICON_DIR  - Path to icon directory (default: 'resources/icons')
+    YAAMT_VERSION   - Version stamped into the macOS .app Info.plist
 """
 
 import sys
@@ -23,7 +24,6 @@ target_arch = os.environ.get('TARGET_ARCH', None)
 icon_dir = Path(os.environ.get('YAAMT_ICON_DIR', 'resources/icons'))
 
 # Detect platform
-is_windows = sys.platform == 'win32'
 is_macos = sys.platform == 'darwin'
 is_linux = sys.platform.startswith('linux')
 
@@ -80,21 +80,12 @@ excludes = [
 runtime_hooks = ['scripts/runtime_hook_scipy.py']
 
 # ---------------------------------------------------------------------------
-# Platform-specific icon
+# Icon: a single PNG source. PyInstaller converts it to .ico (Windows) or
+# .icns (macOS) with Pillow at build time, so no per-platform icon files
+# need to be maintained.
 # ---------------------------------------------------------------------------
-icon_path = None
-if is_windows:
-    candidate = icon_dir / 'app-icon-gui.ico'
-    if candidate.exists():
-        icon_path = str(candidate)
-elif is_macos:
-    candidate = icon_dir / 'app-icon-gui.icns'
-    if candidate.exists():
-        icon_path = str(candidate)
-else:
-    candidate = icon_dir / 'app-icon-gui.png'
-    if candidate.exists():
-        icon_path = str(candidate)
+icon_candidate = icon_dir / 'app-icon-gui.png'
+icon_path = str(icon_candidate) if icon_candidate.exists() else None
 
 # ---------------------------------------------------------------------------
 # Analysis: shared between CLI and GUI builds
@@ -202,3 +193,32 @@ coll = COLLECT(
     upx_exclude=[],
     name='yaamt',
 )
+
+# ---------------------------------------------------------------------------
+# BUNDLE (macOS only): wrap the COLLECT output in a proper .app bundle.
+# PyInstaller relocates data files into Contents/Resources (required for a
+# valid code signature) and ad-hoc signs the bundle. The first EXECUTABLE in
+# the TOC (yaamt-gui) becomes CFBundleExecutable; the CLI ships alongside it
+# at Contents/MacOS/yaamt.
+# ---------------------------------------------------------------------------
+if is_macos:
+    # CFBundleShortVersionString must be bare 'M.m.p'; the full version
+    # (with any '+N.hash' local suffix) goes in CFBundleVersion.
+    app_version = os.environ.get('YAAMT_VERSION', '0.0.0')
+    app = BUNDLE(
+        coll,
+        name='YAAMT.app',
+        icon=icon_path,
+        bundle_identifier='com.lyjia.yaamt',
+        version=app_version.split('+', 1)[0],
+        info_plist={
+            'CFBundleVersion': app_version,
+            # COLLECT inherits console=True from the CLI EXE, which would make
+            # PyInstaller mark the app background-only (no Dock icon / menu).
+            'LSBackgroundOnly': False,
+            'NSHighResolutionCapable': True,
+            'LSApplicationCategoryType': 'public.app-category.music',
+            'LSMinimumSystemVersion': '11.0',
+            'NSHumanReadableCopyright': 'Lyjia',
+        },
+    )

@@ -1,14 +1,12 @@
 # nfpm configuration for YAAMT Linux packages.
 #
-# Build both .deb and .rpm from this single file:
-#   nfpm package --config installer/nfpm.yaml --target dist/ --packager deb
-#   nfpm package --config installer/nfpm.yaml --target dist/ --packager rpm
-#
-# Driven by build.py's _create_linux_installer; the env vars below are
-# populated there.
+# Both .deb and .rpm are built from this single file by build.py's
+# _create_linux_installer (`build.py --release --installer`). It fills in
+# the YAAMT_* placeholders below (nfpm itself does not expand them in
+# `contents`) and writes the rendered config to the build output dir.
 
 name: yaamt
-arch: amd64                      # nfpm normalizes to x86_64 for rpm
+arch: ${YAAMT_ARCH}                # Debian name (amd64/arm64); nfpm maps it for rpm
 platform: linux
 version: ${YAAMT_VERSION}
 section: sound
@@ -21,7 +19,7 @@ description: |
   musical key; integrates with MusicBrainz for fingerprint lookup.
 vendor: Lyjia
 homepage: https://github.com/lyjia/yaamt
-license: GPL-3.0-or-later
+license: AGPL-3.0-only
 
 depends:
   # Qt6 / GUI runtime (PySide6 ships its own Qt libs but still needs the
@@ -29,6 +27,7 @@ depends:
   - libegl1
   - libxkbcommon0
   - libxcb-cursor0
+  - libxcb-shape0
   # Audio
   - libportaudio2
 

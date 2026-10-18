@@ -1,98 +1,61 @@
 #!/usr/bin/env bash
 #
-# Build a macOS .dmg installer from PyInstaller output.
+# Build a macOS .dmg installer from the PyInstaller-built YAAMT.app.
 #
-# Invoked by build.py's _create_macos_installer. Wraps the PyInstaller
-# binary folder into a Yaamt.app bundle, ad-hoc codesigns it, and runs
-# create-dmg to produce the final disk image.
+# Invoked by build.py's _create_macos_installer. The .app bundle itself
+# (Info.plist, icon, ad-hoc signature) is produced by the BUNDLE step in
+# yaamt.spec; this script only lays it out in a drag-to-Applications
+# disk image with create-dmg.
 #
 # Usage:
-#   build_dmg.sh --source <pyinstaller-output> --output <dist-dir> \
-#                --version <ver> --arch <x64|arm64>
+#   build_dmg.sh --app <YAAMT.app> --dmg <output.dmg> --volname <name>
 
 set -euo pipefail
 
-SOURCE=""
-OUTPUT=""
-VERSION=""
-ARCH=""
+APP=""
+DMG_PATH=""
+VOLNAME=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --source)  SOURCE="$2";  shift 2 ;;
-        --output)  OUTPUT="$2";  shift 2 ;;
-        --version) VERSION="$2"; shift 2 ;;
-        --arch)    ARCH="$2";    shift 2 ;;
+        --app)     APP="$2";      shift 2 ;;
+        --dmg)     DMG_PATH="$2"; shift 2 ;;
+        --volname) VOLNAME="$2";  shift 2 ;;
         *) echo "Unknown argument: $1" >&2; exit 2 ;;
     esac
 done
 
-for v in SOURCE OUTPUT VERSION ARCH; do
+for v in APP DMG_PATH VOLNAME; do
     if [ -z "${!v}" ]; then
-        echo "Missing required argument: --${v,,}" >&2
+        echo "Missing required argument for $v" >&2
         exit 2
     fi
 done
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TEMPLATE_DIR="$SCRIPT_DIR/yaamt-macos"
-ICON="$SCRIPT_DIR/../resources/icons/app-icon-gui.icns"
-
-if [ ! -d "$SOURCE" ]; then
-    echo "PyInstaller output not found: $SOURCE" >&2
-    exit 1
-fi
-if [ ! -f "$TEMPLATE_DIR/Info.plist.template" ]; then
-    echo "Info.plist template not found: $TEMPLATE_DIR/Info.plist.template" >&2
+if [ ! -d "$APP" ]; then
+    echo "App bundle not found: $APP" >&2
     exit 1
 fi
 
-# CFBundleShortVersionString must be 'M.m.p' with no local-version suffix
-# (App Store Connect rejects '+' in version strings; Gatekeeper tolerates
-# but warns). Strip everything from '+' onward.
-VERSION_SHORT="${VERSION%%+*}"
-
-WORK_DIR="$(mktemp -d -t yaamt-dmg.XXXXXX)"
-trap 'rm -rf "$WORK_DIR"' EXIT
-
-APP_DIR="$WORK_DIR/Yaamt.app"
-mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-
-echo "Assembling Yaamt.app..."
-
-# Copy binaries from PyInstaller output into the bundle.
-cp -R "$SOURCE"/. "$APP_DIR/Contents/MacOS/"
-
-# Drop in the icon if it exists (skip silently if not - icon is cosmetic).
-if [ -f "$ICON" ]; then
-    cp "$ICON" "$APP_DIR/Contents/Resources/app-icon-gui.icns"
-fi
-
-# Render Info.plist from the template.
-sed \
-    -e "s/%VERSION%/$VERSION/g" \
-    -e "s/%VERSION_SHORT%/$VERSION_SHORT/g" \
-    "$TEMPLATE_DIR/Info.plist.template" > "$APP_DIR/Contents/Info.plist"
-
-# Ad-hoc codesign so Gatekeeper presents a warning rather than a flat
-# refusal. Real Developer ID signing is deferred per the release plan.
-echo "Ad-hoc codesigning..."
-codesign --sign - --deep --force --timestamp=none "$APP_DIR"
-
-DMG_NAME="yaamt-${VERSION}-macos-${ARCH}.dmg"
-DMG_PATH="$OUTPUT/$DMG_NAME"
-mkdir -p "$OUTPUT"
+APP_NAME="$(basename "$APP")"
+mkdir -p "$(dirname "$DMG_PATH")"
 rm -f "$DMG_PATH"
 
-echo "Building $DMG_NAME..."
+# create-dmg copies the *contents* of its source folder into the volume,
+# so stage the .app alone in a scratch directory.
+STAGE_DIR="$(mktemp -d -t yaamt-dmg.XXXXXX)"
+trap 'rm -rf "$STAGE_DIR"' EXIT
+cp -R "$APP" "$STAGE_DIR/"
+
+echo "Building $(basename "$DMG_PATH")..."
 create-dmg \
-    --volname "YAAMT $VERSION_SHORT" \
+    --volname "$VOLNAME" \
     --window-size 540 360 \
     --icon-size 96 \
-    --icon "Yaamt.app" 140 180 \
+    --icon "$APP_NAME" 140 180 \
     --app-drop-link 400 180 \
     --no-internet-enable \
     "$DMG_PATH" \
-    "$APP_DIR"
+    "$STAGE_DIR"
 
 echo "Created: $DMG_PATH"
