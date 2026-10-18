@@ -689,30 +689,25 @@ class AnalyzerDispatcher(QObject):
                     else:
                         result_data[KEY_COMMENT] = mode_comment
 
-                # Temporarily override key notation format if specified in options
-                saved_key_format = None
+                # The key is formatted at save time (possibly much later, if
+                # autosave is off), so the dialog's format override must travel
+                # with the staged change rather than being set globally here.
+                settings_overrides = None
                 if 'key_notation_format' in task.options:
-                    qsettings = get_qsettings()
-                    saved_key_format = qsettings.value(SETTINGS_KEY_NOTATION_FORMAT)
-                    qsettings.setValue(SETTINGS_KEY_NOTATION_FORMAT, task.options['key_notation_format'])
-                    log.debug(f"Temporarily overriding key notation format to: {task.options['key_notation_format']}")
+                    settings_overrides = {SETTINGS_KEY_NOTATION_FORMAT: task.options['key_notation_format']}
+                    log.debug(f"Overriding key notation format to: {task.options['key_notation_format']}")
 
-                try:
-                    # Stage the change through EditManager so the autosave
-                    # preference gate is respected. The actual write happens in
-                    # _finalize_writes() once the whole batch is staged.
-                    from models.edit_manager import EditManager
-                    edit_manager = EditManager()
-                    edit_manager.register_media_files([task.media_file])
-                    for tag, value in result_data.items():
-                        edit_manager.stage_change(
-                            [task.media_file], tag, value,
-                        )
-                finally:
-                    # Restore original key notation format if it was overridden
-                    if saved_key_format is not None:
-                        qsettings.setValue(SETTINGS_KEY_NOTATION_FORMAT, saved_key_format)
-                        log.debug(f"Restored key notation format to: {saved_key_format}")
+                # Stage the change through EditManager so the autosave
+                # preference gate is respected. The actual write happens in
+                # _finalize_writes() once the whole batch is staged.
+                from models.edit_manager import EditManager
+                edit_manager = EditManager()
+                edit_manager.register_media_files([task.media_file])
+                for tag, value in result_data.items():
+                    edit_manager.stage_change(
+                        [task.media_file], tag, value,
+                        settings_overrides=settings_overrides if tag == KEY_INITIAL_KEY else None,
+                    )
 
                 log.info(
                     f"Staged analysis results for {task.media_file.file_path}: "

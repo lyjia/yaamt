@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Signal, QThread, Slot
 from typing import Any
 from models.media_file import MediaFile
 from models.tag_info import TagInfo
-from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_VALUE, KEY_PROVIDER
+from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_VALUE, KEY_PROVIDER, KEY_TAG_SETTINGS_OVERRIDES
 from util.logging import log
 
 # Upper bound for blocking on an in-flight background commit (e.g. at quit
@@ -95,7 +95,8 @@ class EditManager(QObject):
         if self._initialized:
             return
         super().__init__()
-        # Structure: {file_id: {KEY_TAG_GENERIC: {tag: value}, KEY_TAG_INTERNAL: {tag: {KEY_VALUE: value, KEY_PROVIDER: provider}}}}
+        # Structure: {file_id: {KEY_TAG_GENERIC: {tag: value}, KEY_TAG_INTERNAL: {tag: {KEY_VALUE: value, KEY_PROVIDER: provider}},
+        #                       KEY_TAG_SETTINGS_OVERRIDES: {generic_tag: {settings_key: value}}}}
         self._staged_changes: dict[int, dict[str, dict]] = {}
         self._media_files: dict[int, MediaFile] = {}
         self._autosave = True
@@ -152,7 +153,8 @@ class EditManager(QObject):
 
     def stage_change(self, media_files: list[MediaFile], tag: str, value: Any,
                      is_internal_tag: bool = False,
-                     provider: Any | None = None) -> None:
+                     provider: Any | None = None,
+                     settings_overrides: dict[str, Any] | None = None) -> None:
         """
         Stage a change for one or more files, pending a call to commit_changes().
 
@@ -162,6 +164,9 @@ class EditManager(QObject):
             value: The new value for the tag
             is_internal_tag: Whether the tag is an internal tag name
             provider: The provider instance for internal tags (required if is_internal_tag=True)
+            settings_overrides: QSettings values the tag transformers should use for this
+                generic tag instead of the user's preferences (e.g. an analyzer run's key
+                notation format). Restaging the tag without overrides clears them.
         """
 
         # do not try to call self.commit_changes() in here; the caller should handle that.
@@ -185,6 +190,12 @@ class EditManager(QObject):
                 else:
                     # For generic tags, store directly
                     self._staged_changes[file_id][KEY_TAG_GENERIC][tag] = value
+                    # The overrides bucket only exists once something needs it
+                    file_changes = self._staged_changes[file_id]
+                    if settings_overrides:
+                        file_changes.setdefault(KEY_TAG_SETTINGS_OVERRIDES, {})[tag] = dict(settings_overrides)
+                    else:
+                        file_changes.get(KEY_TAG_SETTINGS_OVERRIDES, {}).pop(tag, None)
 
             self.staged_changes_exist.emit(self.has_staged_changes())
 
@@ -207,10 +218,7 @@ class EditManager(QObject):
             # did not stage a newer value for that file mid-save.
             with self._write_lock:
                 snapshot = {
-                    file_id: {
-                        KEY_TAG_GENERIC: dict(changes[KEY_TAG_GENERIC]),
-                        KEY_TAG_INTERNAL: dict(changes[KEY_TAG_INTERNAL]),
-                    }
+                    file_id: {bucket: dict(entries) for bucket, entries in changes.items()}
                     for file_id, changes in self._staged_changes.items()
                 }
 
@@ -380,6 +388,8 @@ class EditManager(QObject):
                     continue
                 bucket = file_changes[KEY_TAG_INTERNAL if is_internal_tag else KEY_TAG_GENERIC]
                 bucket.pop(tag, None)
+                if not is_internal_tag:
+                    file_changes.get(KEY_TAG_SETTINGS_OVERRIDES, {}).pop(tag, None)
             self.staged_changes_exist.emit(self.has_staged_changes())
 
     def has_staged_changes(self) -> bool:

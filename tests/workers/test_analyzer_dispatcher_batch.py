@@ -18,10 +18,13 @@ from providers.analysis import AnalyzerCategory
 from providers.analysis.base import AnalyzerBase, AnalyzerResult, BatchAnalyzerBase
 from util.const import (
     KEY_COMMENT,
+    KEY_INITIAL_KEY,
     KEY_REPLAYGAIN_ALBUM_GAIN,
     KEY_REPLAYGAIN_TRACK_GAIN,
     KEY_TAG_GENERIC,
+    SETTINGS_KEY_NOTATION_FORMAT,
 )
+from util.diatonic_key import NotationFormat
 from workers.analyzer_dispatcher import (
     AnalysisTask,
     AnalyzerDispatcher,
@@ -274,3 +277,60 @@ class TestProgressTotal:
         assert all(t == 3 for t in totals), totals
         # Completed climbs 1 -> 2 -> 3.
         assert [c for c, _ in progress] == [1, 2, 3]
+
+
+class _StubKeyAnalyzer(AnalyzerBase):
+    name = "Stub Key Analyzer"
+    description = "test"
+    category = "key"
+    version = "1.0.0"
+
+    def analyze(self) -> AnalyzerResult:
+        return AnalyzerResult(success=True, data={KEY_INITIAL_KEY: "Dm"})
+
+
+class TestKeyNotationOverride:
+    """The setup dialog's key format override must reach the save-time
+    MusicalKeyFormatter, even when the save happens after staging."""
+
+    CAMELOT_D_MINOR = "7A"
+    OVERRIDE_OPTIONS = {'key_notation_format': NotationFormat.Camelot.value}
+
+    def _stage_key(self, flac_path, isolated_qsettings):
+        isolated_qsettings.setValue(SETTINGS_KEY_NOTATION_FORMAT, NotationFormat.StandardAbbrev.value)
+        d = _dispatcher_for(_StubKeyAnalyzer)
+        mf = MediaFile(str(flac_path), enable_write=True)
+        d._apply_results(_make_task(_StubKeyAnalyzer, mf, dict(self.OVERRIDE_OPTIONS)))
+        return d, mf
+
+    def test_override_written_with_autosave(self, flac_copies, isolated_qsettings):
+        _reset_edit_manager()
+        d, _ = self._stage_key(flac_copies[0], isolated_qsettings)
+        d._finalize_writes()
+
+        assert MediaFile(str(flac_copies[0])).get_tag_simple(KEY_INITIAL_KEY) == self.CAMELOT_D_MINOR
+        # The global preference is never touched.
+        assert isolated_qsettings.value(SETTINGS_KEY_NOTATION_FORMAT) == NotationFormat.StandardAbbrev.value
+
+    def test_override_survives_deferred_save(self, flac_copies, isolated_qsettings):
+        em = _reset_edit_manager()
+        em.set_autosave(False)
+        try:
+            d, _ = self._stage_key(flac_copies[0], isolated_qsettings)
+            d._finalize_writes()
+            # User later picks File > Save.
+            em.commit_changes_sync()
+        finally:
+            em.set_autosave(True)
+            em.reset_changes()
+
+        assert MediaFile(str(flac_copies[0])).get_tag_simple(KEY_INITIAL_KEY) == self.CAMELOT_D_MINOR
+
+    def test_restaging_without_override_uses_preference(self, flac_copies, isolated_qsettings):
+        em = _reset_edit_manager()
+        _, mf = self._stage_key(flac_copies[0], isolated_qsettings)
+        # A manual edit after the analyzer run replaces the override.
+        em.stage_change([mf], KEY_INITIAL_KEY, "Dm")
+        em.commit_changes_sync()
+
+        assert MediaFile(str(flac_copies[0])).get_tag_simple(KEY_INITIAL_KEY) == "Dmin"

@@ -3,7 +3,8 @@ from typing import Any
 
 from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, KEY_VALUE, KEY_ALL_PROVIDERS, \
     KEY_ALL_VALUES, KEY_INTERNAL, KEY_FILE_PATH, KEY_FILE_TYPE, KEY_FILE_SIZE, KEY_FILE_MTIME, \
-    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_MEDIA, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_FILE_ID
+    KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_MEDIA, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_FILE_ID, \
+    KEY_TAG_SETTINGS_OVERRIDES
 from providers.metadata.mutagen_provider import MutagenProvider
 from util.logging import log
 
@@ -207,11 +208,14 @@ class MediaFile:
             from providers.metadata.tag_transformers import apply_transformations
             from models.settings import settings as app_settings
 
+            settings_overrides = changes.get(KEY_TAG_SETTINGS_OVERRIDES, {})
             transformed_generic_tags = {}
             for tag, value in changes[KEY_TAG_GENERIC].items():
                 try:
                     log.debug(f"Transforming tag '{tag}': {repr(value)}")
-                    transformed_value = apply_transformations(tag, value, app_settings)
+                    transformed_value = apply_transformations(
+                        tag, value, app_settings, settings_overrides.get(tag),
+                    )
                     transformed_generic_tags[tag] = transformed_value
                     log.debug(f"Transformed result: {repr(transformed_value)}")
                 except ValueError as e:

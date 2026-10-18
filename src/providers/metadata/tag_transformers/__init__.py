@@ -55,7 +55,25 @@ def get_transformers_for_tag(tag_name: str) -> list[type[TransformerBase]]:
     return sorted(transformers, key=lambda t: t.priority)
 
 
-def apply_transformations(tag_name: str, value: Any, settings: QSettings) -> str:
+class SettingsOverlay:
+    """
+    Read-only QSettings stand-in that answers from per-change overrides first,
+    falling back to the real settings. Lets a single staged change (e.g. an
+    analyzer run's key format choice) differ from the user's global preference.
+    """
+
+    def __init__(self, settings: QSettings, overrides: dict[str, Any]):
+        self._settings = settings
+        self._overrides = overrides
+
+    def value(self, key: str, default: Any = None, **kwargs: Any) -> Any:
+        if key in self._overrides:
+            return self._overrides[key]
+        return self._settings.value(key, default, **kwargs)
+
+
+def apply_transformations(tag_name: str, value: Any, settings: QSettings,
+                          overrides: dict[str, Any] | None = None) -> str:
     """
     Apply all relevant transformers to a tag value.
 
@@ -69,6 +87,7 @@ def apply_transformations(tag_name: str, value: Any, settings: QSettings) -> str
         tag_name: The generic tag name (e.g., 'bpm', 'key', 'title')
         value: The raw value to transform (may be int, float, str, or None)
         settings: QSettings instance for reading user preferences
+        overrides: Optional settings values that take precedence over `settings`
 
     Returns:
         The transformed value as a string
@@ -76,6 +95,9 @@ def apply_transformations(tag_name: str, value: Any, settings: QSettings) -> str
     Raises:
         ValueError: If any transformer fails to process the value
     """
+    # Duck-typed: transformers only call .value() on their settings
+    reader: Any = SettingsOverlay(settings, overrides) if overrides else settings
+
     # Get transformers for this tag
     transformer_classes = get_transformers_for_tag(tag_name)
 
@@ -87,7 +109,7 @@ def apply_transformations(tag_name: str, value: Any, settings: QSettings) -> str
     # Apply each transformer in priority order
     current_value = value
     for transformer_class in transformer_classes:
-        transformer = transformer_class(settings)
+        transformer = transformer_class(reader)
         try:
             log.debug(f"Applying transformer '{transformer.name}' to tag '{tag_name}': {repr(current_value)}")
             current_value = transformer.transform(current_value, tag_name)
@@ -108,6 +130,7 @@ register_transformer(MusicalKeyFormatter)
 
 __all__ = [
     'TransformerBase',
+    'SettingsOverlay',
     'register_transformer',
     'get_transformers_for_tag',
     'apply_transformations',

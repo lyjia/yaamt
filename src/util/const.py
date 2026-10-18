@@ -232,6 +232,8 @@ KEY_ALL_PROVIDERS = 'all_providers'
 KEY_AVAIL_KEYS = 'available_keys'
 KEY_TAG_INTERNAL = 'internal_tags'
 KEY_TAG_GENERIC = 'generic_tags'
+# Per-tag QSettings overrides applied to tag transformers at save time
+KEY_TAG_SETTINGS_OVERRIDES = 'settings_overrides'
 KEY_VALUE = 'value'
 KEY_ALL_VALUES = 'all_values'
 
