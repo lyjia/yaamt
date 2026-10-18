@@ -117,6 +117,10 @@ arbitrary code on our hardware. The mitigation:
 - Marks the release as `prerelease=true` for any tag whose version
   string contains a local-version suffix (`+`).
 
+It still contains the legacy rolling-`nightly` path (delete and recreate
+a published prerelease for the `nightly` tag), but nothing in CI
+invokes it.
+
 Stdlib-only because it must run on every platform without an extra
 install step.
 
