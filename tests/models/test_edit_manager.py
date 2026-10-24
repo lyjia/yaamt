@@ -1,11 +1,12 @@
 import pytest
 from unittest.mock import Mock, patch
-from PySide6.QtCore import QEventLoop
+from PySide6.QtCore import QEventLoop, QDeadlineTimer
 from models import EditManager
 from models import MediaFile
 from pathlib import Path
 import shutil
 import tempfile
+import threading
 from util.const import PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC, KEY_VALUE, KEY_PROVIDER
 from util.logging import log
 from util.const import IN_GITHUB_RUNNER
@@ -293,6 +294,41 @@ class TestEditManager:
         assert emitted_data[0] is True
         assert emitted_data[1] is True
         assert emitted_data[2] is False
+
+    def test_edit_staged_during_commit_is_committed_afterwards(self, temp_media_file_factory, qapp):
+        """Autosave on: an edit staged while a commit is running must not stay
+        staged until quit (issue #84, finding M5). The finished handler starts
+        a follow-up commit."""
+        media_file1 = temp_media_file_factory('sample_dtmf_ansi.mp3', enable_write=True)
+        media_file2 = temp_media_file_factory('sample_dtmf_nometa.flac', enable_write=True)
+        self.edit_manager.register_media_files([media_file1, media_file2])
+        self.edit_manager.commit_failed.connect(lambda errors: pytest.fail(f"Commit failed: {errors}"))
+
+        # Hold the commit thread inside the first file's save so the second
+        # edit is staged after the commit took its snapshot of staged changes.
+        in_save, release_save = threading.Event(), threading.Event()
+        original_save = media_file1.save
+
+        def gated_save(changes):
+            original_save(changes)
+            in_save.set()
+            assert release_save.wait(5)
+        media_file1.save = gated_save
+
+        self.edit_manager.stage_change([media_file1], 'title', 'First')
+        assert self.edit_manager.commit_changes() is True
+        assert in_save.wait(5)
+        # Commit is in flight: this call is refused but must be remembered.
+        self.edit_manager.stage_change([media_file2], 'artist', 'Second')
+        assert self.edit_manager.commit_changes() is False
+        release_save.set()
+
+        deadline = QDeadlineTimer(5000)
+        while self.edit_manager.has_staged_changes() and not deadline.hasExpired():
+            self.edit_manager.wait_for_pending_commit()
+            qapp.processEvents()
+        assert self.edit_manager.has_staged_changes() is False
+        assert MediaFile(media_file2.file_path).get_tag_simple('artist') == 'Second'
 
     def test_commit_changes_no_changes_staged(self):
         """Test commit_changes when no changes are staged."""

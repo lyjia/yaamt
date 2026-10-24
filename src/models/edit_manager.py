@@ -102,6 +102,10 @@ class EditManager(QObject):
         self._autosave = True
         self._commit_thread: QThread | None = None
         self._commit_worker: _CommitWorker | None = None
+        # Set when commit_changes() is called while a commit is already
+        # running; the finished handler then starts a follow-up commit so the
+        # newly staged edits are not left unwritten until quit.
+        self._recommit_requested = False
         # Serializes whole save operations against each other (background
         # commit vs. quit-time sync save). Distinct from _write_lock, which
         # only guards the staged-changes dict and must never be held across
@@ -290,7 +294,8 @@ class EditManager(QObject):
             return False
 
         if self._commit_thread is not None and self._commit_thread.isRunning():
-            log.warning("Save is already in progress.")
+            log.debug("Save is already in progress; a follow-up commit will run when it finishes.")
+            self._recommit_requested = True
             return False
 
         if not self.has_staged_changes():
@@ -330,6 +335,11 @@ class EditManager(QObject):
         if self._commit_thread is thread:
             self._commit_thread = None
             self._commit_worker = None
+        if self._recommit_requested:
+            self._recommit_requested = False
+            # Edits staged during the commit that just finished (autosave
+            # on) would otherwise stay staged until quit.
+            self.commit_changes()
 
     def wait_for_pending_commit(self, timeout_ms: int = DEFAULT_COMMIT_WAIT_TIMEOUT_MS) -> bool:
         """

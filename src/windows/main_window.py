@@ -305,15 +305,15 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         log.info("MainWindow close event received!") # Commenting-out or removing this line causes playback to freeze for some reason https://github.com/lyjia/yaamt/issues/49
 
-        # Stop playback and clean up the playback thread
-        self._cleanup_playback()  # Commenting-out or removing this line fixes the playback bug mentioned above, but then the program won't exit cleanly https://github.com/lyjia/yaamt/issues/49
+        # Order matters (issue #84): ask the user first, tear down after.
+        # Stopping playback or the loader before the prompt would leave a
+        # half-dead window behind if the user chooses Cancel.
+        # A background commit may be writing right now; let it finish so the
+        # process never destroys the commit thread mid-write, and so the
+        # unsaved-changes prompt reflects what is actually still staged.
+        self.edit_manager.wait_for_pending_commit()
 
-        # Cancel any running file loading worker
-        if self._current_load_worker is not None:
-            log.debug("Cancelling file loading worker on window close")
-            self._current_load_worker.cancel()
-            self._current_load_worker = None
-
+        reply = None
         if self.edit_manager.has_staged_changes():
             reply = QMessageBox.question(
                 self,
@@ -322,26 +322,28 @@ class MainWindow(QMainWindow):
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
                 QMessageBox.Save
             )
-
-            if reply == QMessageBox.Save:
-                # Quit-time saves run synchronously: a background commit
-                # thread would be torn down mid-write as the application
-                # exits. Wait out any commit already in flight first.
-                self.edit_manager.wait_for_pending_commit()
-                _, errors = self.edit_manager.commit_changes_sync()
-                if errors:
-                    self._show_error_message("Error Saving Changes", "\n".join(errors))
-                self._save_column_settings()
-                super().closeEvent(event)
-            elif reply == QMessageBox.Discard:
-                # Discard changes and close
-                self._save_column_settings()
-                super().closeEvent(event)
-            else: # Cancel
+            if reply == QMessageBox.Cancel:
                 event.ignore()
-        else:
-            self._save_column_settings()
-            super().closeEvent(event)
+                return
+
+        if reply == QMessageBox.Save:
+            # Quit-time saves run synchronously: a background commit thread
+            # would be torn down mid-write as the application exits.
+            _, errors = self.edit_manager.commit_changes_sync()
+            if errors:
+                self._show_error_message("Error Saving Changes", "\n".join(errors))
+
+        # Quitting is now certain: stop playback and clean up the playback thread
+        self._cleanup_playback()  # Commenting-out or removing this line fixes the playback bug mentioned above, but then the program won't exit cleanly https://github.com/lyjia/yaamt/issues/49
+
+        # Cancel any running file loading worker
+        if self._current_load_worker is not None:
+            log.debug("Cancelling file loading worker on window close")
+            self._current_load_worker.cancel()
+            self._current_load_worker = None
+
+        self._save_column_settings()
+        super().closeEvent(event)
 
     def set_path(self, path):
         self._current_path = path
