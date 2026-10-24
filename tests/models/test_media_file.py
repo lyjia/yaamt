@@ -15,7 +15,12 @@ SOURCE_FILE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "sample_dtmf_un
 
 # Discover all audio files in the fixture directory.
 # This list will be used to parameterize the test function.
-test_files = [p for p in FIXTURE_DIR.glob('*') if (p.suffix == '.mp3' or p.suffix == ".flac")]
+# Read tests cover every container; write tests are limited to the containers
+# MutagenProvider can currently write (WAV/AIFF writes raise, see issue #74).
+READ_SUFFIXES = {'.mp3', '.flac', '.wav'}
+WRITE_SUFFIXES = {'.mp3', '.flac'}
+read_test_files = [p for p in FIXTURE_DIR.glob('*') if p.suffix in READ_SUFFIXES]
+write_test_files = [p for p in read_test_files if p.suffix in WRITE_SUFFIXES]
 
 def filter_keys(obj, keys_to_ignore):
     """
@@ -28,7 +33,7 @@ def filter_keys(obj, keys_to_ignore):
     return obj
 
 
-@pytest.mark.parametrize("media_path", test_files)
+@pytest.mark.parametrize("media_path", read_test_files)
 def test_to_dict_parameterized(media_path):
     """
     A parameterized test that verifies the to_dict() method of the MediaFile class.
@@ -73,7 +78,7 @@ def test_to_dict_parameterized(media_path):
             f"Mismatch in section '{section_key}'"
 
 
-@pytest.mark.parametrize("media_path", test_files)
+@pytest.mark.parametrize("media_path", write_test_files)
 def test_write_tags(media_path, tmp_path):
     """
     A parameterized test that verifies the write functionality of the MediaFile class.

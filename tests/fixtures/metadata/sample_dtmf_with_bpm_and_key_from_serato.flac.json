@@ -412,5 +412,35 @@
                 "MutagenProvider"
             ]
         }
+    },
+    "stream_info": {
+        "bitrate": {
+            "value": 272440,
+            "provider": "MutagenProvider"
+        },
+        "length": {
+            "value": 1.2,
+            "provider": "MutagenProvider"
+        },
+        "sample_rate": {
+            "value": 44100,
+            "provider": "MutagenProvider"
+        },
+        "channels": {
+            "value": 2,
+            "provider": "MutagenProvider"
+        },
+        "bits_per_sample": {
+            "value": 16,
+            "provider": "MutagenProvider"
+        },
+        "total_samples": {
+            "value": 52920,
+            "provider": "MutagenProvider"
+        },
+        "format": {
+            "value": "FLAC",
+            "provider": "MutagenProvider"
+        }
     }
 }

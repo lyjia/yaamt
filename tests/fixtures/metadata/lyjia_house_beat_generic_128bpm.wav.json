@@ -320,5 +320,35 @@
                 "MutagenProvider"
             ]
         }
+    },
+    "stream_info": {
+        "bitrate": {
+            "value": 2116800,
+            "provider": "MutagenProvider"
+        },
+        "length": {
+            "value": 7.5,
+            "provider": "MutagenProvider"
+        },
+        "sample_rate": {
+            "value": 44100,
+            "provider": "MutagenProvider"
+        },
+        "channels": {
+            "value": 2,
+            "provider": "MutagenProvider"
+        },
+        "bits_per_sample": {
+            "value": 24,
+            "provider": "MutagenProvider"
+        },
+        "total_samples": {
+            "value": 330750,
+            "provider": "MutagenProvider"
+        },
+        "format": {
+            "value": "2 channel RIFF @ 2116800 bps",
+            "provider": "MutagenProvider"
+        }
     }
 }

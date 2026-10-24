@@ -310,7 +310,9 @@ class MutagenProvider(MetadataProviderBase):
             raise
 
     def get_tag(self, key: str) -> list | None:
-        if not self._audio:
+        # Note: ``not self._audio`` would be wrong here. mutagen's FileType defines
+        # __len__ as the tag count, so an untagged file is falsy. Compare to None.
+        if self._audio is None:
             return None
 
         if key in self._audio:
@@ -322,7 +324,7 @@ class MutagenProvider(MetadataProviderBase):
         self._audio[key] = value
 
     def get_stream_info(self, key: str) -> Any:
-        if not self._audio:
+        if self._audio is None:
             return None
         if key == KEY_BITRATE:
             return self._audio.info.bitrate
@@ -335,7 +337,7 @@ class MutagenProvider(MetadataProviderBase):
         elif key == KEY_BITS_PER_SAMPLE:
             return getattr(self._audio.info, 'bits_per_sample', None)
         elif key == KEY_TOTAL_SAMPLES:
-            return self._audio.info.length * self._audio.info.channels
+            return round(self._audio.info.length * self._audio.info.sample_rate)
         elif key == KEY_FORMAT:
             return self._audio.info.pprint().split(',')[0]
         return None
@@ -381,7 +383,7 @@ class MutagenProvider(MetadataProviderBase):
 
     def save(self) -> None:
         # log.debug(f"Saving file: {self._file_path}")
-        if self._write_enabled and self._audio:
+        if self._write_enabled and self._audio is not None:
             try:
                 self._audio.save(self._file_path)
                 log.debug(f"Successfully saved file: {self._file_path}")
