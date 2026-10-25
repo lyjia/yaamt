@@ -1,13 +1,15 @@
 import json
 import os
+
+import mutagen
 import shutil
 from pathlib import Path
 import pytest
 import time
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
-from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
-from util.exceptions import InvalidFileError
+from util.const import KEY_REMIXER, KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
+from util.exceptions import InvalidFileError, UnwritableTagsError
 
 # Define the directory containing the test fixtures.
 FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "metadata"
@@ -309,3 +311,40 @@ def test_update_file_path(tmp_path):
     # Identity intentionally stays keyed to the original path until the
     # file-identity refactor; EditManager lookups depend on this.
     assert media_file.file_id == original_id
+
+
+@pytest.mark.parametrize("media_path", write_test_files)
+def test_save_unwritable_tag_raises_and_writes_the_rest(media_path, tmp_path):
+    """A generic tag with no registered writer must not be dropped silently
+    (issue #79). The other tags in the same save are still written."""
+    temp_media_path = tmp_path / media_path.name
+    shutil.copy(media_path, temp_media_path)
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+    # Remixer has no writer for any of these fixtures (none carries the tag).
+    unwritable = KEY_REMIXER
+
+    with pytest.raises(UnwritableTagsError) as excinfo:
+        media_file.save({KEY_TAG_GENERIC: {unwritable: 'Someone', KEY_TITLE: 'Written'},
+                         KEY_TAG_INTERNAL: {}})
+
+    assert excinfo.value.tags == [unwritable]
+    assert MediaFile(str(temp_media_path)).get_tag_simple(KEY_TITLE) == 'Written'
+
+
+@pytest.mark.parametrize("media_path", write_test_files)
+def test_save_empty_value_deletes_tag(media_path, tmp_path):
+    """Clearing a field removes the tag instead of writing an empty frame or
+    Vorbis comment (issue #79, finding M7). Clearing a tag that has no writer
+    is not an error: there is nothing to remove."""
+    temp_media_path = tmp_path / media_path.name
+    shutil.copy(media_path, temp_media_path)
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+    media_file.save({KEY_TAG_GENERIC: {KEY_TITLE: 'Present'}, KEY_TAG_INTERNAL: {}})
+
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+    media_file.save({KEY_TAG_GENERIC: {KEY_TITLE: '', KEY_REMIXER: ''}, KEY_TAG_INTERNAL: {}})
+
+    raw = mutagen.File(str(temp_media_path))
+    raw_keys = {k.lower() for k in (raw.tags.keys() if raw.tags else [])}
+    assert 'title' not in raw_keys and 'tit2' not in raw_keys
+    assert MediaFile(str(temp_media_path)).get_tag_simple(KEY_TITLE) is None

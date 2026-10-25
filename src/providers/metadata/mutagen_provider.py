@@ -323,6 +323,10 @@ class MutagenProvider(MetadataProviderBase):
     def set_tag(self, key: str, value: list) -> None:
         self._audio[key] = value
 
+    def delete_tag(self, key: str) -> None:
+        if key in self._audio:
+            del self._audio[key]
+
     def get_stream_info(self, key: str) -> Any:
         if self._audio is None:
             return None

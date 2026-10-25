@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import threading
-from util.const import PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC, KEY_VALUE, KEY_PROVIDER
+from util.const import KEY_REMIXER, PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC, KEY_VALUE, KEY_PROVIDER
 from util.logging import log
 from util.const import IN_GITHUB_RUNNER
 
@@ -329,6 +329,21 @@ class TestEditManager:
             qapp.processEvents()
         assert self.edit_manager.has_staged_changes() is False
         assert MediaFile(media_file2.file_path).get_tag_simple('artist') == 'Second'
+
+    def test_partial_save_keeps_only_unwritable_tags_staged(self, temp_media_file_factory):
+        """Issue #79: an unwritable generic tag is reported as an error and stays
+        staged, while the tags that were written are unstaged."""
+        media_file = temp_media_file_factory('sample_dtmf_original.flac', enable_write=True)
+        self.edit_manager.register_media_files([media_file])
+        self.edit_manager.stage_change([media_file], 'title', 'Written')
+        self.edit_manager.stage_change([media_file], KEY_REMIXER, 'Someone')
+
+        saved_ids, errors = self.edit_manager.commit_changes_sync()
+
+        assert saved_ids == []
+        assert len(errors) == 1 and KEY_REMIXER in errors[0]
+        assert self.edit_manager.get_staged_changes_for_file(media_file)[KEY_TAG_GENERIC] == {KEY_REMIXER: 'Someone'}
+        assert MediaFile(media_file.file_path).get_tag_simple('title') == 'Written'
 
     def test_commit_changes_no_changes_staged(self):
         """Test commit_changes when no changes are staged."""
