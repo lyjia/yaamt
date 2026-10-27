@@ -11,8 +11,6 @@ from util.logging import log
 # Upper bound for blocking on an in-flight background commit (e.g. at quit
 # time). Generous: a commit is a handful of tag writes, not a transcode.
 DEFAULT_COMMIT_WAIT_TIMEOUT_MS = 30_000
-# Sentinel for "tag not staged", distinct from a staged None (a cleared field).
-_MISSING = object()
 
 # commit_progress is emitted as (percent_complete, 100).
 PROGRESS_TOTAL_PERCENT = 100
@@ -222,9 +220,6 @@ class EditManager(QObject):
         saved_file_ids: list[int] = []
         unsavable_file_ids: list[int] = []
         errors: list[str] = []
-        # Files where some tags were written and others had no writer: maps
-        # file id to the generic tags that must stay staged.
-        partially_saved: dict[int, list[str]] = {}
 
         with self._save_lock:
             # Snapshot the staged changes so the dict lock is not held across
@@ -256,9 +251,13 @@ class EditManager(QObject):
                     media_file.save(changes)
                     saved_file_ids.append(file_id)
                 except UnwritableTagsError as e:
+                    # Everything writable was saved. The rest can never succeed
+                    # (writability is fixed per file), so report it once and
+                    # discard it like a saved change instead of retrying it on
+                    # every later commit.
                     log.error(f"Unwritable tags in {media_file.file_path}: {e.tags}")
-                    errors.append(f"{media_file.file_path}: {e}")
-                    partially_saved[file_id] = e.tags
+                    errors.append(f"{media_file.file_path}: {e}. These edits were discarded.")
+                    saved_file_ids.append(file_id)
                 except Exception as e:
                     log.error(f"Error saving file {media_file.file_path}: {e}")
                     errors.append(f"{media_file.file_path}: {e}")
@@ -275,33 +274,11 @@ class EditManager(QObject):
                 for file_id in saved_file_ids:
                     if self._staged_changes.get(file_id) == snapshot[file_id]:
                         del self._staged_changes[file_id]
-                for file_id, unwritten_tags in partially_saved.items():
-                    self._unstage_written_tags(file_id, snapshot[file_id], unwritten_tags)
                 for file_id in unsavable_file_ids:
                     self._staged_changes.pop(file_id, None)
                 self.staged_changes_exist.emit(self.has_staged_changes())
 
-        return saved_file_ids + list(partially_saved), errors
-
-    def _unstage_written_tags(self, file_id: int, written: dict[str, dict], unwritten_tags: list[str]) -> None:
-        """
-        After a partial save, unstage every tag that was written, keeping the
-        unwritten generic tags (and any value the user restaged mid-save).
-        Caller must hold _write_lock.
-        """
-        staged = self._staged_changes.get(file_id)
-        if staged is None:
-            return
-        for bucket in (KEY_TAG_GENERIC, KEY_TAG_INTERNAL):
-            for tag, value in written.get(bucket, {}).items():
-                if bucket == KEY_TAG_GENERIC and tag in unwritten_tags:
-                    continue
-                if staged[bucket].get(tag, _MISSING) == value:
-                    del staged[bucket][tag]
-                    if bucket == KEY_TAG_GENERIC:
-                        staged.get(KEY_TAG_SETTINGS_OVERRIDES, {}).pop(tag, None)
-        if not staged[KEY_TAG_GENERIC] and not staged[KEY_TAG_INTERNAL]:
-            del self._staged_changes[file_id]
+        return saved_file_ids, errors
 
     def _save_changes(self):
         """

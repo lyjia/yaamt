@@ -330,9 +330,9 @@ class TestEditManager:
         assert self.edit_manager.has_staged_changes() is False
         assert MediaFile(media_file2.file_path).get_tag_simple('artist') == 'Second'
 
-    def test_partial_save_keeps_only_unwritable_tags_staged(self, temp_media_file_factory):
-        """Issue #79: an unwritable generic tag is reported as an error and stays
-        staged, while the tags that were written are unstaged."""
+    def test_partial_save_reports_and_discards_unwritable_tags(self, temp_media_file_factory):
+        """Issue #79: an unwritable generic tag is reported as an error, then
+        discarded: retrying could never succeed. The writable tags are saved."""
         media_file = temp_media_file_factory('sample_dtmf_original.flac', enable_write=True)
         self.edit_manager.register_media_files([media_file])
         self.edit_manager.stage_change([media_file], 'title', 'Written')
@@ -343,7 +343,7 @@ class TestEditManager:
         # Partly written files count as written so views refresh them.
         assert saved_ids == [media_file.file_id]
         assert len(errors) == 1 and KEY_REMIXER in errors[0]
-        assert self.edit_manager.get_staged_changes_for_file(media_file)[KEY_TAG_GENERIC] == {KEY_REMIXER: 'Someone'}
+        assert not self.edit_manager.has_staged_changes()
         assert MediaFile(media_file.file_path).get_tag_simple('title') == 'Written'
 
     def test_commit_changes_no_changes_staged(self):
