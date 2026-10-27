@@ -340,7 +340,8 @@ class TestEditManager:
 
         saved_ids, errors = self.edit_manager.commit_changes_sync()
 
-        assert saved_ids == []
+        # Partly written files count as written so views refresh them.
+        assert saved_ids == [media_file.file_id]
         assert len(errors) == 1 and KEY_REMIXER in errors[0]
         assert self.edit_manager.get_staged_changes_for_file(media_file)[KEY_TAG_GENERIC] == {KEY_REMIXER: 'Someone'}
         assert MediaFile(media_file.file_path).get_tag_simple('title') == 'Written'

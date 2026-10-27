@@ -84,6 +84,10 @@ class EditManager(QObject):
     commit_progress = Signal(int, int)
     commit_finished = Signal(list)  # Signal emitted when commit is successful, with list of file_ids
     commit_failed = Signal(list)  # Signal emitted when commit fails, with list of errors
+    # Emitted after every background commit, before commit_finished/commit_failed,
+    # with the ids of every file that changed on disk (fully or partially saved),
+    # so views can refresh those rows even when other files in the batch failed.
+    files_written = Signal(list)
 
     _instance = None
     _write_lock = threading.Lock()
@@ -211,7 +215,8 @@ class EditManager(QObject):
         Core save logic that can be used by both synchronous and asynchronous operations.
 
         Returns:
-            Tuple of ``(saved_file_ids, errors)``.
+            Tuple of ``(written_file_ids, errors)``. ``written_file_ids`` includes
+            files where only some tags were written (see UnwritableTagsError).
         """
         log.debug("Starting save operation...")
         saved_file_ids: list[int] = []
@@ -276,7 +281,7 @@ class EditManager(QObject):
                     self._staged_changes.pop(file_id, None)
                 self.staged_changes_exist.emit(self.has_staged_changes())
 
-        return saved_file_ids, errors
+        return saved_file_ids + list(partially_saved), errors
 
     def _unstage_written_tags(self, file_id: int, written: dict[str, dict], unwritten_tags: list[str]) -> None:
         """
@@ -305,6 +310,8 @@ class EditManager(QObject):
         """
         saved_file_ids, errors = self._save_changes_impl()
 
+        if saved_file_ids:
+            self.files_written.emit(saved_file_ids)
         if errors:
             self.commit_failed.emit(errors)
         else:

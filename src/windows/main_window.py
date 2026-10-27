@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
         self.edit_manager.commit_progress.connect(self.update_progress)
         self.edit_manager.commit_finished.connect(self.on_commit_finished)
         self.edit_manager.commit_failed.connect(self.on_commit_failed)
+        self.edit_manager.files_written.connect(self.on_files_written)
         self.edit_manager.autosave_changed.connect(self.on_autosave_changed)
         self.edit_manager.staged_changes_exist.connect(self.on_staged_changes_changed)
 
@@ -1614,7 +1615,8 @@ class MainWindow(QMainWindow):
 
     def on_commit_finished(self, saved_file_ids):
         """
-        Slot called when commit is successful. Refreshes the model for the updated files.
+        Slot called when commit is successful. Row refresh happens in
+        on_files_written, which also covers commits that partly failed.
 
         Args:
             saved_file_ids: List of file ids that were successfully updated
@@ -1622,8 +1624,9 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Saved {len(saved_file_ids)} files.")
         self.progress_bar.hide()
 
-        if saved_file_ids:
-            self.file_model.refresh_files(saved_file_ids, self.edit_manager)
+    def on_files_written(self, file_ids: list[int]) -> None:
+        """Refresh the rows of every file a commit changed on disk."""
+        self.file_model.refresh_files(file_ids, self.edit_manager)
 
     def on_commit_failed(self, errors):
         """

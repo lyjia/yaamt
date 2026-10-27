@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QMessageBox
 from models.edit_manager import EditManager
 from models.media_file import MediaFile
 from util.const import (
-    IN_GITHUB_RUNNER, PROJECT_ROOT, SETTINGS_AUTOSAVE, AUTOSAVE_DEFAULT, KEY_TITLE,
+    IN_GITHUB_RUNNER, PROJECT_ROOT, SETTINGS_AUTOSAVE, AUTOSAVE_DEFAULT, KEY_TITLE, KEY_REMIXER,
 )
 
 
@@ -89,6 +89,30 @@ class TestMainWindowAutosave:
         assert not edit_manager.has_staged_changes()
         assert not main_window.action_save.isEnabled()
         assert not main_window.action_reset.isEnabled()
+
+    def test_partly_failed_commit_still_refreshes_written_rows(self, main_window, qapp, tmp_path):
+        """A commit where some tags cannot be written reports an error, but the
+        file did change on disk and its row must be refreshed (issue #79)."""
+        temp_path = tmp_path / FIXTURE.name
+        shutil.copy(FIXTURE, temp_path)
+        media_file = MediaFile(str(temp_path), enable_write=True)
+        edit_manager = main_window.edit_manager
+        edit_manager.set_autosave(True)
+        edit_manager.register_media_files([media_file])
+        edit_manager.stage_change([media_file], KEY_TITLE, "Written")
+        edit_manager.stage_change([media_file], KEY_REMIXER, "Unwritable")
+
+        # Patched on the class: MainWindows left over from earlier tests are
+        # still connected to the singleton EditManager and would otherwise
+        # open a real, blocking error dialog.
+        with patch.object(main_window.file_model, 'refresh_files') as refresh, \
+                patch.object(QMessageBox, 'exec') as show_error:
+            assert edit_manager.commit_changes() is True
+            assert edit_manager.wait_for_pending_commit()
+            qapp.processEvents()
+
+        assert show_error.called
+        refresh.assert_called_once_with([media_file.file_id], edit_manager)
 
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Qt widgets crash in GitHub Actions runner")
