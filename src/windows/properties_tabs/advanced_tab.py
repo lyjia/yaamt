@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 from models.edit_manager import EditManager
 from models.media_file import MediaFile
 from providers.metadata.base import MetadataProviderBase
-from util.const import KEY_TAGS
+from util.const import KEY_TAGS, TOOLTIP_TAG_NOT_WRITABLE
 
 class AdvancedTab(QWidget):
     def __init__(self, media_files: list[MediaFile], edit_manager: EditManager,
@@ -70,10 +70,14 @@ class AdvancedTab(QWidget):
                 display_value = str(staged_value) if is_staged else self._format_value(value)
 
                 child = QTreeWidgetItem(provider_item, [tag_name, display_value])
-                child.setFlags(child.flags() | child.flags().ItemIsEditable)
-
-                if is_binary:
+                can_write = all(media_file.can_write_tag(tag_name, is_internal_tag=True)
+                                for media_file in self.media_files)
+                if can_write and not is_binary:
+                    child.setFlags(child.flags() | child.flags().ItemIsEditable)
+                else:
                     child.setFlags(child.flags() & ~child.flags().ItemIsEditable)
+                if not can_write:
+                    child.setToolTip(1, TOOLTIP_TAG_NOT_WRITABLE)
 
                 if is_staged:
                     font = child.font(1)

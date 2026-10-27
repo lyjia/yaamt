@@ -12,6 +12,8 @@ KEY_IS_MEDIA = "ismedia"  # is this file a media file we care about or something
 KEY_IS_WRITABLE = "iswritable"
 KEY_FILE_ID = "file_id"
 KEY_WRITABLE_TAGS = "writable_tags"  # file-view row: generic tags the file's format can store
+# Shown on a Properties field that cannot be edited because a selected file's format cannot store it
+TOOLTIP_TAG_NOT_WRITABLE = "The format of one or more selected files cannot store this tag."
 
 # FILESYSTEM keys
 KEY_FILE_PATH = "fpath"

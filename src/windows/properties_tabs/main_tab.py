@@ -8,6 +8,7 @@ from util.const import (
     KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_ALBUM_ARTIST, KEY_DATE, KEY_GENRE,
     KEY_COMMENT, KEY_COMPOSER, KEY_TRACK_NUMBER, KEY_DISC_NUMBER, KEY_BPM,
     KEY_INITIAL_KEY, KEY_REPLAYGAIN_TRACK_GAIN, KEY_REPLAYGAIN_ALBUM_GAIN,
+    TOOLTIP_TAG_NOT_WRITABLE,
 )
 
 
@@ -38,6 +39,12 @@ _READONLY_REPLAYGAIN_FIELDS: list[tuple[str, str, str]] = [
 ]
 
 
+def _make_read_only(line_edit: QLineEdit) -> None:
+    """Show a field the selected files cannot store as read-only, with the reason."""
+    line_edit.setReadOnly(True)
+    line_edit.setToolTip(TOOLTIP_TAG_NOT_WRITABLE)
+
+
 class MainTab(QWidget):
     return_pressed = Signal()
 
@@ -53,11 +60,15 @@ class MainTab(QWidget):
             line_edit = QLineEdit()
             setattr(self, attr_name, line_edit)
             layout.addRow(label, line_edit)
-            self._wire_editable_field(line_edit, tag_key)
+            if all(media_file.can_write_tag(tag_key) for media_file in self.media_files):
+                self._wire_editable_field(line_edit, tag_key)
+            else:
+                _make_read_only(line_edit)
 
-        # Publisher is shown in the layout but not wired to a tag today.
-        # Preserved as-is pending a proper implementation of publisher editing.
+        # Publisher is shown in the layout but no provider can write it yet,
+        # so it is read-only rather than silently discarding what is typed.
         self.publisher_edit = QLineEdit()
+        _make_read_only(self.publisher_edit)
         # Insert right after Composer to match the previous visual order.
         composer_index = next(
             i for i, (_, attr, _) in enumerate(_EDITABLE_FIELDS) if attr == "composer_edit"
