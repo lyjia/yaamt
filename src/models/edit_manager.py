@@ -176,7 +176,17 @@ class EditManager(QObject):
             settings_overrides: QSettings values the tag transformers should use for this
                 generic tag instead of the user's preferences (e.g. an analyzer run's key
                 notation format). Restaging the tag without overrides clears them.
+
+        Raises:
+            UnwritableTagsError: if any of the files' formats cannot store ``tag``.
+                Nothing is staged in that case. Filter with MediaFile.can_write_tag first.
         """
+
+        # Backstop for every edit path: editors should only offer tags the
+        # files can store, but never queue an edit that cannot be saved.
+        for media_file in media_files:
+            if not media_file.can_write_tag(tag, is_internal_tag):
+                raise UnwritableTagsError([tag])
 
         # do not try to call self.commit_changes() in here; the caller should handle that.
         with self._write_lock:

@@ -100,7 +100,10 @@ class TestMainWindowAutosave:
         edit_manager.set_autosave(True)
         edit_manager.register_media_files([media_file])
         edit_manager.stage_change([media_file], KEY_TITLE, "Written")
-        edit_manager.stage_change([media_file], KEY_REMIXER, "Unwritable")
+        # Bypass the staging guard: simulates the file changing on disk
+        # between staging and saving.
+        with patch.object(media_file, 'can_write_tag', return_value=True):
+            edit_manager.stage_change([media_file], KEY_REMIXER, "Unwritable")
 
         # Patched on the class: MainWindows left over from earlier tests are
         # still connected to the singleton EditManager and would otherwise
