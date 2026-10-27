@@ -8,7 +8,7 @@ import pytest
 import time
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
-from util.const import KEY_REMIXER, KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
+from util.const import KEY_DATE, KEY_REMIXER, KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
 from util.exceptions import InvalidFileError, UnwritableTagsError
 
 # Define the directory containing the test fixtures.
@@ -99,7 +99,8 @@ def test_write_tags(media_path, tmp_path):
         KEY_ALBUM: 'New Album',
         KEY_GENRE: 'New Genre',
         KEY_BPM: '123',
-        KEY_INITIAL_KEY: 'C'
+        KEY_INITIAL_KEY: 'C',
+        KEY_DATE: '2020-05-17',
     }
 
     # Directly save the new tags
@@ -120,6 +121,8 @@ def test_write_tags(media_path, tmp_path):
     assert media_file_read.get_tag_simple(KEY_ALBUM) == 'New Album'
     assert media_file_read.get_tag_simple(KEY_GENRE) == 'New Genre'
     assert media_file_read.get_tag_simple(KEY_BPM) == '123'
+    # Writable even on files that had no date tag before (issue #79)
+    assert media_file_read.get_tag_simple(KEY_DATE) == '2020-05-17'
     # Musical key 'C' is transformed based on user preference
     # Just verify it was set to something (format depends on settings)
     assert media_file_read.get_tag_simple(KEY_INITIAL_KEY) is not None

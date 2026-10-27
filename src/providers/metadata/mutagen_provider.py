@@ -7,7 +7,7 @@ from mutagen.easyid3 import EasyID3
 from mutagen.easymp4 import EasyMP4Tags
 
 from models.tag_info import TagInfo
-from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
+from util.const import KEY_DATE, KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_INITIAL_KEY, KEY_ALBUM, KEY_BPM, KEY_COMPOSER, KEY_COPYRIGHT, KEY_ENCODED_BY, \
     KEY_LYRICIST, KEY_LENGTH as KEY_LENGTH_TAG, KEY_MEDIA, KEY_MOOD, KEY_GROUPING, KEY_TITLE, KEY_VERSION, KEY_ARTIST, \
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
@@ -214,6 +214,7 @@ MUT_EASY_TAG_NAMES = ['album',
                       'isrc',
                       'discsubtitle',
                       'language',
+                      KEY_DATE,  # native to EasyID3, Vorbis comments and EasyMP4
                       # added manually, above
                       KEY_INITIAL_KEY,
                       KEY_COMMENT,
@@ -270,6 +271,7 @@ MUTAGEN_TO_GENERIC_MAP = {
     KEY_ACOUSTID_FINGERPRINT: KEY_ACOUSTID_FINGERPRINT,
     KEY_ACOUSTID_SCORE: KEY_ACOUSTID_SCORE,
     'genre': KEY_GENRE,
+    KEY_DATE: KEY_DATE,
     # ReplayGain tags (ID3 TXXX / MP4 freeform / Vorbis comment — all map
     # identically to the same lowercase generic name).
     KEY_REPLAYGAIN_TRACK_GAIN: KEY_REPLAYGAIN_TRACK_GAIN,

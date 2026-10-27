@@ -144,6 +144,14 @@
                 "MutagenProvider"
             ]
         },
+        "date": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "discnumber": {
             "value": null,
             "provider": "MutagenProvider",
