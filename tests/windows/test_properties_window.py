@@ -270,23 +270,23 @@ WAV_FIXTURE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "lyjia_house_cl
 def test_main_tab_fields_editable_when_all_files_can_store_them(qapp, sample_file):
     from windows.properties_tabs.main_tab import MainTab
     tab = MainTab([sample_file], EditManager())
-    assert not tab.title_edit.isReadOnly()
-    assert not tab.key_edit.isReadOnly()
+    assert tab.title_edit.isEnabled()
+    assert tab.key_edit.isEnabled()
     # Publisher has no writer for any format yet.
-    assert tab.publisher_edit.isReadOnly()
+    assert not tab.publisher_edit.isEnabled()
 
 
 @pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
-def test_main_tab_fields_read_only_when_any_file_cannot_store_them(qapp, sample_file):
+def test_main_tab_fields_disabled_when_any_file_cannot_store_them(qapp, sample_file):
     """Mixing in a WAV (no writable tags until #74) makes every field
-    read-only, so typing cannot queue an edit that would fail on save."""
+    disabled, so typing cannot queue an edit that would fail on save."""
     from windows.properties_tabs.main_tab import MainTab
     from util.const import TOOLTIP_TAG_NOT_WRITABLE
     edit_manager = EditManager()
     edit_manager.reset_changes()
     wav = MediaFile(str(WAV_FIXTURE))
     tab = MainTab([sample_file, wav], edit_manager)
-    assert tab.title_edit.isReadOnly()
+    assert not tab.title_edit.isEnabled()
     assert tab.title_edit.toolTip() == TOOLTIP_TAG_NOT_WRITABLE
     tab.title_edit.textEdited.emit("Typed")  # unwired: must stage nothing
     assert not edit_manager.has_staged_changes()

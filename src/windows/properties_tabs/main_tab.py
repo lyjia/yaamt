@@ -39,9 +39,11 @@ _READONLY_REPLAYGAIN_FIELDS: list[tuple[str, str, str]] = [
 ]
 
 
-def _make_read_only(line_edit: QLineEdit) -> None:
-    """Show a field the selected files cannot store as read-only, with the reason."""
-    line_edit.setReadOnly(True)
+def _disable_unwritable_field(line_edit: QLineEdit) -> None:
+    """Grey out a field the selected files cannot store, with the reason as a
+    tooltip. Disabled rather than read-only: a read-only QLineEdit looks
+    exactly like an editable one."""
+    line_edit.setEnabled(False)
     line_edit.setToolTip(TOOLTIP_TAG_NOT_WRITABLE)
 
 
@@ -63,12 +65,12 @@ class MainTab(QWidget):
             if all(media_file.can_write_tag(tag_key) for media_file in self.media_files):
                 self._wire_editable_field(line_edit, tag_key)
             else:
-                _make_read_only(line_edit)
+                _disable_unwritable_field(line_edit)
 
         # Publisher is shown in the layout but no provider can write it yet,
-        # so it is read-only rather than silently discarding what is typed.
+        # so it is disabled rather than silently discarding what is typed.
         self.publisher_edit = QLineEdit()
-        _make_read_only(self.publisher_edit)
+        _disable_unwritable_field(self.publisher_edit)
         # Insert right after Composer to match the previous visual order.
         composer_index = next(
             i for i, (_, attr, _) in enumerate(_EDITABLE_FIELDS) if attr == "composer_edit"
