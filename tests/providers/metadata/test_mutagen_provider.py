@@ -171,3 +171,39 @@ def test_write_replaygain_tags(media_path, tmp_path):
         assert provider_read.get_tag(key) == [value], (
             f"ReplayGain tag {key} did not round-trip on {media_path.name}"
         )
+
+
+# --- Per-container writability (only offer edits the file can store) ---
+
+WAV_FIXTURE = FIXTURE_DIR / "lyjia_house_claves_delay_120bpm.wav"
+
+
+@pytest.mark.parametrize("media_path", [MP3_FIXTURE, FLAC_FIXTURE])
+def test_easy_containers_report_supported_tags_writable(media_path):
+    provider = MutagenProvider(str(media_path))
+    writable = {t.internal_tag_name for t in provider.available_internal_tags() if t.is_writable}
+    assert {KEY_TITLE, KEY_INITIAL_KEY, KEY_MUSICBRAINZ_RECORDING_ID, KEY_REPLAYGAIN_TRACK_GAIN} <= writable
+
+
+def test_wav_reports_no_tags_writable():
+    """WAV has no easy-mode wrapper, so easy-style writes raise (issue #74).
+    Until that is fixed the provider must not advertise any tag as writable,
+    including the raw frames the file already carries."""
+    provider = MutagenProvider(str(WAV_FIXTURE))
+    tag_infos = provider.available_internal_tags()
+    assert tag_infos
+    assert not any(t.is_writable for t in tag_infos)
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is needed to create an M4A file")
+def test_m4a_reports_only_tags_easymp4_can_store(tmp_path):
+    import subprocess
+    m4a_path = tmp_path / "tone.m4a"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.2",
+                    "-c:a", "aac", str(m4a_path)], check=True)
+    provider = MutagenProvider(str(m4a_path))
+    writable = {t.internal_tag_name for t in provider.available_internal_tags() if t.is_writable}
+    assert {KEY_TITLE, KEY_BPM, KEY_REPLAYGAIN_TRACK_GAIN} <= writable
+    # EasyMP4 has no atom mapping for these.
+    assert KEY_INITIAL_KEY not in writable
+    assert KEY_MUSICBRAINZ_RECORDING_ID not in writable

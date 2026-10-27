@@ -2,9 +2,16 @@ import traceback
 from argparse import ArgumentError
 from typing import Any
 
+from fnmatch import fnmatchcase
+
 import mutagen
 from mutagen.easyid3 import EasyID3
-from mutagen.easymp4 import EasyMP4Tags
+from mutagen.easymp4 import EasyMP4, EasyMP4Tags
+from mutagen.flac import FLAC
+from mutagen.oggflac import OggFLAC
+from mutagen.oggopus import OggOpus
+from mutagen.oggspeex import OggSpeex
+from mutagen.oggvorbis import OggVorbis
 
 from models.tag_info import TagInfo
 from util.const import KEY_DATE, KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
@@ -281,6 +288,16 @@ MUTAGEN_TO_GENERIC_MAP = {
 }
 
 
+# Containers whose tags are Vorbis comments: any key name can be written.
+_VORBIS_COMMENT_TYPES = (FLAC, OggFLAC, OggOpus, OggSpeex, OggVorbis)
+
+
+def _easy_key_supported(setters: dict, key: str) -> bool:
+    """True if an easy-mode setter table handles ``key``, including the
+    wildcard entries such as 'replaygain_*_gain'."""
+    return key in setters or any(fnmatchcase(key, pattern) for pattern in setters if '*' in pattern)
+
+
 class MutagenProvider(MetadataProviderBase):
     """
     A concrete implementation of MetadataProvider that uses the mutagen library.
@@ -357,9 +374,25 @@ class MutagenProvider(MetadataProviderBase):
 
         for tag_name in sorted(list(all_tag_keys)):
             generic_name = MUTAGEN_TO_GENERIC_MAP.get(tag_name)
-            tag_infos.append(TagInfo(internal_tag_name=tag_name, is_writable=True, generic_tag_name=generic_name))
+            tag_infos.append(TagInfo(internal_tag_name=tag_name, is_writable=self._supports_writing(tag_name),
+                                     generic_tag_name=generic_name))
 
         return tag_infos
+
+    def _supports_writing(self, key: str) -> bool:
+        """
+        Whether this file's container can store ``key`` through easy mode.
+        Reported per file so editors only offer tags that will actually save.
+        """
+        if isinstance(self._audio, _VORBIS_COMMENT_TYPES):
+            return True
+        if isinstance(self._audio, EasyMP4):
+            return _easy_key_supported(EasyMP4Tags.Set, key)
+        if getattr(type(self._audio), 'ID3', None) is EasyID3:
+            return _easy_key_supported(EasyID3.Set, key)
+        # WAV, AIFF and other containers have no easy-mode wrapper: mutagen
+        # hands back raw frames that easy-style writes cannot set (issue #74).
+        return False
 
     def available_stream_info_keys(self) -> list[str]:
         return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES,

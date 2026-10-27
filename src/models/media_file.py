@@ -138,6 +138,22 @@ class MediaFile:
         # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
         #     self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
+    def can_write_tag(self, tag: str, is_internal_tag: bool = False) -> bool:
+        """
+        Whether this file's format can store ``tag``. This is about the format
+        only; whether writing is enabled for this instance is checked by save().
+        """
+        internal_tag = tag if is_internal_tag else self._generic_to_internal_map.get(tag, tag)
+        return internal_tag in self._tag_writers[KEY_TAGS]
+
+    def get_unwritable_tags(self, tags: list[str], is_internal_tag: bool = False) -> list[str]:
+        """The subset of ``tags`` this file's format cannot store, in order."""
+        return [tag for tag in tags if not self.can_write_tag(tag, is_internal_tag)]
+
+    def get_writable_generic_tags(self) -> set[str]:
+        """Generic names of every tag this file's format can store."""
+        return {self._internal_to_generic_map.get(tag, tag) for tag in self._tag_writers[KEY_TAGS]}
+
     def get_tag_all_values(self, key: str, is_internal_tag_key: bool = False) -> list | None:
         actual_key = key
         if not is_internal_tag_key and key in self._generic_to_internal_map:
@@ -245,10 +261,10 @@ class MediaFile:
         # Process generic tag changes (potentially transformed)
         for tag, value in transformed_changes.get(KEY_TAG_GENERIC, {}).items():
             internal_tag = self._generic_to_internal_map.get(tag, tag)
-            writers = self._tag_writers[KEY_TAGS].get(internal_tag)
-            if writers:
-                _write_or_delete_tag(writers[0], internal_tag, value)
-                modified_providers.add(writers[0])
+            if self.can_write_tag(internal_tag, is_internal_tag=True):
+                writer = self._tag_writers[KEY_TAGS][internal_tag][0]
+                _write_or_delete_tag(writer, internal_tag, value)
+                modified_providers.add(writer)
             elif not _is_empty_tag_value(value):
                 # Never drop an edit silently: the caller must learn it was not
                 # written. Clearing a tag no provider exposes is already done.

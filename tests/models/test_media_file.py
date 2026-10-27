@@ -351,3 +351,17 @@ def test_save_empty_value_deletes_tag(media_path, tmp_path):
     raw_keys = {k.lower() for k in (raw.tags.keys() if raw.tags else [])}
     assert 'title' not in raw_keys and 'tit2' not in raw_keys
     assert MediaFile(str(temp_media_path)).get_tag_simple(KEY_TITLE) is None
+
+
+def test_writability_queries():
+    """can_write_tag / get_unwritable_tags / get_writable_generic_tags are the
+    single source of truth editors use to decide what may be edited."""
+    mp3 = MediaFile(str(FIXTURE_DIR / "sample_dtmf_nometa.mp3"))
+    assert mp3.can_write_tag(KEY_TITLE)
+    assert not mp3.can_write_tag(KEY_REMIXER)
+    assert mp3.get_unwritable_tags([KEY_TITLE, KEY_REMIXER, KEY_DATE]) == [KEY_REMIXER]
+    assert {KEY_TITLE, KEY_DATE, KEY_BPM} <= mp3.get_writable_generic_tags()
+
+    wav = MediaFile(str(FIXTURE_DIR / "lyjia_house_claves_delay_120bpm.wav"))
+    assert not wav.can_write_tag(KEY_TITLE)
+    assert wav.get_writable_generic_tags() == set()
