@@ -11,6 +11,7 @@ KEY_INTERNAL = "internal"
 KEY_IS_MEDIA = "ismedia"  # is this file a media file we care about or something else?
 KEY_IS_WRITABLE = "iswritable"
 KEY_FILE_ID = "file_id"
+KEY_WRITABLE_TAGS = "writable_tags"  # file-view row: generic tags the file's format can store
 
 # FILESYSTEM keys
 KEY_FILE_PATH = "fpath"
