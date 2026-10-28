@@ -458,6 +458,21 @@ def test_duplicate_targets_no_data_loss(tmp_path, mode):
         assert (tmp_path / "b.mp3").read_bytes() == content_b
 
 
+def test_overwrite_replaces_file_outside_batch(tmp_path):
+    """Overwrite still replaces a pre-existing file that is not in the batch (#83)."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import plan_rename
+
+    path_a, path_b = _copy_fixtures(tmp_path, ["a.mp3", "Foo.mp3"])
+    content_a = Path(path_a).read_bytes()
+
+    summary = _run_batch([plan_rename(MediaFile(path_a), "Foo", RENAME_COLLISION_OVERWRITE)])
+
+    assert summary["successful"] == 1, summary
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["Foo.mp3"]
+    assert (tmp_path / "Foo.mp3").read_bytes() == content_a
+
+
 def test_mid_batch_failure_reports_accurate_results(tmp_path, monkeypatch):
     """A failed commit strands nothing silently and clobbers nothing."""
     from models.media_file import MediaFile
