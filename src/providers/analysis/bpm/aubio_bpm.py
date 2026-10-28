@@ -189,11 +189,7 @@ class AubioBPMAnalyzer(AnalyzerBase):
                 error=f"aubio library not available: {e}"
             )
         except Exception as e:
-            log.error(f"Aubio analysis failed for {self.media_file.file_path}: {e}")
-            return AnalyzerResult(
-                success=False,
-                error=str(e)
-            )
+            return AnalyzerResult(success=False, error=self._log_failure("Aubio analysis", e))
         finally:
             # Always close audio stream
             if audio_stream:

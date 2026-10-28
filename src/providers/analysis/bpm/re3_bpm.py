@@ -864,11 +864,7 @@ class RE3MultibandSpectralBPMAnalyzer(AnalyzerBase):
                 error="Analysis cancelled by user"
             )
         except Exception as e:
-            log.error(f"RE3 analysis failed for {self.media_file.file_path}: {e}", exc_info=True)
-            return AnalyzerResult(
-                success=False,
-                error=str(e)
-            )
+            return AnalyzerResult(success=False, error=self._log_failure("RE3 analysis", e))
         finally:
             # Always close audio stream
             if audio_stream:

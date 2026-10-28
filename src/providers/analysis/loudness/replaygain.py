@@ -232,11 +232,7 @@ class ReplayGainAnalyzer(BatchAnalyzerBase):
             )
 
         except Exception as e:
-            log.error(
-                f"ReplayGain analysis failed for {self.media_file.file_path}: {e}",
-                exc_info=True,
-            )
-            return AnalyzerResult(success=False, error=str(e))
+            return AnalyzerResult(success=False, error=self._log_failure("ReplayGain analysis", e))
 
     def _album_key_for_file(self) -> tuple[str, str] | None:
         """

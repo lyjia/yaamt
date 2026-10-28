@@ -209,6 +209,23 @@ class TestStubBPMAnalyzer:
         assert result.skipped is False
         assert result.data['bpm_candidates'][0].bpm == 120.25
 
+    def test_analyze_bare_memory_error_names_type(self, mock_media_file):
+        """A bare MemoryError has an empty message; the error must still name it (#88)."""
+        mock_media_file.get_tag_simple.side_effect = MemoryError()
+        analyzer = StubBPMAnalyzer(mock_media_file, {'skip_if_tag_exists': True})
+        result = analyzer.analyze()
+
+        assert result.success is False
+        assert result.error == "MemoryError"
+
+    def test_analyze_exception_keeps_type_and_message(self, mock_media_file):
+        """Errors read 'TypeName: message'."""
+        mock_media_file.get_tag_simple.side_effect = ValueError("bad data")
+        analyzer = StubBPMAnalyzer(mock_media_file, {'skip_if_tag_exists': True})
+        result = analyzer.analyze()
+
+        assert result.error == "ValueError: bad data"
+
     def test_analyze_cancellation(self, mock_media_file):
         """Test that cancellation is respected."""
         analyzer = StubBPMAnalyzer(mock_media_file)

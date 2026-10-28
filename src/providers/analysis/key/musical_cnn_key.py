@@ -232,11 +232,7 @@ class MusicalKeyCNNAnalyzer(AnalyzerBase):
                 error=f"Required libraries not available: {e}"
             )
         except Exception as e:
-            log.error(f"MusicalKeyCNN analysis failed for {self.media_file.file_path}: {e}")
-            return AnalyzerResult(
-                success=False,
-                error=str(e)
-            )
+            return AnalyzerResult(success=False, error=self._log_failure("MusicalKeyCNN analysis", e))
         finally:
             # Always close audio stream
             if audio_stream:
