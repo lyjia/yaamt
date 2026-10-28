@@ -246,8 +246,10 @@ def perform_rename(
         return RenameResult(success=True, new_path=destination)
 
     if collision_mode == RENAME_COLLISION_OVERWRITE:
-        # Deliberate clobber; batch planning guarantees the destination is
-        # never another batch file's still-pending source.
+        # Deliberate clobber of a file outside the batch. Planning keeps batch
+        # files safe: plan_batch stages contested sources out of the way, and
+        # resolve_within_batch_collisions fails duplicate targets, so the
+        # destination is never another batch file or another task's result.
         os.replace(source, destination)
         return RenameResult(success=True, new_path=destination)
 
@@ -339,8 +341,9 @@ def resolve_within_batch_collisions(
     according to each task's collision mode.
 
     - Auto-disambiguate: append " (2)", " (3)" suffixes so all targets are unique.
-    - Skip: mark later duplicates with a preset failing result.
-    - Overwrite: leave as-is (last write wins at run time).
+    - Skip and Overwrite: mark later duplicates with a preset failing result.
+      Overwrite only ever replaces files outside the batch; letting duplicates
+      run would have each rename destroy the previous one's result.
 
     Paths are compared case-insensitively only on platforms whose filesystems
     are, so distinct Foo.mp3/foo.mp3 targets on Linux are not false collisions.
@@ -385,7 +388,7 @@ def resolve_within_batch_collisions(
                 task.target_path = f"{base} ({suffix_n}){ext}"
                 task.target_basename = f"{task.target_basename} ({suffix_n})"
                 suffix_n += 1
-        elif mode == RENAME_COLLISION_SKIP:
+        elif mode in (RENAME_COLLISION_SKIP, RENAME_COLLISION_OVERWRITE):
             for task in bucket[1:]:
                 if task.result is not None:
                     continue
