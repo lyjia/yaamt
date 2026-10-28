@@ -291,6 +291,16 @@ MUTAGEN_TO_GENERIC_MAP = {
 # Containers whose tags are Vorbis comments: any key name can be written.
 _VORBIS_COMMENT_TYPES = (FLAC, OggFLAC, OggOpus, OggSpeex, OggVorbis)
 
+# Vorbis field names other software uses for a canonical field (issue #89).
+# foobar2000 writes the key to 'INITIAL KEY' when converting from AIFF.
+# Reads fall back to an alias when the canonical field is absent; writes update
+# aliases already in the file but never create them; deletes remove them all.
+# Vorbis keys are case-insensitive and mutagen reports them lowercased.
+_VORBIS_ALIASES = {
+    KEY_INITIAL_KEY: ('initial key',),
+}
+_VORBIS_ALIAS_NAMES = {alias for aliases in _VORBIS_ALIASES.values() for alias in aliases}
+
 
 def _easy_key_supported(setters: dict, key: str) -> bool:
     """True if an easy-mode setter table handles ``key``, including the
@@ -334,17 +344,28 @@ class MutagenProvider(MetadataProviderBase):
         if self._audio is None:
             return None
 
-        if key in self._audio:
-            return self._audio[key]
+        for name in (key, *self._aliases(key)):
+            if name in self._audio:
+                return self._audio[name]
 
         return None
 
     def set_tag(self, key: str, value: list) -> None:
         self._audio[key] = value
+        for alias in self._aliases(key):
+            if alias in self._audio:
+                self._audio[alias] = value
 
     def delete_tag(self, key: str) -> None:
-        if key in self._audio:
-            del self._audio[key]
+        for name in (key, *self._aliases(key)):
+            if name in self._audio:
+                del self._audio[name]
+
+    def _aliases(self, key: str) -> tuple[str, ...]:
+        """Alias field names for ``key`` in this file's format (Vorbis only)."""
+        if isinstance(self._audio, _VORBIS_COMMENT_TYPES):
+            return _VORBIS_ALIASES.get(key, ())
+        return ()
 
     def get_stream_info(self, key: str) -> Any:
         if self._audio is None:
@@ -370,6 +391,9 @@ class MutagenProvider(MetadataProviderBase):
             raise SomethingsReallyFuckedUpException("self._audio is None. This should not happen!")
 
         all_tag_keys = set(list(self._audio.keys())) | set(MUT_EASY_TAG_NAMES)
+        if isinstance(self._audio, _VORBIS_COMMENT_TYPES):
+            # Aliases are read and written through their canonical field.
+            all_tag_keys -= _VORBIS_ALIAS_NAMES
         tag_infos = []
 
         for tag_name in sorted(list(all_tag_keys)):

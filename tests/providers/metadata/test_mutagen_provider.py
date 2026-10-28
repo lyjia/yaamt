@@ -207,3 +207,72 @@ def test_m4a_reports_only_tags_easymp4_can_store(tmp_path):
     # EasyMP4 has no atom mapping for these.
     assert KEY_INITIAL_KEY not in writable
     assert KEY_MUSICBRAINZ_RECORDING_ID not in writable
+
+
+FLAC_KEY_ALIAS = 'INITIAL KEY'
+
+
+def _flac_copy(tmp_path, alias_value: str | None = None) -> Path:
+    """Temp copy of the FLAC fixture, optionally with the key in the alias field."""
+    temp_media_path = tmp_path / FLAC_FIXTURE.name
+    shutil.copy(FLAC_FIXTURE, temp_media_path)
+    if alias_value is not None:
+        raw = mutagen.File(str(temp_media_path))
+        raw[FLAC_KEY_ALIAS] = [alias_value]
+        raw.save()
+    return temp_media_path
+
+
+@pytest.mark.skipif(not FLAC_FIXTURE.exists(), reason="FLAC fixture not present")
+def test_flac_key_reads_from_alias(tmp_path):
+    """A key stored only in 'INITIAL KEY' reads as the generic key (#89)."""
+    provider = MutagenProvider(str(_flac_copy(tmp_path, 'Gmin')))
+    assert provider.get_tag(KEY_INITIAL_KEY) == ['Gmin']
+
+
+@pytest.mark.skipif(not FLAC_FIXTURE.exists(), reason="FLAC fixture not present")
+def test_flac_key_write_updates_existing_alias(tmp_path):
+    path = _flac_copy(tmp_path, 'Gmin')
+    provider = MutagenProvider(str(path))
+    provider.set_tag(KEY_INITIAL_KEY, ['6A'])
+    provider.save()
+
+    raw = mutagen.File(str(path))
+    assert raw.get('INITIALKEY') == ['6A']
+    assert raw.get(FLAC_KEY_ALIAS) == ['6A']
+
+
+@pytest.mark.skipif(not FLAC_FIXTURE.exists(), reason="FLAC fixture not present")
+def test_flac_key_write_does_not_create_alias(tmp_path):
+    path = _flac_copy(tmp_path)
+    provider = MutagenProvider(str(path))
+    provider.set_tag(KEY_INITIAL_KEY, ['6A'])
+    provider.save()
+
+    raw = mutagen.File(str(path))
+    assert raw.get('INITIALKEY') == ['6A']
+    assert FLAC_KEY_ALIAS not in raw
+
+
+@pytest.mark.skipif(not FLAC_FIXTURE.exists(), reason="FLAC fixture not present")
+def test_flac_key_delete_removes_alias(tmp_path):
+    path = _flac_copy(tmp_path, 'Gmin')
+    provider = MutagenProvider(str(path))
+    provider.set_tag(KEY_INITIAL_KEY, ['6A'])
+    provider.save()
+
+    provider = MutagenProvider(str(path))
+    provider.delete_tag(KEY_INITIAL_KEY)
+    provider.save()
+
+    raw = mutagen.File(str(path))
+    assert 'INITIALKEY' not in raw
+    assert FLAC_KEY_ALIAS not in raw
+
+
+@pytest.mark.skipif(not FLAC_FIXTURE.exists(), reason="FLAC fixture not present")
+def test_flac_key_alias_not_listed_as_tag(tmp_path):
+    provider = MutagenProvider(str(_flac_copy(tmp_path, 'Gmin')))
+    names = [info.internal_tag_name for info in provider.available_internal_tags()]
+    assert FLAC_KEY_ALIAS.lower() not in names
+    assert KEY_INITIAL_KEY in names
