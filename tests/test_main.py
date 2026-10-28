@@ -5,7 +5,7 @@ import sys
 from unittest.mock import patch, MagicMock
 import pytest
 from mutagen.easyid3 import EasyID3
-from yaamt import main, SYS_RETURN_FILE_NOT_FOUND, SYS_RETURN_FILE_INVALID, SYS_RETURN_SUCCESS
+from yaamt import main, SYS_RETURN_ERROR, SYS_RETURN_FILE_NOT_FOUND, SYS_RETURN_FILE_INVALID, SYS_RETURN_SUCCESS
 
 # Fixture file to use for testing
 SOURCE_FILE = os.path.join(os.path.dirname(__file__), "fixtures/metadata/sample_dtmf_unicode.mp3")
@@ -129,6 +129,39 @@ class TestMainCli:
 
         audio = EasyID3(str(test_file))
         assert audio['encodedby'] == ['TestEncoder']
+
+    def test_write_refuses_tags_the_format_cannot_store(self, tmp_path, mock_argv, capsys):
+        """Unwritable tags are refused up front with the file and tag named;
+        the storable tags in the same command are still written."""
+        test_file = tmp_path / "test.mp3"
+        shutil.copy(SOURCE_FILE, test_file)
+        mock_argv.extend(['write', '--tag', 'artist=Kept', '--tag', 'remixer=Refused', str(test_file)])
+
+        exit_code = main()
+
+        assert exit_code == SYS_RETURN_ERROR
+        assert EasyID3(str(test_file))['artist'] == ['Kept']
+        captured = capsys.readouterr()
+        assert str(test_file) in captured.err and 'remixer' in captured.err
+
+    def test_write_mixed_formats_writes_only_files_that_can_store_the_tag(self, tmp_path, mock_argv, capsys):
+        wav_source = os.path.join(os.path.dirname(__file__), "fixtures/metadata/lyjia_house_claves_delay_120bpm.wav")
+        mp3_file = tmp_path / "test.mp3"
+        wav_file = tmp_path / "test.wav"
+        shutil.copy(SOURCE_FILE, mp3_file)
+        shutil.copy(wav_source, wav_file)
+        wav_bytes = wav_file.read_bytes()
+        mock_argv.extend(['write', '--artist', 'Mixed', str(tmp_path)])
+
+        exit_code = main()
+
+        assert exit_code == SYS_RETURN_ERROR
+        assert EasyID3(str(mp3_file))['artist'] == ['Mixed']
+        assert wav_file.read_bytes() == wav_bytes
+        captured = capsys.readouterr()
+        assert str(wav_file) in captured.err
+        # Refused before staging, so the MP3's write is a clean success.
+        assert "Successfully updated 1 file(s)" in captured.out
 
     def test_corrupted_file(self, tmp_path, mock_argv, capsys):
         """Test handling of a corrupted file."""

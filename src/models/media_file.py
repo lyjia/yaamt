@@ -6,7 +6,22 @@ from util.const import KEY_STREAM_INFO, KEY_TAGS, KEY_PROVIDER, KEY_AVAIL_KEYS, 
     KEY_FILE_CTIME, KEY_FILE_ATIME, KEY_IS_MEDIA, KEY_IS_WRITABLE, KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_FILE_ID, \
     KEY_TAG_SETTINGS_OVERRIDES
 from providers.metadata.mutagen_provider import MutagenProvider
+from util.exceptions import UnwritableTagsError
 from util.logging import log
+
+
+def _is_empty_tag_value(value: Any) -> bool:
+    """A cleared field: transformers turn None into "", internal tags may carry either."""
+    return value is None or value == ""
+
+
+def _write_or_delete_tag(provider: Any, internal_tag: str, value: Any) -> None:
+    """Write a tag, or delete it when the value is empty. Writing [''] would leave an
+    empty ID3 frame or Vorbis comment behind instead of removing the tag."""
+    if _is_empty_tag_value(value):
+        provider.delete_tag(internal_tag)
+    else:
+        provider.set_tag(internal_tag, [value])
 
 
 class MediaFile:
@@ -123,6 +138,22 @@ class MediaFile:
         # if len(self._tag_provider_lookup[KEY_TAGS]) > 0 and len(self._tag_provider_lookup[KEY_STREAM_INFO]) > 0:
         #     self._combined_metadata[KEY_INTERNAL][KEY_IS_MEDIA] = True
 
+    def can_write_tag(self, tag: str, is_internal_tag: bool = False) -> bool:
+        """
+        Whether this file's format can store ``tag``. This is about the format
+        only; whether writing is enabled for this instance is checked by save().
+        """
+        internal_tag = tag if is_internal_tag else self._generic_to_internal_map.get(tag, tag)
+        return internal_tag in self._tag_writers[KEY_TAGS]
+
+    def get_unwritable_tags(self, tags: list[str], is_internal_tag: bool = False) -> list[str]:
+        """The subset of ``tags`` this file's format cannot store, in order."""
+        return [tag for tag in tags if not self.can_write_tag(tag, is_internal_tag)]
+
+    def get_writable_generic_tags(self) -> set[str]:
+        """Generic names of every tag this file's format can store."""
+        return {self._internal_to_generic_map.get(tag, tag) for tag in self._tag_writers[KEY_TAGS]}
+
     def get_tag_all_values(self, key: str, is_internal_tag_key: bool = False) -> list | None:
         actual_key = key
         if not is_internal_tag_key and key in self._generic_to_internal_map:
@@ -225,19 +256,24 @@ class MediaFile:
             transformed_changes[KEY_TAG_GENERIC] = transformed_generic_tags
 
         modified_providers = set()
+        unwritable_tags: list[str] = []
 
         # Process generic tag changes (potentially transformed)
         for tag, value in transformed_changes.get(KEY_TAG_GENERIC, {}).items():
             internal_tag = self._generic_to_internal_map.get(tag, tag)
-            if internal_tag in self._tag_writers[KEY_TAGS]:
-                provider = self._tag_writers[KEY_TAGS][internal_tag][0]
-                provider.set_tag(internal_tag, [value])
-                modified_providers.add(provider)
+            if self.can_write_tag(internal_tag, is_internal_tag=True):
+                writer = self._tag_writers[KEY_TAGS][internal_tag][0]
+                _write_or_delete_tag(writer, internal_tag, value)
+                modified_providers.add(writer)
+            elif not _is_empty_tag_value(value):
+                # Never drop an edit silently: the caller must learn it was not
+                # written. Clearing a tag no provider exposes is already done.
+                unwritable_tags.append(tag)
 
         # Process internal tag changes (never transformed)
         for tag, tag_data in transformed_changes.get(KEY_TAG_INTERNAL, {}).items():
             provider = tag_data[KEY_PROVIDER]
-            provider.set_tag(tag, [tag_data[KEY_VALUE]])
+            _write_or_delete_tag(provider, tag, tag_data[KEY_VALUE])
             modified_providers.add(provider)
             # Update internal metadata after saving
             self._combined_metadata[KEY_INTERNAL][tag] = tag_data[KEY_VALUE]
@@ -254,6 +290,9 @@ class MediaFile:
         for tag in transformed_changes.get(KEY_TAG_INTERNAL, {}).keys():
             if tag in self._combined_metadata[KEY_TAGS]:
                 del self._combined_metadata[KEY_TAGS][tag]
+
+        if unwritable_tags:
+            raise UnwritableTagsError(unwritable_tags)
 
 
     def to_dict(self) -> dict:

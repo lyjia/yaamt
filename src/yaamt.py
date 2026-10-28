@@ -21,9 +21,10 @@ from models.media_file import MediaFile
 from models.settings import settings as qsettings
 from providers import get_analyzer_by_name, get_analyzers_by_category, AnalyzerCategory
 from providers.analysis.base import AnalyzerBase
-from workers.analyzer_dispatcher import AnalyzerDispatcher
+from workers.analyzer_dispatcher import AnalyzerDispatcher, skip_if_unwritable
 from util.const import ALL_TAGS
 from util.debug import add_debug_argument, initialize_debug_and_logging
+from util.exceptions import UnwritableTagsError
 from util.logging import log
 from util.version import get_version
 from util.cli_formatters import (
@@ -358,8 +359,18 @@ def cmd_write(args: argparse.Namespace) -> int:
     edit_manager = EditManager()
     edit_manager.register_media_files(media_files)
 
+    # Refuse up front, per file, any tag the file's format cannot store; the
+    # other files and tags are still written.
+    refused = False
+    for media_file in media_files:
+        unwritable = media_file.get_unwritable_tags([change['key'] for change in write_ops])
+        if unwritable:
+            print(f"Error: {media_file.file_path}: {UnwritableTagsError(unwritable)}", file=sys.stderr)
+            refused = True
     for change in write_ops:
-        edit_manager.stage_change(media_files, change['key'], change['value'], False)
+        writable_files = [mf for mf in media_files if mf.can_write_tag(change['key'])]
+        if writable_files:
+            edit_manager.stage_change(writable_files, change['key'], change['value'], False)
 
     # Commit changes
     saved_files, errors = edit_manager.commit_changes_sync()
@@ -371,6 +382,8 @@ def cmd_write(args: argparse.Namespace) -> int:
         return SYS_RETURN_ERROR
 
     print(f"Successfully updated {len(saved_files)} file(s)")
+    if refused:
+        return SYS_RETURN_ERROR
     return SYS_RETURN_SUCCESS
 
 
@@ -480,6 +493,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         # Run analysis
         analyzer = task.analyzer_class(task.media_file, task.options)
         result = analyzer.analyze()
+        if args.write_tags and not is_batch and result.success and not result.skipped:
+            result = skip_if_unwritable(task.media_file, result.data) or result
         task.result = result
 
         # Format result for display
@@ -519,6 +534,10 @@ def cmd_analyze(args: argparse.Namespace) -> int:
                 extra = aggregated.get(task.media_file.file_path, {})
                 merged = dict(task.result.data)
                 merged.update(extra)
+                skipped = skip_if_unwritable(task.media_file, merged)
+                if skipped:
+                    print(f"  SKIPPED {task.media_file.file_path} ({skipped.error})")
+                    continue
                 for tag_name, tag_value in merged.items():
                     edit_manager_for_writes.stage_change(
                         [task.media_file], tag_name, tag_value,

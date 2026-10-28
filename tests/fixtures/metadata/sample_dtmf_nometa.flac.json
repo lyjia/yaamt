@@ -144,6 +144,14 @@
                 "MutagenProvider"
             ]
         },
+        "date": {
+            "value": null,
+            "provider": "MutagenProvider",
+            "all_values": null,
+            "all_providers": [
+                "MutagenProvider"
+            ]
+        },
         "discnumber": {
             "value": null,
             "provider": "MutagenProvider",
@@ -319,6 +327,36 @@
             "all_providers": [
                 "MutagenProvider"
             ]
+        }
+    },
+    "stream_info": {
+        "bitrate": {
+            "value": 272440,
+            "provider": "MutagenProvider"
+        },
+        "length": {
+            "value": 1.2,
+            "provider": "MutagenProvider"
+        },
+        "sample_rate": {
+            "value": 44100,
+            "provider": "MutagenProvider"
+        },
+        "channels": {
+            "value": 2,
+            "provider": "MutagenProvider"
+        },
+        "bits_per_sample": {
+            "value": 16,
+            "provider": "MutagenProvider"
+        },
+        "total_samples": {
+            "value": 52920,
+            "provider": "MutagenProvider"
+        },
+        "format": {
+            "value": "FLAC",
+            "provider": "MutagenProvider"
         }
     }
 }

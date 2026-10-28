@@ -18,6 +18,11 @@ class MetadataProviderBase(ABC):
         pass
 
     @abstractmethod
+    def delete_tag(self, key: str) -> None:
+        """Remove a tag from the file. A no-op if the tag is not present."""
+        pass
+
+    @abstractmethod
     def get_stream_info(self, key: str) -> Any:
         pass
 

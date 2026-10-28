@@ -334,3 +334,26 @@ class TestKeyNotationOverride:
         em.commit_changes_sync()
 
         assert MediaFile(str(flac_copies[0])).get_tag_simple(KEY_INITIAL_KEY) == "Dmin"
+
+
+class TestUnwritableResults:
+    """Results whose tags the file's format cannot store are skipped with the
+    reason rather than staged and failing on save."""
+
+    def test_wav_result_is_skipped_and_nothing_staged(self):
+        from util.exceptions import UnwritableTagsError
+        _reset_edit_manager()
+        wav = MediaFile(str(FIXTURE_DIR / "lyjia_house_claves_delay_120bpm.wav"))
+        d = _dispatcher_for(_StubNonBatchAnalyzer)
+        task = _make_task(_StubNonBatchAnalyzer, wav)
+
+        d._apply_results(task)
+
+        assert task.result.skipped
+        assert task.result.error == str(UnwritableTagsError([KEY_COMMENT]))
+        assert not EditManager().has_staged_changes()
+
+    def test_skip_if_unwritable_returns_none_when_all_tags_storable(self, flac_copies):
+        from workers.analyzer_dispatcher import skip_if_unwritable
+        flac = MediaFile(str(flac_copies[0]))
+        assert skip_if_unwritable(flac, {KEY_COMMENT: "x", KEY_INITIAL_KEY: "C"}) is None

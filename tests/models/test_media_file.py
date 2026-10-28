@@ -1,13 +1,15 @@
 import json
 import os
+
+import mutagen
 import shutil
 from pathlib import Path
 import pytest
 import time
 from models.media_file import MediaFile
 from models.edit_manager import EditManager
-from util.const import KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
-from util.exceptions import InvalidFileError
+from util.const import KEY_DATE, KEY_REMIXER, KEY_TITLE, KEY_ARTIST, KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, PROJECT_ROOT, KEY_IS_MEDIA, KEY_TAG_GENERIC, KEY_TAG_INTERNAL
+from util.exceptions import InvalidFileError, UnwritableTagsError
 
 # Define the directory containing the test fixtures.
 FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "metadata"
@@ -15,7 +17,12 @@ SOURCE_FILE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "sample_dtmf_un
 
 # Discover all audio files in the fixture directory.
 # This list will be used to parameterize the test function.
-test_files = [p for p in FIXTURE_DIR.glob('*') if (p.suffix == '.mp3' or p.suffix == ".flac")]
+# Read tests cover every container; write tests are limited to the containers
+# MutagenProvider can currently write (WAV/AIFF writes raise, see issue #74).
+READ_SUFFIXES = {'.mp3', '.flac', '.wav'}
+WRITE_SUFFIXES = {'.mp3', '.flac'}
+read_test_files = [p for p in FIXTURE_DIR.glob('*') if p.suffix in READ_SUFFIXES]
+write_test_files = [p for p in read_test_files if p.suffix in WRITE_SUFFIXES]
 
 def filter_keys(obj, keys_to_ignore):
     """
@@ -28,7 +35,7 @@ def filter_keys(obj, keys_to_ignore):
     return obj
 
 
-@pytest.mark.parametrize("media_path", test_files)
+@pytest.mark.parametrize("media_path", read_test_files)
 def test_to_dict_parameterized(media_path):
     """
     A parameterized test that verifies the to_dict() method of the MediaFile class.
@@ -73,7 +80,7 @@ def test_to_dict_parameterized(media_path):
             f"Mismatch in section '{section_key}'"
 
 
-@pytest.mark.parametrize("media_path", test_files)
+@pytest.mark.parametrize("media_path", write_test_files)
 def test_write_tags(media_path, tmp_path):
     """
     A parameterized test that verifies the write functionality of the MediaFile class.
@@ -92,7 +99,8 @@ def test_write_tags(media_path, tmp_path):
         KEY_ALBUM: 'New Album',
         KEY_GENRE: 'New Genre',
         KEY_BPM: '123',
-        KEY_INITIAL_KEY: 'C'
+        KEY_INITIAL_KEY: 'C',
+        KEY_DATE: '2020-05-17',
     }
 
     # Directly save the new tags
@@ -113,6 +121,8 @@ def test_write_tags(media_path, tmp_path):
     assert media_file_read.get_tag_simple(KEY_ALBUM) == 'New Album'
     assert media_file_read.get_tag_simple(KEY_GENRE) == 'New Genre'
     assert media_file_read.get_tag_simple(KEY_BPM) == '123'
+    # Writable even on files that had no date tag before (issue #79)
+    assert media_file_read.get_tag_simple(KEY_DATE) == '2020-05-17'
     # Musical key 'C' is transformed based on user preference
     # Just verify it was set to something (format depends on settings)
     assert media_file_read.get_tag_simple(KEY_INITIAL_KEY) is not None
@@ -304,3 +314,54 @@ def test_update_file_path(tmp_path):
     # Identity intentionally stays keyed to the original path until the
     # file-identity refactor; EditManager lookups depend on this.
     assert media_file.file_id == original_id
+
+
+@pytest.mark.parametrize("media_path", write_test_files)
+def test_save_unwritable_tag_raises_and_writes_the_rest(media_path, tmp_path):
+    """A generic tag with no registered writer must not be dropped silently
+    (issue #79). The other tags in the same save are still written."""
+    temp_media_path = tmp_path / media_path.name
+    shutil.copy(media_path, temp_media_path)
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+    # Remixer has no writer for any of these fixtures (none carries the tag).
+    unwritable = KEY_REMIXER
+
+    with pytest.raises(UnwritableTagsError) as excinfo:
+        media_file.save({KEY_TAG_GENERIC: {unwritable: 'Someone', KEY_TITLE: 'Written'},
+                         KEY_TAG_INTERNAL: {}})
+
+    assert excinfo.value.tags == [unwritable]
+    assert MediaFile(str(temp_media_path)).get_tag_simple(KEY_TITLE) == 'Written'
+
+
+@pytest.mark.parametrize("media_path", write_test_files)
+def test_save_empty_value_deletes_tag(media_path, tmp_path):
+    """Clearing a field removes the tag instead of writing an empty frame or
+    Vorbis comment (issue #79, finding M7). Clearing a tag that has no writer
+    is not an error: there is nothing to remove."""
+    temp_media_path = tmp_path / media_path.name
+    shutil.copy(media_path, temp_media_path)
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+    media_file.save({KEY_TAG_GENERIC: {KEY_TITLE: 'Present'}, KEY_TAG_INTERNAL: {}})
+
+    media_file = MediaFile(str(temp_media_path), enable_write=True)
+    media_file.save({KEY_TAG_GENERIC: {KEY_TITLE: '', KEY_REMIXER: ''}, KEY_TAG_INTERNAL: {}})
+
+    raw = mutagen.File(str(temp_media_path))
+    raw_keys = {k.lower() for k in (raw.tags.keys() if raw.tags else [])}
+    assert 'title' not in raw_keys and 'tit2' not in raw_keys
+    assert MediaFile(str(temp_media_path)).get_tag_simple(KEY_TITLE) is None
+
+
+def test_writability_queries():
+    """can_write_tag / get_unwritable_tags / get_writable_generic_tags are the
+    single source of truth editors use to decide what may be edited."""
+    mp3 = MediaFile(str(FIXTURE_DIR / "sample_dtmf_nometa.mp3"))
+    assert mp3.can_write_tag(KEY_TITLE)
+    assert not mp3.can_write_tag(KEY_REMIXER)
+    assert mp3.get_unwritable_tags([KEY_TITLE, KEY_REMIXER, KEY_DATE]) == [KEY_REMIXER]
+    assert {KEY_TITLE, KEY_DATE, KEY_BPM} <= mp3.get_writable_generic_tags()
+
+    wav = MediaFile(str(FIXTURE_DIR / "lyjia_house_claves_delay_120bpm.wav"))
+    assert not wav.can_write_tag(KEY_TITLE)
+    assert wav.get_writable_generic_tags() == set()

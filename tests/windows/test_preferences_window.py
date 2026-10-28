@@ -72,3 +72,20 @@ def test_save_re_enabled_when_field_cleared(prefs):
     assert prefs.save_button.isEnabled() is False
     integrations.acoustid_api_key_field.setText("")
     assert prefs.save_button.isEnabled() is True
+
+
+def test_reset_keeps_settings_the_panes_do_not_own(prefs):
+    """Reset to Default must not touch General/* keys owned by other parts of
+    the program (issue #84): autosave and the update-check cache."""
+    from util.const import (
+        SETTINGS_AUTOSAVE, SETTINGS_LAST_KNOWN_LATEST_VERSION, SETTINGS_UI_SKIN,
+    )
+    prefs.settings.setValue(SETTINGS_AUTOSAVE, False)
+    prefs.settings.setValue(SETTINGS_LAST_KNOWN_LATEST_VERSION, "9.9.9")
+    prefs.settings.setValue(SETTINGS_UI_SKIN, "some-skin")
+
+    prefs._clear_all_settings()
+
+    assert prefs.settings.value(SETTINGS_AUTOSAVE, True, type=bool) is False
+    assert prefs.settings.value(SETTINGS_LAST_KNOWN_LATEST_VERSION) == "9.9.9"
+    assert prefs.settings.value(SETTINGS_UI_SKIN) is None

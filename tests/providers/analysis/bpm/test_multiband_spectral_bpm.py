@@ -294,6 +294,9 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
             pytest.skip("175 BPM drum and bass fixture not available")
         return str(sample_file)
 
+    @pytest.mark.xfail(strict=True,
+                       reason="RE3 finds no clear tempo on this 4 s loop. Until WAV stream info was "
+                              "fixed (issue #78) this test was silently skipped.")
     def test_analyze_120bpm_in_range(self, house_120bpm_file, isolated_qsettings):
         """Test 120 BPM file with range that includes 120 BPM."""
         media_file = MediaFile(house_120bpm_file, enable_write=False)
@@ -305,11 +308,6 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
 
-        # NOTE: There's currently a bug reading duration from WAV files
-        # If duration can't be determined, analyzer will fail with error
-        if not result.success and "duration" in result.error.lower():
-            pytest.skip(f"Known bug - cannot read duration from WAV: {result.error}")
-
         assert result.success is True
         assert result.skipped is False
         assert 'bpm_candidates' in result.data
@@ -319,6 +317,9 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
         # RE3 uses range hints, so it should detect within a reasonable range of 120
         assert 50 <= detected_bpm <= 250, f"Expected reasonable BPM near 120, got {detected_bpm}"
 
+    @pytest.mark.xfail(strict=True,
+                       reason="RE3 finds no clear tempo on this 24-bit loop; its float32 samples are "
+                              "decoded as int32 (issue #81). Previously silently skipped.")
     def test_analyze_128bpm_in_range(self, house_128bpm_file, isolated_qsettings):
         """Test 128 BPM file with range that includes 128 BPM."""
         media_file = MediaFile(house_128bpm_file, enable_write=False)
@@ -329,10 +330,6 @@ class TestMultibandSpectralBPMAnalyzerWithDrumLoops:
 
         analyzer = RE3MultibandSpectralBPMAnalyzer(media_file)
         result = analyzer.analyze()
-
-        # NOTE: There's currently a bug reading duration from WAV files
-        if not result.success and "duration" in result.error.lower():
-            pytest.skip(f"Known bug - cannot read duration from WAV: {result.error}")
 
         assert result.success is True
         assert result.skipped is False

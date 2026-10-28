@@ -33,6 +33,7 @@ These paths should ONLY be accessed when explicitly requested by the user with a
 
 * Refer to the design specs in @doc/DESIGN.md and @doc/designs/
 * Keep your commits small; focus on a single change.
+* Log every user-visible change (behavior change, improvement, or fix) in `doc/changelog/<next version>.md`, under Behavior changes, Improvements, or Fixes, in the same commit or PR as the change. Write for end users: describe what changed for them, not the code, and cite the issue number when there is one. Release notes are generated from these files.
 * Explain complicated logic using comments.
 * When adding large systems, document them as a new markdown file in @docs/designs if they are not already there.
 * All interface changes, model changes, or changes that write data, must have test coverage and pass all checks in `pytest`.
