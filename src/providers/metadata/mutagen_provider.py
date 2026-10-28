@@ -85,7 +85,30 @@ def comment_delete(id3: Any, key: str) -> None:
     """Delete COMM frame with empty description."""
     id3.delall('COMM:')
 
-EasyID3.RegisterTextKey(KEY_INITIAL_KEY, 'TKEY')
+# Initial key lives in TKEY. foobar2000 converts a FLAC 'INITIALKEY' field to a
+# TXXX:INITIALKEY frame that nothing reads, so it goes stale (issue #89). Such
+# alias frames are updated when the key is set and removed when it is deleted,
+# but never created. Reads use TKEY only.
+_ID3_KEY_FRAME = 'TKEY'
+_ID3_KEY_ALIAS_FRAMES = ('TXXX:INITIALKEY', 'TXXX:INITIAL KEY')
+
+def initial_key_get(id3: Any, key: str) -> list:
+    return list(id3[_ID3_KEY_FRAME])  # KeyError when absent, as easy mode expects
+
+def initial_key_set(id3: Any, key: str, value: list) -> None:
+    from mutagen.id3 import TKEY, Encoding
+    id3.delall(_ID3_KEY_FRAME)
+    id3.add(TKEY(encoding=Encoding.UTF8, text=value))
+    for alias in _ID3_KEY_ALIAS_FRAMES:
+        if alias in id3:
+            id3[alias].encoding = Encoding.UTF8
+            id3[alias].text = value
+
+def initial_key_delete(id3: Any, key: str) -> None:
+    for frame in (_ID3_KEY_FRAME, *_ID3_KEY_ALIAS_FRAMES):
+        id3.delall(frame)
+
+EasyID3.RegisterKey(KEY_INITIAL_KEY, initial_key_get, initial_key_set, initial_key_delete)
 EasyID3.RegisterKey(KEY_COMMENT, comment_get, comment_set, comment_delete)
 
 # MusicBrainz Recording ID: Picard stores this in a UFID frame (canonical,
@@ -292,10 +315,10 @@ MUTAGEN_TO_GENERIC_MAP = {
 _VORBIS_COMMENT_TYPES = (FLAC, OggFLAC, OggOpus, OggSpeex, OggVorbis)
 
 # Vorbis field names other software uses for a canonical field (issue #89).
-# foobar2000 writes the key to 'INITIAL KEY' when converting from AIFF.
-# Reads fall back to an alias when the canonical field is absent; writes update
-# aliases already in the file but never create them; deletes remove them all.
-# Vorbis keys are case-insensitive and mutagen reports them lowercased.
+# Most software reads 'INITIALKEY', but foobar2000 uses 'INITIAL KEY' and maps
+# only that to ID3 TKEY when converting to MP3, so both are always written.
+# Reads fall back to an alias when the canonical field is absent; deletes
+# remove them all. Vorbis keys are case-insensitive; mutagen lowercases them.
 _VORBIS_ALIASES = {
     KEY_INITIAL_KEY: ('initial key',),
 }
@@ -351,10 +374,8 @@ class MutagenProvider(MetadataProviderBase):
         return None
 
     def set_tag(self, key: str, value: list) -> None:
-        self._audio[key] = value
-        for alias in self._aliases(key):
-            if alias in self._audio:
-                self._audio[alias] = value
+        for name in (key, *self._aliases(key)):
+            self._audio[name] = value
 
     def delete_tag(self, key: str) -> None:
         for name in (key, *self._aliases(key)):

@@ -243,7 +243,8 @@ def test_flac_key_write_updates_existing_alias(tmp_path):
 
 
 @pytest.mark.skipif(not FLAC_FIXTURE.exists(), reason="FLAC fixture not present")
-def test_flac_key_write_does_not_create_alias(tmp_path):
+def test_flac_key_write_creates_alias(tmp_path):
+    """Both names are written so foobar2000 conversions carry the new key (#89)."""
     path = _flac_copy(tmp_path)
     provider = MutagenProvider(str(path))
     provider.set_tag(KEY_INITIAL_KEY, ['6A'])
@@ -251,7 +252,7 @@ def test_flac_key_write_does_not_create_alias(tmp_path):
 
     raw = mutagen.File(str(path))
     assert raw.get('INITIALKEY') == ['6A']
-    assert FLAC_KEY_ALIAS not in raw
+    assert raw.get(FLAC_KEY_ALIAS) == ['6A']
 
 
 @pytest.mark.skipif(not FLAC_FIXTURE.exists(), reason="FLAC fixture not present")
@@ -275,4 +276,64 @@ def test_flac_key_alias_not_listed_as_tag(tmp_path):
     provider = MutagenProvider(str(_flac_copy(tmp_path, 'Gmin')))
     names = [info.internal_tag_name for info in provider.available_internal_tags()]
     assert FLAC_KEY_ALIAS.lower() not in names
+    assert KEY_INITIAL_KEY in names
+
+
+SERATO_MP3_FIXTURE = FIXTURE_DIR / "sample_dtmf_unicode_with_bpm_and_key_from_serato.mp3"
+MP3_KEY_ALIAS_FRAME = 'TXXX:INITIALKEY'
+
+
+def _serato_mp3_copy(tmp_path, alias_value: str | None = None) -> Path:
+    """Temp copy of the Serato MP3 fixture, optionally with a stale TXXX key frame."""
+    temp_media_path = tmp_path / SERATO_MP3_FIXTURE.name
+    shutil.copy(SERATO_MP3_FIXTURE, temp_media_path)
+    if alias_value is not None:
+        raw = mutagen.File(str(temp_media_path))
+        raw.tags.add(mutagen.id3.TXXX(encoding=3, desc='INITIALKEY', text=[alias_value]))
+        raw.save()
+    return temp_media_path
+
+
+@pytest.mark.skipif(not SERATO_MP3_FIXTURE.exists(), reason="Serato MP3 fixture not present")
+def test_mp3_key_write_updates_existing_txxx_alias(tmp_path):
+    path = _serato_mp3_copy(tmp_path, 'Gmin')
+    provider = MutagenProvider(str(path))
+    provider.set_tag(KEY_INITIAL_KEY, ['6A'])
+    provider.save()
+
+    raw = mutagen.File(str(path))
+    assert list(raw['TKEY'].text) == ['6A']
+    assert list(raw[MP3_KEY_ALIAS_FRAME].text) == ['6A']
+    assert MutagenProvider(str(path)).get_tag(KEY_INITIAL_KEY) == ['6A']
+
+
+@pytest.mark.skipif(not SERATO_MP3_FIXTURE.exists(), reason="Serato MP3 fixture not present")
+def test_mp3_key_write_does_not_create_txxx_alias(tmp_path):
+    path = _serato_mp3_copy(tmp_path)
+    provider = MutagenProvider(str(path))
+    provider.set_tag(KEY_INITIAL_KEY, ['6A'])
+    provider.save()
+
+    raw = mutagen.File(str(path))
+    assert list(raw['TKEY'].text) == ['6A']
+    assert not any(frame.startswith('TXXX:INITIAL') for frame in raw.keys())
+
+
+@pytest.mark.skipif(not SERATO_MP3_FIXTURE.exists(), reason="Serato MP3 fixture not present")
+def test_mp3_key_delete_removes_txxx_alias(tmp_path):
+    path = _serato_mp3_copy(tmp_path, 'Gmin')
+    provider = MutagenProvider(str(path))
+    provider.delete_tag(KEY_INITIAL_KEY)
+    provider.save()
+
+    raw = mutagen.File(str(path))
+    assert 'TKEY' not in raw
+    assert MP3_KEY_ALIAS_FRAME not in raw
+
+
+@pytest.mark.skipif(not SERATO_MP3_FIXTURE.exists(), reason="Serato MP3 fixture not present")
+def test_mp3_key_txxx_alias_not_listed_as_tag(tmp_path):
+    provider = MutagenProvider(str(_serato_mp3_copy(tmp_path, 'Gmin')))
+    names = [info.internal_tag_name for info in provider.available_internal_tags()]
+    assert not any('INITIAL' in name.upper() and name != KEY_INITIAL_KEY for name in names)
     assert KEY_INITIAL_KEY in names
