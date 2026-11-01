@@ -8,6 +8,8 @@ file analyzers must implement or use.
 from abc import ABC, abstractmethod
 from typing import Any
 
+from util.logging import log
+
 
 class AnalyzerResult:
     """
@@ -140,6 +142,32 @@ class AnalyzerBase(ABC):
         if self.is_cancelled:
             return AnalyzerResult(success=False, error=self._CANCELLATION_MESSAGE)
         return None
+
+    def _log_failure(self, what: str, e: BaseException, expected: bool = False) -> str:
+        """
+        Log a failed analysis and return an error message.
+
+        Unexpected failures are logged with their traceback. Expected ones
+        (such as network errors) are logged as a single line.
+
+        The message keeps the exception type, because some exceptions (such as
+        a bare MemoryError) have an empty string form.
+
+        Args:
+            what: Name of the failed step, e.g. "Aubio analysis"
+            e: The exception that was caught
+            expected: True if the failure is routine and a traceback adds nothing
+
+        Returns:
+            "TypeName: message", or just "TypeName" when the message is empty
+        """
+        message = str(e)
+        formatted = f"{type(e).__name__}: {message}" if message else type(e).__name__
+        if expected:
+            log.error(f"{what} failed for {self.media_file.file_path}: {formatted}")
+        else:
+            log.exception(f"{what} failed for {self.media_file.file_path}")
+        return formatted
 
     def _check_skip_if_exists(
         self,

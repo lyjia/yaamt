@@ -6,10 +6,12 @@ _get_process_pool(). Without a lock they all see the global as None and each
 create their own ProcessPoolExecutor, spawning N*max_workers subprocesses and
 exhausting the machine until the OS kills workers (BrokenProcessPool). This
 test hammers the getter from many threads and asserts exactly one pool is ever
-constructed. No real subprocesses are spawned, so it is CI-safe.
+constructed. No real subprocesses are spawned, so it is CI-safe. A second test
+checks that the real pool replaces workers after max_tasks_per_child tasks.
 """
 
 import concurrent.futures
+import os
 import threading
 import time
 
@@ -20,8 +22,9 @@ from workers.analyzer_dispatcher import _get_process_pool
 class _FakePool:
     """Stand-in for ProcessPoolExecutor that spawns nothing."""
 
-    def __init__(self, max_workers: int):
+    def __init__(self, max_workers: int, max_tasks_per_child: int | None = None):
         self._max_workers = max_workers
+        self._max_tasks_per_child = max_tasks_per_child
 
     def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
         pass
@@ -31,7 +34,7 @@ def test_get_process_pool_created_once_under_thread_race(monkeypatch):
     construct_count = 0
     count_lock = threading.Lock()
 
-    def _fake_ctor(max_workers: int) -> _FakePool:
+    def _fake_ctor(max_workers: int, **kwargs) -> _FakePool:
         nonlocal construct_count
         with count_lock:
             construct_count += 1
@@ -39,7 +42,7 @@ def test_get_process_pool_created_once_under_thread_race(monkeypatch):
         # subprocesses). Without this window the check-then-create race never
         # interleaves under the GIL, and the test couldn't catch a regression.
         time.sleep(0.02)
-        return _FakePool(max_workers)
+        return _FakePool(max_workers, **kwargs)
 
     monkeypatch.setattr(concurrent.futures, "ProcessPoolExecutor", _fake_ctor)
 
@@ -63,4 +66,18 @@ def test_get_process_pool_created_once_under_thread_race(monkeypatch):
         assert construct_count == 1, f"expected one pool, created {construct_count}"
         assert all(r is results[0] for r in results)
     finally:
+        dispatcher._process_pool_executor = None
+
+
+def test_get_process_pool_recycles_workers():
+    # Workers must be replaced after max_tasks_per_child tasks (#88). With one
+    # worker and a limit of 1, each task must run in a fresh process.
+    # os.getpid is importable at module level, so it survives spawn pickling.
+    dispatcher._process_pool_executor = None
+    pool = _get_process_pool(1, max_tasks_per_child=1)
+    try:
+        pids = [pool.submit(os.getpid).result(timeout=30) for _ in range(3)]
+        assert len(set(pids)) == 3
+    finally:
+        pool.shutdown(wait=True)
         dispatcher._process_pool_executor = None

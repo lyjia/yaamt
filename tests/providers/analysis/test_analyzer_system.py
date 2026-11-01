@@ -209,6 +209,36 @@ class TestStubBPMAnalyzer:
         assert result.skipped is False
         assert result.data['bpm_candidates'][0].bpm == 120.25
 
+    def test_analyze_bare_memory_error_names_type(self, mock_media_file):
+        """A bare MemoryError has an empty message; the error must still name it (#88)."""
+        mock_media_file.get_tag_simple.side_effect = MemoryError()
+        analyzer = StubBPMAnalyzer(mock_media_file, {'skip_if_tag_exists': True})
+        result = analyzer.analyze()
+
+        assert result.success is False
+        assert result.error == "MemoryError"
+
+    def test_analyze_exception_keeps_type_and_message(self, mock_media_file):
+        """Errors read 'TypeName: message'."""
+        mock_media_file.get_tag_simple.side_effect = ValueError("bad data")
+        analyzer = StubBPMAnalyzer(mock_media_file, {'skip_if_tag_exists': True})
+        result = analyzer.analyze()
+
+        assert result.error == "ValueError: bad data"
+
+    def test_log_failure_traceback_only_when_unexpected(self, mock_media_file, monkeypatch):
+        """Expected failures log one line; unexpected ones log a traceback."""
+        import providers.analysis.base as base
+        calls = []
+        monkeypatch.setattr(base.log, "error", lambda msg: calls.append("error"))
+        monkeypatch.setattr(base.log, "exception", lambda msg: calls.append("exception"))
+        analyzer = StubBPMAnalyzer(mock_media_file)
+
+        assert analyzer._log_failure("Lookup", OSError("offline"), expected=True) == "OSError: offline"
+        analyzer._log_failure("Lookup", ValueError("bad"))
+
+        assert calls == ["error", "exception"]
+
     def test_analyze_cancellation(self, mock_media_file):
         """Test that cancellation is respected."""
         analyzer = StubBPMAnalyzer(mock_media_file)
