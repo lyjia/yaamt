@@ -91,19 +91,20 @@ def test_resolve_within_batch_collisions_auto_disambiguate():
     assert t2.target_basename == "same (2)"
 
 
-def test_resolve_within_batch_collisions_skip_marks_later_failures():
+@pytest.mark.parametrize("mode", [RENAME_COLLISION_SKIP, RENAME_COLLISION_OVERWRITE])
+def test_resolve_within_batch_collisions_marks_later_failures(mode):
     from workers.rename_dispatcher import (
         RenameTask, resolve_within_batch_collisions,
     )
 
     t1 = RenameTask(
         media_file=None, target_basename="same", extension=".mp3",
-        collision_mode=RENAME_COLLISION_SKIP,
+        collision_mode=mode,
         target_path="/tmp/same.mp3",
     )
     t2 = RenameTask(
         media_file=None, target_basename="same", extension=".mp3",
-        collision_mode=RENAME_COLLISION_SKIP,
+        collision_mode=mode,
         target_path="/tmp/same.mp3",
     )
     resolve_within_batch_collisions([t1, t2])
