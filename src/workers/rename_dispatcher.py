@@ -249,7 +249,7 @@ def perform_rename(
         # Deliberate clobber of a file outside the batch. Planning keeps batch
         # files safe: plan_batch stages contested sources out of the way, and
         # resolve_within_batch_collisions fails duplicate targets, so the
-        # destination is never another batch file or another task's result.
+        # destination is never another batch file or another task's result (assuming the case-sensitivity guess is right, see #94).
         os.replace(source, destination)
         return RenameResult(success=True, new_path=destination)
 
