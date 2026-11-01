@@ -91,19 +91,20 @@ def test_resolve_within_batch_collisions_auto_disambiguate():
     assert t2.target_basename == "same (2)"
 
 
-def test_resolve_within_batch_collisions_skip_marks_later_failures():
+@pytest.mark.parametrize("mode", [RENAME_COLLISION_SKIP, RENAME_COLLISION_OVERWRITE])
+def test_resolve_within_batch_collisions_marks_later_failures(mode):
     from workers.rename_dispatcher import (
         RenameTask, resolve_within_batch_collisions,
     )
 
     t1 = RenameTask(
         media_file=None, target_basename="same", extension=".mp3",
-        collision_mode=RENAME_COLLISION_SKIP,
+        collision_mode=mode,
         target_path="/tmp/same.mp3",
     )
     t2 = RenameTask(
         media_file=None, target_basename="same", extension=".mp3",
-        collision_mode=RENAME_COLLISION_SKIP,
+        collision_mode=mode,
         target_path="/tmp/same.mp3",
     )
     resolve_within_batch_collisions([t1, t2])
@@ -426,6 +427,51 @@ def test_swap_rename_no_data_loss(tmp_path):
     assert sorted(p.name for p in tmp_path.iterdir()) == ["a.mp3", "b.mp3"]
     assert (tmp_path / "a.mp3").read_bytes() == content_b
     assert (tmp_path / "b.mp3").read_bytes() == content_a
+
+
+@pytest.mark.parametrize("mode", [
+    RENAME_COLLISION_AUTO_DISAMBIGUATE,
+    RENAME_COLLISION_SKIP,
+    RENAME_COLLISION_OVERWRITE,
+])
+def test_duplicate_targets_no_data_loss(tmp_path, mode):
+    """Two batch files rendering to one name must both keep their audio (#83)."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import plan_rename
+
+    path_a, path_b = _copy_fixtures(tmp_path, ["a.mp3", "b.mp3"])
+    content_a = Path(path_a).read_bytes()
+    content_b = Path(path_b).read_bytes()
+
+    tasks = [
+        plan_rename(MediaFile(path_a), "Foo", mode),
+        plan_rename(MediaFile(path_b), "Foo", mode),
+    ]
+    summary = _run_batch(tasks)
+
+    remaining = sorted(p.read_bytes() for p in tmp_path.iterdir())
+    assert remaining == sorted([content_a, content_b]), summary
+    assert (tmp_path / "Foo.mp3").read_bytes() == content_a
+    if mode == RENAME_COLLISION_AUTO_DISAMBIGUATE:
+        assert summary["successful"] == 2, summary
+    else:
+        assert summary["successful"] == 1 and len(summary["failed"]) == 1, summary
+        assert (tmp_path / "b.mp3").read_bytes() == content_b
+
+
+def test_overwrite_replaces_file_outside_batch(tmp_path):
+    """Overwrite still replaces a pre-existing file that is not in the batch (#83)."""
+    from models.media_file import MediaFile
+    from workers.rename_dispatcher import plan_rename
+
+    path_a, path_b = _copy_fixtures(tmp_path, ["a.mp3", "Foo.mp3"])
+    content_a = Path(path_a).read_bytes()
+
+    summary = _run_batch([plan_rename(MediaFile(path_a), "Foo", RENAME_COLLISION_OVERWRITE)])
+
+    assert summary["successful"] == 1, summary
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["Foo.mp3"]
+    assert (tmp_path / "Foo.mp3").read_bytes() == content_a
 
 
 def test_mid_batch_failure_reports_accurate_results(tmp_path, monkeypatch):
