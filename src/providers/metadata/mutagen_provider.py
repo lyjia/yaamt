@@ -88,9 +88,10 @@ def comment_delete(id3: Any, key: str) -> None:
 # Initial key lives in TKEY. foobar2000 converts a FLAC 'INITIALKEY' field to a
 # TXXX:INITIALKEY frame that nothing reads, so it goes stale (issue #89). Such
 # alias frames are updated when the key is set and removed when it is deleted,
-# but never created. Reads use TKEY only.
+# but never created. Reads use TKEY only. mutagen matches TXXX descriptions
+# case-sensitively, so both cases are listed (as with ReplayGain below).
 _ID3_KEY_FRAME = 'TKEY'
-_ID3_KEY_ALIAS_FRAMES = ('TXXX:INITIALKEY', 'TXXX:INITIAL KEY')
+_ID3_KEY_ALIAS_FRAMES = ('TXXX:INITIALKEY', 'TXXX:INITIAL KEY', 'TXXX:initialkey', 'TXXX:initial key')
 
 def initial_key_get(id3: Any, key: str) -> list:
     return list(id3[_ID3_KEY_FRAME])  # KeyError when absent, as easy mode expects
@@ -367,26 +368,26 @@ class MutagenProvider(MetadataProviderBase):
         if self._audio is None:
             return None
 
-        for name in (key, *self._aliases(key)):
+        for name in self._field_names(key):
             if name in self._audio:
                 return self._audio[name]
 
         return None
 
     def set_tag(self, key: str, value: list) -> None:
-        for name in (key, *self._aliases(key)):
+        for name in self._field_names(key):
             self._audio[name] = value
 
     def delete_tag(self, key: str) -> None:
-        for name in (key, *self._aliases(key)):
+        for name in self._field_names(key):
             if name in self._audio:
                 del self._audio[name]
 
-    def _aliases(self, key: str) -> tuple[str, ...]:
-        """Alias field names for ``key`` in this file's format (Vorbis only)."""
+    def _field_names(self, key: str) -> tuple[str, ...]:
+        """``key`` followed by its alias field names in this file's format (Vorbis only)."""
         if isinstance(self._audio, _VORBIS_COMMENT_TYPES):
-            return _VORBIS_ALIASES.get(key, ())
-        return ()
+            return (key, *_VORBIS_ALIASES.get(key, ()))
+        return (key,)
 
     def get_stream_info(self, key: str) -> Any:
         if self._audio is None:
