@@ -35,13 +35,17 @@ from util.logging import log
 _process_pool_executor: concurrent.futures.ProcessPoolExecutor | None = None
 _process_pool_lock = threading.Lock()
 
-# Replace each worker process after this many tasks. Long-lived workers
-# accumulate memory across analysis passes until large allocations fail with
-# MemoryError (#88). The cost is re-importing heavy modules in new workers.
+# Replace each worker process after this many tasks. Long-lived workers are
+# suspected of accumulating memory across analysis passes until large
+# allocations fail with MemoryError (reported in #88). The cost is
+# re-importing heavy modules in new workers.
 _PROCESS_POOL_MAX_TASKS_PER_CHILD = 8
 
 
-def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecutor:
+def _get_process_pool(
+    max_workers: int,
+    max_tasks_per_child: int = _PROCESS_POOL_MAX_TASKS_PER_CHILD,
+) -> concurrent.futures.ProcessPoolExecutor:
     """
     Get or create the global process pool executor.
 
@@ -52,6 +56,7 @@ def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecuto
 
     Args:
         max_workers: Maximum number of worker processes
+        max_tasks_per_child: Tasks each worker runs before it is replaced
 
     Returns:
         ProcessPoolExecutor instance
@@ -62,7 +67,7 @@ def _get_process_pool(max_workers: int) -> concurrent.futures.ProcessPoolExecuto
         if _process_pool_executor is None:
             _process_pool_executor = concurrent.futures.ProcessPoolExecutor(
                 max_workers=max_workers,
-                max_tasks_per_child=_PROCESS_POOL_MAX_TASKS_PER_CHILD,
+                max_tasks_per_child=max_tasks_per_child,
             )
             log.info(f"Created process pool with {max_workers} workers")
         return _process_pool_executor

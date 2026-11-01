@@ -226,6 +226,19 @@ class TestStubBPMAnalyzer:
 
         assert result.error == "ValueError: bad data"
 
+    def test_log_failure_traceback_only_when_unexpected(self, mock_media_file, monkeypatch):
+        """Expected failures log one line; unexpected ones log a traceback."""
+        import providers.analysis.base as base
+        calls = []
+        monkeypatch.setattr(base.log, "error", lambda msg: calls.append("error"))
+        monkeypatch.setattr(base.log, "exception", lambda msg: calls.append("exception"))
+        analyzer = StubBPMAnalyzer(mock_media_file)
+
+        assert analyzer._log_failure("Lookup", OSError("offline"), expected=True) == "OSError: offline"
+        analyzer._log_failure("Lookup", ValueError("bad"))
+
+        assert calls == ["error", "exception"]
+
     def test_analyze_cancellation(self, mock_media_file):
         """Test that cancellation is respected."""
         analyzer = StubBPMAnalyzer(mock_media_file)

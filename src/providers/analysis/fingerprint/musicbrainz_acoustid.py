@@ -129,7 +129,7 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
                     force_fpcalc=True,
                 )
         except Exception as e:
-            return AnalyzerResult(success=False, error=f"Fingerprint failed: {self._log_failure('Chromaprint fingerprint', e)}")
+            return AnalyzerResult(success=False, error=f"Fingerprint failed: {self._log_failure('Chromaprint fingerprint', e, expected=True)}")
 
         cancelled = self._check_cancellation()
         if cancelled is not None:
@@ -138,7 +138,7 @@ class MusicBrainzAcoustIDAnalyzer(AnalyzerBase):
         try:
             response = acoustid.lookup(api_key, fingerprint, duration, meta="recordings")
         except Exception as e:
-            return AnalyzerResult(success=False, error=f"AcoustID lookup failed: {self._log_failure('AcoustID lookup', e)}")
+            return AnalyzerResult(success=False, error=f"AcoustID lookup failed: {self._log_failure('AcoustID lookup', e, expected=True)}")
 
         if response.get("status") != "ok":
             err_obj = response.get("error", {}) if isinstance(response, dict) else {}
