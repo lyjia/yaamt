@@ -91,7 +91,8 @@ def comment_delete(id3: Any, key: str) -> None:
 # but never created. Reads use TKEY only. mutagen matches TXXX descriptions
 # case-sensitively, so both cases are listed (as with ReplayGain below).
 _ID3_KEY_FRAME = 'TKEY'
-_ID3_KEY_ALIAS_FRAMES = ('TXXX:INITIALKEY', 'TXXX:INITIAL KEY', 'TXXX:initialkey', 'TXXX:initial key')
+_ID3_KEY_ALIAS_DESCS = ('INITIALKEY', 'INITIAL KEY')
+_ID3_KEY_ALIAS_FRAMES = tuple(f'TXXX:{d}' for desc in _ID3_KEY_ALIAS_DESCS for d in (desc, desc.lower()))
 
 def initial_key_get(id3: Any, key: str) -> list:
     return list(id3[_ID3_KEY_FRAME])  # KeyError when absent, as easy mode expects
