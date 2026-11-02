@@ -14,7 +14,7 @@ from util.const import (
     COL_MAIN_FILENAME, COL_MAIN_SIZE, COL_MAIN_TYPE, COL_MAIN_DATE_MODIFIED, COL_MAIN_DATE_CREATED,
     COL_MAIN_ACOUSTID_ID, COL_MAIN_MBID,
     KEY_FORMAT, KEY_TITLE, KEY_ARTIST,
-    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_FILE_ID, LOADING_PLACEHOLDER,
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_FILE_ID, KEY_WRITABLE_TAGS, LOADING_PLACEHOLDER,
     KEY_ACOUSTID_ID, KEY_ACOUSTID_SCORE, KEY_MUSICBRAINZ_RECORDING_ID,
 )
 from util.display import human_readable_size, human_readable_timestamp
@@ -192,12 +192,17 @@ class MetadataTableModel(QAbstractTableModel):
 
         flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
-        # Check if this column is writable
-        column_settings = self._columns[index.column()]
-        if column_settings.is_writable:
+        # Editable only if the column holds a tag and this file's format can store it
+        if self._is_cell_writable(index.row(), self._columns[index.column()]):
             flags |= Qt.ItemFlag.ItemIsEditable
 
         return flags
+
+    def _is_cell_writable(self, row: int, column_settings: ColumnSettings) -> bool:
+        """Whether the row's file can store the column's tag. Uses the writable-tag
+        set captured when the row was built, so this stays cheap enough for flags()."""
+        return (column_settings.is_writable
+                and column_settings.id in self._data[row].get(KEY_WRITABLE_TAGS, ()))
 
     def setData(self, index: QModelIndex, value: Any,
                 role: int = Qt.ItemDataRole.EditRole) -> bool:
@@ -217,8 +222,8 @@ class MetadataTableModel(QAbstractTableModel):
             return False
 
         column_settings = self._columns[index.column()]
-        if not column_settings.is_writable:
-            log.error(f"Column {column_settings.id} is not writable! Save aborted!")
+        if not self._is_cell_writable(index.row(), column_settings):
+            log.error(f"Column {column_settings.id} is not writable for row {index.row()}! Save aborted!")
             return False
 
         row_data = self._data[index.row()]
@@ -278,6 +283,10 @@ class MetadataTableModel(QAbstractTableModel):
             row_data = self._data[row]
             file_path = row_data.get(KEY_FILE_PATH)
             if not file_path or not row_data.get(KEY_IS_MEDIA):
+                continue
+            if not self._is_cell_writable(row, column_settings):
+                # Multi-row edit across mixed formats: skip files that cannot store the tag
+                log.debug(f"setDataForRows: skipping row {row}, its format cannot store '{column_settings.id}'")
                 continue
 
             media_file = MediaFile(file_path, enable_write=True)
@@ -431,7 +440,8 @@ class MetadataTableModel(QAbstractTableModel):
 
             # internal
             KEY_IS_MEDIA: media_file.get_internal_data(KEY_IS_MEDIA),
-            KEY_FILE_ID: media_file.file_id
+            KEY_FILE_ID: media_file.file_id,
+            KEY_WRITABLE_TAGS: frozenset(media_file.get_writable_generic_tags()),
         }
 
     def refresh_files(self, file_ids: list[int], edit_manager: EditManager) -> None:

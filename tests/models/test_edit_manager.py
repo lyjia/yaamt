@@ -1,12 +1,14 @@
 import pytest
+from typing import Any
 from unittest.mock import Mock, patch
-from PySide6.QtCore import QEventLoop
+from PySide6.QtCore import QEventLoop, QDeadlineTimer
 from models import EditManager
 from models import MediaFile
 from pathlib import Path
 import shutil
 import tempfile
-from util.const import PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC, KEY_VALUE, KEY_PROVIDER
+import threading
+from util.const import KEY_REMIXER, PROJECT_ROOT, KEY_TAG_INTERNAL, KEY_TAG_GENERIC, KEY_VALUE, KEY_PROVIDER
 from util.logging import log
 from util.const import IN_GITHUB_RUNNER
 
@@ -33,6 +35,19 @@ def temp_media_file_factory():
     for f in temp_files:
         if f.exists():
             shutil.rmtree(f.parent)
+
+
+# A real easy-mode key on the MP3 fixtures. Raw frame ids such as 'TIT2' are
+# not writable through easy mode, so stage_change rightly refuses them.
+INTERNAL_TAG = 'mood'
+
+
+def stage_unwritable_tag(edit_manager: EditManager, media_file: MediaFile, tag: str, value: Any) -> None:
+    """Stage a tag the file cannot store, bypassing stage_change's guard. Simulates
+    the file changing on disk between staging and saving, the one way an
+    unwritable tag can still reach MediaFile.save()."""
+    with patch.object(media_file, 'can_write_tag', return_value=True):
+        edit_manager.stage_change([media_file], tag, value)
 
 
 class DummyMediaFile:
@@ -294,6 +309,57 @@ class TestEditManager:
         assert emitted_data[1] is True
         assert emitted_data[2] is False
 
+    def test_edit_staged_during_commit_is_committed_afterwards(self, temp_media_file_factory, qapp):
+        """Autosave on: an edit staged while a commit is running must not stay
+        staged until quit (issue #84, finding M5). The finished handler starts
+        a follow-up commit."""
+        media_file1 = temp_media_file_factory('sample_dtmf_ansi.mp3', enable_write=True)
+        media_file2 = temp_media_file_factory('sample_dtmf_nometa.flac', enable_write=True)
+        self.edit_manager.register_media_files([media_file1, media_file2])
+        self.edit_manager.commit_failed.connect(lambda errors: pytest.fail(f"Commit failed: {errors}"))
+
+        # Hold the commit thread inside the first file's save so the second
+        # edit is staged after the commit took its snapshot of staged changes.
+        in_save, release_save = threading.Event(), threading.Event()
+        original_save = media_file1.save
+
+        def gated_save(changes):
+            original_save(changes)
+            in_save.set()
+            assert release_save.wait(5)
+        media_file1.save = gated_save
+
+        self.edit_manager.stage_change([media_file1], 'title', 'First')
+        assert self.edit_manager.commit_changes() is True
+        assert in_save.wait(5)
+        # Commit is in flight: this call is refused but must be remembered.
+        self.edit_manager.stage_change([media_file2], 'artist', 'Second')
+        assert self.edit_manager.commit_changes() is False
+        release_save.set()
+
+        deadline = QDeadlineTimer(5000)
+        while self.edit_manager.has_staged_changes() and not deadline.hasExpired():
+            self.edit_manager.wait_for_pending_commit()
+            qapp.processEvents()
+        assert self.edit_manager.has_staged_changes() is False
+        assert MediaFile(media_file2.file_path).get_tag_simple('artist') == 'Second'
+
+    def test_partial_save_reports_and_discards_unwritable_tags(self, temp_media_file_factory):
+        """Issue #79: an unwritable generic tag is reported as an error, then
+        discarded: retrying could never succeed. The writable tags are saved."""
+        media_file = temp_media_file_factory('sample_dtmf_original.flac', enable_write=True)
+        self.edit_manager.register_media_files([media_file])
+        self.edit_manager.stage_change([media_file], 'title', 'Written')
+        stage_unwritable_tag(self.edit_manager, media_file, KEY_REMIXER, 'Someone')
+
+        saved_ids, errors = self.edit_manager.commit_changes_sync()
+
+        # Partly written files count as written so views refresh them.
+        assert saved_ids == [media_file.file_id]
+        assert len(errors) == 1 and KEY_REMIXER in errors[0]
+        assert not self.edit_manager.has_staged_changes()
+        assert MediaFile(media_file.file_path).get_tag_simple('title') == 'Written'
+
     def test_commit_changes_no_changes_staged(self):
         """Test commit_changes when no changes are staged."""
         emitted_data = []
@@ -501,7 +567,7 @@ class TestEditManager:
         for i, value in enumerate(test_values):
             media_file = temp_media_file_factory('sample_dtmf_unicode.mp3')
             self.edit_manager.register_media_files([media_file])
-            tag = f'tag{i}'
+            tag = 'comment'
             self.edit_manager.stage_change([media_file], tag, value)
 
             assert self.edit_manager._staged_changes[media_file.file_id][KEY_TAG_GENERIC][tag] == value
@@ -552,7 +618,7 @@ class TestEditManager:
         ('artist', 'Test Artist'),
         ('album', 'Test Album'),
         ('bpm', '128'),
-        ('key', 'C#'),
+        ('initialkey', 'C#'),
         ('genre', 'Electronic'),
     ])
     def test_stage_change_common_metadata_tags(self, tag, value, temp_media_file_factory):
@@ -566,22 +632,22 @@ class TestEditManager:
     def test_stage_change_internal_tag_without_provider_raises_error(self):
         """Test that staging an internal tag without provider raises ValueError."""
         with pytest.raises(ValueError, match="Provider must be specified for internal tag"):
-            self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Title', is_internal_tag=True)
+            self.edit_manager.stage_change([self.dummy_media_file], INTERNAL_TAG, 'Title', is_internal_tag=True)
 
     def test_stage_change_internal_tag_with_provider(self):
         """Test staging changes for internal tags with provider context."""
         # Create a mock provider
         mock_provider = Mock()
 
-        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'New Title', is_internal_tag=True,
+        self.edit_manager.stage_change([self.dummy_media_file], INTERNAL_TAG, 'New Title', is_internal_tag=True,
                                        provider=mock_provider)
 
         # Verify the change was staged correctly
         assert self.dummy_media_file.file_id in self.edit_manager._staged_changes
         assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_GENERIC] == {}
-        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL]['TIT2'][
+        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL][INTERNAL_TAG][
                    KEY_VALUE] == 'New Title'
-        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL]['TIT2'][
+        assert self.edit_manager._staged_changes[self.dummy_media_file.file_id][KEY_TAG_INTERNAL][INTERNAL_TAG][
                    KEY_PROVIDER] is mock_provider
 
     def test_get_staged_value_for_generic_tag(self):
@@ -596,12 +662,12 @@ class TestEditManager:
     def test_get_staged_value_for_internal_tag(self):
         """Test getting staged value for internal tags."""
         mock_provider = Mock()
-        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Test Title', is_internal_tag=True,
+        self.edit_manager.stage_change([self.dummy_media_file], INTERNAL_TAG, 'Test Title', is_internal_tag=True,
                                        provider=mock_provider)
 
-        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'TIT2',
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, INTERNAL_TAG,
                                                            is_internal_tag=True) == 'Test Title'
-        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, 'TIT2', is_internal_tag=False) is None
+        assert self.edit_manager.get_staged_value_for_file(self.dummy_media_file, INTERNAL_TAG, is_internal_tag=False) is None
 
     def test_get_staged_value_nonexistent_file(self):
         """Test getting staged value for nonexistent file returns None."""
@@ -612,13 +678,13 @@ class TestEditManager:
         # Stage some changes
         self.edit_manager.stage_change([self.dummy_media_file], 'title', 'Test Title')
         mock_provider = Mock()
-        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Internal Title', is_internal_tag=True,
+        self.edit_manager.stage_change([self.dummy_media_file], INTERNAL_TAG, 'Internal Title', is_internal_tag=True,
                                        provider=mock_provider)
 
         changes = self.edit_manager.get_staged_changes_for_file(self.dummy_media_file)
         expected = {
             KEY_TAG_GENERIC: {'title': 'Test Title'},
-            KEY_TAG_INTERNAL: {'TIT2': {KEY_VALUE: 'Internal Title', KEY_PROVIDER: mock_provider}}
+            KEY_TAG_INTERNAL: {INTERNAL_TAG: {KEY_VALUE: 'Internal Title', KEY_PROVIDER: mock_provider}}
         }
         assert changes == expected
 
@@ -628,7 +694,7 @@ class TestEditManager:
         # Stage some changes
         self.edit_manager.stage_change([self.dummy_media_file], 'title', 'Test Title')
         mock_provider = Mock()
-        self.edit_manager.stage_change([self.dummy_media_file], 'TIT2', 'Internal Title', is_internal_tag=True,
+        self.edit_manager.stage_change([self.dummy_media_file], INTERNAL_TAG, 'Internal Title', is_internal_tag=True,
                                        provider=mock_provider)
 
         log.debug(f"dummy_media_file.file_id: {self.dummy_media_file.file_id}")
@@ -652,3 +718,24 @@ class TestEditManager:
         saved_file_ids = emitted_data[0]
 
         assert self.dummy_media_file.file_id in saved_file_ids
+
+
+def test_stage_change_refuses_tags_the_file_cannot_store(temp_media_file_factory):
+    """The staging guard: an unwritable tag is refused before anything is
+    staged, for every file in the call."""
+    from util.exceptions import UnwritableTagsError
+    EditManager._instance = None
+    edit_manager = EditManager()
+    try:
+        mp3 = temp_media_file_factory('sample_dtmf_unicode.mp3')
+        wav = temp_media_file_factory('lyjia_house_claves_delay_120bpm.wav')
+        edit_manager.register_media_files([mp3, wav])
+
+        with pytest.raises(UnwritableTagsError):
+            edit_manager.stage_change([mp3], KEY_REMIXER, 'Someone')
+        with pytest.raises(UnwritableTagsError):
+            edit_manager.stage_change([mp3, wav], 'title', 'Both')
+
+        assert not edit_manager.has_staged_changes()
+    finally:
+        EditManager._instance = None

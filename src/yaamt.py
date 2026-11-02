@@ -20,10 +20,11 @@ from models.edit_manager import EditManager
 from models.media_file import MediaFile
 from models.settings import settings as qsettings
 from providers import get_analyzer_by_name, get_analyzers_by_category, AnalyzerCategory
-from providers.analysis.base import AnalyzerBase
-from workers.analyzer_dispatcher import AnalyzerDispatcher
-from util.const import ALL_TAGS
+from providers.analysis.base import AnalyzerBase, AnalyzerResult
+from workers.analyzer_dispatcher import AnalyzerDispatcher, skip_if_unwritable
+from util.const import ALL_TAGS, ANALYSIS_STATUS_SUCCESS, ANALYSIS_STATUS_SKIPPED, ANALYSIS_STATUS_ERROR
 from util.debug import add_debug_argument, initialize_debug_and_logging
+from util.exceptions import UnwritableTagsError
 from util.logging import log
 from util.version import get_version
 from util.cli_formatters import (
@@ -246,7 +247,7 @@ def cmd_help(args: argparse.Namespace) -> int:
         print("  --version       Show version and exit")
         print("  --check-update  Check the GitHub Releases API for a newer version and exit")
         print("  --verbose       Enable verbose output")
-        print("  --debug      Enable debug mode (default)")
+        print("  --debug         Enable or disable debug mode (default: build-time setting)")
         print()
         print("Use 'yaamt.py help <command>' for more information on a specific command.")
 
@@ -358,8 +359,18 @@ def cmd_write(args: argparse.Namespace) -> int:
     edit_manager = EditManager()
     edit_manager.register_media_files(media_files)
 
+    # Refuse up front, per file, any tag the file's format cannot store; the
+    # other files and tags are still written.
+    refused = False
+    for media_file in media_files:
+        unwritable = media_file.get_unwritable_tags([change['key'] for change in write_ops])
+        if unwritable:
+            print(f"Error: {media_file.file_path}: {UnwritableTagsError(unwritable)}", file=sys.stderr)
+            refused = True
     for change in write_ops:
-        edit_manager.stage_change(media_files, change['key'], change['value'], False)
+        writable_files = [mf for mf in media_files if mf.can_write_tag(change['key'])]
+        if writable_files:
+            edit_manager.stage_change(writable_files, change['key'], change['value'], False)
 
     # Commit changes
     saved_files, errors = edit_manager.commit_changes_sync()
@@ -371,7 +382,17 @@ def cmd_write(args: argparse.Namespace) -> int:
         return SYS_RETURN_ERROR
 
     print(f"Successfully updated {len(saved_files)} file(s)")
+    if refused:
+        return SYS_RETURN_ERROR
     return SYS_RETURN_SUCCESS
+
+
+def analysis_status(result: AnalyzerResult) -> str:
+    """Status word for a CLI result row. Skipped results carry success=True, so
+    the skip must be checked first or they would be counted as successes."""
+    if result.skipped:
+        return ANALYSIS_STATUS_SKIPPED
+    return ANALYSIS_STATUS_SUCCESS if result.success else ANALYSIS_STATUS_ERROR
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
@@ -480,13 +501,15 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         # Run analysis
         analyzer = task.analyzer_class(task.media_file, task.options)
         result = analyzer.analyze()
+        if args.write_tags and not is_batch and result.success and not result.skipped:
+            result = skip_if_unwritable(task.media_file, result.data) or result
         task.result = result
 
         # Format result for display
         result_dict = {
             'filepath': task.media_file.file_path,
             'results': result.data if result.success else {},
-            'status': 'success' if result.success else ('skipped' if result.skipped else 'error'),
+            'status': analysis_status(result),
             'error': result.error if (not result.success or result.skipped) else None
         }
         results.append(result_dict)
@@ -508,17 +531,24 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     # Batch analyzers: run aggregate_results now and stage the merged data.
     if args.write_tags and is_batch:
-        successful = [t for t in tasks if t.result and t.result.success and not t.result.skipped]
+        successful = [(t, r) for t, r in zip(tasks, results)
+                      if t.result and t.result.success and not t.result.skipped]
         if successful:
             try:
-                aggregated = analyzer_class.aggregate_results(successful, analyzer_options)
+                aggregated = analyzer_class.aggregate_results([t for t, _ in successful], analyzer_options)
             except Exception as e:
                 log.error(f"Batch aggregation failed: {e}", exc_info=True)
                 aggregated = {}
-            for task in successful:
+            for task, result_dict in successful:
                 extra = aggregated.get(task.media_file.file_path, {})
                 merged = dict(task.result.data)
                 merged.update(extra)
+                skipped = skip_if_unwritable(task.media_file, merged)
+                if skipped:
+                    print(f"  SKIPPED {task.media_file.file_path} ({skipped.error})")
+                    result_dict['status'] = analysis_status(skipped)
+                    result_dict['error'] = skipped.error
+                    continue
                 for tag_name, tag_value in merged.items():
                     edit_manager_for_writes.stage_change(
                         [task.media_file], tag_name, tag_value,
@@ -541,7 +571,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     write_output(output, args.output_file)
 
     # Return success if at least one file succeeded
-    success_count = sum(1 for r in results if r['status'] == 'success')
+    success_count = sum(1 for r in results if r['status'] == ANALYSIS_STATUS_SUCCESS)
     if success_count > 0:
         print(f"\nSuccessfully analyzed {success_count}/{len(results)} file(s)")
         return SYS_RETURN_SUCCESS

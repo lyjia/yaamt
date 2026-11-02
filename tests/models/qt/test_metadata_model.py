@@ -11,7 +11,8 @@ from models.qt.metadata_model import (
 )
 from util.const import (
     PROJECT_ROOT, KEY_FILE_TYPE_HUMAN, KEY_TITLE, KEY_ARTIST,
-    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_IS_MEDIA, KEY_TAG_GENERIC, IN_GITHUB_RUNNER
+    KEY_ALBUM, KEY_GENRE, KEY_BPM, KEY_INITIAL_KEY, KEY_IS_MEDIA, KEY_TAG_GENERIC, IN_GITHUB_RUNNER,
+    KEY_FILE_ID,
 )
 
 
@@ -132,14 +133,24 @@ def edit_manager():
 def model(columns, edit_manager):
     return MetadataTableModel(columns, edit_manager)
 
+MP3_FIXTURE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "sample_dtmf_unicode.mp3"
+WAV_FIXTURE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "lyjia_house_claves_delay_120bpm.wav"
+
+
+def _load_rows(model, *paths):
+    model._data = [MetadataTableModel.get_metadata_from_media_file(MediaFile(str(p))) for p in paths]
+
+
 def test_flags_editable(model):
     """Test that flags() returns ItemIsEditable for writable columns."""
+    _load_rows(model, MP3_FIXTURE)
     index = model.createIndex(0, 0)
     flags = model.flags(index)
     assert flags & Qt.ItemFlag.ItemIsEditable
 
 def test_flags_not_editable(model):
     """Test that flags() does not return ItemIsEditable for non-writable columns."""
+    _load_rows(model, MP3_FIXTURE)
     index = model.createIndex(0, 1)
     flags = model.flags(index)
     assert not (flags & Qt.ItemFlag.ItemIsEditable)
@@ -172,6 +183,30 @@ def test_set_data_not_writable(model):
     """Test that setData() returns False for non-writable columns."""
     index = model.createIndex(0, 1)
     assert not model.setData(index, "New Artist", role=Qt.ItemDataRole.EditRole)
+
+
+def test_cells_not_editable_when_format_cannot_store_tag(model, edit_manager):
+    """A writable column is still read-only on a row whose file format cannot
+    store the tag (WAV until #74), and setData refuses it."""
+    _load_rows(model, MP3_FIXTURE, WAV_FIXTURE)
+    assert model.flags(model.createIndex(0, 0)) & Qt.ItemFlag.ItemIsEditable
+    assert not (model.flags(model.createIndex(1, 0)) & Qt.ItemFlag.ItemIsEditable)
+    assert not model.setData(model.createIndex(1, 0), "Refused", role=Qt.ItemDataRole.EditRole)
+
+
+def test_multi_row_edit_skips_rows_that_cannot_store_tag(model, edit_manager, tmp_path):
+    """A multi-row edit across mixed formats stages only the files that can store the tag."""
+    import shutil
+    mp3_copy = tmp_path / MP3_FIXTURE.name
+    shutil.copy(MP3_FIXTURE, mp3_copy)
+    _load_rows(model, mp3_copy, WAV_FIXTURE)
+    edit_manager.reset_changes()
+    try:
+        assert model.setDataForRows([0, 1], 0, "Mixed", role=Qt.ItemDataRole.EditRole)
+        assert edit_manager.get_staged_file_ids() == [model._data[0][KEY_FILE_ID]]
+        assert model._data[1][KEY_TITLE] != "Mixed"
+    finally:
+        edit_manager.reset_changes()
 
 
 def test_pending_edit_bold_only_when_autosave_off(model, edit_manager):

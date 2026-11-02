@@ -18,6 +18,15 @@ from windows.preferences.base import PreferencePaneBase
 class GeneralPane(PreferencePaneBase):
     """Preference pane for general application settings."""
 
+    # The only keys this pane owns. "Reset to Default" removes exactly these.
+    # Other "General/..." keys (autosave, the update-check cache) belong to
+    # other parts of the program and must survive a preferences reset.
+    OWNED_SETTINGS_KEYS = (
+        SETTINGS_STARTUP_DIR_MODE, SETTINGS_PREFERRED_DIRECTORY,
+        SETTINGS_PREFERRED_AUDIO_DEVICE, SETTINGS_UI_SKIN,
+        SETTINGS_CHECK_FOR_UPDATES_ON_STARTUP,
+    )
+
     def __init__(self, parent=None):
         """Initialize the GeneralPane."""
         super().__init__(parent)

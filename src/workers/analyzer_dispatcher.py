@@ -23,6 +23,7 @@ from util.const import (
     BPM_RANGE_MIN_DEFAULT, BPM_RANGE_MAX_DEFAULT,
     SETTINGS_ANALYZERS_THREAD_POOL_SIZE, SETTINGS_KEY_NOTATION_FORMAT,
 )
+from util.exceptions import UnwritableTagsError
 from util.logging import log
 
 
@@ -115,6 +116,19 @@ def _analyze_in_process(analyzer_class_name: str, file_path: str, options: dict[
             success=False,
             error=f"Process worker error: {str(e)}\n{traceback.format_exc()}"
         )
+
+
+def skip_if_unwritable(media_file: MediaFile, data: dict[str, Any]) -> AnalyzerResult | None:
+    """
+    Analyzer results are staged all-or-nothing: when the file's format cannot
+    store every result tag, return a skipped result naming those tags instead
+    of staging part of it (a key without its mode comment would mislead).
+    Returns None when every tag can be stored.
+    """
+    unwritable = media_file.get_unwritable_tags(list(data))
+    if not unwritable:
+        return None
+    return AnalyzerResult(success=True, skipped=True, data=data, error=str(UnwritableTagsError(unwritable)))
 
 
 class AnalysisTask:
@@ -696,6 +710,12 @@ class AnalyzerDispatcher(QObject):
                 if 'key_notation_format' in task.options:
                     settings_overrides = {SETTINGS_KEY_NOTATION_FORMAT: task.options['key_notation_format']}
                     log.debug(f"Overriding key notation format to: {task.options['key_notation_format']}")
+
+                skipped = skip_if_unwritable(task.media_file, result_data)
+                if skipped:
+                    log.warning(f"Not staging results for {task.media_file.file_path}: {skipped.error}")
+                    task.result = skipped
+                    return
 
                 # Stage the change through EditManager so the autosave
                 # preference gate is respected. The actual write happens in

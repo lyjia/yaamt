@@ -9,7 +9,7 @@ from models.settings import get_qsettings
 from PySide6.QtGui import QKeySequence, QShortcut
 
 from util.const import (
-    SETTINGS_GROUP_GENERAL, SETTINGS_GROUP_ANALYZERS_PREFERRED,
+    SETTINGS_GROUP_ANALYZERS_PREFERRED,
     SETTINGS_GROUP_ANALYZERS_CATEGORY_OPTIONS, SETTINGS_GROUP_RESOURCES,
     SETTINGS_GROUP_INTEGRATIONS, SETTINGS_GROUP_RENAME,
 )
@@ -222,8 +222,10 @@ class PreferencesWindow(QDialog):
 
     def _clear_all_settings(self) -> None:
         """Clear all preference-related settings from QSettings."""
-        # Clear General settings
-        self.settings.remove(SETTINGS_GROUP_GENERAL)
+        # Clear General settings. Only the pane's own keys: the "General" group
+        # also holds autosave and the update-check cache (issue #84).
+        for key in GeneralPane.OWNED_SETTINGS_KEYS:
+            self.settings.remove(key)
 
         # Clear Analyzer settings
         self.settings.remove(SETTINGS_GROUP_ANALYZERS_PREFERRED)

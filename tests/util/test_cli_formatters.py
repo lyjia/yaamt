@@ -180,6 +180,22 @@ class TestFormatAnalysisResults:
         assert '|' in output
         assert '-' in output
 
+    def test_format_results_table_collapses_multiline_values(self):
+        """A value with line breaks (such as a Serato blob) stays on one row."""
+        results = [
+            {
+                'filepath': '/path/to/song.mp3',
+                'results': {'blob': 'line one' + chr(13) + chr(10) + 'line two' + chr(10)},
+                'status': 'success',
+                'error': None
+            }
+        ]
+
+        output = format_analysis_results(results, 'TestAnalyzer', 'table')
+
+        assert len(output.splitlines()) == 3  # header, separator, one row
+        assert 'line one line two' in output
+
     def test_format_results_json_format(self):
         """Test JSON formatting of analysis results."""
         results = [

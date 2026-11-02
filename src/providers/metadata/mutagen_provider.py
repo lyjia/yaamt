@@ -2,12 +2,19 @@ import traceback
 from argparse import ArgumentError
 from typing import Any
 
+from fnmatch import fnmatchcase
+
 import mutagen
 from mutagen.easyid3 import EasyID3
-from mutagen.easymp4 import EasyMP4Tags
+from mutagen.easymp4 import EasyMP4, EasyMP4Tags
+from mutagen.flac import FLAC
+from mutagen.oggflac import OggFLAC
+from mutagen.oggopus import OggOpus
+from mutagen.oggspeex import OggSpeex
+from mutagen.oggvorbis import OggVorbis
 
 from models.tag_info import TagInfo
-from util.const import KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
+from util.const import KEY_DATE, KEY_BITRATE, KEY_CHANNELS, KEY_FORMAT, KEY_SAMPLE_RATE, KEY_LENGTH, KEY_BITS_PER_SAMPLE, \
     KEY_TOTAL_SAMPLES, ALL_TAGS, KEY_INITIAL_KEY, KEY_ALBUM, KEY_BPM, KEY_COMPOSER, KEY_COPYRIGHT, KEY_ENCODED_BY, \
     KEY_LYRICIST, KEY_LENGTH as KEY_LENGTH_TAG, KEY_MEDIA, KEY_MOOD, KEY_GROUPING, KEY_TITLE, KEY_VERSION, KEY_ARTIST, \
     KEY_ALBUM_ARTIST, KEY_CONDUCTOR, KEY_ARRANGER, KEY_DISC_NUMBER, KEY_ORGANIZATION, KEY_TRACK_NUMBER, KEY_AUTHOR, \
@@ -78,7 +85,32 @@ def comment_delete(id3: Any, key: str) -> None:
     """Delete COMM frame with empty description."""
     id3.delall('COMM:')
 
-EasyID3.RegisterTextKey(KEY_INITIAL_KEY, 'TKEY')
+# Initial key lives in TKEY. foobar2000 converts a FLAC 'INITIALKEY' field to a
+# TXXX:INITIALKEY frame that nothing reads, so it goes stale (issue #89). Such
+# alias frames are updated when the key is set and removed when it is deleted,
+# but never created. Reads use TKEY only. mutagen matches TXXX descriptions
+# case-sensitively, so both cases are listed (as with ReplayGain below).
+_ID3_KEY_FRAME = 'TKEY'
+_ID3_KEY_ALIAS_DESCS = ('INITIALKEY', 'INITIAL KEY')
+_ID3_KEY_ALIAS_FRAMES = tuple(f'TXXX:{d}' for desc in _ID3_KEY_ALIAS_DESCS for d in (desc, desc.lower()))
+
+def initial_key_get(id3: Any, key: str) -> list:
+    return list(id3[_ID3_KEY_FRAME])  # KeyError when absent, as easy mode expects
+
+def initial_key_set(id3: Any, key: str, value: list) -> None:
+    from mutagen.id3 import TKEY, Encoding
+    id3.delall(_ID3_KEY_FRAME)
+    id3.add(TKEY(encoding=Encoding.UTF8, text=value))
+    for alias in _ID3_KEY_ALIAS_FRAMES:
+        if alias in id3:
+            id3[alias].encoding = Encoding.UTF8
+            id3[alias].text = value
+
+def initial_key_delete(id3: Any, key: str) -> None:
+    for frame in (_ID3_KEY_FRAME, *_ID3_KEY_ALIAS_FRAMES):
+        id3.delall(frame)
+
+EasyID3.RegisterKey(KEY_INITIAL_KEY, initial_key_get, initial_key_set, initial_key_delete)
 EasyID3.RegisterKey(KEY_COMMENT, comment_get, comment_set, comment_delete)
 
 # MusicBrainz Recording ID: Picard stores this in a UFID frame (canonical,
@@ -214,6 +246,7 @@ MUT_EASY_TAG_NAMES = ['album',
                       'isrc',
                       'discsubtitle',
                       'language',
+                      KEY_DATE,  # native to EasyID3, Vorbis comments and EasyMP4
                       # added manually, above
                       KEY_INITIAL_KEY,
                       KEY_COMMENT,
@@ -270,6 +303,7 @@ MUTAGEN_TO_GENERIC_MAP = {
     KEY_ACOUSTID_FINGERPRINT: KEY_ACOUSTID_FINGERPRINT,
     KEY_ACOUSTID_SCORE: KEY_ACOUSTID_SCORE,
     'genre': KEY_GENRE,
+    KEY_DATE: KEY_DATE,
     # ReplayGain tags (ID3 TXXX / MP4 freeform / Vorbis comment — all map
     # identically to the same lowercase generic name).
     KEY_REPLAYGAIN_TRACK_GAIN: KEY_REPLAYGAIN_TRACK_GAIN,
@@ -277,6 +311,26 @@ MUTAGEN_TO_GENERIC_MAP = {
     KEY_REPLAYGAIN_TRACK_PEAK: KEY_REPLAYGAIN_TRACK_PEAK,
     KEY_REPLAYGAIN_ALBUM_PEAK: KEY_REPLAYGAIN_ALBUM_PEAK,
 }
+
+
+# Containers whose tags are Vorbis comments: any key name can be written.
+_VORBIS_COMMENT_TYPES = (FLAC, OggFLAC, OggOpus, OggSpeex, OggVorbis)
+
+# Vorbis field names other software uses for a canonical field (issue #89).
+# Most software reads 'INITIALKEY', but foobar2000 uses 'INITIAL KEY' and maps
+# only that to ID3 TKEY when converting to MP3, so both are always written.
+# Reads fall back to an alias when the canonical field is absent; deletes
+# remove them all. Vorbis keys are case-insensitive; mutagen lowercases them.
+_VORBIS_ALIASES = {
+    KEY_INITIAL_KEY: ('initial key',),
+}
+_VORBIS_ALIAS_NAMES = {alias for aliases in _VORBIS_ALIASES.values() for alias in aliases}
+
+
+def _easy_key_supported(setters: dict, key: str) -> bool:
+    """True if an easy-mode setter table handles ``key``, including the
+    wildcard entries such as 'replaygain_*_gain'."""
+    return key in setters or any(fnmatchcase(key, pattern) for pattern in setters if '*' in pattern)
 
 
 class MutagenProvider(MetadataProviderBase):
@@ -310,19 +364,34 @@ class MutagenProvider(MetadataProviderBase):
             raise
 
     def get_tag(self, key: str) -> list | None:
-        if not self._audio:
+        # Note: ``not self._audio`` would be wrong here. mutagen's FileType defines
+        # __len__ as the tag count, so an untagged file is falsy. Compare to None.
+        if self._audio is None:
             return None
 
-        if key in self._audio:
-            return self._audio[key]
+        for name in self._field_names(key):
+            if name in self._audio:
+                return self._audio[name]
 
         return None
 
     def set_tag(self, key: str, value: list) -> None:
-        self._audio[key] = value
+        for name in self._field_names(key):
+            self._audio[name] = value
+
+    def delete_tag(self, key: str) -> None:
+        for name in self._field_names(key):
+            if name in self._audio:
+                del self._audio[name]
+
+    def _field_names(self, key: str) -> tuple[str, ...]:
+        """``key`` followed by its alias field names in this file's format (Vorbis only)."""
+        if isinstance(self._audio, _VORBIS_COMMENT_TYPES):
+            return (key, *_VORBIS_ALIASES.get(key, ()))
+        return (key,)
 
     def get_stream_info(self, key: str) -> Any:
-        if not self._audio:
+        if self._audio is None:
             return None
         if key == KEY_BITRATE:
             return self._audio.info.bitrate
@@ -335,7 +404,7 @@ class MutagenProvider(MetadataProviderBase):
         elif key == KEY_BITS_PER_SAMPLE:
             return getattr(self._audio.info, 'bits_per_sample', None)
         elif key == KEY_TOTAL_SAMPLES:
-            return self._audio.info.length * self._audio.info.channels
+            return round(self._audio.info.length * self._audio.info.sample_rate)
         elif key == KEY_FORMAT:
             return self._audio.info.pprint().split(',')[0]
         return None
@@ -345,13 +414,32 @@ class MutagenProvider(MetadataProviderBase):
             raise SomethingsReallyFuckedUpException("self._audio is None. This should not happen!")
 
         all_tag_keys = set(list(self._audio.keys())) | set(MUT_EASY_TAG_NAMES)
+        if isinstance(self._audio, _VORBIS_COMMENT_TYPES):
+            # Aliases are read and written through their canonical field.
+            all_tag_keys -= _VORBIS_ALIAS_NAMES
         tag_infos = []
 
         for tag_name in sorted(list(all_tag_keys)):
             generic_name = MUTAGEN_TO_GENERIC_MAP.get(tag_name)
-            tag_infos.append(TagInfo(internal_tag_name=tag_name, is_writable=True, generic_tag_name=generic_name))
+            tag_infos.append(TagInfo(internal_tag_name=tag_name, is_writable=self._supports_writing(tag_name),
+                                     generic_tag_name=generic_name))
 
         return tag_infos
+
+    def _supports_writing(self, key: str) -> bool:
+        """
+        Whether this file's container can store ``key`` through easy mode.
+        Reported per file so editors only offer tags that will actually save.
+        """
+        if isinstance(self._audio, _VORBIS_COMMENT_TYPES):
+            return True
+        if isinstance(self._audio, EasyMP4):
+            return _easy_key_supported(EasyMP4Tags.Set, key)
+        if getattr(type(self._audio), 'ID3', None) is EasyID3:
+            return _easy_key_supported(EasyID3.Set, key)
+        # WAV, AIFF and other containers have no easy-mode wrapper: mutagen
+        # hands back raw frames that easy-style writes cannot set (issue #74).
+        return False
 
     def available_stream_info_keys(self) -> list[str]:
         return [KEY_BITRATE, KEY_LENGTH, KEY_SAMPLE_RATE, KEY_CHANNELS, KEY_BITS_PER_SAMPLE, KEY_TOTAL_SAMPLES,
@@ -381,7 +469,7 @@ class MutagenProvider(MetadataProviderBase):
 
     def save(self) -> None:
         # log.debug(f"Saving file: {self._file_path}")
-        if self._write_enabled and self._audio:
+        if self._write_enabled and self._audio is not None:
             try:
                 self._audio.save(self._file_path)
                 log.debug(f"Successfully saved file: {self._file_path}")

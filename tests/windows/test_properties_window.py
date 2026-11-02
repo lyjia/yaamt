@@ -260,3 +260,43 @@ def test_commit_request_handling(qapp, sample_file):
             KEY_TAG_GENERIC: {KEY_TITLE: "New Title", KEY_ARTIST: "New Artist"},
             KEY_TAG_INTERNAL: {}
         })
+
+# --- Fields a selected file's format cannot store are read-only ---
+
+WAV_FIXTURE = PROJECT_ROOT / "tests" / "fixtures" / "metadata" / "lyjia_house_claves_delay_120bpm.wav"
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_main_tab_fields_editable_when_all_files_can_store_them(qapp, sample_file):
+    from windows.properties_tabs.main_tab import MainTab
+    tab = MainTab([sample_file], EditManager())
+    assert tab.title_edit.isEnabled()
+    assert tab.key_edit.isEnabled()
+    # Publisher has no writer for any format yet.
+    assert not tab.publisher_edit.isEnabled()
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_main_tab_fields_disabled_when_any_file_cannot_store_them(qapp, sample_file):
+    """Mixing in a WAV (no writable tags until #74) makes every field
+    disabled, so typing cannot queue an edit that would fail on save."""
+    from windows.properties_tabs.main_tab import MainTab
+    from util.const import TOOLTIP_TAG_NOT_WRITABLE
+    edit_manager = EditManager()
+    edit_manager.reset_changes()
+    wav = MediaFile(str(WAV_FIXTURE))
+    tab = MainTab([sample_file, wav], edit_manager)
+    assert not tab.title_edit.isEnabled()
+    assert tab.title_edit.toolTip() == TOOLTIP_TAG_NOT_WRITABLE
+    tab.title_edit.textEdited.emit("Typed")  # unwired: must stage nothing
+    assert not edit_manager.has_staged_changes()
+
+
+@pytest.mark.skipif(IN_GITHUB_RUNNER, reason="Crashes in github runner on qapp")
+def test_advanced_tab_raw_tags_not_editable_when_file_cannot_store_them(qapp):
+    from windows.properties_tabs.advanced_tab import AdvancedTab
+    tab = AdvancedTab([MediaFile(str(WAV_FIXTURE))], EditManager())
+    root = tab.tree.invisibleRootItem()
+    children = [root.child(i).child(j) for i in range(root.childCount()) for j in range(root.child(i).childCount())]
+    assert children
+    assert not any(child.flags() & Qt.ItemFlag.ItemIsEditable for child in children)

@@ -5,6 +5,7 @@ from typing import Any
 from models.media_file import MediaFile
 from models.tag_info import TagInfo
 from util.const import KEY_TAG_GENERIC, KEY_TAG_INTERNAL, KEY_VALUE, KEY_PROVIDER, KEY_TAG_SETTINGS_OVERRIDES
+from util.exceptions import UnwritableTagsError
 from util.logging import log
 
 # Upper bound for blocking on an in-flight background commit (e.g. at quit
@@ -81,6 +82,10 @@ class EditManager(QObject):
     commit_progress = Signal(int, int)
     commit_finished = Signal(list)  # Signal emitted when commit is successful, with list of file_ids
     commit_failed = Signal(list)  # Signal emitted when commit fails, with list of errors
+    # Emitted after every background commit, before commit_finished/commit_failed,
+    # with the ids of every file that changed on disk (fully or partially saved),
+    # so views can refresh those rows even when other files in the batch failed.
+    files_written = Signal(list)
 
     _instance = None
     _write_lock = threading.Lock()
@@ -102,6 +107,10 @@ class EditManager(QObject):
         self._autosave = True
         self._commit_thread: QThread | None = None
         self._commit_worker: _CommitWorker | None = None
+        # Set when commit_changes() is called while a commit is already
+        # running; the finished handler then starts a follow-up commit so the
+        # newly staged edits are not left unwritten until quit.
+        self._recommit_requested = False
         # Serializes whole save operations against each other (background
         # commit vs. quit-time sync save). Distinct from _write_lock, which
         # only guards the staged-changes dict and must never be held across
@@ -167,7 +176,17 @@ class EditManager(QObject):
             settings_overrides: QSettings values the tag transformers should use for this
                 generic tag instead of the user's preferences (e.g. an analyzer run's key
                 notation format). Restaging the tag without overrides clears them.
+
+        Raises:
+            UnwritableTagsError: if any of the files' formats cannot store ``tag``.
+                Nothing is staged in that case. Filter with MediaFile.can_write_tag first.
         """
+
+        # Backstop for every edit path: editors should only offer tags the
+        # files can store, but never queue an edit that cannot be saved.
+        for media_file in media_files:
+            if not media_file.can_write_tag(tag, is_internal_tag):
+                raise UnwritableTagsError([tag])
 
         # do not try to call self.commit_changes() in here; the caller should handle that.
         with self._write_lock:
@@ -204,7 +223,8 @@ class EditManager(QObject):
         Core save logic that can be used by both synchronous and asynchronous operations.
 
         Returns:
-            Tuple of ``(saved_file_ids, errors)``.
+            Tuple of ``(written_file_ids, errors)``. ``written_file_ids`` includes
+            files where only some tags were written (see UnwritableTagsError).
         """
         log.debug("Starting save operation...")
         saved_file_ids: list[int] = []
@@ -240,6 +260,14 @@ class EditManager(QObject):
                         self._playback_coordinator.acquire_file(media_file.file_path)
                     media_file.save(changes)
                     saved_file_ids.append(file_id)
+                except UnwritableTagsError as e:
+                    # Everything writable was saved. The rest can never succeed
+                    # (writability is fixed per file), so report it once and
+                    # discard it like a saved change instead of retrying it on
+                    # every later commit.
+                    log.error(f"Unwritable tags in {media_file.file_path}: {e.tags}")
+                    errors.append(f"{media_file.file_path}: {e}. These edits were discarded.")
+                    saved_file_ids.append(file_id)
                 except Exception as e:
                     log.error(f"Error saving file {media_file.file_path}: {e}")
                     errors.append(f"{media_file.file_path}: {e}")
@@ -269,6 +297,8 @@ class EditManager(QObject):
         """
         saved_file_ids, errors = self._save_changes_impl()
 
+        if saved_file_ids:
+            self.files_written.emit(saved_file_ids)
         if errors:
             self.commit_failed.emit(errors)
         else:
@@ -290,7 +320,8 @@ class EditManager(QObject):
             return False
 
         if self._commit_thread is not None and self._commit_thread.isRunning():
-            log.warning("Save is already in progress.")
+            log.debug("Save is already in progress; a follow-up commit will run when it finishes.")
+            self._recommit_requested = True
             return False
 
         if not self.has_staged_changes():
@@ -330,6 +361,11 @@ class EditManager(QObject):
         if self._commit_thread is thread:
             self._commit_thread = None
             self._commit_worker = None
+        if self._recommit_requested:
+            self._recommit_requested = False
+            # Edits staged during the commit that just finished (autosave
+            # on) would otherwise stay staged until quit.
+            self.commit_changes()
 
     def wait_for_pending_commit(self, timeout_ms: int = DEFAULT_COMMIT_WAIT_TIMEOUT_MS) -> bool:
         """
