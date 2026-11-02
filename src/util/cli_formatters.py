@@ -20,6 +20,7 @@ from pathlib import Path
 from providers import get_analyzers_by_category, get_all_categories, get_analyzer_by_name, ProviderType
 from providers.analysis import AnalyzerBase, AnalyzerCategory
 from util.analyzer_options import AnalyzerOption, get_common_analyzer_options
+from util.const import ANALYSIS_STATUS_SKIPPED, ANALYSIS_STATUS_ERROR
 
 
 def format_analyzer_list(category_filter: str | None = None) -> str:
@@ -286,6 +287,12 @@ def _format_as_list(
     return '\n'.join(output_lines)
 
 
+def _table_cell(value: Any) -> str:
+    """One-line text for a table cell. Values with line breaks (for
+    example Serato's base64 blobs) would otherwise spill into extra rows."""
+    return ' '.join(str(value).split())
+
+
 def _format_as_table(
     rows: list[dict[str, Any]],
     columns: list[str],
@@ -324,7 +331,7 @@ def _format_as_table(
 
         # Update widths for other columns
         for idx, col in enumerate(columns, start=2):
-            value_str = str(row.get(col, '-'))
+            value_str = _table_cell(row.get(col, '-'))
             col_widths[idx] = max(col_widths[idx], len(value_str))
 
     # Format header
@@ -355,7 +362,7 @@ def _format_as_table(
 
         # Other columns
         for idx, col in enumerate(columns, start=2):
-            value_str = str(row.get(col, '-'))
+            value_str = _table_cell(row.get(col, '-'))
             row_parts.append(value_str.ljust(col_widths[idx]))
 
         output_lines.append(' | '.join(row_parts))
@@ -405,9 +412,9 @@ def format_analysis_results(
 
         # Add status and error
         status = result.get('status', '')
-        if status == 'error' and result.get('error'):
+        if status == ANALYSIS_STATUS_ERROR and result.get('error'):
             status_display = f"Error: {result['error']}"
-        elif status == 'skipped' and result.get('error'):
+        elif status == ANALYSIS_STATUS_SKIPPED and result.get('error'):
             status_display = f"Skipped: {result['error']}"
         else:
             status_display = status

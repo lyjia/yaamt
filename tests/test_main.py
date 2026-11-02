@@ -5,7 +5,9 @@ import sys
 from unittest.mock import patch, MagicMock
 import pytest
 from mutagen.easyid3 import EasyID3
-from yaamt import main, SYS_RETURN_ERROR, SYS_RETURN_FILE_NOT_FOUND, SYS_RETURN_FILE_INVALID, SYS_RETURN_SUCCESS
+from yaamt import main, analysis_status, SYS_RETURN_ERROR, SYS_RETURN_FILE_NOT_FOUND, SYS_RETURN_FILE_INVALID, SYS_RETURN_SUCCESS
+from providers.analysis.base import AnalyzerResult
+from util.const import ANALYSIS_STATUS_SUCCESS, ANALYSIS_STATUS_SKIPPED, ANALYSIS_STATUS_ERROR
 
 # Fixture file to use for testing
 SOURCE_FILE = os.path.join(os.path.dirname(__file__), "fixtures/metadata/sample_dtmf_unicode.mp3")
@@ -129,6 +131,31 @@ class TestMainCli:
 
         audio = EasyID3(str(test_file))
         assert audio['encodedby'] == ['TestEncoder']
+
+    def test_analysis_status_reports_skipped_before_success(self):
+        """Skipped results carry success=True and must not count as successes."""
+        assert analysis_status(AnalyzerResult(success=True, skipped=True, error='x')) == ANALYSIS_STATUS_SKIPPED
+        assert analysis_status(AnalyzerResult(success=True, data={})) == ANALYSIS_STATUS_SUCCESS
+        assert analysis_status(AnalyzerResult(success=False, error='x')) == ANALYSIS_STATUS_ERROR
+
+    def test_analyze_write_on_unwritable_format_reports_skipped(self, tmp_path, mock_argv, capsys):
+        """`analyze -w` on a file that cannot store the result reports the file
+        as skipped in the results and exits with an error, not success."""
+        wav_source = os.path.join(os.path.dirname(__file__), "fixtures/metadata/lyjia_house_claves_delay_120bpm.wav")
+        test_file = tmp_path / "test.wav"
+        shutil.copy(wav_source, test_file)
+        report = tmp_path / "report.json"
+        mock_argv.extend(['analyze', 'LibrosaChromagramKeyAnalyzer', '-w', '-f', 'json',
+                          '-o', str(report), str(test_file)])
+
+        exit_code = main()
+
+        assert exit_code == SYS_RETURN_ERROR
+        captured = capsys.readouterr()
+        rows = json.loads(report.read_text(encoding='utf-8'))
+        assert rows[0]['status'] == ANALYSIS_STATUS_SKIPPED
+        assert 'initialkey' in rows[0]['error']
+        assert 'Successfully analyzed' not in captured.out
 
     def test_write_refuses_tags_the_format_cannot_store(self, tmp_path, mock_argv, capsys):
         """Unwritable tags are refused up front with the file and tag named;

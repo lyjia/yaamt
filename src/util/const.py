@@ -414,3 +414,8 @@ SAMPLE_RENAME_METADATA = {
 
 # Filename extension tacked on to the sample label output.
 SAMPLE_RENAME_EXTENSION = ".mp3"
+
+# Per-file status words in CLI analysis results.
+ANALYSIS_STATUS_SUCCESS = 'success'
+ANALYSIS_STATUS_SKIPPED = 'skipped'
+ANALYSIS_STATUS_ERROR = 'error'
