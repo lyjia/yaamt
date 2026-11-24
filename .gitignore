@@ -583,3 +583,6 @@ tmp/*
 # PyInstaller (keep yaamt.spec - our unified build spec)
 *.spec
 !yaamt.spec
+
+# Claude Code
+.claude/settings.local.json
